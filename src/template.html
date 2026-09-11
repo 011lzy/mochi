@@ -2298,7 +2298,8 @@
           <div class="set-group glass">
             <div class="gs-row"><span>梦角自由造句</span><label class="toggle"><input type="checkbox" id="mjf-en"><span class="tk"></span></label></div>
             <div class="gs-row"><span>触发概率</span><div class="stepper" data-k="mjf-prob" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="mjf-prob-val" readonly><button class="stp-max">+</button></div></div>
-            <div class="gs-sub">自由选择开关（默认关）：开启后梦角（联系人）说话按「触发概率」随机重造句：像撤回消息一样把一句话的尾巴按词典词边界截掉，留下的前缀就是新句子（如「今天也要好好爱自己，晚安哦」→「今天也要好好爱自己」）；也有小概率变成词间加逗号/空格的温和变形。气泡下带「梦角自由造句」小标签；造出的新句自动存进 字卡库→自定义聊天字卡→梦角自由造句 分类，可在那里查看/删除，也会作为语料被再次抽用。语料来自你自建的聊天字卡（至少 4 个汉字的文本卡）。概率 0 = 不触发</div>
+            <div class="gs-row"><span>撤回式截断</span><label class="toggle"><input type="checkbox" id="mjf-recall"><span class="tk"></span></label></div>
+            <div class="gs-sub">自由选择开关（默认关）：开启后梦角（联系人）说话按「触发概率」随机重造句，气泡下带「梦角自由造句」小标签。造句形态由「撤回式截断」切换：<br>· 开（默认）＝撤回式——像撤回消息一样把一句话的尾巴按词典词边界截掉，留下的前缀就是新句子（如「今天也要好好爱自己，晚安哦」→「今天也要好好爱自己」），另有小概率变成词间加逗号/空格的温和变形；<br>· 关＝旧式多手法——截词补语气词、词间加逗号/空格、句尾加语气后缀、删句尾字随机。<br>造出的新句自动存进 字卡库→自定义聊天字卡→梦角自由造句 分类，可在那里查看/删除，也会作为语料被再次抽用。语料来自你自建的聊天字卡（至少 4 个汉字的文本卡）。概率 0 = 不触发</div>
           </div>
           <div class="gs-title">主动发送（联系人找你）</div>
           <div class="set-group glass">

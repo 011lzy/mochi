@@ -13,6 +13,11 @@
 // 接线：build.mjs jsFiles；chat.js replyOnce 消费 window.dreamFreePick（气泡带「梦角自由造句」tag）。
 // 纯本地，无网络请求。
 (function () {
+  // 补位词池：截词处替换用的语气/可爱系词（#328 旧式多手法 cutfill 用）
+  const FILL_WORDS = ['想你', '抱抱', '亲亲', '嘿嘿', '哦', '呀', '啦', '嘛', '呢', '哼',
+    '想你了', '最喜欢你', '晚安', '早安', '嘿嘿嘿', '哼哼', '呜呜', '嘻嘻', '好耶', '喵'];
+  // 句尾后缀池（#328 旧式多手法 suffix 用）
+  const SUFFIXES = ['呀', '啦', '哦', '呢', '嘛', '哟', '哈', '嘿嘿'];
   let lastSrc = '';     // 连续防复读：上一条造句的源卡不立刻重抽
   let segDict = null;   // 切词词典缓存（词库* 分组构建一次）
   let segMax = 4;       // 正向最大匹配窗口（随词典最长词增长，上限 8）
@@ -92,9 +97,22 @@
     return (out !== str && out.length >= 4) ? out : null;
   }
   // 重造句：s = 源句，mode = 手法。造不出（句太短/无可插边界）返回 null。
+  // #328：mode='cutfill'/'suffix'/'tailcut' 为旧式多手法（mjf-recall=0 时可选回退）
   function rebuild(s, mode) {
     const str = String(s == null ? '' : s);
     if (mode === 'recall') return recallCut(str);
+    if (mode === 'suffix') {
+      const base = str.replace(/[，。！？、…～\s]+$/, '');
+      if (base.length < 3) return null;
+      const out = base + SUFFIXES[Math.floor(Math.random() * SUFFIXES.length)];
+      return out !== str ? out : null;
+    }
+    if (mode === 'tailcut') {
+      const base = str.replace(/[，。！？、…～\s]+$/, '');
+      if (base.length < 4) return null;
+      const cut = 1 + Math.floor(Math.random() * Math.min(2, base.length - 2));
+      return base.slice(0, base.length - cut);
+    }
     const toks = segment(str);
     if (toks.length < 3) return null;
     const gaps = [];
@@ -103,6 +121,14 @@
     }
     if (!gaps.length) return null;
     const gi = gaps[Math.floor(Math.random() * gaps.length)];
+    if (mode === 'cutfill') {
+      // 旧式：抽掉切点后的一个词、原位补语气词
+      const rest = toks.slice(gi);
+      const wi = Math.floor(Math.random() * rest.length);
+      const fill = FILL_WORDS[Math.floor(Math.random() * FILL_WORDS.length)];
+      const out = toks.slice(0, gi).join('') + fill + rest.filter((_, k) => k !== wi).join('');
+      return out !== str ? out : null;
+    }
     const sep = mode === 'comma' ? '，' : ' ';
     const out = toks.slice(0, gi).join('') + sep + toks.slice(gi).join('');
     return out !== str ? out : null;
@@ -115,11 +141,19 @@
       if (!isFinite(prob) || prob <= 0 || Math.random() * 100 >= prob) return null;
       const pool = corpusPool();
       if (!pool.length) return null;
+      // #328 形态切换：mjf-recall=1（默认）＝撤回式 50% + 逗号/空格各 25%；
+      // mjf-recall=0＝旧式多手法（截词补词/加逗号/加空格/句尾后缀/删尾字五选一）
+      const OLD_MODES = ['cutfill', 'comma', 'space', 'suffix', 'tailcut'];
+      const oldMode = OLD_MODES[Math.floor(Math.random() * OLD_MODES.length)];
       for (let t = 0; t < 8; t++) {
         const s = pool[Math.floor(Math.random() * pool.length)];
         if (s === lastSrc) continue;
-        const r = Math.random();
-        const mode = r < 0.5 ? 'recall' : (r < 0.75 ? 'comma' : 'space');
+        let mode;
+        if (c['mjf-recall'] === 0) mode = oldMode;
+        else {
+          const r = Math.random();
+          mode = r < 0.5 ? 'recall' : (r < 0.75 ? 'comma' : 'space');
+        }
         const txt = rebuild(s, mode);
         if (txt && txt !== s) { lastSrc = s; return { text: txt, src: s }; }
       }

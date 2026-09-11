@@ -76,6 +76,23 @@ ok(got && got.text !== got.src, 'B5 新句与源句不同（真的截断重造�
 ok(pick({ 'mjf-en': 0, 'mjf-prob': 100 }) === null, 'B1 mjf-en=0 → 不触发（默认关）');
 ok(pick({ 'mjf-en': 1, 'mjf-prob': 0 }) === null, 'B2 mjf-prob=0 → 不触发');
 ok(pick(null) === null, 'B3 cfg 缺失 → 不触发');
+// #328 旧式多手法（mjf-recall=0）：80 掷应大量出现补词/后缀/插符类手法
+const FILL = /(想你|抱抱|亲亲|嘿嘿|哦|呀|啦|嘛|呢|哼|想你了|最喜欢你|晚安|早安|嘿嘿嘿|哼哼|呜呜|嘻嘻|好耶|喵)/;
+let oldStyle = 0;
+for (let i = 0; i < 80; i++) {
+  const r = pick({ 'mjf-en': 1, 'mjf-prob': 100, 'mjf-recall': 0 });
+  if (!r) continue;
+  if (FILL.test(r.text) || /[呀啦哦呢嘛哟哈]$/.test(r.text) || r.text.includes('，') || r.text.includes(' ') || r.src.indexOf(r.text) === 0) oldStyle++;
+}
+ok(oldStyle >= 60, 'B6 #328 mjf-recall=0 旧式五手法可用（80 掷合法 ' + oldStyle + '）');
+// #328 默认（mjf-recall=1）：撤回式/温和形态为主（不为原句、必为前缀或插符变形）
+let defRecall = 0;
+for (let i = 0; i < 60; i++) {
+  const r = pick({ 'mjf-en': 1, 'mjf-prob': 100, 'mjf-recall': 1 });
+  if (!r) continue;
+  if (r.src.indexOf(r.text) === 0 || r.text.includes('，') || r.text.includes(' ')) defRecall++;
+}
+ok(defRecall >= 50, 'B7 #328 mjf-recall=1 默认撤回式/温和形态（60 掷合法 ' + defRecall + '）');
 
 // —— C 入库 API（沙盒模拟 chatcard 内存 groups + ccAppendCards 双作用域语义）——
 // 直接用真实源码太重（依赖 DOM），按 ccAppendCards 同语义打桩验证 dreamFreeSave 调用契约
@@ -126,8 +143,9 @@ const cc = readFileSync(join(root, 'src/js/chatcard.js'), 'utf8');
 ok(bm.includes("'quote-spell.js', 'dream-free.js',"), 'D1 build.mjs jsFiles 已登记 dream-free.js');
 ok(cc.includes("const CC_FUNC_KEYS = ['fish', 'eat', 'period', 'water', 'garden', 'sync', 'reach', 'cjian', 'room', 'piggy', 'drift', 'interact', 'music',\n    'mjfree'];"), 'D2 chatcard.js CC_FUNC_KEYS 含 mjfree（进管理页/不进聊天池）');
 ok(chat.includes("tag: '梦角自由造句'") && chat.includes('window.dreamFreePick && window.dreamFreePick(c)'), 'D3 chat.js replyOnce 接入+tag');
-ok(rs.includes("'mjf-en': 0, 'mjf-prob': 20,") && (rs.match(/'qs-multi', 'mjf-en'\]/g) || []).length === 3, 'D4 reply-settings DEFAULTS+三处清单（#323 后清单含 qs-multi）');
+ok(rs.includes("'mjf-en': 0, 'mjf-prob': 20,") && (rs.match(/'mjf-en', 'mjf-recall'\]/g) || []).length === 3, 'D4 reply-settings DEFAULTS+三处清单（#328 后清单含 mjf-recall）');
 ok(tpl.includes('id="mjf-en"') && tpl.includes('data-k="mjf-prob"'), 'D5 template 回复设置「梦角自由造句」组');
+ok(tpl.includes('id="mjf-recall"') && rs.includes("'mjf-recall': 1,") && (rs.match(/'mjf-en', 'mjf-recall'\]/g) || []).length === 3, 'D5b #328 「撤回式截断」形态切换开关（template+DEFAULTS+三清单）');
 ok(rs.includes('梦角自由造句开启失败') && rs.includes('梦角自由造句已开启') && rs.includes('mjf-probe'), 'D5b #324 开关切换 toast 提示（成功/失败）+存储探针在位');
 ok(tpl.includes('data-type="mjfree"'), 'D6 template 字卡库「梦角自由造句」tab');
 
