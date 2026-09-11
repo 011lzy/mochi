@@ -3515,11 +3515,13 @@
     // v3.32.x：三大入口 tab 分区隔离——「其他互动功能字卡」入口只显示 13 个功能分类，
     // 公用/专属入口只显示 7 个基础分类（用户反馈：功能页不应看到基础分类，且三入口
     // 要分开）。hidden 每次进页重建，入口互不残留
+    // #317：mjfree（梦角自由造句）例外——用户要求在【可自定义字卡】（公用/专属入口）
+    // 也能看到它，两个入口都显示该 tab
     const ccFuncOnly = CC_FUNC_KEYS.indexOf(cur) >= 0;
     tabsWrap.querySelectorAll('.cc-tab').forEach(t => {
       const isFunc = CC_FUNC_KEYS.indexOf(t.dataset.type) >= 0;
       t.classList.toggle('sel', t.dataset.type === cur);
-      t.hidden = ccFuncOnly ? !isFunc : isFunc;
+      t.hidden = ccFuncOnly ? !isFunc : (isFunc && t.dataset.type !== 'mjfree');
     });
     document.querySelectorAll('.page').forEach(p => p.hidden = true);
     const ccPage = document.getElementById('page-custom-cards');
