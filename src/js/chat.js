@@ -1329,7 +1329,9 @@ const dcfg = (window.defaultCardCfg && window.defaultCardCfg()) || {};
 const isOff = window.isDefaultCardOff || null;
 const useChat = window.defaultCardUse ? window.defaultCardUse('chat') : true;
 const catOn = window.defaultCardCat || (() => true);
-if (dcfg.enabled !== false && useChat) {
+// #316 防未成年人锁：锁定时系统预设字卡整体不入池（上面自建字卡已照常入池，不受影响）
+const sysLocked = !(window.cardLockOpen && window.cardLockOpen());
+if (dcfg.enabled !== false && useChat && !sysLocked) {
 // v3.26.x #157：默认主字卡只在自定义 text 池为空时兜底并入——原实现开启即把 4600+
 // 张默认主字卡无条件全量并入回复池，「整体概率」dc-overall（如 5%）只管 genOneReply
 // 里 drawCards 那条混入路径，对池子本身无效：650 张自定义对 4600+ 默认均匀随机抽取，

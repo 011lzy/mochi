@@ -39,81 +39,62 @@ const groupsBase = (D && D.dict) || [];
 const groupsExt = (D && D.dict_ext) || [];
 const allGroups = groupsBase.concat(groupsExt);
 const quotesG = allGroups.filter(g => g[0].indexOf('语录') === 0);
-const wordsG = allGroups.filter(g => g[0].indexOf('词库') === 0);
+const wordsG = allGroups.filter(g => g[0].indexOf('词库') === 0 || (D.dict_ext || []).some(eg => eg[0] === g[0]));
 const quotes = quotesG.reduce((a, g) => a.concat(g[1] || []), []);
 const words = wordsG.reduce((a, g) => a.concat(g[1] || []), []);
-ok(allGroups.length >= 4, 'A1 词典分类存在：基础+扩展共 ' + allGroups.length + ' 组（语录/词库·双字/三字/四字/五字+…）');
+ok(allGroups.length >= 4, 'A1 词典分类存在：基础+扩展共 ' + allGroups.length + ' 组');
 ok(quotes.length >= 100, 'A2 语录分组 ≥100 条（实际 ' + quotes.length + '）');
-ok(words.length >= 20000, 'A3 词库（基础+扩展）≥20000 条＝真词典（实际 ' + words.length + '）');
+// v25 白名单模式：扩展库为人工精选日常+情侣词（1414 词），黑名单清剿模式已废弃
+ok(words.length >= 1200, 'A3 词库（基础+扩展）≥1200 条＝白名单真词典（实际 ' + words.length + '）');
 const all = quotes.concat(words);
 const dups = all.filter((x, i) => all.indexOf(x) !== i);
 ok(dups.length === 0, 'A4 词典分类无重复字卡', dups.slice(0, 5).join(','));
-ok(allGroups.some(g => g[0].indexOf('词库') === 0 && (g[1] || []).length > 5000), 'A5 扩展词库按字数分组在位（万词级大组存在）');
+ok((D.dict_ext || []).length >= 10, 'A5 扩展词库按生活场景分组在位（' + (D.dict_ext || []).length + ' 组：美食/起居/亲密/情感/称谓…）');
 
-// —— B 切词 ——
-const split = w.quoteSpellSplit;
-let badLen = null, badSeg = null, badJoin = null;
-for (const q of quotes) {
-  const segs = split(q);
-  if (segs.length < 2 || segs.length > 7) badLen = badLen || (q + ' → ' + segs.length + '段: ' + JSON.stringify(segs));
-  if (segs.some(s => !s || !s.trim())) badSeg = badSeg || q;
-  if (segs.join('') !== q.replace(/\s+/g, '')) badJoin = badJoin || (q + ' ≠ ' + segs.join(''));
-}
-ok(!badLen, 'B1 全部语录切出 2~7 段', badLen);
-ok(!badSeg, 'B2 全部语录切分无空段', badSeg);
-ok(!badJoin, 'B3 切段拼接可还原原句', badJoin);
-ok(split('今晚的月色真美').includes('月色'), 'B4 样例：今晚的月色真美 含「月色」词段', JSON.stringify(split('今晚的月色真美')));
-ok(split('我想马上去见你').includes('马上'), 'B5 样例：我想马上去见你 含「马上」词段');
-ok(JSON.stringify(split('good morning')) === JSON.stringify(['good', 'morning']), 'B6 英文按整段切分', JSON.stringify(split('good morning')));
-ok(JSON.stringify(split('想你。')) === JSON.stringify(['想你。']), 'B7 句尾标点吸附到最后一段', JSON.stringify(split('想你。')));
-ok(split('abc想你了').join('').indexOf('abc') === 0, 'B8 中英混排不丢内容', JSON.stringify(split('abc想你了')));
+// —— B 语录字卡完整性（v27：语录=完整字卡，永不拆分）——
+// v27：「今晚的月色真美」是一张完整的字卡，拼字=卡片拼卡片。语录必须原样在池中。
+const badQuote = quotes.filter(q => typeof q !== 'string' || !q.trim() || q.indexOf('\n') >= 0);
+ok(badQuote.length === 0, 'B1 语录池内每条=一张完整字卡（非空、单行）', badQuote.slice(0, 3).join(','));
+ok(quotes.some(q => q.indexOf('今晚的月色真美') >= 0 || q.indexOf('月色') >= 0), 'B2 样例：语录字卡完整在池（月色系语录未被拆散）');
+ok(quotes.every(q => (q.match(/[\u4e00-\u9fff]/g) || []).length >= 2), 'B3 每张语录字卡至少 2 个汉字（可独立成卡）');
 
 // —— C 闸门 ——
 // #310 起 pick 可能返回 {segs, one}（单气泡形态），断言用 norm 归一两种形态
 const norm = (r) => (r && Array.isArray(r.segs)) ? r.segs : r;
+// —— C 闸门（v27：抽卡门返回 {segs: 完整语录数组 2~5 张, one:false}）——
+const POOLSET = new Set(quotes.filter(q => typeof q === 'string' && q.length >= 2 && q.length <= 26
+  && q.indexOf('data:') !== 0 && q.indexOf('|||') < 0 && !/[\uD800-\uDBFF]/.test(q)
+  && (q.match(/[\u4e00-\u9fff]/g) || []).length >= 2));
 const pick = w.quoteSpellPick;
 ok(pick({ 'qs-en': 0, 'qs-prob': 100 }) === null, 'C1 qs-en=0 → 不拼字');
 ok(pick({ 'qs-en': 1, 'qs-prob': 0 }) === null, 'C2 qs-prob=0 → 不拼字');
 ok(pick(null) === null, 'C3 cfg 缺失 → 不拼字（原样回复）');
 let got = null;
-for (let i = 0; i < 50 && !got; i++) got = norm(pick({ 'qs-en': 1, 'qs-prob': 100, 'qs-cc': 0, 'qs-one': 0 }));
-ok(Array.isArray(got) && got.length >= 2 && got.length <= 7, 'C5 概率 100% 必中且 2~7 段', JSON.stringify(got));
-ok(Array.isArray(got) && got.join('').length >= 3, 'C6 抽中内容非空');
+for (let i = 0; i < 50 && !got; i++) got = pick({ 'qs-en': 1, 'qs-prob': 100, 'qs-cc': 0 });
+ok(got && Array.isArray(got.segs) && got.one === false, 'C5 概率 100% 必中且返回 {segs, one:false} 整卡形态', JSON.stringify(got));
+ok(got && got.segs.length >= 2 && got.segs.length <= 5, 'C6 抽卡条数 2~5 张（复用 py-min/py-max）', got ? got.segs.length : 'null');
+ok(got && got.segs.every(sg => POOLSET.has(sg)), 'C7 每张卡都是完整语录字卡（不拆分）', got ? JSON.stringify(got.segs) : 'null');
 got = null;
-for (let i = 0; i < 50 && !got; i++) got = norm(pick({ 'qs-en': 1, 'qs-prob': 100, 'qs-cc': 1, 'qs-one': 0 }));
-ok(Array.isArray(got) && got.length >= 2 && got.length <= 7, 'C7 qs-cc=1 混用字卡池同样可抽中');
+for (let i = 0; i < 50 && !got; i++) got = pick({ 'qs-en': 1, 'qs-prob': 100, 'qs-cc': 1 });
+ok(got && Array.isArray(got.segs) && got.segs.length >= 2, 'C8 qs-cc=1 混用自定义字卡池同样可抽中');
+ok(got && got.segs.every(sg => typeof sg === 'string' && sg.trim()), 'C9 混池抽中的每张卡也是完整内容（不拆分）');
 
-// —— H #310 单气泡拼字（行为级）——
-// qs-one=0：60 次掷样只允许返回纯数组（逐词连发形态）
-let sawObj = false, h1Array = null;
-for (let i = 0; i < 60 && !h1Array && !sawObj; i++) {
-  const r = pick({ 'qs-en': 1, 'qs-prob': 100, 'qs-cc': 0, 'qs-one': 0 });
+// —— H v27 整卡连发（行为级）——
+// 60 掷：全部返回 {segs: 完整语录数组, one:false}，无单字拆分、无 one:true 形态
+let sawCharSplit = false, h2Count = 0, h2Bad = null;
+for (let i = 0; i < 60; i++) {
+  const r = pick({ 'qs-en': 1, 'qs-prob': 100, 'qs-cc': 0 });
   if (!r) continue;
-  if (r && Array.isArray(r.segs)) sawObj = true;
-  else h1Array = r;
+  if (!r || !Array.isArray(r.segs) || r.one !== false) { h2Bad = h2Bad || '形态错误'; break; }
+  h2Count++;
+  // 关键断言：每张卡必须是池中原样的完整语录（不允许「今」「晚」这类拆字卡）
+  r.segs.forEach(sg => {
+    if (!POOLSET.has(sg)) { h2Bad = h2Bad || sg; sawCharSplit = true; }
+  });
 }
-ok(!sawObj && Array.isArray(h1Array) && h1Array.length >= 2 && h1Array.length <= 7, 'H1 qs-one=0 只返回纯数组（逐词连发）', JSON.stringify(sawObj ? '出现对象形态' : h1Array));
-// #315：qs-one=1（默认）＝全部返回整卡拼接形态 {segs, one:true}，segs=2~3 张完整语录字卡（不切词）
-const POOLSET = new Set(quotes.filter(q => typeof q === 'string' && q.length >= 3 && q.length <= 26
-  && q.indexOf('data:') !== 0 && q.indexOf('|||') < 0 && !/[\uD800-\uDBFF]/.test(q)
-  && (q.match(/[\u4e00-\u9fff]/g) || []).length >= 2));
-let oneCount = 0, allOk = true, badCard = null;
-for (let i = 0; i < 120; i++) {
-  const r = pick({ 'qs-en': 1, 'qs-prob': 100, 'qs-cc': 0, 'qs-one': 1 });
-  if (!r) continue;
-  if (!Array.isArray(r.segs) || r.one !== true) { allOk = false; break; }
-  oneCount++;
-  if (r.segs.length < 2 || r.segs.length > 5) allOk = false;
-  r.segs.forEach(sg => { if (!POOLSET.has(sg)) { allOk = false; badCard = badCard || sg; } });
-}
-ok(allOk && oneCount >= 100, 'H2 #316 qs-one=1 全部为整卡拼接形态且条数随多字卡设置 2~5（120 掷单气泡 ' + oneCount + '）');
-ok(!badCard, 'H3 整卡拼接的每段都是完整语录字卡（不切词）', badCard);
-let oneSegs = null;
-for (let i = 0; i < 60 && !oneSegs; i++) {
-  const r = pick({ 'qs-en': 1, 'qs-prob': 100, 'qs-cc': 0, 'qs-one': 1 });
-  if (r && Array.isArray(r.segs) && r.one === true) oneSegs = r.segs;
-}
-ok(oneSegs && oneSegs.join(' ').length >= 3 && oneSegs.every(sg => POOLSET.has(sg)), 'H4 拼接结果=语录字卡空格连卡（如「今天也要好好爱自己 晚安」整卡出现）', JSON.stringify(oneSegs));
+ok(h2Count >= 40 && !h2Bad, 'H1 60 掷全部=完整语录字卡逐条连发（零拆字）', h2Bad || (h2Count + ' 次有效'));
+ok(!sawCharSplit, 'H2 抽中的每张卡都原样来自语录池（「今晚的月色真美」整卡出现）', sawCharSplit ? '出现拆字卡' : '');
+ok(POOLSET.has('今晚的月色真美') || [...POOLSET].some(q => q.indexOf('月色') >= 0), 'H3 月色系语录以完整字卡形态在池');
 
 // —— D 接线（源码级）——
 const chat = readFileSync(join(root, 'src/js/chat.js'), 'utf8');
@@ -144,32 +125,31 @@ ok(bm.includes("needle: \"const gw = base.find(g => g[0].indexOf('词库') === 0
 ok(bm.includes("'default-cards-data.js', 'dict-ext-data.js', 'default-cards.js'"), 'E8 build.mjs jsFiles 已登记 dict-ext-data.js（先于 default-cards.js）');
 
 // —— F #301 v2：自建词动态词长（行为级：>4 字的词参与切分）——
-const presetDictBak = JSON.parse(JSON.stringify(w.DEFAULT_CARD_DATA.dict));
-w.DEFAULT_CARD_DATA.dict = [['词库', ['蹦蹦跳跳跳']]];
-w.quoteSpellResetDict();
-ok(split('我们蹦蹦跳跳跳').includes('蹦蹦跳跳跳'), 'F1 自建 5 字词按整词切分', JSON.stringify(split('我们蹦蹦跳跳跳')));
-w.DEFAULT_CARD_DATA.dict = presetDictBak;
-w.quoteSpellResetDict();
-ok(split('蹦蹦跳跳跳')[0] !== '蹦蹦跳跳跳', 'F2 词典缓存重置生效（恢复后不再切出该词）');
-ok(split('今天天气很好').includes('天气'), 'F3 扩展词库参与切分：今天天气很好 → 含「天气」', JSON.stringify(split('今天天气很好')));
-ok(split('我想去北京吃火锅').includes('火锅') && !split('我想去北京吃火锅').includes('北京'), 'F4 普通词「火锅」整词切分，地名「北京」已剔除', JSON.stringify(split('我想去北京吃火锅')));
+// v27：切词引擎已整体移除（拼字卡=整张语录字卡连发），原 F 组切词断言随之废弃；
+// 词库只作字卡库展示，拆卡/切词行为由 H 组「零拆字」断言守卫。
 // —— G #301 v4：专名过滤（情侣场景，词典不含地名/机构/人名）——
 const extAll = new Set();
-(D.dict_ext || []).forEach(g => { if (String(g[0]).indexOf('词库') === 0) (g[1] || []).forEach(x => extAll.add(x)); });
+// v25 白名单模式：扩展库组名为生活场景名（美食饮品/情感心情/…），全部计入
+(D.dict_ext || []).forEach(g => (g[1] || []).forEach(x => extAll.add(x)));
 const baseAll = new Set();
 ((D.dict || []).filter(g => String(g[0]).indexOf('词库') === 0)).forEach(g => (g[1] || []).forEach(x => baseAll.add(x)));
 const placeWords = ['中国', '北京', '上海', '天安门', '人民政府', '国务院', '鄂州', '鄂州市', '广东', '深圳', '解放军', '共产党',
   // #301 v5 情侣日常过滤：政治/军事/犯罪/金融/宗教/帝制/病灾/IT 样例
   '军队', '战争', '武器', '警察', '犯罪', '监狱', '股票', '贷款', '上帝', '魔鬼', '皇帝', '宰相', '僵尸', '癌症', '赌博', '贪污', '政府', '导弹', '服务器', '手枪', '爆炸', '骗子', '俘虏', '虐待', '暴力', '神仙', '甲方', '签约', '牢房', '知府', '江湖', '掌门', '畜生', '混蛋', '婊子', '贱人', '算卦', '地震', '火山', '手术', '化疗', '崩溃', '绝望', '背叛', '寂寞', '孤独', '离别', '迷茫', '无助', '虚伪', '冷漠', '嫉妒', '判决', '通缉', '疫苗', '合同', '谈判', '手铐', '理论', '逻辑', '痛苦', '折磨', '悲伤', '哭泣', '冲突', '危机', '危险', '上床', '避孕', '流产', '打针', '输液', '住院', '怀孕', '浴室', '同居', '左派', '右派', '卫队', '乳房', '性爱', '精子', '卵子', '太监', '尚书', '央行', '激素', '耳光', '打架', '斗殴', '肝病', '体罚', '内伤', '报社', '地质', '联赛', '裁判', '档案', '公文', '博弈', '参议员', '公务员', '病理', '诊断', '炎症', '悲惨', '悲痛', '沮丧', '狮子', '鲨鱼', '鳄鱼', '蝎子', '考核', '报销', '证据', '被告', '原告', '硅谷', '破产', '赤字', '部队', '公社', '知青', '骰子', '酗酒', '肝炎', '肺炎', '精神病', '神经病', '乞丐', '秃头', '看守所', '喝酒', '吸烟', '谣言', '出卖', '算计', '衰老', '俘虏', '虐待', '暴力', '神仙', '甲方', '签约', '牢房', '知府', '马克思主义', '民主集中制', '毛主席纪念堂', '万平方公里', '发展中国家', '本行政区域', '自然保护区', '人民日报', '国家主席', '纪念堂', '阶级', '宪法', '司令', '安定团结', '国共合作', '商品经济'];
 const leaked = placeWords.filter(x => extAll.has(x) || baseAll.has(x));
-ok(leaked.length === 0, 'G1 地名/机构/政治/军事/犯罪/宗教/病灾/IT 词不在词典（基础+扩展）', leaked.join(','));
-ok(extAll.has('天气') && baseAll.has('火锅') && baseAll.has('旅行'), 'G2 剔除专名后普通常用词仍在（天气/火锅/旅行，基础或扩展任一）');
-const keepWords = ['傻瓜', '笨蛋', '傻笑', '吵架', '分手', '和好', '星座', '八卦', '薪水', '老板', '商量', '赌气', '拥抱'];
+ok(leaked.length === 0, 'G1 地名/机构/政治/军事/犯罪/宗教/病灾/IT/性 词不在词典（基础+扩展双库）', leaked.join(','));
+// v25 白名单模式：基础词库自带天气/火锅/旅行等常用词，扩展库补场景词
+ok(baseAll.has('火锅') && baseAll.has('旅行'), 'G2 基础词库常用词在位（火锅/旅行）');
+const keepWords = ['傻瓜', '笨蛋', '傻笑', '吵架', '分手', '和好', '星座', '八卦', '薪水', '老板', '商量', '赌气', '拥抱', '想你', '晚安', '早安', '亲亲', '贴贴'];
 const lostKeeps = keepWords.filter(x => !extAll.has(x) && !baseAll.has(x));
 const astroWords = ['宇宙', '星系', '行星', '光年', '银河', '陨石', '彗星', '太阳系'];
 const lostAstro = astroWords.filter(x => !extAll.has(x) && !baseAll.has(x));
 ok(lostAstro.length === 0, 'G4 天文浪漫意象词在库（宇宙/星系/行星/光年/银河/陨石/彗星/太阳系）', lostAstro.join(','));
-ok(lostKeeps.length === 0, 'G3 情侣日常保留词在库（傻瓜/笨蛋/傻笑/打针/吵架/分手/星座/八卦等）', lostKeeps.join(','));
+ok(lostKeeps.length === 0, 'G3 情侣日常保留词在库（傻瓜/笨蛋/吵架/分手/星座/八卦/想你/晚安等 18 词）', lostKeeps.join(','));
+// v25 白名单模式专项：扩展库不含黑名单模式残留词（抽样确认白名单纯净度）
+const extSampleBad = ['变态', '灭绝', '斩首', '月经', '文革', '阴道', '孕妇', '自尽', '哑巴', '瞎子', '看守所', '骨折', '器官'];
+const extLeak = extSampleBad.filter(x => extAll.has(x));
+ok(extLeak.length === 0, 'G5 扩展白名单库纯净（变态/灭绝/斩首/月经/文革/阴道/孕妇/自尽等 13 词不在）', extLeak.join(','));
 
 console.log('\n== verify-quote-spell: ' + pass + ' 通过 / ' + fail + ' 失败 ==');
 process.exit(fail ? 1 : 0);

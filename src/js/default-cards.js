@@ -75,6 +75,9 @@
 
   // 数据（提取自星言 08_default_cards_data.js）
   const DATA = (window.DEFAULT_CARD_DATA) || { main: [], kaomoji: [], emoji: [] };
+  // #316 防未成年人二级验证锁：锁定时系统预设字卡整体视为不存在（字卡库/回复池/词典拼字/
+  //   各功能同源池全部取空），用户自建字卡不受影响——card-lock.js 先于本文件加载。
+  const LOCKED = () => !(window.cardLockOpen && window.cardLockOpen());
 
   // ================= v3.28.x #301：词典自建词条（词典 tab 内自由新增/删除） =================
   // 存储：全局命名空间 xy-home-v2:dict-custom-quotes / dict-custom-words（JSON 数组）——
@@ -798,6 +801,7 @@
   //   drawCards 目前仅聊天类调用（getDefaultCards*），写信/朋友圈各走自己的消费逻辑
   function drawCards(a, scene) {
     scene = scene || 'chat';
+    if (LOCKED()) return []; // #316 锁定＝不抽任何系统预设字卡
     // v3.7.x：场景开关——关闭后该场景不混入默认字卡
     if (!a.use(scene)) return [];
     const cfg = a.cfg();
@@ -828,6 +832,7 @@
   window.getDefaultCards = function (scene) { return drawCards(api, scene); };
   // 默认字卡分组（供页面按分组查看）
   window.getDefaultCardGroups = function (cat) {
+    if (LOCKED()) return []; // #316 锁定＝系统预设字卡不存在
     return (DATA[cat] || []).slice();
   };
   // v3.7.x：互动回应预设池读取（供互动卡片回复侧使用）——name 分组名（邀请TA·接受/
@@ -838,6 +843,9 @@
   // v3.32.x：并入用户自建的功能字卡（字卡库→可自定义字卡→其他互动功能字卡，存 cc-groups
   // 功能分类字段）——自定义卡追加在同源池后一起随机抽取；非功能分类/无自定义时不影响原行为
   window.getLibPool = function (cat, group, fallback) {
+    if (LOCKED()) { // #316 锁定＝只回自建功能字卡，内置同源池与 fallback 兜底都不给
+      try { return (window.getCustomFuncCards && window.getCustomFuncCards(cat)) || []; } catch (e) { return []; }
+    }
     const g = (DATA[cat] || []).find(x => x[0] === group);
     let arr = g && Array.isArray(g[1]) && g[1].length ? g[1] : (Array.isArray(fallback) ? fallback : []);
     arr = arr.slice();
