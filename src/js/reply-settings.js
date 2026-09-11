@@ -334,6 +334,29 @@
       }
     });
   }
+  // #324：「梦角自由造句」开关切换时弹提示告知开启成功/失败——
+  // 成功判定 = 存储链路可用（ccAppendCards/activeStore 在位且试写探针成功），失败给原因
+  const mjfEl = document.getElementById('mjf-en');
+  if (mjfEl) {
+    mjfEl.addEventListener('change', () => {
+      let okStore = false;
+      try {
+        const st = window.activeStore && window.activeStore();
+        if (st && st.get && st.set) {
+          const probe = 'mjf-probe-' + Date.now();
+          st.set('reply-mjf-probe', probe);
+          okStore = st.get('reply-mjf-probe') === probe;
+          try { st.set('reply-mjf-probe', ''); } catch (e) {}
+        }
+      } catch (e) { okStore = false; }
+      const d = document.getElementById('cc-toast');
+      if (!d) return;
+      const show = (msg) => { d.textContent = msg; d.className = 'cc-toast'; void d.offsetWidth; d.className = 'cc-toast show'; clearTimeout(d._timer); d._timer = setTimeout(() => { d.className = 'cc-toast'; }, 3200); };
+      if (mjfEl.checked && okStore) show('梦角自由造句已开启：TA 说话将按概率截字重造句（造出的句子进字卡库「梦角自由造句」分类）');
+      else if (mjfEl.checked) show('梦角自由造句开启失败：本地存储不可用，请检查浏览器隐私设置后重试');
+      else show('梦角自由造句已关闭');
+    });
+  }
   // v3.6.x：「保存设置」按钮——把当前页面上所有概率/开关一次性写入本地并提示。
   // 数值本身已随点击即时保存，这里提供明确的「保存」反馈（用户反馈刷新后设置会丢）
   // v3.26.x：抽出 saveCurrentReplyPage() 公共函数——「保存设置」与「保存全部桌面联系人

@@ -3756,7 +3756,7 @@ qidx: quote ? quoteIdx : undefined,
 type: 'text',
 parts: rep.parts,
 silent: silent,
-tag: '词典拼字',
+tag: '词典',
 tagNoDup: true
 });
 } else if (rep.spell) {
@@ -3776,7 +3776,7 @@ parts: si === rep.spell.length - 1 ? rep.parts : null,
 silent: si > 0 ? true : silent,
 // #310b：逐词连发的每条断续气泡同样挂「词典拼字」来源 tag（与单气泡形态一致，
 // 用户能看出这一串是拼字；tagNoDup 不重复正文，chip 随消息持久化重进聊天仍在）
-tag: '词典拼字',
+tag: '词典',
 tagNoDup: true
 });
 }

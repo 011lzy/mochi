@@ -371,12 +371,28 @@
       }
     });
   }
+  // 机主逃生通道：未设安全问题、密码又忘了时，输暗号（QA_SKIP_CODE，机主专属）直接关闭应用锁。
+  // after=关锁成功回调；onBack=暗号屏取消回调（回到上一屏）
+  function ownerDisableByCode(after, onBack) {
+    textAsk({
+      title: '输暗号关闭应用锁', sub: '本机未设安全问题，无法用问答重置。机主可输入暗号直接关闭应用锁：',
+      placeholder: '暗号', maxlen: 12, okLabel: '关闭应用锁', cancelLabel: '返回',
+      onSubmit: function (v) {
+        if (String(v || '').trim() === QA_SKIP_CODE) { setEn(false); sessMark(); toast('应用锁已关闭'); maskEl().hidden = true; if (after) after(); }
+        else { const inp = document.getElementById('applock-txt'); if (inp) inp.value = ''; showErr('暗号不对'); }
+      },
+      onCancel: onBack
+    });
+  }
   function lockForget() {
     const qa = qaGet();
     if (!qa) {
       padOpen({
-        kind: 'info', title: '无法重置', ico: ICON_SHIELD, okLabel: '返回锁屏', onPrimary: showLock,
-        sub: '设置密码时未设置安全问题，无法通过问答找回。唯一出路是清除本站数据后重来（聊天记录会丢失，建议先在有数据的设备上导出备份）。'
+        kind: 'info', title: '无法重置', ico: ICON_SHIELD, okLabel: '返回锁屏',
+        secondary: { act: 'owner-escape', label: '输暗号关闭应用锁' },
+        onPrimary: showLock,
+        onLink: function (act) { if (act === 'owner-escape') ownerDisableByCode(null, showLock); },
+        sub: '设置密码时未设置安全问题，无法通过问答找回。机主可输暗号直接关闭应用锁（关闭即解锁进入）；否则只能清除本站数据后重来（聊天记录会丢失，建议先在有数据的设备上导出备份）。'
       });
       return;
     }
@@ -423,8 +439,11 @@
     const qa = qaGet();
     if (!qa) {
       padOpen({
-        kind: 'info', title: '无法用问答重置', ico: ICON_SHIELD, okLabel: '返回', onPrimary: function () { padVerify(opts); },
-        sub: '设置密码时未设置安全问题。忘记密码只能清除本站数据后重来（聊天记录会丢失）。'
+        kind: 'info', title: '无法用问答重置', ico: ICON_SHIELD, okLabel: '返回',
+        secondary: { act: 'owner-escape', label: '输暗号关闭应用锁' },
+        onPrimary: function () { padVerify(opts); },
+        onLink: function (act) { if (act === 'owner-escape') ownerDisableByCode(function () { syncUi(); syncQaUi(); }, function () { padVerify(opts); }); },
+        sub: '设置密码时未设置安全问题。机主可输暗号直接关闭应用锁；否则忘记密码只能清除本站数据后重来（聊天记录会丢失）。'
       });
       return;
     }

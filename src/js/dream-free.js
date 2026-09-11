@@ -76,14 +76,23 @@
       return null;
     } catch (e) { return null; }
   };
-  // 造句结果入库：写当前联系人专属库 cc-groups 的 mjfree 分类「梦角自由造句」分组
-  //（chatcard.js 提供 window.ccAppendCards(type, group, cards)，写守卫/去重/持久化复用）
+  // 造句结果入库（#324 分库规则）：多联系人时 80% 进公用库、20% 进当前联系人专属库；
+  // 只有一个桌面联系人时 100% 进专属库（公用库没有分享对象，全部留专属）。
+  // 写 cc-groups 的 mjfree 分类「梦角自由造句」分组（chatcard.js window.ccAppendCards，
+  // 写守卫/去重/持久化复用；scope 'public'|'own' 双作用域）
   window.dreamFreeSave = function (txt) {
     try {
       const v = String(txt == null ? '' : txt);
       if (!v || v.indexOf('data:') === 0 || v.indexOf('|||') >= 0) return false;
-      if (window.ccAppendCards) return !!window.ccAppendCards('mjfree', '梦角自由造句', [v]);
-      return false;
+      if (!window.ccAppendCards) return false;
+      let cids = 1;
+      try {
+        const set = new Set([window.__activeCid || 'default']);
+        (window.getContacts && window.getContacts() || []).forEach(c => { if (c && c.id) set.add(c.id); });
+        cids = set.size;
+      } catch (e) { cids = 1; }
+      const usePublic = cids > 1 && Math.random() < 0.8;
+      return !!window.ccAppendCards('mjfree', '梦角自由造句', [v], usePublic ? 'public' : 'own');
     } catch (e) { return false; }
   };
 })();

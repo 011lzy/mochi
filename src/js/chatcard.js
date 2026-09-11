@@ -3105,14 +3105,32 @@
     return arr;
   };
 
-  // #317 梦角自由造句：程序化追加字卡进当前联系人专属库的指定分类/分组
+  // #317 梦角自由造句：程序化追加字卡进指定作用域库的指定分类/分组
   //（dream-free.js 造句入库用）。写守卫（ccAuthSeen/rescueCcOverwrite）、分组去重、
   // 延迟持久化（scheduleSave）与手动添加完全同路；当前页若开着同分类列表则局部刷新。
-  window.ccAppendCards = function (type, group, cards) {
+  // #324 scope：'own'=专属库（默认，当前联系人）/ 'public'=公用库（全桌面共享）——
+  // 公用库走 pubGroupsRaw 缓存 + pubStore 整包回写 + pubInvalidate，与公用页保存同路。
+  window.ccAppendCards = function (type, group, cards, scope) {
     try {
       if (CC_ALL_TYPES.indexOf(type) < 0 || type === 'sticker' || type === 'image' || type === 'voice') return false;
       const arr = (Array.isArray(cards) ? cards : [cards]).filter(c => typeof c === 'string' && c && c.indexOf('data:') !== 0 && c.indexOf('|||') < 0);
       if (!arr.length || !group) return false;
+      const isPub = scope === 'public';
+      if (isPub) {
+        const g = pubGroupsRaw();
+        if (!g[type]) g[type] = [];
+        let grp = g[type].find(p => p[0] === group);
+        if (!grp) { grp = [group, []]; g[type].push(grp); }
+        let added = 0;
+        arr.forEach(c => { if (grp[1].indexOf(c) < 0) { grp[1].push(c); added++; } });
+        if (added) {
+          try { pubStore().set(PUB_KEY, JSON.stringify(g)); } catch (e) {}
+          pubInvalidate();
+          libCounts.pub = -1; libCounts.pubFun = -1;
+          if (cur === type && !document.getElementById('page-custom-cards').hidden) { try { render(); } catch (e) {} }
+        }
+        return added > 0;
+      }
       if (!groups[type]) groups[type] = [];
       let g = groups[type].find(p => p[0] === group);
       if (!g) { g = [group, []]; groups[type].push(g); }

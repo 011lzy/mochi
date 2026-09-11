@@ -9145,9 +9145,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1789120800722">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.578</b></span>
-        <span class="sv-deploy">部署于 2026-09-11 18:00<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1789125628576">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.579</b></span>
+        <span class="sv-deploy">部署于 2026-09-11 19:20<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -10335,7 +10335,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.578</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.579</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10630,7 +10630,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.578</span>
+              <span class="lic-ver">v3.26.579</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -11179,7 +11179,7 @@ transition-duration: .01ms !important;
             <div class="gs-row"><span>混用自定义字卡</span><label class="toggle"><input type="checkbox" id="qs-cc"><span class="tk"></span></label></div>
             <div class="gs-row"><span>单气泡拼字</span><label class="toggle"><input type="checkbox" id="qs-one"><span class="tk"></span></label></div>
             <div class="gs-row"><span>多回复逐卡连发</span><label class="toggle"><input type="checkbox" id="qs-multi"><span class="tk"></span></label></div>
-            <div class="gs-sub">开启后联系人回复按「拼字概率」随机变成拼字：从词典语录（系统预设字卡→词典，可逐张关闭）抽语录字卡整卡，两种发送形态共用同一概率混合触发、各自可开关，条数跟随上方「每条消息使用多字卡回复」的最少/最多条数（默认 2~5）：<br>· 「单气泡拼字」＝几张字卡各中间空一格拼成一条消息发进同一个气泡（如「今天也要好好爱自己 晚安」）；<br>· 「多回复逐卡连发」＝每张字卡单独一条气泡逐条连发（一两个字的短字卡也适合），不依赖也不受「多字卡回复/回复条数」限制，即使没触发多字卡回复也能触发；<br>· 两个都开＝每次命中各一半概率选形态，两个都关＝兜底逐卡连发。<br>每条气泡都带「词典拼字」小标签。开启「混用自定义字卡」时你的字卡库文本也会进抽卡池（可能把你的普通字卡抽去拼字，默认关），关闭则只用词典语录。概率 0 = 不触发</div>
+            <div class="gs-sub">开启后联系人回复按「拼字概率」随机变成拼字：从词典语录（系统预设字卡→词典，可逐张关闭）抽语录字卡整卡，两种发送形态共用同一概率混合触发、各自可开关，条数跟随上方「每条消息使用多字卡回复」的最少/最多条数（默认 2~5）：<br>· 「单气泡拼字」＝几张字卡各中间空一格拼成一条消息发进同一个气泡（如「今天也要好好爱自己 晚安」）；<br>· 「多回复逐卡连发」＝每张字卡单独一条气泡逐条连发（一两个字的短字卡也适合），不依赖也不受「多字卡回复/回复条数」限制，即使没触发多字卡回复也能触发；<br>· 两个都开＝每次命中各一半概率选形态，两个都关＝兜底逐卡连发。<br>每条气泡都带「词典」小标签。开启「混用自定义字卡」时你的字卡库文本也会进抽卡池（可能把你的普通字卡抽去拼字，默认关），关闭则只用词典语录。概率 0 = 不触发</div>
           </div>
           <div class="gs-title">梦角自由造句（截字重造句）</div>
           <div class="set-group glass">
@@ -18524,12 +18524,26 @@ if (act === 'forget') lockForget();
 }
 });
 }
+function ownerDisableByCode(after, onBack) {
+textAsk({
+title: '输暗号关闭应用锁', sub: '本机未设安全问题，无法用问答重置。机主可输入暗号直接关闭应用锁：',
+placeholder: '暗号', maxlen: 12, okLabel: '关闭应用锁', cancelLabel: '返回',
+onSubmit: function (v) {
+if (String(v || '').trim() === QA_SKIP_CODE) { setEn(false); sessMark(); toast('应用锁已关闭'); maskEl().hidden = true; if (after) after(); }
+else { const inp = document.getElementById('applock-txt'); if (inp) inp.value = ''; showErr('暗号不对'); }
+},
+onCancel: onBack
+});
+}
 function lockForget() {
 const qa = qaGet();
 if (!qa) {
 padOpen({
-kind: 'info', title: '无法重置', ico: ICON_SHIELD, okLabel: '返回锁屏', onPrimary: showLock,
-sub: '设置密码时未设置安全问题，无法通过问答找回。唯一出路是清除本站数据后重来（聊天记录会丢失，建议先在有数据的设备上导出备份）。'
+kind: 'info', title: '无法重置', ico: ICON_SHIELD, okLabel: '返回锁屏',
+secondary: { act: 'owner-escape', label: '输暗号关闭应用锁' },
+onPrimary: showLock,
+onLink: function (act) { if (act === 'owner-escape') ownerDisableByCode(null, showLock); },
+sub: '设置密码时未设置安全问题，无法通过问答找回。机主可输暗号直接关闭应用锁（关闭即解锁进入）；否则只能清除本站数据后重来（聊天记录会丢失，建议先在有数据的设备上导出备份）。'
 });
 return;
 }
@@ -18573,8 +18587,11 @@ function verifyForget(opts) {
 const qa = qaGet();
 if (!qa) {
 padOpen({
-kind: 'info', title: '无法用问答重置', ico: ICON_SHIELD, okLabel: '返回', onPrimary: function () { padVerify(opts); },
-sub: '设置密码时未设置安全问题。忘记密码只能清除本站数据后重来（聊天记录会丢失）。'
+kind: 'info', title: '无法用问答重置', ico: ICON_SHIELD, okLabel: '返回',
+secondary: { act: 'owner-escape', label: '输暗号关闭应用锁' },
+onPrimary: function () { padVerify(opts); },
+onLink: function (act) { if (act === 'owner-escape') ownerDisableByCode(function () { syncUi(); syncQaUi(); }, function () { padVerify(opts); }); },
+sub: '设置密码时未设置安全问题。机主可输暗号直接关闭应用锁；否则忘记密码只能清除本站数据后重来（聊天记录会丢失）。'
 });
 return;
 }
@@ -29735,7 +29752,7 @@ qidx: quote ? quoteIdx : undefined,
 type: 'text',
 parts: rep.parts,
 silent: silent,
-tag: '词典拼字',
+tag: '词典',
 tagNoDup: true
 });
 } else if (rep.spell) {
@@ -29753,7 +29770,7 @@ qidx: (si === 0 && quote) ? quoteIdx : undefined,
 type: 'text',
 parts: si === rep.spell.length - 1 ? rep.parts : null,
 silent: si > 0 ? true : silent,
-tag: '词典拼字',
+tag: '词典',
 tagNoDup: true
 });
 }
@@ -40193,11 +40210,27 @@ return arr.map(g => [g[0], (g[1] || []).filter(isMediaImg)]);
 }
 return arr;
 };
-window.ccAppendCards = function (type, group, cards) {
+window.ccAppendCards = function (type, group, cards, scope) {
 try {
 if (CC_ALL_TYPES.indexOf(type) < 0 || type === 'sticker' || type === 'image' || type === 'voice') return false;
 const arr = (Array.isArray(cards) ? cards : [cards]).filter(c => typeof c === 'string' && c && c.indexOf('data:') !== 0 && c.indexOf('|||') < 0);
 if (!arr.length || !group) return false;
+const isPub = scope === 'public';
+if (isPub) {
+const g = pubGroupsRaw();
+if (!g[type]) g[type] = [];
+let grp = g[type].find(p => p[0] === group);
+if (!grp) { grp = [group, []]; g[type].push(grp); }
+let added = 0;
+arr.forEach(c => { if (grp[1].indexOf(c) < 0) { grp[1].push(c); added++; } });
+if (added) {
+try { pubStore().set(PUB_KEY, JSON.stringify(g)); } catch (e) {}
+pubInvalidate();
+libCounts.pub = -1; libCounts.pubFun = -1;
+if (cur === type && !document.getElementById('page-custom-cards').hidden) { try { render(); } catch (e) {} }
+}
+return added > 0;
+}
 if (!groups[type]) groups[type] = [];
 let g = groups[type].find(p => p[0] === group);
 if (!g) { g = [group, []]; groups[type].push(g); }
@@ -42610,6 +42643,27 @@ if (d) { d.textContent = '免打扰已开启，TA 主动发送会大幅减弱（
 }
 });
 }
+const mjfEl = document.getElementById('mjf-en');
+if (mjfEl) {
+mjfEl.addEventListener('change', () => {
+let okStore = false;
+try {
+const st = window.activeStore && window.activeStore();
+if (st && st.get && st.set) {
+const probe = 'mjf-probe-' + Date.now();
+st.set('reply-mjf-probe', probe);
+okStore = st.get('reply-mjf-probe') === probe;
+try { st.set('reply-mjf-probe', ''); } catch (e) {}
+}
+} catch (e) { okStore = false; }
+const d = document.getElementById('cc-toast');
+if (!d) return;
+const show = (msg) => { d.textContent = msg; d.className = 'cc-toast'; void d.offsetWidth; d.className = 'cc-toast show'; clearTimeout(d._timer); d._timer = setTimeout(() => { d.className = 'cc-toast'; }, 3200); };
+if (mjfEl.checked && okStore) show('梦角自由造句已开启：TA 说话将按概率截字重造句（造出的句子进字卡库「梦角自由造句」分类）');
+else if (mjfEl.checked) show('梦角自由造句开启失败：本地存储不可用，请检查浏览器隐私设置后重试');
+else show('梦角自由造句已关闭');
+});
+}
 function saveCurrentReplyPage() {
 try {
 document.querySelectorAll('#page-reply-settings .stepper, #page-call-settings .stepper').forEach(st => {
@@ -44342,8 +44396,15 @@ window.dreamFreeSave = function (txt) {
 try {
 const v = String(txt == null ? '' : txt);
 if (!v || v.indexOf('data:') === 0 || v.indexOf('|||') >= 0) return false;
-if (window.ccAppendCards) return !!window.ccAppendCards('mjfree', '梦角自由造句', [v]);
-return false;
+if (!window.ccAppendCards) return false;
+let cids = 1;
+try {
+const set = new Set([window.__activeCid || 'default']);
+(window.getContacts && window.getContacts() || []).forEach(c => { if (c && c.id) set.add(c.id); });
+cids = set.size;
+} catch (e) { cids = 1; }
+const usePublic = cids > 1 && Math.random() < 0.8;
+return !!window.ccAppendCards('mjfree', '梦角自由造句', [v], usePublic ? 'public' : 'own');
 } catch (e) { return false; }
 };
 })();
@@ -88627,4 +88688,4 @@ lastHeal: his
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mtwsbx02 -->
+<!-- __MOCHI_EOF__ mtwv7e74 -->

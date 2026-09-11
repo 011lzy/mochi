@@ -849,6 +849,10 @@ const FIX_SENTINELS = [
   // 修复：改为 selfHealChecked 先异步查 IDB——IDB 有密码就回填本机并继续锁屏，只有双端都确认
   // 无密码才自愈关锁（防锁死初衷保留）。needle 用「IDB 有密码→回填→重评估锁屏」逻辑锚。
   { name: '应用锁自愈加固（IDB 有密码先回填不放关锁，防「刷新后锁被误关」回流；删则改回同步置 0=又门户大开）', file: 'js/applock.js', needle: 'gSet(K_PIN, v); evalLock();' },
+  // ==== #280 机主逃生通道：忘密码且未设安全问题时可输暗号直接关闭应用锁 ====
+  // 用户反馈「我只是要可以自己设置关闭锁屏」：原「无法重置/无法用问答重置」面板是死胡同
+  // （提示只能清数据），机主忘密码又没设问答时自己关不掉锁。补 ownerDisableByCode 暗号逃生。
+  { name: '#280 应用锁机主暗号逃生（未设安全问题忘密码时输暗号直接关锁；删则死胡同回流=机主自己关不掉锁）', file: 'js/applock.js', needle: '=== QA_SKIP_CODE) { setEn(false); sessMark();' },
   // ==== #277 iPhone17/Safari(WebKit26.6) standalone「底部白带+导航栏悬空」＝env 探针缓存中毒永不自愈 ====
   // 根因：syncVvFit 的 env(safe-area-inset-top) 探针缓存只在旋转时失效——独立应用切后台/
   // 回前台 WebKit 会改写顶部安全区形态，冷启动早帧探到 0 被永久缓存，稳定后实为覆盖形态
@@ -935,11 +939,12 @@ const FIX_SENTINELS = [
   { name: '#310 单气泡拼字形态·chat.js 空格连卡+「词典拼字」tag（删则 qs-one 开了也只有逐词连发、无单气泡形态）', file: 'js/chat.js', needle: "if (rep.spell && rep.spellOne) {\nm = addIn(rep.spell.join(' '), {" },
   { name: '#323 词典拼字双形态选择·qs-one 单气泡/qs-multi 逐卡混合掷币（删则退回单一形态＝可开关混合失效；双关兜底逐卡 else one=false）', file: 'js/quote-spell.js', needle: "if (oneOn && multiOn) one = Math.random() < 0.5;" },
   { name: '#310 qs-cc 旧默认 1→0 迁移（删则存量桌面普通字卡继续被抽去拼字截断＝用户报障回流）', file: 'js/reply-settings.js', needle: "s.set('reply-qs-cc', '0'); changed = true; }" },
-  { name: '#310b 逐词连发每条气泡挂「词典拼字」tag（删则断续多气泡无来源标注＝用户分不清哪串是拼字）', file: 'js/chat.js', needle: "silent: si > 0 ? true : silent,\ntag: '词典拼字'," },
+  { name: '#310b/325 逐卡连发每条气泡挂「词典」tag（删则多气泡无来源标注；#325 用户要求 tag 统一改为「词典」）', file: 'js/chat.js', needle: "silent: si > 0 ? true : silent,\ntag: '词典'," },
   // ==== 2026-09-11 #317 梦角自由造句（梦角语料抽卡→截断几字重造句→入库自定义字卡「梦角自由造句」分类）====
   { name: '#317 梦角自由造句抽句门·mjf-en/mjf-prob 生效（删则开关概率失效，梦角永不造句）', file: 'js/dream-free.js', needle: "if (!c || c['mjf-en'] !== 1) return null;" },
   { name: '#317 梦角自由造句截断重造·汉字段内随机截 1~3 字补语气词（删则造句变成整句复读）', file: 'js/dream-free.js', needle: 'return str.slice(0, at) + fill + str.slice(at + cut);' },
-  { name: '#317 造句入库·ccAppendCards 写 mjfree 分类（删则新句不进「梦角自由造句」字卡分类）', file: 'js/chatcard.js', needle: "window.ccAppendCards = function (type, group, cards) {" },
+  { name: '#317/324 造句入库·ccAppendCards 双作用域写 mjfree 分类（删则新句不进「梦角自由造句」字卡分类；#324 加 scope 分库参数）', file: 'js/chatcard.js', needle: "window.ccAppendCards = function (type, group, cards, scope) {" },
+  { name: '#324 造句分库·dreamFreeSave 80% 公用/20% 专属、单联系人 100% 专属（删则全部写专属＝多桌面公用库不再积累梦角语料）', file: 'js/dream-free.js', needle: "const usePublic = cids > 1 && Math.random() < 0.8;" },
   { name: '#317 replyOnce 接线·dreamFreePick 命中替换回复+入库（删则开关存在但永不生效）', file: 'js/chat.js', needle: 'window.dreamFreePick && window.dreamFreePick(c)' },
   { name: '#301 词典自建词条并入词典分类（删则自建语录/词不再进词典 tab 与拼字引擎）', file: 'js/default-cards.js', needle: "const gw = base.find(g => g[0].indexOf('词库') === 0)" },
   // ==== 2026-09-11 #306 小游戏 UI 收口（连连看/消消乐棋盘 gap 溢出截断、头部标题被挤竖排、拍卖会「不拍了」白字白底隐形）+ 全部小游戏通用全屏 .game-fs ====

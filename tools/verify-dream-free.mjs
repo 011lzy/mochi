@@ -48,7 +48,7 @@ ok(diff === null, 'A1 造句=源句截字+补位词（60 掷无异常）', diff)
 ok(nonHanTouched === null, 'A2 语料过滤：纯英文/汉字不足 4 的卡不参与', nonHanTouched);
 let got = null;
 for (let i = 0; i < 30 && !got; i++) got = pick({ 'mjf-en': 1, 'mjf-prob': 100 });
-ok(got && typeof got.text === 'string' && got.text.length >= 4, 'B4 概率 100% 必中且新句非空', JSON.stringify(got));
+ok(got && typeof got.text === 'string' && got.text.length >= 3, 'B4 概率 100% 必中且新句非空（截字后可短至 3 字）', JSON.stringify(got));
 ok(got && got.text !== got.src, 'B5 新句与源句不同（真的截断重造了）');
 
 // —— B 闸门 ——
@@ -56,22 +56,44 @@ ok(pick({ 'mjf-en': 0, 'mjf-prob': 100 }) === null, 'B1 mjf-en=0 → 不触发�
 ok(pick({ 'mjf-en': 1, 'mjf-prob': 0 }) === null, 'B2 mjf-prob=0 → 不触发');
 ok(pick(null) === null, 'B3 cfg 缺失 → 不触发');
 
-// —— C 入库 API（沙盒模拟 chatcard 内存 groups + ccAppendCards 语义）——
+// —— C 入库 API（沙盒模拟 chatcard 内存 groups + ccAppendCards 双作用域语义）——
 // 直接用真实源码太重（依赖 DOM），按 ccAppendCards 同语义打桩验证 dreamFreeSave 调用契约
 const groups = { mjfree: [['梦角自由造句', []]] };
-let savedFlag = 0;
-w.ccAppendCards = function (type, group, cards) {
+const pubGroups = { mjfree: [['梦角自由造句', []]] };
+w.ccAppendCards = function (type, group, cards, scope) {
   if (type !== 'mjfree' || group !== '梦角自由造句') return false;
-  const g = groups[type].find(p => p[0] === group);
+  const target = scope === 'public' ? pubGroups : groups;
+  const g = target[type].find(p => p[0] === group);
   let added = 0;
   (cards || []).forEach(c => { if (typeof c === 'string' && c && g[1].indexOf(c) < 0) { g[1].push(c); added++; } });
-  savedFlag++;
   return added > 0;
 };
+// #324 分库语料：多联系人（getContacts 返回 2 个 id）→ 80% 公用/20% 专属
+w.getContacts = () => [{ id: 'a' }, { id: 'b' }];
+w.__activeCid = 'default';
 const txt = '测试造句入库的一句';
-ok(save(txt) === true && groups.mjfree[0][1].indexOf(txt) >= 0, 'C1 dreamFreeSave → ccAppendCards(mjfree, 梦角自由造句)');
-ok(save(txt) === false && groups.mjfree[0][1].filter(x => x === txt).length === 1, 'C2 重复入库去重（第二次返回 false 且只存一份）');
+ok(save(txt) === true && (groups.mjfree[0][1].indexOf(txt) >= 0 || pubGroups.mjfree[0][1].indexOf(txt) >= 0), 'C1 dreamFreeSave → ccAppendCards(mjfree, 梦角自由造句)');
+ok(save(txt) === false && groups.mjfree[0][1].filter(x => x === txt).length + pubGroups.mjfree[0][1].filter(x => x === txt).length === 1, 'C2 重复入库去重（第二次返回 false 且只存一份）');
 ok(save('') === false && save('data:image/png;base64,xx') === false, 'C3 空串/dataURL 拒绝入库');
+// #324 分库比例：语料多存几次统计落点，公用应显著多于专属（80/20，100 掷卡方容忍 60~95 公用）
+let pubN = 0, ownN = 0;
+for (let i = 0; i < 100; i++) {
+  const t = '分库统计-' + i;
+  const beforePub = pubGroups.mjfree[0][1].length, beforeOwn = groups.mjfree[0][1].length;
+  save(t);
+  if (pubGroups.mjfree[0][1].length > beforePub) pubN++; else if (groups.mjfree[0][1].length > beforeOwn) ownN++;
+}
+ok(pubN > 60 && pubN < 95 && ownN >= 5, 'C4 多联系人时 80% 公用/20% 专属分库（100 掷：公用 ' + pubN + '/专属 ' + ownN + '）');
+// #324 单联系人：100% 专属
+w.getContacts = () => [];
+let ownOnly = 0;
+for (let i = 0; i < 30; i++) {
+  const t = '单联系人-' + i;
+  const beforeOwn = groups.mjfree[0][1].length;
+  save(t);
+  if (groups.mjfree[0][1].length > beforeOwn) ownOnly++;
+}
+ok(ownOnly === 30 && pubGroups.mjfree[0][1].every(x => x.indexOf('单联系人-') !== 0), 'C5 单联系人 100% 专属库（30/30，公用零写入）');
 
 // —— D 接线（源码级）——
 const chat = readFileSync(join(root, 'src/js/chat.js'), 'utf8');
@@ -84,6 +106,7 @@ ok(cc.includes("const CC_FUNC_KEYS = ['fish', 'eat', 'period', 'water', 'garden'
 ok(chat.includes("tag: '梦角自由造句'") && chat.includes('window.dreamFreePick && window.dreamFreePick(c)'), 'D3 chat.js replyOnce 接入+tag');
 ok(rs.includes("'mjf-en': 0, 'mjf-prob': 20,") && (rs.match(/'qs-multi', 'mjf-en'\]/g) || []).length === 3, 'D4 reply-settings DEFAULTS+三处清单（#323 后清单含 qs-multi）');
 ok(tpl.includes('id="mjf-en"') && tpl.includes('data-k="mjf-prob"'), 'D5 template 回复设置「梦角自由造句」组');
+ok(rs.includes('梦角自由造句开启失败') && rs.includes('梦角自由造句已开启') && rs.includes('mjf-probe'), 'D5b #324 开关切换 toast 提示（成功/失败）+存储探针在位');
 ok(tpl.includes('data-type="mjfree"'), 'D6 template 字卡库「梦角自由造句」tab');
 
 // —— E 词典页自建词条行移除 ——
