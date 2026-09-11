@@ -65,6 +65,13 @@
           <div class="splash-alert-t">免责声明</div>
           <p><strong>本站禁止未成年人使用。</strong>字卡回复均为随机代码生成，不具备任何真实效力；使用本站产生的一切后果由使用者本人（及监护人）自行承担，与作者无关。</p>
         </div>
+        <!-- v3.27.x #319：防未成年人·系统内置字卡锁——默认锁定全部系统预设字卡，输对二级验证密码才放行；
+             纯静态卡骨架，状态文案/按钮/交互由 clock.js 接线渲染（card-lock.js 提供闸门），在线 notice.json 不影响此处 -->
+        <div class="splash-alert splash-cardlock" data-anti-scam="l" id="splash-cardlock">
+          <div class="splash-alert-t">防未成年人 · 系统内置字卡已锁定</div>
+          <p id="splash-cardlock-tip">系统内置字卡已全部锁定，这是面向未成年人的保护措施。如你已成年，可输入二级验证密码解锁使用。</p>
+          <div class="cardlock-actions" id="splash-cardlock-actions"></div>
+        </div>
         <!-- v3.27.x：防骗置顶声明——最顶部固定展示，防收费诈骗；静态 DOM，在线 notice.json 覆盖只改公告列表，不影响此处 -->
         <div class="splash-alert" data-anti-scam="1">
           <div class="splash-alert-t">防骗提醒</div>

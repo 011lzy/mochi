@@ -107,10 +107,69 @@
     // #315b 免责声明卡（静态 DOM，data-anti-scam="d"）固定最顶——防骗/署名卡都插它后面；
     // 它不在位（被删）时 dis 为 null，退回 firstChild，行为与旧版一致
     const dis = document.querySelector('.splash-alert[data-anti-scam="d"]');
-    const b1 = ensureBar(BARS[0], dis ? dis.nextSibling : null);
+    // #319 防未成年人锁卡在免责卡之后（同属置顶声明区）；1/2 回填继续让位
+    const lockCard = document.getElementById('splash-cardlock');
+    const b1 = ensureBar(BARS[0], (lockCard && lockCard.parentNode === document.getElementById('splash-notice')) ? (lockCard.nextSibling) : (dis ? dis.nextSibling : null));
     ensureBar(BARS[1], b1 ? b1.nextSibling : null);
     ensureSettings();
     ensureBulletin();
+    setupCardLockCard();
+  }
+  // ===== #319 防未成年人·系统内置字卡锁：开屏锁卡状态渲染 + 解锁/上锁交互 =====
+  // 闸门本体在 card-lock.js（jsFiles 靠前加载）；这里只管开屏这张卡的 UI。
+  // 解锁成功：提示后自动刷新页面，让回复池/字卡库/词典拼字按解锁态重建。
+  function setupCardLockCard() {
+    const card = document.getElementById('splash-cardlock');
+    if (!card || !window.cardLockOpen) return;
+    const tip = document.getElementById('splash-cardlock-tip');
+    const actions = document.getElementById('splash-cardlock-actions');
+    if (!actions) return;
+    const open = window.cardLockOpen();
+    if (tip) tip.textContent = open
+      ? '系统内置字卡已解锁（成年人验证已通过）。如需恢复未成年人保护，可重新上锁。'
+      : '系统内置字卡已全部锁定，这是面向未成年人的保护措施。如你已成年，可输入二级验证密码解锁使用。';
+    actions.innerHTML = '';
+    const state = document.createElement('div');
+    state.className = 'cardlock-state';
+    if (open) {
+      const relock = document.createElement('button');
+      relock.className = 'cardlock-btn cardlock-btn-ghost';
+      relock.type = 'button';
+      relock.textContent = '重新上锁';
+      relock.addEventListener('click', function () {
+        window.cardLockRelock();
+        state.textContent = '已重新上锁，页面即将刷新…';
+        setTimeout(function () { location.reload(); }, 900);
+      });
+      actions.appendChild(relock);
+    } else {
+      const unlock = document.createElement('button');
+      unlock.className = 'cardlock-btn';
+      unlock.type = 'button';
+      unlock.textContent = '输入密码解锁';
+      unlock.addEventListener('click', function () {
+        // 开屏 z-index 999 会盖住 modal-mask(90)（pwa.js 同款时机注释）——弹窗期间给
+        // splash 挂 .under-modal 压层，mask [hidden] 恢复（关窗）时移除
+        const splash = document.getElementById('splash');
+        const mask = document.getElementById('modal-mask');
+        if (splash) splash.classList.add('under-modal');
+        let mo = null;
+        if (splash && mask && 'MutationObserver' in window) {
+          mo = new MutationObserver(function () { if (mask.hidden) { splash.classList.remove('under-modal'); } });
+          mo.observe(mask, { attributes: true, attributeFilter: ['hidden'] });
+        }
+        // openModal 标准验证模式：失败 ctl.hint + ctl.stay 不关窗（chat-settings renameChatScheme 同款）
+        const ctl = window.openModal('二级验证 · 输入解锁密码', '', function (v) {
+          const r = window.cardLockTryUnlock(String(v == null ? '' : v).trim());
+          if (!r.ok) { ctl.hint(r.msg || '密码不对'); ctl.stay(); return; }
+          state.textContent = '验证通过，页面即将刷新…';
+          if (mo) { try { mo.disconnect(); } catch (e) {} }
+          setTimeout(function () { location.reload(); }, 900);
+        }, { inputmode: 'numeric', placeholder: '输入二级验证密码' });
+      });
+      actions.appendChild(unlock);
+    }
+    actions.appendChild(state);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run);
   else run();

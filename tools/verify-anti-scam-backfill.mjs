@@ -141,8 +141,8 @@ async function waitCond(expr, timeout = 6000) {
 
 const B1_OK = "(function(){var b=document.querySelector('#splash-notice .splash-alert[data-anti-scam=\"1\"]');var t=(b?b.textContent:'').replace(/\\s+/g,'');return !!b&&t.indexOf('防骗提醒')>-1&&t.indexOf('免费')>-1&&t.indexOf('诈骗')>-1&&t.indexOf('小红书@言序（1842523578）')>-1;})()";
 const B2_OK = "(function(){var b=document.querySelector('#splash-notice .splash-alert[data-anti-scam=\"2\"]');var t=(b?b.textContent:'').replace(/\\s+/g,'');return !!b&&t.indexOf('转载署名')>-1&&t.indexOf('署名')>-1&&t.indexOf('倒卖')>-1&&t.indexOf('小红书@言序（1842523578）')>-1;})()";
-// #315b 起新顺序：免责声明卡（data-anti-scam="d"）固定最顶，防骗卡紧随其后（第二）
-const B1_TOP = "(function(){var n=document.getElementById('splash-notice');var d=n.querySelector('.splash-alert[data-anti-scam=\"d\"]');var b=n.querySelector('.splash-alert[data-anti-scam=\"1\"]');return !!b&&!!d&&n.firstElementChild===d&&d.nextElementSibling===b;})()";
+// #319 起新顺序：免责(d) → 防未成年锁卡(l) → 防骗(1)（1 不再紧邻 d，中间隔着锁卡）
+const B1_TOP = "(function(){var n=document.getElementById('splash-notice');var d=n.querySelector('.splash-alert[data-anti-scam=\"d\"]');var l=n.querySelector('.splash-alert[data-anti-scam=\"l\"]');var b=n.querySelector('.splash-alert[data-anti-scam=\"1\"]');return !!b&&!!d&&!!l&&n.firstElementChild===d&&d.nextElementSibling===l&&l.nextElementSibling===b;})()";
 const SET_OK = "(function(){var b=document.querySelector('#page-setting .set-alert');var t=b?b.textContent:'';return !!b&&t.indexOf('小红书@言序（1842523578）')>-1&&t.indexOf('免费')>-1&&t.indexOf('倒卖')>-1;})()";
 // 拦截官方 notice.json：mode='abort' 模拟断网/官方源不可达；mode=对象 → 用假官方应答 fulfill（测 bulletin 远程下发）
 async function interceptOfficial(mode) {

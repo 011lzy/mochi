@@ -52,13 +52,34 @@
     try { if (window.idbSet) window.idbSet(window.activePrefix() + ':' + KEY, JSON.stringify(data)); } catch (e) {}
   }
 
-  // TA 心情：字符串哈希 → 伪随机，与日期+桌面绑定，同日稳定；约 35% 概率跟随我当天心情
+  // TA 心情：字符串哈希 → 伪随机，与日期+桌面绑定，同日稳定；约 35% 概率跟随我当天心情。
+  // 仅当「当天有真实交互（聊天有消息）」才生成 TA 心情，无交互日期返回 null（不显示）。
   function hashStr(s) {
     let h = 5381;
     for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
     return h;
   }
+  // 本桌面对应聊天消息数组（优先取内存已加载的；未加载时回退 localStorage 快照）
+  function chatArr() {
+    try { const m = window.getChatMsgs ? window.getChatMsgs() : null; if (Array.isArray(m) && m.length) return m; } catch (e) {}
+    try { const v = JSON.parse(store().get('chat-msgs') || '[]'); if (Array.isArray(v)) return v; } catch (e) {}
+    return [];
+  }
+  const _interactCache = { built: false, set: {} };
+  function buildInteractSet() {
+    const set = {};
+    for (const m of chatArr()) {
+      if (m && m.ts) { const d = new Date(m.ts); set[d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())] = 1; }
+    }
+    _interactCache.set = set;
+    _interactCache.built = true;
+  }
+  function hasInteraction(dateKey) {
+    if (!_interactCache.built) buildInteractSet();
+    return !!_interactCache.set[dateKey];
+  }
   function taMoodFor(dateKey) {
+    if (!hasInteraction(dateKey)) return null; // 无真实交互 → 不显示 TA 心情
     const mine = loadAll().d[dateKey];
     const h = hashStr((window.__activeCid || 'default') + '|' + dateKey);
     if (mine && h % 100 < 35) return moodByEmoji(mine.m);
@@ -75,6 +96,7 @@
     pg.hidden = false;
     const now = new Date();
     curYM = now.getFullYear() + '-' + pad(now.getMonth() + 1);
+    _interactCache.built = false; // 每次打开重建「有交互日期」集合，确保读到最新聊天
     renderToday();
     renderMonth();
   }
@@ -107,7 +129,8 @@
     if (ta) {
       const tm = taMoodFor(k);
       const nm = store().get('lbl-partner') || 'TA';
-      ta.textContent = nm + ' 今天的心情：' + tm.e + ' ' + tm.n;
+      ta.textContent = tm ? (nm + ' 今天的心情：' + tm.e + ' ' + tm.n)
+                         : (nm + ' 今天还没有互动，还没有心情哦');
     }
     const btn = document.getElementById('mood-save');
     if (btn && !btn.dataset.bound) {
@@ -175,9 +198,9 @@
       const rec = data[k];
       const tm = taMoodFor(k);
       const cls = 'mood-cell mood-day' + (k === todayK ? ' today' : '');
-      gh += '<span class="' + cls + '" title="我 ' + (rec ? moodByEmoji(rec.m).n : '未记录') + '｜TA ' + tm.n + '">' +
+      gh += '<span class="' + cls + '" title="我 ' + (rec ? moodByEmoji(rec.m).n : '未记录') + '｜TA ' + (tm ? tm.n : '未互动') + '">' +
         '<span class="mood-dnum">' + i + '</span>' +
-        '<span class="mood-dfaces"><i>' + (rec ? rec.m : '') + '</i><i>' + tm.e + '</i></span></span>';
+        '<span class="mood-dfaces"><i>' + (rec ? rec.m : '') + '</i><i>' + (tm ? tm.e : '') + '</i></span></span>';
     }
     gridEl.innerHTML = gh;
 

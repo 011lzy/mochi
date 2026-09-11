@@ -1286,6 +1286,7 @@
   window.__cardSearchFns.push({ name: '默认聊天字卡', fn: function (kw) {
     const out = [];
     try {
+      if (window.cardLockOpen && !window.cardLockOpen()) return out; // #319 锁定＝搜不到系统预设字卡
       const d = window.DEFAULT_CARD_DATA || {};
       Object.keys(d).forEach(function (k) { (d[k] || []).forEach(function (grp) { const gname = grp[0]; const cards = grp[1] || []; cards.forEach(function (c) { if (c && String(c).toLowerCase().indexOf(kw) >= 0) out.push({ t: String(c), cat: gname }); }); }); });
     } catch (e) {}

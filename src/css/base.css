@@ -186,6 +186,29 @@ html { margin:0; padding:0; }
 [data-theme="dark"] .splash-alert.splash-disclaimer .splash-alert-t::before { background:#ff8080; color:#3a0d0d; }
 [data-theme="dark"] .splash-alert.splash-disclaimer p { color:#f0c6c6; }
 [data-theme="dark"] .splash-alert.splash-disclaimer strong { color:#ff8080; }
+/* v3.27.x #319：防未成年人·系统内置字卡锁卡——琥珀警示形态 + 解锁动作按钮 */
+.splash-alert.splash-cardlock { background:#fdf3e0; border:2px solid #c07f1f; }
+.splash-alert.splash-cardlock .splash-alert-t { color:#9a6410; }
+.splash-alert.splash-cardlock .splash-alert-t::before { background:#9a6410; }
+.splash-alert.splash-cardlock p { color:#6b4a0e; }
+.cardlock-actions { margin-top:9px; display:flex; gap:8px; flex-wrap:wrap; }
+.cardlock-btn {
+  appearance:none; border:1.5px solid #9a6410; background:#9a6410; color:#fff;
+  font-size:12.5px; font-weight:800; padding:7px 14px; border-radius:8px; letter-spacing:.5px;
+}
+.cardlock-btn.cardlock-btn-ghost { background:transparent; color:#9a6410; }
+.cardlock-state { font-size:12px; font-weight:700; color:#9a6410; margin-top:8px; min-height:1em; }
+[data-theme="dark"] .splash-alert.splash-cardlock { background:rgba(192,127,31,.15); border-color:#d99a3a; }
+[data-theme="dark"] .splash-alert.splash-cardlock .splash-alert-t { color:#eebb60; }
+[data-theme="dark"] .splash-alert.splash-cardlock .splash-alert-t::before { background:#eebb60; color:#3a2504; }
+[data-theme="dark"] .splash-alert.splash-cardlock p { color:#ecd9b0; }
+[data-theme="dark"] .cardlock-btn { background:#d99a3a; border-color:#d99a3a; color:#3a2504; }
+[data-theme="dark"] .cardlock-btn.cardlock-btn-ghost { background:transparent; color:#eebb60; }
+[data-theme="dark"] .cardlock-state { color:#eebb60; }
+/* #319：开屏期间弹解锁弹窗——modal-mask(90) 低于 splash(999) 会被盖，弹窗期间给 splash
+   加 .under-modal 压到 80（personalize close() 不挂钩子，由 clock.js 在打开时加、
+   MutationObserver 监听 mask[hidden] 恢复） */
+.splash.under-modal { z-index:80; }
 /* 章节容器：编号在章节内重新从 1 开始；章节间拉开间距；折叠章节样式 */
 .splash-sec-wrap { counter-reset: notice; }
 .splash-sec-wrap + .splash-sec-wrap { margin-top:12px; }

@@ -1329,7 +1329,7 @@ const dcfg = (window.defaultCardCfg && window.defaultCardCfg()) || {};
 const isOff = window.isDefaultCardOff || null;
 const useChat = window.defaultCardUse ? window.defaultCardUse('chat') : true;
 const catOn = window.defaultCardCat || (() => true);
-// #316 防未成年人锁：锁定时系统预设字卡整体不入池（上面自建字卡已照常入池，不受影响）
+// #319 防未成年人锁：锁定时系统预设字卡整体不入池（上面自建字卡已照常入池，不受影响）
 const sysLocked = !(window.cardLockOpen && window.cardLockOpen());
 if (dcfg.enabled !== false && useChat && !sysLocked) {
 // v3.26.x #157：默认主字卡只在自定义 text 池为空时兜底并入——原实现开启即把 4600+

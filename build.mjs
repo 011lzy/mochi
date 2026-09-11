@@ -959,6 +959,11 @@ const FIX_SENTINELS = [
   // ==== 2026-09-11 #316 聊天记录滚动跳动/闪烁（#199 overflow-anchor:none 连带关掉 Chromium 原生锚定：浏览图片较多历史时上方图片解码撑高无人补偿=内容被推走；解钉动态开回锚定、钉住态维持 none 防 #199 对打）====
   { name: '#316 解钉开滚动锚定·接线（删则用户手动滚动后锚定仍关、图片撑高继续推走视口=聊天记录一直跳；行为断言 tools/verify-chat-anchor.mjs）', file: 'js/chat.js', needle: 'function unpinChatAndAnchor() {' },
   { name: '#316 解钉开滚动锚定·CSS 开关（删则类挂了也不生效，Chromium 锚定回不来；钉住态 #199 none 语义不变）', file: 'css/base.css', needle: '.chat-body.scroll-anchor-auto { overflow-anchor: auto; }' },
+  // ==== 2026-09-11 #319 防未成年人·系统内置字卡二级验证锁（默认全锁：回复池/字卡库/词典拼字/功能同源池取不到任何系统预设字卡，自建字卡不受影响；开屏输密码解锁，源码只存散列不存明文）====
+  { name: '#319 内置字卡锁·闸门本体（card-lock.js，删则锁定失效全部预设字卡裸奔＝防未成年保护丢失）', file: 'js/card-lock.js', needle: 'window.cardLockOpen = isOpen' },
+  { name: '#319 内置字卡锁·分组总闸（getDefaultCardGroups 锁定返回空，删则字卡库/词典拼字仍能取到系统预设字卡）', file: 'js/default-cards.js', needle: "if (LOCKED()) return []; // #319 锁定＝系统预设字卡不存在" },
+  { name: '#319 内置字卡锁·聊天回复池闸（getPool 系统预设分支锁定不入池，删则聊天仍抽预设字卡）', file: 'js/chat.js', needle: 'const sysLocked = !(window.cardLockOpen && window.cardLockOpen());' },
+  { name: '#317 开屏解锁卡接线（clock.js setupCardLockCard，删则开屏无解锁入口＝锁死无法使用）', file: 'js/clock.js', needle: 'function setupCardLockCard() {' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
