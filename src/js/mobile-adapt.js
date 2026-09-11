@@ -1956,6 +1956,17 @@
         // FIX 2026-09-11 #337：欠深自纠——保底停靠后聚焦输入框仍被盖（可视性实测，
         // 只在 vv 读数诚实的内核可判）⇒ 轮询每拍再收 8% 基准，直至露出或触底 34%。
         // 只在 _aProv 态跑：主路径 _aKb 停靠高度=vv.height，元素天然可见永不进这里。
+        // #337：被盖实测取「元素 ∪ 其输入行容器」的最大底边——聊天输入行有底部内边距，
+        // 只测输入元素本身会漏掉「行内边距被盖」的欠深状态（无头 F2 实证：元素底 800=可视
+        // 底 800 判露出，行底 820 实际仍在键盘下）。
+        function _aCoverBottom(el) {
+          try {
+            var b = el.getBoundingClientRect().bottom;
+            var row = el.closest ? el.closest('.chat-input-row') : null;
+            if (row) b = Math.max(b, row.getBoundingClientRect().bottom);
+            return b;
+          } catch (eCB) { return el.getBoundingClientRect().bottom; }
+        }
         function _aProvDeepen() {
           try {
             if (!_aProv || _aKb) return;
@@ -2036,7 +2047,7 @@
               try {
                 var _r = tgt.getBoundingClientRect ? tgt.getBoundingClientRect() : null;
                 var _visBottom = (_aVV.offsetTop || 0) + _aVV.height;
-                if (_r && _r.height > 0 && _r.bottom > _visBottom + 12) _aProvDock();
+                if (_r && _r.height > 0 && _aCoverBottom(tgt) > _visBottom + 12) _aProvDock();
               } catch (eV337) {}
             }
           } catch (e) {}

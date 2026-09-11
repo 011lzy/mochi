@@ -992,7 +992,7 @@ const FIX_SENTINELS = [
   // ==== 2026-09-12 #333 词典拼字 tag 旧文案「词典」存量 chip 渲染映射为「词典拼字」（#325→#333 规格两改，历史消息 chip 统一显示，不动存储数据）====
   { name: '#333 词典旧文案渲染映射（删则历史拼字消息左下角仍显示旧「词典」tag，与新「词典拼字」并存两种叫法）', file: 'js/chat.js', needle: "const _tagShow = md.tag === '词典' ? '词典拼字' : md.tag;" },
   // ==== 2026-09-11 #337 安卓键盘盖输入栏（荣耀畅玩80Pro 自带浏览器，多机型同族）：键盘弹出时 vv 读数漂移/不缩 → 读数判据 _aProvCheck 永不命中 + 58% 盲猜对高占比输入法停靠不足。三件套：①可见性触发停靠（聚焦>900ms+手势武装+实测元素底边低于可视区底边=被盖才动作，与内核读数无关）②VirtualKeyboard 实测尺（overlaysContent=true+geometrychange 按 base−kbH 精停，特性探测，_aProvClear 归还）③欠深自纠（停靠后仍被盖每 250ms 再收 8% 基准至露出/34% 地板）。行为断言 tools/verify-kb-cover-dock.mjs ====
-  { name: '#337 键盘可见性触发停靠（删则读数漂移内核输入栏整行留在键盘下=畅玩80Pro 族无法聊天）', file: 'js/mobile-adapt.js', needle: 'if (_r && _r.height > 0 && _r.bottom > _visBottom + 12) _aProvDock();' },
+  { name: '#337 键盘可见性触发停靠（删则读数漂移内核输入栏整行留在键盘下=畅玩80Pro 族无法聊天）', file: 'js/mobile-adapt.js', needle: 'if (_r && _r.height > 0 && _aCoverBottom(tgt) > _visBottom + 12) _aProvDock();' },
   { name: '#337 VirtualKeyboard 实测尺拉起（删则悬浮键盘只能 58% 盲猜，高占比输入法停靠不足仍被盖）', file: 'js/mobile-adapt.js', needle: 'vk.overlaysContent = true;' },
   { name: '#337 欠深自纠逐拍收紧（删则保底停靠不足时输入栏仍被盖不自愈）', file: 'js/mobile-adapt.js', needle: 'var ph = Math.max(Math.round(base * 0.34), cur - Math.round(base * 0.08));' },
   // ==== 2026-09-11 #336 信息诊断导出 docx 无反应（荣耀畅玩80Pro 自带浏览器对合成 a[download]+blob URL 静默忽略）：接入数据备份同款三级降级链 window.mochiExportBlob（①系统分享面板 ②系统保存框 ③确认后 a[download]），裸下载只作兜底；两处诊断弹窗统一走 diagExportDocx。行为断言 tools/verify-docx-export.mjs E5~E11 ====

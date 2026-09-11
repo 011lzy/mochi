@@ -6195,13 +6195,17 @@ padding-bottom:max(var(--mochi-safe-bottom, env(safe-area-inset-bottom, 0px)), 8
 .lk-status { min-height:20px; font-size:13px; color:var(--muted); text-align:center; }
 .m3-wrap { display:flex; flex-direction:column; align-items:center; gap:8px; padding:6px 4px 4px; }
 .m3-info { display:flex; flex-wrap:wrap; justify-content:center; gap:12px; font-size:12px; color:var(--muted); }
-.m3-stage { position:relative; width:100%; min-height:190px; display:flex; justify-content:center; align-items:center; } .m3-board { display:grid; grid-template-columns:repeat(8,1fr); gap:3px; user-select:none; -webkit-user-select:none; touch-action:manipulation; }
-.m3-tile { display:flex; align-items:center; justify-content:center; background:rgba(127,127,127,.09); border-radius:10px; cursor:pointer; -webkit-tap-highlight-color:transparent; line-height:1; transition:transform .12s; }
+.m3-stage { position:relative; width:100%; min-height:190px; display:flex; justify-content:center; align-items:center; } .m3-board { position:relative; user-select:none; -webkit-user-select:none; touch-action:manipulation; }
+.m3-tile { position:absolute; top:0; left:0; display:flex; align-items:center; justify-content:center; background:rgba(127,127,127,.09); border-radius:10px; cursor:pointer; -webkit-tap-highlight-color:transparent; line-height:1; transition:left .18s ease, top .24s ease; will-change:left,top; }
+.m3-noanim .m3-tile { transition:none !important; }
+@keyframes m3-popout { 0% { transform:scale(1); opacity:1; } 35% { transform:scale(1.25); opacity:.9; } 100% { transform:scale(0); opacity:0; } }
+@keyframes m3-born { 0% { transform:scale(.3); opacity:0; } 100% { transform:scale(1); opacity:1; } }
+.m3-tile.m3-born { animation:m3-born .24s ease; }
 [data-theme="dark"] .m3-tile { background:rgba(255,255,255,.08); }
 .m3-tile.m3-sel { outline:2px solid #5b8ff9; transform:scale(1.1); }
 .m3-tile.m3-hint { outline:2px solid #ffb347; animation:pairgame-blink .6s ease-in-out 3; }
 .m3-tile.m3-shake { animation:pairgame-shake .3s; }
-.m3-tile.m3-pop { transform:scale(1.28); opacity:.3; }
+.m3-tile.m3-pop { animation:m3-popout .22s ease forwards; pointer-events:none; }
 .m3-status { min-height:20px; font-size:13px; color:var(--muted); text-align:center; }
 @keyframes pairgame-blink { 50% { outline-color:transparent; } }
 @keyframes pairgame-shake { 25% { transform:translateX(-3px); } 75% { transform:translateX(3px); } }
@@ -9158,9 +9162,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1789144506859">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.589</b></span>
-        <span class="sv-deploy">部署于 2026-09-12 00:35<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1789164038854">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.592</b></span>
+        <span class="sv-deploy">部署于 2026-09-12 06:00<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -10349,7 +10353,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.589</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.592</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10644,7 +10648,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.589</span>
+              <span class="lic-ver">v3.26.592</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -81826,6 +81830,8 @@ if (fsBtn) fsBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleF
 const diffSel = document.getElementById('m3-diff');
 const partnerNameEl = document.getElementById('m3-partner-name');
 const N = 8, KIND_N = 6;
+const GAP = 3;                 // 格间距（fitBoard 哨兵表达式依赖）
+const SWAP_MS = 170, POP_MS = 220, FALL_MS = 300;  // 交换/消除/下落动画时长
 const KINDS = ['🍓', '🍋', '🍇', '🔔', '⭐', '🎈'];
 const BOMB_BASE = 10;    // 10+c = 该色炸弹（💥）
 const RAINBOW = 20;      // 彩虹（🌈）
@@ -81840,6 +81846,7 @@ const T = window.taFit || function (x) { return x; };
 function prefix() { return (window.activePrefix && window.activePrefix()) || 'xy-home-v2'; }
 function fastMul() { return (window.__m3Debug && window.__m3Debug.fast) ? 0.05 : 1; }
 function pick(arr) { return arr && arr.length ? arr[Math.floor(Math.random() * arr.length)] : null; }
+function animMs(x) { return Math.round(x * fastMul()); }
 function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
 function inBoard(r, c) { return r >= 0 && r < N && c >= 0 && c < N; }
 function colorOf(v) { return v >= BOMB_BASE && v < RAINBOW ? v - BOMB_BASE : (v >= RAINBOW ? -1 : v); }
@@ -82021,45 +82028,111 @@ if (!findMatches(g) && allMoves(g).length > 0) { st.grid = g; renderBoard(); ret
 renderBoard();
 return false;
 }
+let pidGrid = [];              // pidGrid[r][c] = 棋子 id / -1（空位）
+const pieces = new Map();      // id -> { v, el }
+let nextPid = 1;
+let cellPx = 40;
+function setGlyph(el, v) {
+el.classList.remove('m3-bomb');
+if (v >= RAINBOW) el.textContent = '🌈';
+else if (v >= BOMB_BASE) { el.textContent = '💥'; el.classList.add('m3-bomb'); }
+else el.textContent = KINDS[v];
+}
+function layoutTile(el, r, c) {
+el.style.width = cellPx + 'px';
+el.style.height = cellPx + 'px';
+el.style.fontSize = Math.round(cellPx * 0.54) + 'px';
+el.style.left = (c * (cellPx + GAP)) + 'px';
+el.style.top = (r * (cellPx + GAP)) + 'px';
+el._r = r; el._c = c;
+}
+function spawnTile(v, r, c, fromRow, born) {
+const el = document.createElement('div');
+el.className = 'm3-tile' + (born ? ' m3-born' : '');
+const id = nextPid++;
+setGlyph(el, v);
+el.style.width = cellPx + 'px';
+el.style.height = cellPx + 'px';
+el.style.fontSize = Math.round(cellPx * 0.54) + 'px';
+el.style.left = (c * (cellPx + GAP)) + 'px';
+el.style.top = ((fromRow != null ? fromRow : r) * (cellPx + GAP)) + 'px';
+el._r = r; el._c = c;
+boardEl.appendChild(el);
+pieces.set(id, { v: v, el: el });
+pidGrid[r][c] = id;
+if (fromRow != null) requestAnimationFrame(() => { layoutTile(el, r, c); });
+return id;
+}
 function buildBoard() {
 boardEl.innerHTML = '';
-boardEl.style.gridTemplateColumns = 'repeat(' + N + ',1fr)';
-for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
-const cell = document.createElement('div');
-cell.className = 'm3-tile';
-cell.setAttribute('data-r', String(r));
-cell.setAttribute('data-c', String(c));
-boardEl.appendChild(cell);
-}
+pieces.clear();
+pidGrid = [];
+for (let r = 0; r < N; r++) pidGrid.push(new Array(N).fill(-1));
+nextPid = 1;
+boardEl.classList.add('m3-noanim');
+for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) spawnTile(st.grid[r][c], r, c, null, false);
+void boardEl.offsetWidth;
+boardEl.classList.remove('m3-noanim');
 }
 function fitBoard() {
 if (!stageEl || panel.hidden || !st) return;
 const w = stageEl.clientWidth;
 if (!w) return;
-const GAP = 3;
-const cellPx = Math.max(26, Math.min(46, Math.floor((w - (N - 1) * GAP) / N)));
+cellPx = Math.max(26, Math.min(46, Math.floor((w - (N - 1) * GAP) / N)));
 boardEl.style.width = (cellPx * N + (N - 1) * GAP) + 'px';
-const tiles = boardEl.querySelectorAll('.m3-tile');
-for (let i = 0; i < tiles.length; i++) { tiles[i].style.width = cellPx + 'px'; tiles[i].style.height = cellPx + 'px'; tiles[i].style.fontSize = Math.round(cellPx * 0.54) + 'px'; }
+boardEl.style.height = (cellPx * N + (N - 1) * GAP) + 'px';
+boardEl.classList.add('m3-noanim');
+pieces.forEach((p) => { layoutTile(p.el, p.el._r, p.el._c); });
+void boardEl.offsetWidth;
+boardEl.classList.remove('m3-noanim');
 }
-function tileAt(r, c) { return boardEl.children[r * N + c] || null; }
-function renderBoard() {
-for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
-const el = tileAt(r, c);
-if (!el) continue;
-el.classList.remove('m3-sel', 'm3-hint', 'm3-shake', 'm3-bomb');
-const v = st.grid[r][c];
-if (v < 0) el.textContent = '';
-else if (v >= RAINBOW) { el.textContent = '🌈'; }
-else if (v >= BOMB_BASE) { el.textContent = '💥'; el.classList.add('m3-bomb'); }
-else el.textContent = KINDS[v];
+function tileAt(r, c) {
+const id = pidGrid[r] ? pidGrid[r][c] : -1;
+const p = id >= 0 ? pieces.get(id) : null;
+return p ? p.el : null;
 }
-updateInfo();
+function renderBoard() { buildBoard(); updateInfo(); }
+function swapPid(a, b) {
+const ia = pidGrid[a[0]][a[1]], ib = pidGrid[b[0]][b[1]];
+pidGrid[a[0]][a[1]] = ib; pidGrid[b[0]][b[1]] = ia;
+const pa = pieces.get(ia), pb = pieces.get(ib);
+if (pa) layoutTile(pa.el, b[0], b[1]);
+if (pb) layoutTile(pb.el, a[0], a[1]);
 }
-function flashClear(cells) {
+function popClear(cells) {
 for (let i = 0; i < cells.length; i++) {
-const el = tileAt(cells[i][0], cells[i][1]);
-if (el) { el.classList.add('m3-pop'); setTimeout(((el2) => () => el2.classList.remove('m3-pop'))(el), 220); }
+const r = cells[i][0], c = cells[i][1];
+const id = pidGrid[r][c];
+if (id == null || id < 0) continue;
+pidGrid[r][c] = -1;
+const p = pieces.get(id);
+if (!p) continue;
+pieces.delete(id);
+p.el.classList.remove('m3-sel', 'm3-hint');
+p.el.classList.add('m3-pop');
+setTimeout(((el) => () => { if (el.parentNode) el.parentNode.removeChild(el); })(p.el), animMs(POP_MS) + 60);
+}
+}
+function collapseAnimated() {
+for (let c = 0; c < N; c++) {
+let write = N - 1;
+for (let r = N - 1; r >= 0; r--) {
+const id = pidGrid[r][c];
+if (id >= 0) {
+if (write !== r) {
+const p = pieces.get(id);
+pidGrid[write][c] = id; pidGrid[r][c] = -1;
+st.grid[write][c] = st.grid[r][c]; st.grid[r][c] = -1;
+if (p) layoutTile(p.el, write, c);
+}
+write--;
+}
+}
+for (let r = write; r >= 0; r--) {
+const v = Math.floor(Math.random() * KIND_N);
+st.grid[r][c] = v;
+spawnTile(v, r, c, r - (write + 1), true);
+}
 }
 }
 function updateInfo() {
@@ -82102,7 +82175,7 @@ st.started = true;
 hideOverlay();
 buildBoard();
 fitBoard();
-renderBoard();
+updateInfo();
 st.turn = 1;
 setStatus(dot(1) + '你的回合：点一格再点相邻一格交换');
 }
@@ -82114,6 +82187,7 @@ if (rbA || rbB) { doRainbowSwap(a, b, rbA && rbB, byMe, cb); return; }
 const t = st.grid[a[0]][a[1]];
 st.grid[a[0]][a[1]] = st.grid[b[0]][b[1]];
 st.grid[b[0]][b[1]] = t;
+swapPid(a, b);
 let chain = 0, gained = 0;
 const step = () => {
 const runs = findRuns(st.grid);
@@ -82122,7 +82196,11 @@ if (!chain) {
 const t2 = st.grid[a[0]][a[1]];
 st.grid[a[0]][a[1]] = st.grid[b[0]][b[1]];
 st.grid[b[0]][b[1]] = t2;
-renderBoard();
+swapPid(a, b);
+[a, b].forEach((p) => {
+const el = tileAt(p[0], p[1]);
+if (el) { el.classList.add('m3-shake'); setTimeout(((e2) => () => e2.classList.remove('m3-shake'))(el), 320); }
+});
 st.lock = false;
 sfxBad();
 if (cb) cb(false, 0);
@@ -82137,6 +82215,7 @@ runs.forEach((run) => run.cells.forEach((p) => seeds.push(p)));
 const cells = clearWithSpecials(st.grid, seeds);
 const hadBoom = cells.some((p) => { const v = st.grid[p[0]][p[1]]; return v >= BOMB_BASE; });
 cells.forEach((p) => { st.grid[p[0]][p[1]] = -1; });
+let kept = null;
 if (chain === 1) {
 const best = runs.slice().sort((x, y) => y.len - x.len)[0];
 if (best.len >= 5) {
@@ -82144,11 +82223,13 @@ const inBest = best.cells.some((p) => p[0] === b[0] && p[1] === b[1]);
 const at2 = inBest ? b : best.cells[Math.floor(best.cells.length / 2)];
 st.grid[at2[0]][at2[1]] = RAINBOW;
 cells.push([at2[0], at2[1]]);
+kept = at2;
 taSay(pick(['🌈 彩虹出现了！', '快用彩虹，超好用']));
 } else if (best.len === 4) {
 const at2 = best.cells.some((p) => p[0] === b[0] && p[1] === b[1]) ? b : best.cells[Math.floor(best.cells.length / 2)];
 st.grid[at2[0]][at2[1]] = BOMB_BASE + best.color;
 cells.push([at2[0], at2[1]]);
+kept = at2;
 taSay(pick(['💣 炸弹生成！', '四连！收下这个💥']));
 }
 }
@@ -82156,20 +82237,28 @@ const pts = cells.length * chain;
 gained += pts;
 st.score += pts;
 if (byMe) st.myScore += pts; else st.taScore += pts;
-flashClear(cells);
+popClear(kept ? cells.filter((p) => p[0] !== kept[0] || p[1] !== kept[1]) : cells);
+if (kept) {
+const el = tileAt(kept[0], kept[1]);
+if (el) {
+setGlyph(el, st.grid[kept[0]][kept[1]]);
+el.classList.remove('m3-born'); void el.offsetWidth; el.classList.add('m3-born');
+}
+}
 if (hadBoom) sfxBoom();
 sfxClear(chain);
 if (chain >= 3) taSay('连锁 ×' + chain + (byMe ? '，好强！' : '，我也行吧'));
-collapse(st.grid);          // 重力补落后再等下一轮查连锁
-renderBoard();
-setTimeout(step, Math.round(230 * fastMul()));
+setTimeout(() => {
+collapseAnimated();         // 下落补位后再等下一轮查连锁
+setTimeout(step, animMs(FALL_MS));
+}, animMs(POP_MS));
 };
 const finish = () => {
 updateInfo();
 st.lock = false;
 if (cb) cb(true, gained);
 };
-step();
+setTimeout(step, animMs(SWAP_MS));
 }
 function doRainbowSwap(a, b, both, byMe, cb) {
 const rbPos = st.grid[a[0]][a[1]] >= RAINBOW ? a : b;
@@ -82193,13 +82282,14 @@ cells.forEach((p) => { st.grid[p[0]][p[1]] = -1; });
 const pts = cells.length;
 st.score += pts;
 if (byMe) st.myScore += pts; else st.taScore += pts;
-flashClear(cells);
-collapse(st.grid);
-renderBoard();
+popClear(cells);
+setTimeout(() => {
+collapseAnimated();
 setTimeout(() => {
 st.lock = false;
 if (cb) cb(true, pts);
-}, Math.round(230 * fastMul()));
+}, animMs(FALL_MS));
+}, animMs(POP_MS));
 }
 function afterMove(byMe) {
 if (st.score >= st.target) { endGame(); return; }
@@ -82356,8 +82446,8 @@ boardEl.addEventListener('click', (e) => {
 e.stopPropagation();
 const cell = e.target.closest('.m3-tile');
 if (!cell) return;
-const r = parseInt(cell.getAttribute('data-r'), 10) || 0;
-const c = parseInt(cell.getAttribute('data-c'), 10) || 0;
+const r = typeof cell._r === 'number' ? cell._r : 0;
+const c = typeof cell._c === 'number' ? cell._c : 0;
 if (!st || !st.started || st.over || st.lock || st.turn !== 1) return;
 if (st.sel && st.sel[0] === r && st.sel[1] === c) {
 st.sel = null;
@@ -88407,6 +88497,7 @@ var _aKb = false;
 var _aKbAt = 0, _aVvChgAt = Date.now(), _aVvStale = false;
 var _aTextFocused = null;
 var _aFocusAt = 0, _aProv = false, _aIH = window.innerHeight;
+var _aVvShrunkSeen = false;
 var _aLastAct = Date.now();
 var _aLastVVH = 0;
 var _aPrevH = 0;
@@ -88560,7 +88651,7 @@ _aClosing = true;
 _aPrevH = h;
 var open = (!_aVvStale && h < _aH - 60); // 可视高度明显变小 = 键盘弹出（#236：残留读数闩抑制纯 vv 信号；真键盘不受影响——inner 同缩走原判/交互与回基准解锁）
 if (!open && h > _aH) _aH = h; // 无键盘时更新基准，地址栏变化不误判
-if (open && !_aKb) { _aClosing = false; _aKb = true; _aKbAt = Date.now(); _aPhone.style.alignSelf = 'flex-start'; kbDockPanels(); _aProvClear(); }
+if (open && !_aKb) { _aClosing = false; _aKb = true; _aVvShrunkSeen = true; _aKbAt = Date.now(); _aPhone.style.alignSelf = 'flex-start'; kbDockPanels(); _aProvClear(); }
 if (!open && _aKb) {
 if (h < _aH - 12) {
 _aClosing = true;
@@ -88603,18 +88694,8 @@ if (_aProv && _aLastVVH && _aLastVVH < _aH - 60 && _hNow >= _aH - 60) {
 _aProvClear();
 }
 _aLastVVH = _hNow;
-if (_aProv && _aVV.height >= _aH - 60 && Date.now() - _aLastAct > 2200) {
-var _hcT = (_aIsText(_aTextFocused) ? _aTextFocused : null) ||
-(_aIsText(document.activeElement) ? document.activeElement : null);
-var _hcCovered = false;
-try {
-if (_hcT && _hcT.getBoundingClientRect) {
-var _hcVB = (_aVV.offsetTop || 0) + _aVV.height;
-var _hcR = _hcT.getBoundingClientRect();
-_hcCovered = _hcR.height > 0 && _hcR.bottom > _hcVB + 12;
-}
-} catch (eHC) {}
-if (!_hcCovered) _aProvClear();
+if (_aProv && _aVvShrunkSeen && _aVV.height >= _aH - 60 && Date.now() - _aLastAct > 2200) {
+_aProvClear();
 }
 } else if (_aKb) {
 if (_aVV.height >= _aH - 12) {
@@ -88671,6 +88752,14 @@ if (_aPhone.style.height !== ph2 + 'px') _aPhone.style.height = ph2 + 'px';
 }
 } catch (eVk) {}
 }
+function _aCoverBottom(el) {
+try {
+var b = el.getBoundingClientRect().bottom;
+var row = el.closest ? el.closest('.chat-input-row') : null;
+if (row) b = Math.max(b, row.getBoundingClientRect().bottom);
+return b;
+} catch (eCB) { return el.getBoundingClientRect().bottom; }
+}
 function _aProvDeepen() {
 try {
 if (!_aProv || _aKb) return;
@@ -88679,7 +88768,7 @@ var tgt = (_aIsText(_aTextFocused) ? _aTextFocused : null) ||
 if (!tgt || !tgt.getBoundingClientRect) return;
 var visBottom = (_aVV.offsetTop || 0) + _aVV.height;
 var r = tgt.getBoundingClientRect();
-if (!(r.height > 0 && r.bottom > visBottom + 12)) return; // 已露出
+if (!(r.height > 0 && _aCoverBottom(tgt) > visBottom + 12)) return; // 已露出
 var base = Math.min(_aH, _aIH);
 var cur = parseInt(_aPhone.style.height, 10) || Math.round(base * 0.58);
 var ph = Math.max(Math.round(base * 0.34), cur - Math.round(base * 0.08));
@@ -88736,7 +88825,7 @@ Date.now() > kbHardKeyUntil) {
 try {
 var _r = tgt.getBoundingClientRect ? tgt.getBoundingClientRect() : null;
 var _visBottom = (_aVV.offsetTop || 0) + _aVV.height;
-if (_r && _r.height > 0 && _r.bottom > _visBottom + 12) _aProvDock();
+if (_r && _r.height > 0 && _aCoverBottom(tgt) > _visBottom + 12) _aProvDock();
 } catch (eV337) {}
 }
 } catch (e) {}
@@ -89116,4 +89205,4 @@ lastHeal: his
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mtx6g0rv -->
+<!-- __MOCHI_EOF__ mtxi2nra -->
