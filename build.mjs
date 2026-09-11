@@ -1004,6 +1004,8 @@ const FIX_SENTINELS = [
   { name: '#339 wrj 回放禁写 IDB·守卫包住 idbSet（删守卫留裸 idbSet＝回放旧值踩掉 IDB 新值、wrjMerge 自愈读回被踩旧值）', file: 'js/idb.js', needle: 'if (!WRJ_REPLAY_NO_IDB) { try { if (window.idbSet) window.idbSet(e.k, e.v); } catch (e2) {} }' },
   { name: '#337 尾巴日志收录互动卡问题/选项字段（删字段清单＝IDB 落盘失败回放出的互动卡「卡片在、问题空白」回归）', file: 'js/chat.js', needle: "const CHAT_TAIL_INTERACT_FIELDS = ['askQuestion', 'askOptions', 'askType', 'deskCk', 'deskCkDir'," },
   { name: '#337 互动卡渲染回退 rec.text 自愈（三个 || 去掉＝存量空白卡永远空白、无自愈路径）', file: 'js/chat.js', needle: "escTxt(rec.choiceQuestion || rec.text || '')" },
+  // ==== 2026-09-12 #342 拍卖会两缺陷：①⛶ 全屏被 #321 半框 ID 规则钳在 68% 高（ID 特异性压过 .poke-card.game-fs 的 max-height:none，实测 574/844px 底部露出聊天页）→ 半框规则加 :not(.game-fs) 限定；②#321 全屏教学浮层盖住头部 ✕ 且无自己的出口＝想走只能先开局 → 加「先不玩」按钮（template+js）。行为断言 tools/verify-auction-overlay.mjs E/F 组 ====
+  { name: '#342 拍卖半框 68% 规则限定非全屏（删 :not(.game-fs)＝ID 规则重新压过 game-fs，⛶ 全屏只有 68% 高半截屏）', file: 'css/chat-pages.css', needle: '#chat-auction-panel:not(.game-fs) { height:auto; min-height:min(68%, 560px); max-height:68%; }' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

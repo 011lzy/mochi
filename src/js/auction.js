@@ -40,6 +40,7 @@
   const introStatEl = document.getElementById('au-intro-stat');
   const introStart = document.getElementById('au-intro-start');
   const introHelp = document.getElementById('au-intro-help');
+  const introExit = document.getElementById('au-intro-exit');
   function showHelp() { if (helpOverlay) helpOverlay.hidden = false; }
   function hideHelp() { if (helpOverlay) helpOverlay.hidden = true; }
   function showIntro() { if (introEl) introEl.hidden = false; }
@@ -49,6 +50,8 @@
   // #321 开场全屏教学：开始 / 详细玩法（两处都重新挂靠到新会话）
   if (introStart) introStart.addEventListener('click', (e) => { e.stopPropagation(); newSession(); });
   if (introHelp) introHelp.addEventListener('click', (e) => { e.stopPropagation(); showHelp(); });
+  // #341 教学浮层盖住了头部 ✕，没有出口就走不了——「先不玩」直接收摊关面板
+  if (introExit) introExit.addEventListener('click', (e) => { e.stopPropagation(); closePanel(); });
 
   // ---- #306 全屏：面板 fixed 满屏（共享 .game-fs 类，同 pong-fs 机制）。 ----
   // 重开面板无论上次怎么关的（含兄弟互斥直接 hidden）都先退出，防全屏残留 ----

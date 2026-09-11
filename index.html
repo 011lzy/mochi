@@ -6176,16 +6176,31 @@ padding-bottom:max(var(--mochi-safe-bottom, env(safe-area-inset-bottom, 0px)), 8
 .gk-cell { position:relative; box-sizing:border-box; border-right:1px solid rgba(90,60,20,.18); border-bottom:1px solid rgba(90,60,20,.18); cursor:pointer; -webkit-tap-highlight-color:transparent; }
 .gk-cell:nth-child(11n) { border-right:none; }
 .gk-cell:nth-last-child(-n+11) { border-bottom:none; }
-.gk-stone { position:absolute; inset:9%; border-radius:50%; z-index:1; box-shadow:0 1px 3px rgba(0,0,0,.28); }
+.gk-stone { position:absolute; inset:9%; border-radius:50%; z-index:1; box-shadow:0 1px 3px rgba(0,0,0,.28); transition:opacity .35s ease; }
 .gk-you { background:radial-gradient(circle at 34% 30%, #5a5f68 0 30%, #16181d 100%); }
 .gk-ta { background:radial-gradient(circle at 34% 30%, #ffffff 0 32%, #cfd4da 100%); }
 .gk-stone.gk-last::after { content:''; position:absolute; inset:38%; border-radius:50%; background:#e0524d; }
 .gk-stone.gk-win { outline:2px solid #ffb347; outline-offset:-2px; }
 .gk-status { min-height:20px; font-size:13px; color:var(--muted); text-align:center; }
+@keyframes gk-drop { 0% { transform:scale(1.7); opacity:0; } 55% { transform:scale(.88); opacity:1; } 78% { transform:scale(1.07); } 100% { transform:scale(1); } }
+.gk-stone.gk-drop { animation:gk-drop .21s cubic-bezier(.2,.8,.3,1.15); }
+@keyframes gk-last-blink { 0%,100% { opacity:1; } 50% { opacity:.12; } }
+.gk-stone.gk-last::after { animation:gk-last-blink .42s ease-in-out 3; }
+@keyframes gk-win-pulse { 0%,100% { transform:scale(1); box-shadow:0 1px 3px rgba(0,0,0,.28); } 50% { transform:scale(1.16); box-shadow:0 0 12px 3px rgba(255,179,71,.9); } }
+.gk-stone.gk-win { outline:2px solid #ffb347; outline-offset:-2px; animation:gk-win-pulse .48s ease-in-out 2 both; animation-delay:calc(var(--gk-win-i, 0) * 80ms); z-index:2; }
+.gk-board.gk-dim .gk-stone:not(.gk-win) { opacity:.38; }
+@keyframes gk-vanish { to { transform:scale(.35); opacity:0; } }
+.gk-stone.gk-vanish { animation:gk-vanish .17s ease forwards; pointer-events:none; }
+.gk-board.gk-noanim .gk-stone, .gk-board.gk-noanim .gk-stone::after { animation:none !important; transition:none !important; }
+.gk-cell:active { background:rgba(90,60,20,.12); }
+@keyframes gk-ov-in { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+#gk-overlay:not([hidden]) > * { animation:gk-ov-in .26s ease both; }
+#gk-overlay:not([hidden]) > :nth-child(2) { animation-delay:50ms; }
+#gk-overlay:not([hidden]) > :nth-child(3) { animation-delay:100ms; }
 .lk-wrap { display:flex; flex-direction:column; align-items:center; gap:8px; padding:6px 4px 4px; }
 .lk-info { display:flex; flex-wrap:wrap; justify-content:center; gap:12px; font-size:12px; color:var(--muted); }
 .lk-stage { position:relative; width:100%; min-height:190px; display:flex; justify-content:center; align-items:center; }
-.lk-board { display:grid; gap:3px; user-select:none; -webkit-user-select:none; touch-action:manipulation; }
+.lk-board { position:relative; display:grid; gap:3px; user-select:none; -webkit-user-select:none; touch-action:manipulation; }
 .lk-tile { display:flex; align-items:center; justify-content:center; background:linear-gradient(180deg,#ffffff,#eef1f6); border:1px solid rgba(0,0,0,.1); border-radius:9px; box-shadow:0 1px 2px rgba(0,0,0,.08); cursor:pointer; -webkit-tap-highlight-color:transparent; line-height:1; transition:opacity .18s, transform .18s; }
 [data-theme="dark"] .lk-tile { background:linear-gradient(180deg,#3a4048,#2c3138); border-color:rgba(255,255,255,.12); }
 .lk-tile.lk-gone { opacity:0; transform:scale(.6); pointer-events:none; }
@@ -6193,6 +6208,17 @@ padding-bottom:max(var(--mochi-safe-bottom, env(safe-area-inset-bottom, 0px)), 8
 .lk-tile.lk-hint { outline:2px solid #ffb347; animation:pairgame-blink .6s ease-in-out 3; }
 .lk-tile.lk-shake { animation:pairgame-shake .3s; }
 .lk-status { min-height:20px; font-size:13px; color:var(--muted); text-align:center; }
+.lk-pathline { position:absolute; left:0; top:0; width:100%; height:100%; overflow:visible; pointer-events:none; z-index:3; }
+.lk-pathline polyline { fill:none; stroke:#5b8ff9; stroke-width:3; stroke-linecap:round; stroke-linejoin:round; opacity:.9; stroke-dasharray:1; stroke-dashoffset:1; animation:lkpath .42s ease forwards; }
+@keyframes lkpath { 0% { stroke-dashoffset:1; opacity:.9; } 60% { stroke-dashoffset:0; opacity:.9; } 100% { stroke-dashoffset:0; opacity:0; } }
+.lk-tile.lk-pop { animation:lkpop .26s ease forwards; pointer-events:none; }
+@keyframes lkpop { 0% { transform:scale(1); opacity:1; } 35% { transform:scale(1.16); opacity:1; } 100% { transform:scale(.35); opacity:0; } }
+.lk-tile.lk-shufout { animation:lkshufout .18s ease-in forwards; }
+@keyframes lkshufout { to { transform:scale(.5) rotate(10deg); opacity:0; } }
+.lk-tile.lk-shufin { animation:lkshufin .22s ease-out backwards; }
+@keyframes lkshufin { from { transform:scale(.5) rotate(-10deg); opacity:0; } }
+.lk-tile.lk-born { animation:lkborn .22s ease-out backwards; }
+@keyframes lkborn { from { transform:scale(.3); opacity:0; } }
 .m3-wrap { display:flex; flex-direction:column; align-items:center; gap:8px; padding:6px 4px 4px; }
 .m3-info { display:flex; flex-wrap:wrap; justify-content:center; gap:12px; font-size:12px; color:var(--muted); }
 .m3-stage { position:relative; width:100%; min-height:190px; display:flex; justify-content:center; align-items:center; } .m3-board { position:relative; user-select:none; -webkit-user-select:none; touch-action:manipulation; }
@@ -6243,7 +6269,8 @@ gap:12px; padding:22px 18px; background:rgba(12,16,26,.92);
 .au-intro-steps b { color:#ffd479; }
 .au-intro-stat { font-size:12.5px; color:rgba(255,255,255,.82); }
 #au-intro .pong-overlay-btn, #au-help .pong-overlay-btn { min-width:210px; }
-#chat-auction-panel { height:auto; min-height:min(68%, 560px); max-height:68%; }
+#au-intro .pong-overlay-btns { flex-direction:column; align-items:center; }
+#chat-auction-panel:not(.game-fs) { height:auto; min-height:min(68%, 560px); max-height:68%; }
 #chat-auction-panel .poke-card-scroll { min-height:0; max-height:none; }
 .feed-imgs { position: relative; }
 .feed-sticker { position: absolute; width: 44px; height: 44px; transform: translate(-50%, -50%); cursor: pointer; z-index: 2; filter: drop-shadow(0 2px 4px rgba(0,0,0,.25)); }
@@ -9162,9 +9189,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1789165904222">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.594</b></span>
-        <span class="sv-deploy">部署于 2026-09-12 06:31<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1789168519420">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.595</b></span>
+        <span class="sv-deploy">部署于 2026-09-12 07:15<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -10353,7 +10380,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.594</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.595</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10648,7 +10675,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.594</span>
+              <span class="lic-ver">v3.26.595</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -13381,6 +13408,8 @@ transition-duration: .01ms !important;
                 <div class="pong-overlay-btns">
                   <button class="pong-overlay-btn" id="au-intro-start" type="button">开始拍卖</button>
                   <button class="pong-overlay-btn pong-overlay-btn2" id="au-intro-help" type="button">详细玩法</button>
+                  <!-- #341 教学浮层是全屏的、盖住头部 ✕，没有这个出口用户想走只能先开局 -->
+                  <button class="pong-overlay-btn pong-overlay-btn2" id="au-intro-exit" type="button">先不玩</button>
                 </div>
               </div>
             </div>
@@ -82700,6 +82729,7 @@ const introStepsEl = document.getElementById('au-intro-steps');
 const introStatEl = document.getElementById('au-intro-stat');
 const introStart = document.getElementById('au-intro-start');
 const introHelp = document.getElementById('au-intro-help');
+const introExit = document.getElementById('au-intro-exit');
 function showHelp() { if (helpOverlay) helpOverlay.hidden = false; }
 function hideHelp() { if (helpOverlay) helpOverlay.hidden = true; }
 function showIntro() { if (introEl) introEl.hidden = false; }
@@ -82708,6 +82738,7 @@ if (helpBtn) helpBtn.addEventListener('click', (e) => { e.stopPropagation(); sho
 if (helpClose) helpClose.addEventListener('click', (e) => { e.stopPropagation(); hideHelp(); });
 if (introStart) introStart.addEventListener('click', (e) => { e.stopPropagation(); newSession(); });
 if (introHelp) introHelp.addEventListener('click', (e) => { e.stopPropagation(); showHelp(); });
+if (introExit) introExit.addEventListener('click', (e) => { e.stopPropagation(); closePanel(); });
 let isFs = false;
 function toggleFs() {
 isFs = !isFs;
@@ -89296,4 +89327,4 @@ lastHeal: his
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mtxj6n32 -->
+<!-- __MOCHI_EOF__ mtxkqozg -->

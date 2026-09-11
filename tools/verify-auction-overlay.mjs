@@ -134,6 +134,18 @@ chk('A2 帮助层 hidden=true 时 computed display=none（本修复核心；坏�
 const aHit = await evalJs(hitAt('au-intro-start'));
 chk('A3 教学层「开始拍卖」按钮可命中（不被别的层拦）', typeof aHit === 'string' && aHit.indexOf('au-intro-start') >= 0, 'hit=' + aHit);
 
+// F) #341 「先不玩」出口：教学浮层盖住了头部 ✕，必须有自己的关闭出口
+const fHit = await evalJs(hitAt('au-intro-exit'));
+chk('F1 「先不玩」按钮在教学中可命中', typeof fHit === 'string' && fHit.indexOf('au-intro-exit') >= 0, 'hit=' + fHit);
+await evalJs(`(function(){ var b = document.getElementById('au-intro-exit'); if (b) b.click(); return 1; })()`);
+await sleep(250);
+const fClosed = await evalJs(`(function(){ var p = document.getElementById('chat-auction-panel'); return p ? String(p.hidden) : 'no-el'; })()`);
+chk('F2 点「先不玩」直接收摊关面板', fClosed === 'true', 'panel.hidden=' + fClosed);
+await evalJs(`(function(){ if (window.openAuctionPanel) window.openAuctionPanel(); return 1; })()`);
+await sleep(400);
+const fIntro = await evalJs(disp('au-intro'));
+chk('F3 重开面板教学层照常出现', fIntro === 'flex', 'display=' + fIntro);
+
 // B) 点「开始拍卖」：教学层必须真收起（坏产物 hidden 属性变了但视觉不动＝后续全点不到）
 await evalJs(`(function(){ var b = document.getElementById('au-intro-start'); if (b) b.click(); return 1; })()`);
 await sleep(300);
@@ -172,6 +184,22 @@ const dHelp = await evalJs(disp('au-help'));
 const dHit = await evalJs(hitAt('au-pass'));
 chk('D1 重开后教学/帮助层都不残留', dIntro === 'none' && dHelp === 'none', 'intro=' + dIntro + ' help=' + dHelp);
 chk('D2 重开后「放弃这件」可命中（半框可直接继续操作）', typeof dHit === 'string' && dHit.indexOf('au-pass') >= 0, 'hit=' + dHit);
+
+// E) #341 全屏真满屏：68% 半框规则用 :not(.game-fs) 限定后，⛶ 全屏高度必须回到视口高
+await evalJs(`(function(){ var b = document.getElementById('au-fs'); if (b) b.click(); return 1; })()`);
+await sleep(400);
+const eFs = JSON.parse(await evalJs(`(function(){
+  var p = document.getElementById('chat-auction-panel');
+  var r = p.getBoundingClientRect();
+  return JSON.stringify({ hasFs: p.classList.contains('game-fs'), maxH: getComputedStyle(p).maxHeight, h: Math.round(r.height), vh: innerHeight });
+})()`));
+chk('E1 全屏态挂 .game-fs', eFs.hasFs === true, JSON.stringify(eFs));
+chk('E2 全屏态 max-height=none（坏产物 68%=半截屏；本修复核心断言）', eFs.maxH === 'none', 'maxH=' + eFs.maxH);
+chk('E3 全屏高度占满视口（≥95%vh）', eFs.h >= Math.round(eFs.vh * 0.95), 'h=' + eFs.h + '/' + eFs.vh);
+await evalJs(`(function(){ var b = document.getElementById('au-fs'); if (b) b.click(); return 1; })()`);
+await sleep(400);
+const eBack = await evalJs(`(function(){ var p = document.getElementById('chat-auction-panel'); return getComputedStyle(p).maxHeight; })()`);
+chk('E4 退出全屏恢复 68% 半框', eBack === '68%', 'maxH=' + eBack);
 
 console.log('入口=' + opened + '  结果: ' + pass + ' 通过 / ' + fail + ' 失败');
 chrome.kill();

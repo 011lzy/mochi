@@ -4075,12 +4075,29 @@ body.mail-emoji-mode #emoji-panel { bottom: calc(64px + var(--mochi-safe-bottom,
 .gk-cell { position:relative; box-sizing:border-box; border-right:1px solid rgba(90,60,20,.18); border-bottom:1px solid rgba(90,60,20,.18); cursor:pointer; -webkit-tap-highlight-color:transparent; }
 .gk-cell:nth-child(11n) { border-right:none; }
 .gk-cell:nth-last-child(-n+11) { border-bottom:none; }
-.gk-stone { position:absolute; inset:9%; border-radius:50%; z-index:1; box-shadow:0 1px 3px rgba(0,0,0,.28); }
+.gk-stone { position:absolute; inset:9%; border-radius:50%; z-index:1; box-shadow:0 1px 3px rgba(0,0,0,.28); transition:opacity .35s ease; }
 .gk-you { background:radial-gradient(circle at 34% 30%, #5a5f68 0 30%, #16181d 100%); }
 .gk-ta { background:radial-gradient(circle at 34% 30%, #ffffff 0 32%, #cfd4da 100%); }
 .gk-stone.gk-last::after { content:''; position:absolute; inset:38%; border-radius:50%; background:#e0524d; }
 .gk-stone.gk-win { outline:2px solid #ffb347; outline-offset:-2px; }
 .gk-status { min-height:20px; font-size:13px; color:var(--muted); text-align:center; }
+/* #341 五子棋动画：落子压下回弹 / 最后一手红点闪烁提示 / 胜利连线逐颗点亮+余子退暗 / 悔棋退场 / 结果浮层错峰浮现。
+   gk-win 的 animation 放在 gk-drop 之后（同特异级时后者覆盖 animation 简写，保证连线石点亮不被出生动画顶掉） */
+@keyframes gk-drop { 0% { transform:scale(1.7); opacity:0; } 55% { transform:scale(.88); opacity:1; } 78% { transform:scale(1.07); } 100% { transform:scale(1); } }
+.gk-stone.gk-drop { animation:gk-drop .21s cubic-bezier(.2,.8,.3,1.15); }
+@keyframes gk-last-blink { 0%,100% { opacity:1; } 50% { opacity:.12; } }
+.gk-stone.gk-last::after { animation:gk-last-blink .42s ease-in-out 3; }
+@keyframes gk-win-pulse { 0%,100% { transform:scale(1); box-shadow:0 1px 3px rgba(0,0,0,.28); } 50% { transform:scale(1.16); box-shadow:0 0 12px 3px rgba(255,179,71,.9); } }
+.gk-stone.gk-win { outline:2px solid #ffb347; outline-offset:-2px; animation:gk-win-pulse .48s ease-in-out 2 both; animation-delay:calc(var(--gk-win-i, 0) * 80ms); z-index:2; }
+.gk-board.gk-dim .gk-stone:not(.gk-win) { opacity:.38; }
+@keyframes gk-vanish { to { transform:scale(.35); opacity:0; } }
+.gk-stone.gk-vanish { animation:gk-vanish .17s ease forwards; pointer-events:none; }
+.gk-board.gk-noanim .gk-stone, .gk-board.gk-noanim .gk-stone::after { animation:none !important; transition:none !important; }
+.gk-cell:active { background:rgba(90,60,20,.12); }
+@keyframes gk-ov-in { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+#gk-overlay:not([hidden]) > * { animation:gk-ov-in .26s ease both; }
+#gk-overlay:not([hidden]) > :nth-child(2) { animation-delay:50ms; }
+#gk-overlay:not([hidden]) > :nth-child(3) { animation-delay:100ms; }
 
 /* ---- 连连看：图案牌两折连线 ---- */
 .lk-wrap { display:flex; flex-direction:column; align-items:center; gap:8px; padding:6px 4px 4px; }
@@ -4088,7 +4105,7 @@ body.mail-emoji-mode #emoji-panel { bottom: calc(64px + var(--mochi-safe-bottom,
 /* #308：未开局时棋盘为空 → stage 高 0 → 绝对定位的「开始对局」覆盖层被压成一条横线＝面板像打不开。
    给舞台最小高度（开局后棋盘 5~6 行 230px+，不会被它约束），让标题+开始按钮有容身之地 */
 .lk-stage { position:relative; width:100%; min-height:190px; display:flex; justify-content:center; align-items:center; }
-.lk-board { display:grid; gap:3px; user-select:none; -webkit-user-select:none; touch-action:manipulation; }
+.lk-board { position:relative; display:grid; gap:3px; user-select:none; -webkit-user-select:none; touch-action:manipulation; }
 .lk-tile { display:flex; align-items:center; justify-content:center; background:linear-gradient(180deg,#ffffff,#eef1f6); border:1px solid rgba(0,0,0,.1); border-radius:9px; box-shadow:0 1px 2px rgba(0,0,0,.08); cursor:pointer; -webkit-tap-highlight-color:transparent; line-height:1; transition:opacity .18s, transform .18s; }
 [data-theme="dark"] .lk-tile { background:linear-gradient(180deg,#3a4048,#2c3138); border-color:rgba(255,255,255,.12); }
 .lk-tile.lk-gone { opacity:0; transform:scale(.6); pointer-events:none; }
@@ -4096,6 +4113,18 @@ body.mail-emoji-mode #emoji-panel { bottom: calc(64px + var(--mochi-safe-bottom,
 .lk-tile.lk-hint { outline:2px solid #ffb347; animation:pairgame-blink .6s ease-in-out 3; }
 .lk-tile.lk-shake { animation:pairgame-shake .3s; }
 .lk-status { min-height:20px; font-size:13px; color:var(--muted); text-align:center; }
+/* #341 连连看表现层动画：连线走线 / 消除爆开 / 洗牌翻乱回摆 / 开局发牌 */
+.lk-pathline { position:absolute; left:0; top:0; width:100%; height:100%; overflow:visible; pointer-events:none; z-index:3; }
+.lk-pathline polyline { fill:none; stroke:#5b8ff9; stroke-width:3; stroke-linecap:round; stroke-linejoin:round; opacity:.9; stroke-dasharray:1; stroke-dashoffset:1; animation:lkpath .42s ease forwards; }
+@keyframes lkpath { 0% { stroke-dashoffset:1; opacity:.9; } 60% { stroke-dashoffset:0; opacity:.9; } 100% { stroke-dashoffset:0; opacity:0; } }
+.lk-tile.lk-pop { animation:lkpop .26s ease forwards; pointer-events:none; }
+@keyframes lkpop { 0% { transform:scale(1); opacity:1; } 35% { transform:scale(1.16); opacity:1; } 100% { transform:scale(.35); opacity:0; } }
+.lk-tile.lk-shufout { animation:lkshufout .18s ease-in forwards; }
+@keyframes lkshufout { to { transform:scale(.5) rotate(10deg); opacity:0; } }
+.lk-tile.lk-shufin { animation:lkshufin .22s ease-out backwards; }
+@keyframes lkshufin { from { transform:scale(.5) rotate(-10deg); opacity:0; } }
+.lk-tile.lk-born { animation:lkborn .22s ease-out backwards; }
+@keyframes lkborn { from { transform:scale(.3); opacity:0; } }
 
 /* ---- 消消乐：8×8 三消 ---- */
 .m3-wrap { display:flex; flex-direction:column; align-items:center; gap:8px; padding:6px 4px 4px; }
@@ -4159,8 +4188,13 @@ body.mail-emoji-mode #emoji-panel { bottom: calc(64px + var(--mochi-safe-bottom,
 .au-intro-steps b { color:#ffd479; }
 .au-intro-stat { font-size:12.5px; color:rgba(255,255,255,.82); }
 #au-intro .pong-overlay-btn, #au-help .pong-overlay-btn { min-width:210px; }
-/* #321 拍卖半框默认只有 48%（实测 ~374px 太挤）→ 强制撑到 68%（≤560px）让竞价区宽裕，并放开滚动区 */
-#chat-auction-panel { height:auto; min-height:min(68%, 560px); max-height:68%; }
+/* #342 教学层按钮行改纵向：min-width:210px 的按钮横向排 3 个（开始/详细/先不玩）总宽 654px
+   溢出 390px 视口，两侧按钮中心点到屏外＝elementFromPoint 落空点不到 */
+#au-intro .pong-overlay-btns { flex-direction:column; align-items:center; }
+/* #321 拍卖半框默认只有 48%（实测 ~374px 太挤）→ 强制撑到 68%（≤560px）让竞价区宽裕，并放开滚动区
+   #341 必须用 :not(.game-fs) 限定半框态：ID 特异性会压过 .poke-card.game-fs 的 max-height:none/height，
+   否则点 ⛶ 全屏后面板仍被钳在 68% 高（实测 574/844px，底部露出聊天页＝全屏名存实亡） */
+#chat-auction-panel:not(.game-fs) { height:auto; min-height:min(68%, 560px); max-height:68%; }
 #chat-auction-panel .poke-card-scroll { min-height:0; max-height:none; }
 /* ===== #302 朋友圈贴纸回复 + 回忆闪回 ===== */
 .feed-imgs { position: relative; }
