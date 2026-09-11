@@ -9145,9 +9145,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1789125628576">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.579</b></span>
-        <span class="sv-deploy">部署于 2026-09-11 19:20<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1789126578443">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.580</b></span>
+        <span class="sv-deploy">部署于 2026-09-11 19:36<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -10335,7 +10335,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.579</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.580</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10630,7 +10630,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.579</span>
+              <span class="lic-ver">v3.26.580</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -11185,7 +11185,7 @@ transition-duration: .01ms !important;
           <div class="set-group glass">
             <div class="gs-row"><span>梦角自由造句</span><label class="toggle"><input type="checkbox" id="mjf-en"><span class="tk"></span></label></div>
             <div class="gs-row"><span>触发概率</span><div class="stepper" data-k="mjf-prob" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="mjf-prob-val" readonly><button class="stp-max">+</button></div></div>
-            <div class="gs-sub">自由选择开关（默认关）：开启后梦角（联系人）说话按「触发概率」随机截断自己某句的几个字、补个语气词重新造句（如「今天也要好好爱自己」→「今天也要好好想你了」），气泡下带「梦角自由造句」小标签；造出的新句自动存进 字卡库→自定义聊天字卡→梦角自由造句 分类，可在那里查看/删除，也会作为语料被再次抽用。语料来自你自建的聊天字卡（至少 4 个汉字的文本卡）。概率 0 = 不触发</div>
+            <div class="gs-sub">自由选择开关（默认关）：开启后梦角（联系人）说话按「触发概率」随机重造句，五种手法随机：截词补语气词（「今天也要好好爱自己」→「今天也要好好想你了」）、词间加逗号（「今天也要，好好爱自己」）、词间加空格、句尾加语气后缀、删句尾字——截断只落在词典词边界上不产生病句，气泡下带「梦角自由造句」小标签；造出的新句自动存进 字卡库→自定义聊天字卡→梦角自由造句 分类，可在那里查看/删除，也会作为语料被再次抽用。语料来自你自建的聊天字卡（至少 4 个汉字的文本卡）。概率 0 = 不触发</div>
           </div>
           <div class="gs-title">主动发送（联系人找你）</div>
           <div class="set-group glass">
@@ -44343,7 +44343,51 @@ return { segs: cards, one: one };
 (function () {
 const FILL_WORDS = ['想你', '抱抱', '亲亲', '嘿嘿', '哦', '呀', '啦', '嘛', '呢', '哼',
 '想你了', '最喜欢你', '晚安', '早安', '嘿嘿嘿', '哼哼', '呜呜', '嘻嘻', '好耶', '喵'];
-let lastSrc = '';   // 连续防复读：上一条造句的源卡不立刻重抽
+const SUFFIXES = ['呀', '啦', '哦', '呢', '嘛', '哟', '哈', '嘿嘿'];
+let lastSrc = '';     // 连续防复读：上一条造句的源卡不立刻重抽
+let segDict = null;   // 切词词典缓存（词库* 分组构建一次）
+let segMax = 4;       // 正向最大匹配窗口（随词典最长词增长，上限 8）
+const HAN = /[\u4e00-\u9fff]/;
+function getSegDict() {
+if (segDict) return segDict;
+segDict = new Set();
+segMax = 4;
+try {
+((window.getDefaultCardGroups && window.getDefaultCardGroups('dict')) || []).forEach(g => {
+if (!g || typeof g[0] !== 'string' || g[0].indexOf('词库') !== 0) return;
+(g[1] || []).forEach(wd => {
+if (typeof wd !== 'string' || wd.length < 2) return;
+segDict.add(wd);
+if (wd.length > segMax && wd.length <= 8) segMax = wd.length;
+});
+});
+} catch (e) {}
+return segDict;
+}
+function segment(s) {
+const str = String(s == null ? '' : s);
+const dict = getSegDict();
+const out = [];
+let i = 0;
+while (i < str.length) {
+if (!HAN.test(str[i])) {
+let j = i;
+while (j < str.length && !HAN.test(str[j])) j++;
+out.push(str.slice(i, j));
+i = j;
+continue;
+}
+let len = 0;
+for (let L = Math.min(segMax, str.length - i); L >= 2; L--) {
+if (dict.has(str.slice(i, i + L))) { len = L; break; }
+}
+if (!len) len = 1;
+out.push(str.slice(i, i + len));
+i += len;
+}
+return out;
+}
+const isWordTok = t => HAN.test(t); // 含汉字＝词 token（非汉字 token 视为标点/符号段）
 function corpusPool() {
 let cards = [];
 try { cards = (window.getCustomCards && window.getCustomCards()) || []; } catch (e) { cards = []; }
@@ -44355,26 +44399,42 @@ if (/[\uD800-\uDBFF]/.test(s)) return false;
 return (s.match(/[\u4e00-\u9fff]/g) || []).length >= 4;
 });
 }
-function rebuild(s) {
+const MODES = ['cutfill', 'comma', 'space', 'suffix', 'tailcut'];
+function rebuild(s, mode) {
 const str = String(s == null ? '' : s);
-const runs = [];
-let i = 0;
-while (i < str.length) {
-if (/[\u4e00-\u9fff]/.test(str[i])) {
-let j = i;
-while (j < str.length && /[\u4e00-\u9fff]/.test(str[j])) j++;
-runs.push([i, j]);
-i = j;
-} else i++;
+if (mode === 'comma' || mode === 'space') {
+const toks = segment(str);
+if (toks.length < 3) return null;
+const gaps = [];
+for (let i = 1; i < toks.length; i++) {
+if (isWordTok(toks[i - 1]) && isWordTok(toks[i])) gaps.push(i); // 只落在词与词的间隙
 }
-const cand = runs.filter(r => r[1] - r[0] >= 3); // 截 1~3 字后至少留 1 字
-if (!cand.length) return null;
-const r = cand[Math.floor(Math.random() * cand.length)];
-const maxCut = Math.min(3, r[1] - r[0] - 1);
-const cut = 1 + Math.floor(Math.random() * maxCut);
-const at = r[0] + Math.floor(Math.random() * (r[1] - r[0] - cut + 1));
+if (!gaps.length) return null;
+const gi = gaps[Math.floor(Math.random() * gaps.length)];
+const sep = mode === 'comma' ? '，' : ' ';
+const out = toks.slice(0, gi).join('') + sep + toks.slice(gi).join('');
+return out !== str ? out : null;
+}
+if (mode === 'suffix') {
+const base = str.replace(/[，。！？、…～\s]+$/, '');
+if (base.length < 3) return null;
+const out = base + SUFFIXES[Math.floor(Math.random() * SUFFIXES.length)];
+return out !== str ? out : null;
+}
+if (mode === 'tailcut') {
+const base = str.replace(/[，。！？、…～\s]+$/, '');
+if (base.length < 4) return null;
+const cut = 1 + Math.floor(Math.random() * Math.min(2, base.length - 2));
+return base.slice(0, base.length - cut);
+}
+const toks = segment(str);
+const idxs = [];
+toks.forEach((t, idx) => { if (t.length >= 2 && isWordTok(t)) idxs.push(idx); });
+if (!idxs.length) return null;
+const wi = idxs[Math.floor(Math.random() * idxs.length)];
 const fill = FILL_WORDS[Math.floor(Math.random() * FILL_WORDS.length)];
-return str.slice(0, at) + fill + str.slice(at + cut);
+const out = toks.slice(0, wi).join('') + fill + toks.slice(wi + 1).join('');
+return out !== str ? out : null;
 }
 window.dreamFreePick = function (c) {
 try {
@@ -44383,10 +44443,11 @@ const prob = Number(c['mjf-prob']);
 if (!isFinite(prob) || prob <= 0 || Math.random() * 100 >= prob) return null;
 const pool = corpusPool();
 if (!pool.length) return null;
-for (let t = 0; t < 6; t++) {
+for (let t = 0; t < 8; t++) {
 const s = pool[Math.floor(Math.random() * pool.length)];
 if (s === lastSrc) continue;
-const txt = rebuild(s);
+const mode = MODES[Math.floor(Math.random() * MODES.length)];
+const txt = rebuild(s, mode);
 if (txt && txt !== s) { lastSrc = s; return { text: txt, src: s }; }
 }
 return null;
@@ -44407,6 +44468,8 @@ const usePublic = cids > 1 && Math.random() < 0.8;
 return !!window.ccAppendCards('mjfree', '梦角自由造句', [v], usePublic ? 'public' : 'own');
 } catch (e) { return false; }
 };
+window.dreamFreeSegment = segment;
+window.dreamFreeRebuild = rebuild;
 })();
 } catch (__e) { try { console.error("[JS] dream-free.js", __e && __e.message || __e); } catch (x) {} if (window.__jsErrors) window.__jsErrors.push(String(__e && __e.message || __e)); } })();
 (function () { try {
@@ -88688,4 +88751,4 @@ lastHeal: his
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mtwv7e74 -->
+<!-- __MOCHI_EOF__ mtwvrr4b -->

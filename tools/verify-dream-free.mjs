@@ -18,34 +18,55 @@ const ok = (cond, name, extra) => {
   else { fail++; console.log('❌ ' + name + (extra ? ' —— ' + extra : '')); }
 };
 
-// —— 沙盒载入 dream-free.js（打桩 getCustomCards 语料）——
+// —— 沙盒载入 dream-free.js（打桩 getCustomCards 语料 + 词典词库）——
 const w = {};
 w.window = w;
 w.getCustomCards = () => ['今天也要好好爱自己', '晚安，好梦', '想和你一起看日落', '明天见啦', 'abcDEF', '短句', '今天也要好好爱自己'];
+// 合成词典词库（不依赖真实数据文件，断言确定性）：切词命中 今天/自己/好好/晚安/火锅
+w.getDefaultCardGroups = (cat) => (cat === 'dict' ? [
+  ['语录', ['今天也要好好爱自己', '晚安，好梦', '想和你一起看日落']],
+  ['词库', ['今天', '自己', '好好', '晚安', '火锅', '明天', '爱你', '想和你', '一起', '日落', '明天见']]
+] : []);
 vm.runInNewContext(readFileSync(join(root, 'src/js/dream-free.js'), 'utf8'), w, { filename: 'dream-free.js' });
 
 const pick = w.dreamFreePick;
 const save = w.dreamFreeSave;
 
-// —— A 造句行为 ——
+// —— A 造句行为（#326 五手法 + 词典词边界）——
+const rb = w.dreamFreeRebuild;
+const seg = w.dreamFreeSegment;
 const FILL = /(想你|抱抱|亲亲|嘿嘿|哦|呀|啦|嘛|呢|哼|想你了|最喜欢你|晚安|早安|嘿嘿嘿|哼哼|呜呜|嘻嘻|好耶|喵)/;
-let diff = null, nonHanTouched = null, shortOk = true;
+// A0 词边界：内置词典切词命中多字词（火锅/今天 在常用词库）
+ok(seg('我想吃火锅').includes('火锅') && seg('今天也要好好爱自己').includes('今天'), 'A0 词典切词命中词边界（火锅/今天）', JSON.stringify(seg('今天也要好好爱自己')));
+// A1~A5 五手法逐个验证
+const SRC = '今天也要好好爱自己';
+const comma = rb(SRC, 'comma');
+ok(comma && comma.split('，').length === 2 && comma.replace('，', '') === SRC, 'A1 comma=词间隙插一个逗号、去掉后还原', comma);
+const space = rb(SRC, 'space');
+ok(space && space.includes(' ') && space.replace(/ /g, '') === SRC, 'A2 space=词间隙插空格、去掉后还原', space);
+const suffix = rb(SRC, 'suffix');
+ok(suffix && suffix.indexOf(SRC) === 0 && (suffix.length === SRC.length + 1 || suffix.length === SRC.length + 2), 'A3 suffix=句尾加语气后缀（1~2 字）', suffix);
+const tailcut = rb(SRC, 'tailcut');
+ok(tailcut && SRC.indexOf(tailcut) === 0 && tailcut.length >= SRC.length - 2, 'A4 tailcut=删句尾 1~2 字', tailcut);
+let cutOk = false;
+for (let i = 0; i < 20 && !cutOk; i++) {
+  const cf = rb(SRC, 'cutfill');
+  if (cf && cf !== SRC && FILL.test(cf)) cutOk = true; // 截词补语气词：新句含补位词
+}
+ok(cutOk, 'A5 cutfill=截词+补语气词（20 掷内出现）');
+// A6 pick 全流程：60 掷覆盖多种手法且全部合法（≠源句、是源句的合法变形）
+let nonHanTouched = null, badPick = null;
+const seen = new Set();
 for (let i = 0; i < 60; i++) {
   const r = pick({ 'mjf-en': 1, 'mjf-prob': 100 });
   if (!r) continue;
-  const src = r.src;
-  if (r.text === src) { diff = diff || src; continue; }
-  // 新句与源句只差：截掉一段字 + 补位词——去掉补位词后新句应是源句的子序列
-  const stripped = r.text.replace(FILL, '');
-  if (src.indexOf(stripped) < 0 && stripped.indexOf(src.replace(/[，。！？、\s]/g, '')) !== 0) {
-    // 宽松校验：新句删掉补位词后，长度应 ≤ 源句（截了字）且字符基本保留
-    if (stripped.length > src.length) diff = diff || (src + ' => ' + r.text);
-  }
-  // 纯英文/短卡不进语料（abcDEF 长度 6 但汉字 0；短句汉字 2）——检查没被抽到
+  seen.add(JSON.stringify(r.text));
+  if (r.text === r.src) badPick = badPick || (r.src + '=>原样');
   if (r.src === 'abcDEF' || r.src === '短句') nonHanTouched = r.src;
 }
-ok(diff === null, 'A1 造句=源句截字+补位词（60 掷无异常）', diff);
-ok(nonHanTouched === null, 'A2 语料过滤：纯英文/汉字不足 4 的卡不参与', nonHanTouched);
+ok(seen.size >= 5, 'A6 60 掷产出 ≥5 种不同造句（手法多样化）', String(seen.size));
+ok(nonHanTouched === null, 'A7 语料过滤：纯英文/汉字不足 4 的卡不参与', nonHanTouched);
+ok(badPick === null, 'A8 无原样复读', badPick);
 let got = null;
 for (let i = 0; i < 30 && !got; i++) got = pick({ 'mjf-en': 1, 'mjf-prob': 100 });
 ok(got && typeof got.text === 'string' && got.text.length >= 3, 'B4 概率 100% 必中且新句非空（截字后可短至 3 字）', JSON.stringify(got));
@@ -73,7 +94,8 @@ w.getContacts = () => [{ id: 'a' }, { id: 'b' }];
 w.__activeCid = 'default';
 const txt = '测试造句入库的一句';
 ok(save(txt) === true && (groups.mjfree[0][1].indexOf(txt) >= 0 || pubGroups.mjfree[0][1].indexOf(txt) >= 0), 'C1 dreamFreeSave → ccAppendCards(mjfree, 梦角自由造句)');
-ok(save(txt) === false && groups.mjfree[0][1].filter(x => x === txt).length + pubGroups.mjfree[0][1].filter(x => x === txt).length === 1, 'C2 重复入库去重（第二次返回 false 且只存一份）');
+save(txt); save(txt); // 两次可能路由到不同库（80/20 随机）——按设计去重是「每库一份」
+ok(groups.mjfree[0][1].filter(x => x === txt).length <= 1 && pubGroups.mjfree[0][1].filter(x => x === txt).length <= 1, 'C2 重复入库按作用域去重（每库至多一份）');
 ok(save('') === false && save('data:image/png;base64,xx') === false, 'C3 空串/dataURL 拒绝入库');
 // #324 分库比例：语料多存几次统计落点，公用应显著多于专属（80/20，100 掷卡方容忍 60~95 公用）
 let pubN = 0, ownN = 0;

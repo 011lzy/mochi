@@ -132,7 +132,11 @@
     'applock-en', 'applock-pin', 'applock-qa',
     // v3.31.x 开屏问答门：开关/题目列表/本机跳过标记（暗号本机永久跳过问答层）——
     // 与应用锁同属入口验证，必须全局根键防 migrateLegacy 迁移删键
-    'applock-qa-en', 'applock-qalist', 'applock-qaskip'];
+    'applock-qa-en', 'applock-qalist', 'applock-qaskip',
+    // #319 防未成年人锁解锁状态（card-lock.js）：全局根键（不随联系人隔离），闸门
+    // isOpen 只读根键——此前漏排除，解锁后刷新被 migrateLegacy 当旧顶层业务键迁进
+    // default 并删根键 → 永远读不到 'open'，闸门全锁（用户：输对密码刷新后毫无变化）
+    'cardlock-state'];
   function isExcluded(k) {
     const r = k.slice(G.length + 1);
     // #233：__ 前缀＝系统键（idb.js 根命名空间专用：__wr-journal 写日志＝LS 回滚自愈

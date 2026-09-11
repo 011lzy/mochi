@@ -20,6 +20,16 @@
   function isOpen() {
     try { return localStorage.getItem(LS_KEY) === 'open'; } catch (e) { return false; }
   }
+  // 存量自愈：修复前解锁过的用户，状态键已被 contacts.js migrateLegacy 搬进
+  // default 命名空间（xy-home-v2:default:cardlock-state）并删了根键——启动时把它
+  // 搬回根键，解锁不用重输。EXCLUDE 收口后不会再产生新的搬移。
+  (function healMigrated() {
+    try {
+      if (localStorage.getItem(LS_KEY)) return;
+      const moved = localStorage.getItem('xy-home-v2:default:cardlock-state');
+      if (moved === 'open') localStorage.setItem(LS_KEY, 'open');
+    } catch (e) {}
+  })();
   // 汇合点统一问这里：锁定 = 系统预设字卡整体不存在
   window.cardLockOpen = isOpen;
   // 散列带盐校验（输错 5 次锁输入 60 秒，防小孩连试）
