@@ -747,6 +747,65 @@
       }, { staticText: '输入要删除的自建语录或词的原文（精确匹配）。内置词条无法删除，但可以在列表里逐张关闭。' });
     });
   })();
+  // v3.36.x：词典使用设置绑定（词典独立页）——场景开关（dict-use-chat/mail/feed）+
+  //   使用概率（dict-overall-chat/mail/feed）+「使用的全部关闭」一键按钮。
+  //   存储 per-cid（随桌面命名空间，同 dc-use-* 语义）；默认全开，概率默认：聊天 100
+  //   （不额外限流，保持词典拼字既有行为）、写信/朋友圈 30（新混入场景）。
+  //   消费方统一走 window.dictUse(scene) / window.dictOverall(scene) 读：
+  //   quote-spell.js（聊天门）、mail.js taLetterContent（写信混入）、feed.js cardPool（朋友圈混入）。
+  (function () {
+    if (!dictView) return;
+    const st = function () { try { return window.activeStore(); } catch (e) { return null; } };
+    const gUse = function (k) { const s = st(); const v = s ? s.get('dict-use-' + k) : null; return v === null ? true : v === '1'; };
+    const sUse = function (k, on) { const s = st(); if (s) s.set('dict-use-' + k, on ? '1' : '0'); };
+    const DICT_OVERALL_DEF = { chat: 100, mail: 30, feed: 30 };
+    const gOv = function (k) { const s = st(); const v = s ? s.get('dict-overall-' + k) : null; return v === null ? DICT_OVERALL_DEF[k] : Math.max(0, Math.min(100, Number(v))); };
+    const sOv = function (k, nv) { const s = st(); if (s) s.set('dict-overall-' + k, String(nv)); };
+    // 只读 API（跨文件消费）
+    window.dictUse = function (scene) { return gUse(scene === 'mail' ? 'mail' : scene === 'feed' ? 'feed' : 'chat'); };
+    window.dictOverall = function (scene) { return gOv(scene === 'mail' ? 'mail' : scene === 'feed' ? 'feed' : 'chat'); };
+    [['chat', '聊天'], ['mail', '写信'], ['feed', '朋友圈']].forEach(function (pair) {
+      const k = pair[0], label = pair[1];
+      const el = document.getElementById('dict-use-' + k);
+      if (el) {
+        el.checked = gUse(k);
+        el.addEventListener('change', function () {
+          sUse(k, el.checked);
+          toast((el.checked ? '已开启' : '已关闭') + '：词典' + label + '使用');
+        });
+      }
+      const box = document.getElementById('dict-overall-' + k);
+      const valEl = document.getElementById('dict-overall-' + k + '-val');
+      if (box && valEl) {
+        valEl.value = String(gOv(k));
+        const step = function (d) {
+          const nv = Math.max(0, Math.min(100, (parseInt(valEl.value, 10) || 0) + d));
+          valEl.value = String(nv); sOv(k, nv);
+          toast('词典' + label + '使用概率：' + nv + '%');
+        };
+        const bMin = box.querySelector('.stp-min');
+        const bMax = box.querySelector('.stp-max');
+        if (bMin) bMin.addEventListener('click', function () { step(-5); });
+        if (bMax) bMax.addEventListener('click', function () { step(5); });
+      }
+    });
+    // 使用的全部关闭：三场景一键停用（弹窗确认；之后可逐个再打开）
+    const ca = document.getElementById('dict-use-closeall');
+    if (ca) ca.addEventListener('click', function () {
+      const doClose = function () {
+        ['chat', 'mail', 'feed'].forEach(function (k) {
+          sUse(k, false);
+          const el = document.getElementById('dict-use-' + k);
+          if (el) el.checked = false;
+        });
+        toast('已关闭词典全部场景使用');
+      };
+      if (!window.openModal) { doClose(); return; }
+      window.openModal('词典使用的全部关闭', '将同时关闭词典的聊天 / 写信 / 朋友圈三个场景使用（单卡开关不受影响，可随时再逐个打开）。', function () {
+        doClose();
+      }, { staticText: '确定执行？' });
+    });
+  })();
   const liDict = document.getElementById('li-dict-cards');
   if (liDict) {
     liDict.addEventListener('click', () => {

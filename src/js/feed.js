@@ -528,6 +528,16 @@
         if (catOn('emoji') && !emoji.length) (gd('emoji') || []).forEach(g => (g[1] || []).forEach(c => { if (isOff && isOff('emoji', c)) return; if (typeof c === 'string' && c) emoji.push(c); }));
       }
     } catch (e) {}
+    // v3.36.x：词典朋友圈混入——词典独立页「朋友圈使用」开启时，按「朋友圈使用概率」
+    //   把一条词典语录并进动态/评论文案池（dictQuoteOne 自带分类/单卡开关过滤；
+    //   池空或场景关=不混，默认概率 30%）。独立于默认字卡的 dc-enabled 总闸。
+    try {
+      if (window.dictUse && window.dictUse('feed') && window.dictQuoteOne
+          && Math.random() * 100 < (window.dictOverall ? window.dictOverall('feed') : 30)) {
+        const dq = window.dictQuoteOne();
+        if (dq) text.push(dq);
+      }
+    } catch (eDictFeed) {}
     return { text: text, kaomoji: kaomoji, emoji: emoji, sticker: mediaSticker, image: mediaImage };
   }
   // v3.6.x：完整 HTML 转义（昵称/评论/点赞列表/分组名是用户输入，直拼 innerHTML 可注入）

@@ -44,11 +44,24 @@
       return (q.match(/[\u4e00-\u9fff]/g) || []).length >= 2;
     });
   }
+  // v3.36.x：词典语录单条只读取口（供写信/朋友圈按各自场景开关+概率混入）——
+  //   复用 quotePool（自带分类开关 dc-cat-dict 与单卡开关过滤），空池返回 null
+  window.dictQuoteOne = function () {
+    try {
+      const p = quotePool();
+      return p.length ? p[Math.floor(Math.random() * p.length)] : null;
+    } catch (e) { return null; }
+  };
   // 拼字卡抽取门：c = replyCfg()。命中返回 { segs: 完整语录字卡数组(2~5张), one: false }；
   // 关闭/未命中返回 null（走原回复）。one:false = 每张卡一条气泡逐条连发。
   window.quoteSpellPick = function (c) {
     try {
       if (!c || c['qs-en'] !== 1) return null;
+      // v3.36.x：词典场景总闸（词典独立页「聊天使用」开关 + 「聊天使用概率」）——
+      //   开关关=聊天里词典内容整体停（拼字不再触发）；概率未命中=本次回复不使用词典内容。
+      //   概率默认 100（不额外限流），既有 qs-prob/qs-one/qs-multi 行为不受影响。
+      if (window.dictUse && window.dictUse('chat') === false) return null;
+      if (window.dictOverall && Math.random() * 100 >= window.dictOverall('chat')) return null;
       const prob = Number(c['qs-prob']);
       if (!isFinite(prob) || prob <= 0 || Math.random() * 100 >= prob) return null;
       let pool = quotePool();

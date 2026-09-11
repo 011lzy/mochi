@@ -2632,6 +2632,24 @@
         <span class="ch-name">聊天默认字卡·词典</span>
       </div>
       <div class="sm-set-hint" style="padding:8px 16px 0">说明：系统词典供「词典拼字」抽句与切词，按分组展示，可逐张开启或关闭；语录进拼字抽句池，词进切词词典。</div>
+      <!-- v3.36.x：词典使用设置（与聊天默认字卡页同款交互）——场景开关 + 使用概率 + 一键全部关闭。
+           存键 dict-use-chat/mail/feed（默认开）、dict-overall-chat/mail/feed（聊天默认 100=不额外限流，
+           写信/朋友圈默认 30%）。聊天关=词典拼字整体停；写信/朋友圈开=词典语录按概率混入信件/动态文案。 -->
+      <div class="set-group glass" style="margin:10px 12px 0">
+        <div class="gs-row"><span>聊天使用</span><label class="toggle"><input type="checkbox" id="dict-use-chat" checked><span class="tk"></span></label></div>
+        <div class="gs-row"><span>写信使用</span><label class="toggle"><input type="checkbox" id="dict-use-mail" checked><span class="tk"></span></label></div>
+        <div class="gs-row"><span>朋友圈使用</span><label class="toggle"><input type="checkbox" id="dict-use-feed" checked><span class="tk"></span></label></div>
+      </div>
+      <div style="margin:8px 14px 0;display:flex;justify-content:flex-end">
+        <button class="cc-tool" id="dict-use-closeall" style="padding:6px 10px;font-size:11px">使用的全部关闭</button>
+      </div>
+      <div style="margin:8px 14px 2px;font-size:12px;color:#999;font-weight:600">使用概率（词典内容在各场景出现的概率，0 即该场景不用词典）</div>
+      <div class="set-group glass" style="margin:0 12px 10px">
+        <div class="gs-row"><span>聊天使用概率</span><div class="stepper" id="dict-overall-chat" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dict-overall-chat-val" readonly><button class="stp-max">+</button></div></div>
+        <div class="gs-row"><span>写信使用概率</span><div class="stepper" id="dict-overall-mail" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dict-overall-mail-val" readonly><button class="stp-max">+</button></div></div>
+        <div class="gs-row"><span>朋友圈使用概率</span><div class="stepper" id="dict-overall-feed" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dict-overall-feed-val" readonly><button class="stp-max">+</button></div></div>
+      </div>
+      <div style="margin:0 14px 8px;font-size:11px;color:#999;line-height:1.6">说明：聊天词典内容走「词典拼字」（此概率是其额外总闸，回复设置里的拼字开关/概率继续生效）；写信/朋友圈开启后，词典语录按概率混入信件与动态文案。开关按当前桌面联系人独立保存。</div>
       <!-- #317：词典自建词条行已移除（用户：词典是梦角用的语言资源，不该在这里手动存词条） -->
       <div class="cc-groups-bar" id="d2-dict-groups-bar"></div>
       <div class="card-tabs" id="d2-dict-tabs" style="display:none"></div>

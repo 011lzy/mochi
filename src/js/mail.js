@@ -775,6 +775,16 @@
       }
       parts.push(words[Math.floor(Math.random() * words.length)]);
     }
+    // v3.36.x：词典写信混入——词典独立页「写信使用」开启时，按「写信使用概率」
+    //   随机把一条词典语录追加进信件正文（dictQuoteOne 自带分类/单卡开关过滤；
+    //   池空或场景关=不混，默认概率 30%）
+    try {
+      if (window.dictUse && window.dictUse('mail') && window.dictQuoteOne
+          && Math.random() * 100 < (window.dictOverall ? window.dictOverall('mail') : 30)) {
+        const dq = window.dictQuoteOne();
+        if (dq) parts.push(dq);
+      }
+    } catch (eDQ) {}
     let t = parts.join(' ');
     // 颜文字/emoji 附加：自定义对应分类为空时回退默认池（保持原补池行为）
     const kp = pool.kaomoji.length ? pool.kaomoji : pool.defKaomoji;
