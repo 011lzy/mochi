@@ -31,14 +31,24 @@
   const soundBtn = document.getElementById('au-sound');
   const closeBtn = document.getElementById('au-close');
   const fsBtn = document.getElementById('au-fs');
-  // #321 玩法说明：❓ 头部按钮 + 详细规则弹窗
+  // #321 玩法说明：❓ 头部按钮 + 详细规则弹窗（全屏浮层）
   const helpBtn = document.getElementById('au-help-btn');
   const helpOverlay = document.getElementById('au-help');
   const helpClose = document.getElementById('au-help-close');
+  const introEl = document.getElementById('au-intro');
+  const introStepsEl = document.getElementById('au-intro-steps');
+  const introStatEl = document.getElementById('au-intro-stat');
+  const introStart = document.getElementById('au-intro-start');
+  const introHelp = document.getElementById('au-intro-help');
   function showHelp() { if (helpOverlay) helpOverlay.hidden = false; }
   function hideHelp() { if (helpOverlay) helpOverlay.hidden = true; }
+  function showIntro() { if (introEl) introEl.hidden = false; }
+  function hideIntro() { if (introEl) introEl.hidden = true; }
   if (helpBtn) helpBtn.addEventListener('click', (e) => { e.stopPropagation(); showHelp(); });
   if (helpClose) helpClose.addEventListener('click', (e) => { e.stopPropagation(); hideHelp(); });
+  // #321 开场全屏教学：开始 / 详细玩法（两处都重新挂靠到新会话）
+  if (introStart) introStart.addEventListener('click', (e) => { e.stopPropagation(); newSession(); });
+  if (introHelp) introHelp.addEventListener('click', (e) => { e.stopPropagation(); showHelp(); });
 
   // ---- #306 全屏：面板 fixed 满屏（共享 .game-fs 类，同 pong-fs 机制）。 ----
   // 重开面板无论上次怎么关的（含兄弟互斥直接 hidden）都先退出，防全屏残留 ----
@@ -248,7 +258,8 @@
     st = newState();
     st.started = true;
     hideOverlay();
-    hideHelp();   // #321 开场时收起玩法说明，别挡着拍品
+    hideIntro();   // #321 收掉开场全屏教学，别挡着拍品
+    hideHelp();   // #321 收掉详细玩法
     openLot();
   }
   function openLot() {
@@ -491,24 +502,23 @@
   }
   function showStartOverlay() {
     const s = loadStats();
-    showOverlay('心意币拍卖会',
-      '<div class="c4-start-tip">每场 3 件拍品，和 ' + T('TA') + ' 轮番举牌抢宝贝</div>' +
-      '<div class="pong-end-stat au-how-step">① 看拍品起拍价，比如 ¥9</div>' +
-      '<div class="pong-end-stat au-how-step">② 点档位＝往上加价，按钮直接显示你要出的钱</div>' +
-      '<div class="pong-end-stat au-how-step">③ ' + T('TA') + ' 跟价或放弃，轮到你按钮才亮</div>' +
-      '<div class="pong-end-stat au-how-step">④ 你最高价点「落槌」＝按现价买下（真扣心意币进 🎒）</div>' +
-      '<div class="pong-end-stat au-how-step">⑤ 没人要就流拍；' + T('TA') + ' 拍走的过几天寄回给你</div>' +
-      (s.sessions > 0 ? '<div class="pong-end-stat au-how-step" style="margin-top:6px">累计 ' + s.sessions + ' 场 · 你拍得 ' + s.myWins + ' 件 · 花了 ' + yuan(s.spentFen || 0) + '</div>' : '') +
-      '<div class="pong-end-stat au-how-step">当前心意币 ' + (walletOk() ? yuan(myBalance()) : '—') + '</div>' +
-      '<button class="pong-overlay-btn pong-overlay-btn2 au-start-help" id="au-start-help" type="button">❓ 还想看更详细的怎么玩</button>',
-      s.sessions > 0 ? '再来一场' : '开场拍卖');
-    if (endBtn) endBtn.hidden = true;
-    // #321 开场附加的「详细怎么玩」入口（每次重开都要重新挂，覆盖层 body 是动态渲染的）
-    setStatus('点击「开场拍卖」开始，或点 ❓ 先看玩法');
-    setTimeout(function () {
-      const h = document.getElementById('au-start-help');
-      if (h) h.onclick = function (ev) { ev.stopPropagation(); showHelp(); };
-    }, 0);
+    // #321 开场教学改全屏浮层：半框放不下这么多行说明，全屏才有地方，杜绝被裁切
+    if (introStepsEl) {
+      introStepsEl.innerHTML =
+        '<b>怎么玩</b>：和 ' + T('TA') + ' 轮番举牌，抢 3 件宝贝，价高者得。<br>' +
+        '<b>① 看拍品</b>　每件有起拍价，先掂量值不值。<br>' +
+        '<b>② 出价</b>　点档位「出 ¥X」就是在当前价上加价、压上你的价。<br>' +
+        '<b>③ 轮替</b>　你出价后 ' + T('TA') + ' 掂量掂量，轮到你时按钮才亮。<br>' +
+        '<b>④ 成交</b>　你最高价点「落槌」→按现价买下（真扣心意币、进 🎒）；' + T('TA') + ' 最高价→放弃这件；都不要→流拍。<br>' +
+        '<b>⑤ 彩蛋</b>　' + T('TA') + ' 拍走的过几天寄回给你。';
+    }
+    const statsHtml =
+      (s.sessions > 0 ? '累计 ' + s.sessions + ' 场 · 你拍得 ' + s.myWins + ' 件 · 花了 ' + yuan(s.spentFen || 0) + '　' : '') +
+      '当前心意币 ' + (walletOk() ? yuan(myBalance()) : '—');
+    if (introStatEl) introStatEl.textContent = statsHtml;
+    showIntro();
+    hideOverlay(); // 半框覆盖层平时不显示（开场/成交才由流程显示）
+    setStatus('全屏读玩法：点下方「开始拍卖」，或「详细玩法」');
   }
   function hideOverlay() { if (overlayEl) overlayEl.hidden = true; }
 
@@ -565,12 +575,12 @@
       return;
     }
     showStartOverlay();
-    setStatus('点击「开场拍卖」开始，点 ❓ 可先看详细玩法');
+    setStatus('全屏读玩法：点「开始拍卖」或「详细玩法」');
   };
   function closePanel() {
     clearTimeout(thinkT); thinkT = null;
     clearInterval(giftTimer); giftTimer = null;
-    hideHelp();
+    hideIntro(); hideHelp();
     if (panel) panel.hidden = true;
   }
   window.closeAuctionPanel = closePanel;

@@ -58,6 +58,12 @@
   display: flex; flex-direction: column;
 }
 .gc-settings-panel[hidden] { display: none; }
+/* 美化视图全屏形态（用户反馈半屏不够看）：进美化挂 gc-set-fs 铺满整屏，返回还原底部弹层；
+   高度沿用全站 iOS 修复公式，避免 iPhone 上 100dvh 底部被工具栏遮一条 */
+.gc-settings-panel.gc-set-fs {
+  top: 0; max-height: none; height: min(var(--mochi-ios-h, 100dvh), 100dvh);
+  border-radius: 0;
+}
 .gc-set-head {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px 16px; border-bottom: 1px solid rgba(0,0,0,.06); font-weight: 600;
@@ -137,12 +143,6 @@
 }
 .gc-set-stepper .txt { flex: 1; min-width: 0; font-size: 14px; color: #222; }
 .gc-set-stepper .stepper { flex-shrink: 0; }
-/* 低对比度警告（文字与气泡同色系时提示，v3.9.x） */
-.gc-set-warn {
-  margin: 2px 16px 8px; padding: 7px 10px; border-radius: 8px;
-  font-size: 12px; line-height: 1.5; color: #a32;
-  background: #fff5f5; border: 1px solid #f3c0c0;
-}
 
 /* ---- #288 美化视图重设计：对齐聊天设置页观感——gs-title 分组标题 + set-group.glass
    玻璃卡片 + set-row 图标行（复用全站 setting.css 类，暗色随 --glass-bg 等变量适配；

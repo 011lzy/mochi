@@ -207,37 +207,7 @@
     if (homePage) homePage.hidden = false;
   }
 
-  // ---- 入口：聊天更多功能 → 小游戏 → 游乐室（自绑定，chat.js 不改） ----
-  (function bindEntry() {
-    const btn = document.getElementById('more-arcade');
-    if (!btn) return;
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const mp = document.getElementById('chat-more-panel');
-      if (mp) mp.hidden = true;
-      ['poke-card', 'emoji-panel', 'chat-search', 'chat-ask-panel', 'chat-divine-panel', 'chat-decision-panel', 'chat-gdecision-panel', 'chat-rps-panel', 'chat-rp-panel', 'chat-call-panel', 'chat-pong-panel', 'chat-snake-panel', 'chat-brick-panel', 'chat-c4-panel', 'chat-ms-panel', 'chat-fish-panel', 'chat-memory-panel', 'chat-gift-panel', 'chat-gomoku-panel', 'chat-linkup-panel', 'chat-match3-panel', 'chat-auction-panel', 'chat-more-panel'].forEach((id) => { const el = document.getElementById(id); if (el) el.hidden = true; });
-      try { if (window.closeAvlib) window.closeAvlib(); } catch (err) {}
-      try { openArcadePanel(); } catch (err) {
-        try { panel.hidden = false; render(); } catch (e2) {}
-        try { console.error('[arcade] open failed', err); } catch (e2) {}
-      }
-    });
-    try {
-      if (window.MutationObserver) {
-        const SIBLING_IDS = ['poke-card', 'emoji-panel', 'chat-search', 'chat-ask-panel', 'chat-divine-panel', 'chat-decision-panel', 'chat-gdecision-panel', 'chat-rps-panel', 'chat-rp-panel', 'chat-call-panel', 'chat-pong-panel', 'chat-snake-panel', 'chat-brick-panel', 'chat-c4-panel', 'chat-ms-panel', 'chat-fish-panel', 'chat-memory-panel', 'chat-gift-panel', 'chat-gomoku-panel', 'chat-linkup-panel', 'chat-match3-panel', 'chat-auction-panel', 'chat-more-panel'];
-        const mo = new MutationObserver(() => {
-          if (panel.hidden) return;
-          for (let i = 0; i < SIBLING_IDS.length; i++) {
-            const el = document.getElementById(SIBLING_IDS[i]);
-            if (el && !el.hidden) { closePanel(); break; }
-          }
-        });
-        SIBLING_IDS.forEach((id) => { const el = document.getElementById(id); if (el) mo.observe(el, { attributes: true, attributeFilter: ['hidden'] }); });
-      }
-    } catch (e) {}
-  })();
-
-  // ---- v3.26.x：主页页入口卡 → 打开全屏游乐室；全屏返回键 → 回主页页 ----
+  // ---- 入口：主页页入口卡 → 打开全屏游乐室；全屏返回键 → 回主页页 ----
   (function bindHomeEntry() {
     const entry = document.getElementById('home-arcade-entry');
     if (entry) entry.addEventListener('click', (e) => {

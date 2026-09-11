@@ -213,44 +213,6 @@
     if (k === 'show-name') { try { renderAll(); } catch (e) {} }
     try { if (settingsPanel && !settingsPanel.hidden) renderSettingsPanel(); } catch (e) {}
   }
-  // ---- 颜色对比度保护（v3.9.x 修复：黑底黑字消息看不见） ----
-  // 用户在美化里把文字颜色设成与气泡同色（色板第一个「默认黑」很易误选）时，
-  // 消息会完全不可见。这里按 WCAG 亮度算对比度：应用后 < 阈值则回滚并提示；
-  // 设置面板里对存量低对比度组合显示警告行。
-  const GC_MIN_CONTRAST = 2.2;
-  const GC_COLOR_PAIRS = {
-    'out-ink': ['out-bg', 'out-ink'],
-    'out-bg': ['out-bg', 'out-ink'],
-    'in-ink': ['in-bg', 'in-ink'],
-    'in-bg': ['in-bg', 'in-ink']
-  };
-  function gcColorLum(hex) {
-    const m = String(hex || '').match(/^#?([0-9a-f]{6})$/i);
-    if (!m) return null;
-    const n = parseInt(m[1], 16);
-    const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
-    const lin = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
-    return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
-  }
-  function gcContrast(a, b) {
-    const la = gcColorLum(a), lb = gcColorLum(b);
-    if (la === null || lb === null) return null;
-    const hi = Math.max(la, lb), lo = Math.min(la, lb);
-    return (hi + 0.05) / (lo + 0.05);
-  }
-  // key（四个颜色键之一）当前组合对比度是否过低的布尔
-  function gcColorPairBad(key) {
-    const p = GC_COLOR_PAIRS[key];
-    if (!p) return false;
-    const ratio = gcContrast(gcBeautyGet(p[0]), gcBeautyGet(p[1]));
-    return ratio !== null && ratio < GC_MIN_CONTRAST;
-  }
-  // 设置面板里警告行文案（供 renderBeautyView 用）
-  function gcColorWarnText(key) {
-    const names = { 'out-bg': '我的气泡', 'in-bg': '联系人气泡' };
-    const n = names[key] || '';
-    return n + '：文字与气泡颜色对比偏低，消息可能看不清（低于安全线时会自动换黑/白文字保证可读），建议改深/改浅';
-  }
   // 群聊页局部字体（不污染全局 body/html）
   function applyGcFont() {
     const page = document.getElementById('page-group-chat');
@@ -292,26 +254,6 @@
     document.head.appendChild(st);
     if (hint) setTimeout(() => { try { toast(hint); } catch (e) {} }, 50);
   }
-  // FIX 2026-09-07 #223 群聊气泡对比度自愈（同单聊 chat-settings._ensureBubbleContrast）：
-  // 文字色与气泡色对比过低（用户自选低对比组合/导入美化方案）时注入高优先级覆盖样式强制
-  // 文字可见——对比度保护从「拒绝用户选色」改为「保证可读」，用户选的颜色保留生效
-  function gcEnsureContrast() {
-    const page = document.getElementById('page-group-chat');
-    if (!page) return;
-    let fix = document.getElementById('gc-contrast-fix');
-    const rules = [];
-    [['out', gcBeautyGet('out-bg'), gcBeautyGet('out-ink')], ['in', gcBeautyGet('in-bg'), gcBeautyGet('in-ink')]].forEach((p) => {
-      const ratio = gcContrast(p[2], p[1]);
-      if (ratio !== null && ratio < 1.5) {
-        const lum = gcColorLum(p[1]);
-        rules.push('#page-group-chat .msg-' + p[0] + ' .msg-bubble.msg-bubble{color:' + (lum !== null && lum >= 0.5 ? '#111111' : '#ffffff') + ' !important}');
-      }
-    });
-    if (rules.length) {
-      if (!fix) { fix = document.createElement('style'); fix.id = 'gc-contrast-fix'; document.head.appendChild(fix); }
-      fix.textContent = rules.join('\n');
-    } else if (fix) fix.remove();
-  }
   // 应用群聊美化（CSS 变量在 #page-group-chat 上局部覆盖；默认值与聊天页默认一致）
   function applyGcBeauty() {
     const page = document.getElementById('page-group-chat');
@@ -348,7 +290,6 @@
     }
     applyGcFont();
     applyGcCss();
-    gcEnsureContrast();
   }
   gcBeautyLoad();
   applyGcBeauty();
@@ -1679,6 +1620,8 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
   }
   function renderSettingsPanel() {
     if (!settingsBody) return;
+    // 美化视图铺满整屏（用户反馈半屏弹层不够看）；返回主视图还原底部弹层形态
+    if (settingsPanel) settingsPanel.classList.toggle('gc-set-fs', gcBeautyView);
     settingsBody.innerHTML = '';
     if (gcBeautyView) { setPanelTitle('美化聊天'); renderBeautyView(); return; }
     setPanelTitle('群聊设置');
@@ -2006,16 +1949,6 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
     add('我的消息文字颜色', bgLabel(g('out-ink'), '#ffffff'), () => pickGcColor('out-ink', '我的消息文字颜色', gcInkSwatches()), ICO.ink);
     add('联系人气泡颜色', bgLabel(g('in-bg'), '#ffffff'), () => pickGcColor('in-bg', '联系人气泡颜色', GC_BUBBLE_BG), ICO.palette);
     add('联系人消息文字颜色', bgLabel(g('in-ink'), '#111111'), () => pickGcColor('in-ink', '联系人消息文字颜色', gcInkSwatches()), ICO.ink);
-    // 存量低对比度警告（我的/联系人气泡与文字同色系时提示，随卡片内提示条）
-    const warnRow = (key) => {
-      if (!gcColorPairBad(key)) return;
-      const w = document.createElement('div');
-      w.className = 'gc-set-warn';
-      w.textContent = '⚠️ ' + gcColorWarnText(key);
-      (curGroup || settingsBody).appendChild(w);
-    };
-    warnRow('out-bg');
-    warnRow('in-bg');
     // —— 发送按钮 ——
     gtitle('发送按钮');
     add('发送按钮显示/隐藏', g('send-show') === 'hide' ? '隐藏' : '显示', () => pickGcPills('send-show', '显示发送按钮', [
@@ -2057,8 +1990,8 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
       if (!color) return;
       // FIX 2026-09-07 #223 群聊颜色一改就恢复：原对比度保护在选色后立即回滚——粉/浅色
       // 气泡配默认白字、深色文字配默认黑底，全部对比度 < 2.2 被拒，用户怎么选都会弹回
-      // 旧色（多机型用户报障，与机型无关）。改为接受所选颜色，可读性由 applyGcBeauty
-      // 尾部 gcEnsureContrast 自愈兜底（方案同单聊 chat-settings._ensureBubbleContrast）。
+      // 旧色（多机型用户报障，与机型无关）。2026-09-11 用户要求彻底去掉对比度干预：
+      // 不回滚、不警告、不自愈强制换色，所选颜色即最终生效。
       gcBeautySet(key, color);
     }, { colorPicker: true, color: cur, swatches: swatches });
   }

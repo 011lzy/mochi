@@ -108,21 +108,24 @@ await evalJs("(function(){document.querySelectorAll('.page').forEach(function(p)
 await sleep(700);
 
 // ---- B 组：行为断言（产物） ----
-const openArc = "(function(){document.getElementById('chat-more-panel').hidden=false;var b=document.getElementById('more-arcade');if(b)b.click();return true;})()";
+// v3.26.x：游乐室入口已从「聊天更多功能 more-arcade 半框」改为「主页页入口卡 → 独立全屏页 page-arcade」，
+// 旧半框 #chat-arcade-panel 已废弃——本组改测新路径：主页入口卡打开 → page-arcade 显 → arcade-back 返回 → 重开。
+const goHome = "(function(){document.querySelectorAll('.page').forEach(function(p){p.hidden=(p.id!=='page-phone');});return true;})()";
+const openArc = goHome + ";(function(){var e=document.getElementById('home-arcade-entry');if(e)e.click();return true;})()";
 await evalJs(openArc);
-await sleep(400);
-let r = J(await evalJs("(function(){var p=document.getElementById('chat-arcade-panel'),c=document.getElementById('arc-close');return JSON.stringify({open:p&&!p.hidden,btn:!!c,btnVisible:!!c&&c.offsetParent!==null});})()"));
-check('B1 more-arcade 打开游乐室半框、× 在且可见', r.open === true && r.btn === true && r.btnVisible === true, JSON.stringify(r));
+await sleep(500);
+let r = J(await evalJs("(function(){var pg=document.getElementById('page-arcade'),bk=document.getElementById('arcade-back');return JSON.stringify({open:pg&&!pg.hidden,back:!!bk,backVisible:!!bk&&bk.offsetParent!==null});})()"));
+check('B1 主页入口卡打开游乐室全屏页、返回按钮在且可见', r.open === true && r.back === true && r.backVisible === true, JSON.stringify(r));
 
-r = J(await evalJs("(function(){var c=document.getElementById('arc-close');c.click();var p=document.getElementById('chat-arcade-panel');return JSON.stringify({hidden:p.hidden});})()"));
+r = J(await evalJs("(function(){var bk=document.getElementById('arcade-back');bk.click();var pg=document.getElementById('page-arcade');return JSON.stringify({hidden:pg.hidden});})()"));
 await sleep(150);
-r = J(await evalJs("(function(){var p=document.getElementById('chat-arcade-panel');return JSON.stringify({hidden:p.hidden});})()"));
-check('B2 点 × 面板收起（#308 主断言；修复前恒 false）', r.hidden === true, JSON.stringify(r));
+r = J(await evalJs("(function(){var pg=document.getElementById('page-arcade');return JSON.stringify({hidden:pg.hidden});})()"));
+check('B2 点返回全屏页收起（关闭链路不坏）', r.hidden === true, JSON.stringify(r));
 
 await evalJs(openArc);
-await sleep(400);
-r = J(await evalJs("(function(){var p=document.getElementById('chat-arcade-panel');var c=document.getElementById('arc-close');var wasOpen=!p.hidden;c.click();return JSON.stringify({reopen:wasOpen,hiddenAfter:p.hidden});})()"));
-check('B3 关掉后能重开、再点 × 仍能关', r.reopen === true && r.hiddenAfter === true, JSON.stringify(r));
+await sleep(500);
+r = J(await evalJs("(function(){var pg=document.getElementById('page-arcade');var bk=document.getElementById('arcade-back');var wasOpen=!pg.hidden;bk.click();return JSON.stringify({reopen:wasOpen,hiddenAfter:pg.hidden});})()"));
+check('B3 关掉后能重开、再点返回仍能关', r.reopen === true && r.hiddenAfter === true, JSON.stringify(r));
 
 // 对照组：旁边红包面板的 × 不受影响（同款 .poke-card-close 既有链路）
 await evalJs("(function(){document.getElementById('chat-more-panel').hidden=false;var b=document.getElementById('more-rps');if(b)b.click();return true;})()");
