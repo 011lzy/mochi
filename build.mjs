@@ -969,6 +969,8 @@ const FIX_SENTINELS = [
   { name: '#319 内置字卡锁·分组总闸（getDefaultCardGroups 锁定返回空，删则字卡库/词典拼字仍能取到系统预设字卡）', file: 'js/default-cards.js', needle: "if (LOCKED()) return []; // #319 锁定＝系统预设字卡不存在" },
   { name: '#319 内置字卡锁·聊天回复池闸（getPool 系统预设分支锁定不入池，删则聊天仍抽预设字卡）', file: 'js/chat.js', needle: 'const sysLocked = !(window.cardLockOpen && window.cardLockOpen());' },
   { name: '#317 开屏解锁卡接线（clock.js setupCardLockCard，删则开屏无解锁入口＝锁死无法使用）', file: 'js/clock.js', needle: 'function setupCardLockCard() {' },
+  // ==== 2026-09-11 #320 全屏游戏面板抬层（.game-fs 在 .page(z-index:2) 上下文内，z-9999 被压到 2 永远低于全局顶部提醒条 998 → 连连看/消消乐全屏时头部难度下拉被提醒条盖住点不到、选不了难度的根因）====
+  { name: '#320 全屏期间给 .phone 挂 game-fs-active（全屏面板所在 page 抬到 1000，删则提醒条继续盖住全屏头部难度下拉=全屏选不了难度），配套 CSS：css/chat-pages.css .phone.game-fs-active .page{z-index:1000}', file: 'js/fullscreen.js', needle: "_gfsPhone.classList.toggle('game-fs-active', gameFsHasActive())" },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

@@ -130,13 +130,6 @@ html { margin:0; padding:0; }
 }
 .splash-ver .sv-app { font-size:11.5px; font-weight:700; color:var(--ink); letter-spacing:.5px; }
 .splash-ver .sv-deploy { font-size:10.5px; color:var(--hint-ink); }
-/* 开屏 · 梦角今日心情条（来自「心情日记」#303；无记录/无互动时隐藏） */
-.splash-mood {
-  margin:10px auto 0; width:min(322px, 100%); box-sizing:border-box; text-align:center;
-  font-size:12.5px; color:var(--muted); letter-spacing:.4px;
-  background:var(--card-bg, rgba(255,255,255,.7)); border:1px solid rgba(0,0,0,.07);
-  border-radius:14px; padding:7px 14px;
-}
 /* v3.5.111：开屏公告卡片（白纸卡片，与全局简约风格一致）；v3.8.y：不再自滚，随 .splash-box 整页滚动 */
 .splash-notice {
   margin:14px auto 0; width:min(322px, 100%); text-align:left;

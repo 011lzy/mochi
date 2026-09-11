@@ -767,4 +767,22 @@
   const _egObs = new MutationObserver(() => applyEdgeGuard());
   _egObs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
   applyEdgeGuard();
+
+  // #320 全屏游戏面板抬层：`.game-fs` 面板在 #page-chat（.page z-index:2）的层叠上下文
+  //   内，z-index 永远被压到 2，低于全局顶部提醒条（ver-update-bar/backup-remind-bar 998）
+  //   ——全屏时头部难度下拉被提醒条盖住、点不到（连连看/消消乐全屏选不了难度的根因）。
+  //   任一可见 .game-fs 生效时给 .phone 挂 game-fs-active 类，chat-pages.css 据此把
+  //   所在 page 抬到 1000（>998），面板 z-9999 才真正置顶；退出后还原，提醒条照常显示。
+  function gameFsHasActive() {
+    var nodes = document.querySelectorAll('.poke-card.game-fs');
+    for (var i = 0; i < nodes.length; i++) { if (!nodes[i].hidden) return true; }
+    return false;
+  }
+  var _gfsPhone = document.querySelector('.phone') || (document.body || document.documentElement);
+  function applyGameFsElevate() {
+    _gfsPhone.classList.toggle('game-fs-active', gameFsHasActive());
+  }
+  var _gfsObs = new MutationObserver(applyGameFsElevate);
+  _gfsObs.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class', 'hidden'], childList: true });
+  applyGameFsElevate();
 })();

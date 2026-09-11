@@ -4054,6 +4054,11 @@ body.mail-emoji-mode #emoji-panel { bottom: calc(64px + var(--mochi-safe-bottom,
   padding-top:max(env(safe-area-inset-top, 0px), 8px);
   padding-bottom:max(var(--mochi-safe-bottom, env(safe-area-inset-bottom, 0px)), 8px);
 }
+/* #320 全屏游戏面板抬层：.game-fs 仍位于 .page（z-index:2）上下文内，z-9999 被压到 2，
+   永远低于全局顶部提醒条(ver-update-bar/backup-remind-bar z-998) → 全屏时头部难度下拉
+   被提醒条盖住点不到。fullscreen.js 在任一可见 .game-fs 时给 .phone 挂 game-fs-active，
+   这里把含全屏面板的 page 抬到 1000（>998），面板才真正置顶；无全屏时还原、提醒条照常。 */
+.phone.game-fs-active .page { z-index:1000; }
 .poke-card.game-fs .poke-card-scroll { flex:1; max-height:none; min-height:0; }
 [data-theme="dark"] .poke-card.game-fs { background:#15151a; }
 /* #306：记忆翻牌真全屏——全屏放开棋盘宽度上限 + 纵向填满并居中（不用 JS 逐格改像素）
