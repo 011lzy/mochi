@@ -86,7 +86,7 @@ ok((rs.match(/'qs-en', 'qs-cc', 'qs-one'/g) || []).length === 3, 'D3 三处开�
 ok(rs.includes('migrateQsCcOld()') && rs.includes("s.set('reply-qs-cc', '0')") && rs.includes("'reply-qs-cc-migrated'"), 'D3b qs-cc 旧默认 1→0 一次性迁移在位');
 ok(tpl.includes('id="qs-en"') && tpl.includes('data-k="qs-prob"') && tpl.includes('id="qs-cc"') && tpl.includes('id="qs-one"'), 'D4 template.html 回复设置「词典拼字」组四控件');
 ok(chat.includes("tag: '词典拼字'") && chat.includes('rep.spell.join(\' \')'), 'D5 chat.js 单气泡形态：空格连卡+「词典拼字」tag');
-ok(tpl.includes('data-type="dict"') && tpl.includes('id="dc-cat-dict"'), 'D6 template.html 词典 tab + 分类开关行');
+ok(tpl.includes('id="page-dict-cards"') && tpl.includes('id="d2-dict-list"'), 'D6 词典独立页在位（page-dict-cards，并行 #316 批重构）');
 ok(bm.includes("'default-cards.js', 'quote-spell.js'"), 'D7 build.mjs jsFiles 已登记 quote-spell.js');
 
 // —— E 词典白名单纯净度 ——

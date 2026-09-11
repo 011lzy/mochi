@@ -2592,7 +2592,6 @@
         <div class="gs-row"><span>颜文字</span><label class="toggle"><input type="checkbox" id="dc-cat-kaomoji" checked><span class="tk"></span></label></div>
         <div class="gs-row"><span>emoji</span><label class="toggle"><input type="checkbox" id="dc-cat-emoji" checked><span class="tk"></span></label></div>
         <div class="gs-row"><span>拍一拍</span><label class="toggle"><input type="checkbox" id="dc-cat-touch" checked><span class="tk"></span></label></div>
-        <div class="gs-row"><span>词典</span><label class="toggle"><input type="checkbox" id="dc-cat-dict" checked><span class="tk"></span></label></div>
       </div>
       <!-- v3.33.x：分类占比——默认字卡命中后，四大分类按此占比分配，四类合计 100%（权重按相对比例归一） -->
       <div style="margin:14px 14px 4px;font-size:12px;color:#999;font-weight:600">分类占比（默认字卡内部按此比例分配，四类合计 100%）</div>
@@ -2602,9 +2601,9 @@
         <div class="gs-row"><span>emoji 占比</span><div class="stepper" id="dc-prob-emoji" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dc-prob-emoji-val" readonly><button class="stp-max">+</button></div></div>
         <div class="gs-row"><span>拍一拍占比</span><div class="stepper" id="dc-prob-touch" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dc-prob-touch-val" readonly><button class="stp-max">+</button></div></div>
       </div>
+      <!-- 词典已独立成大分类（li-dict-cards → page-dict-cards），不再在默认聊天字卡里重复出现 -->
       <div class="card-tabs" id="dc-tabs">
-        <button class="cc-tab sel" data-type="dict">词典</button>
-        <button class="cc-tab" data-type="main">主字卡</button>
+        <button class="cc-tab sel" data-type="main">主字卡</button>
         <button class="cc-tab" data-type="kaomoji">颜文字</button>
         <button class="cc-tab" data-type="emoji">emoji</button>
         <button class="cc-tab" data-type="touch">拍一拍</button>

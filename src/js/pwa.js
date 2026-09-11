@@ -180,22 +180,40 @@
         .then(function (d) {
           failCount = 0;
           const ts = Number(d && d.ts);
-          if (!ts || isNaN(ts)) return;
+          if (!ts || isNaN(ts)) { healNetHint(); return; }
           // 老版本页面无 data-build-ts 注入时回退旧逻辑（首次 fetch 当基线）
-          if (!baseGot) { baseTs = ts; baseGot = true; return; }
+          if (!baseGot) { baseTs = ts; baseGot = true; healNetHint(); return; }
+          // v3.30.x FIX：每次成功拉取都撤销弱网误报（若曾显示）——网络恢复即自愈，
+          // 不再让「网络异常，未能确认最新版本」常驻顶部；随后发现有新版才弹更新条。
+          healNetHint();
           if (ts > baseTs) showVerBar(ts);
         })
         .catch(function () { failCount++; maybeNetHint(); });
     }
-    // v3.29.x：#273 弱网兜底。拉 version.json 持续失败（连遭 2 次超时）时，顶部更新条
+    // v3.29.x：#273 弱网兜底。拉 version.json 持续失败（连遭 3 次超时）时，顶部更新条
     // 也给出「网络异常，未能确认最新版本」+「重试刷新」入口——否则弱网下页面常驻旧缓存、
     // 又拉不到版本文件，用户永远收不到任何提示＝「顶部刷新按钮消失」。点击复用 refreshNow()
     // （PRECACHE_NOW 预取最新 index 落盘 + reload），弱网也能尽量够到最新版；每页面加载只
     // 提示一次（内存守卫），不随 5s 轮询反复闪。网络恢复且真有新版时，正常 then 分支的
     // showVerBar 会覆盖本文案，不会与新版本提醒打架。
+    // v3.30.x FIX（红米K80 Chrome 等多机型「刷新顶部总显示『网络异常』」）：原误报两个根因，
+    // 一个都不在「真断网」：① 阈值过松（连 2 次 5s 超时即报）——GitHub Pages 国内弱网下
+    // 5000ms 时常差几秒才回，慢而不挂也被当成断网；② netHealed 单向位，一旦置真，之后哪怕
+    // 拉取成功也永不撤销文案 → 误报文案常驻顶部、刷新一次报一次。修复：阈值提到 3 次 +
+    // 每次成功拉取调用 healNetHint() 复位文案/位（网络恢复即自愈，位回 false 可重新触发）。
     let netHealed = false;
+    function healNetHint() {
+      if (!netHealed) return;
+      netHealed = false;
+      failCount = 0;
+      bar.hidden = true;
+      const txt = bar.querySelector('.vub-txt');
+      if (txt) txt.textContent = '检测到新版本';
+      const act = document.getElementById('ver-update-refresh');
+      if (act) act.textContent = '刷新使用新版';
+    }
     function maybeNetHint() {
-      if (netHealed || failCount < 2) return;
+      if (netHealed || failCount < 3) return;
       netHealed = true;
       const txt = bar.querySelector('.vub-txt');
       if (txt) txt.textContent = '网络异常，未能确认最新版本';
