@@ -3674,9 +3674,19 @@ body.mail-emoji-mode #emoji-panel { bottom: calc(64px + var(--mochi-safe-bottom,
 .ms-note { font-size:11px; color:rgba(255,255,255,.6); text-align:center; margin-bottom:4px; }
 .ms-quote { font-size:11.5px; color:rgba(255,255,255,.62); font-style:normal; }
 .snake-icon-btn.ms-mode-on { background:#fde8e0; color:#e8533d; }
+/* #343 扫雷动画：踩雷大爆炸脸 + 棋盘震屏 / 结果浮层错峰浮现（连片展开的逐格涟漪由 JS 按 BFS 层级传 delay，复用 mspop） */
+.ms-cell.ms-boom .ms-face.ms-pop { animation:msboompop .42s cubic-bezier(.2,.8,.3,1.3); }
+@keyframes msboompop { 0% { transform:scale(.4); opacity:.3; } 55% { transform:scale(1.6); opacity:1; } 100% { transform:scale(1); } }
+.ms-board.ms-quake { animation:msquake .45s ease-in-out; }
+@keyframes msquake { 0%,100% { transform:translateX(0); } 18% { transform:translateX(-6px); } 38% { transform:translateX(6px); } 58% { transform:translateX(-4px); } 78% { transform:translateX(4px); } }
+#ms-overlay:not([hidden]) > * { animation:msovin .24s ease both; }
+#ms-overlay:not([hidden]) > :nth-child(2) { animation-delay:45ms; }
+#ms-overlay:not([hidden]) > :nth-child(3) { animation-delay:90ms; }
+@keyframes msovin { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
 /* 弱动效偏好：开格/抖动动画关闭（布局不受影响） */
 @media (prefers-reduced-motion: reduce) {
   .ms-face.ms-pop, .ms-shake { animation:none; }
+  .ms-cell.ms-boom .ms-face.ms-pop, .ms-board.ms-quake, #ms-overlay:not([hidden]) > * { animation:none; }
 }
 
 /* ===== 双人钓鱼（聊天页底部半框：水边场景 + 时机收竿 + 今日收获/图鉴/TA送礼） ===== */
@@ -4166,6 +4176,33 @@ body.mail-emoji-mode #emoji-panel { bottom: calc(64px + var(--mochi-safe-bottom,
 [data-theme="dark"] .au-bids .pong-overlay-btn2 { background:rgba(255,255,255,.16); color:#f0f0f0; }
 .au-status { min-height:20px; font-size:13px; color:var(--muted); text-align:center; }
 .au-ov-ico { font-size:44px; margin-bottom:4px; line-height:1.2; }
+/* #343 拍卖会动画：拍品登场四行错峰浮起 / 价格跳动（JS 每次出价重建节点自动重放）/ 档位按压反馈 / 结果浮层三表情 */
+/* 注意 au-in 用 :not(.au-bid)：进场浮起别压过 .au-bid 自己的 aubump（同元素双 animation 时高特异性胜出） */
+.au-item.au-in > :not(.au-bid) { animation:auin .3s cubic-bezier(.2,.8,.3,1.1) both; }
+.au-item.au-in > :nth-child(2) { animation-delay:45ms; }
+.au-item.au-in > :nth-child(3) { animation-delay:90ms; }
+.au-item.au-in > :nth-child(4) { animation-delay:135ms; }
+@keyframes auin { from { opacity:0; transform:translateY(8px) scale(.92); } to { opacity:1; transform:none; } }
+.au-bid { animation:aubump .26s ease-out; transform-origin:center bottom; }
+@keyframes aubump { 0% { transform:scale(1.22); } 100% { transform:scale(1); } }
+.au-lead-ta { color:#7a5af5; }
+[data-theme="dark"] .au-lead-ta { color:#c4b5fd; }
+.au-bids button:active { transform:scale(.94); }
+#au-overlay:not([hidden]) > * { animation:auovin .26s ease both; }
+#au-overlay:not([hidden]) > :nth-child(2) { animation-delay:50ms; }
+#au-overlay:not([hidden]) > :nth-child(3) { animation-delay:100ms; }
+@keyframes auovin { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+.au-ov-win .au-ov-ico { animation:auhammer .5s cubic-bezier(.2,.8,.3,1.3); }
+@keyframes auhammer { 0% { transform:scale(2.1) rotate(-8deg); opacity:0; } 55% { transform:scale(.9) rotate(2deg); opacity:1; } 78% { transform:scale(1.1); } 100% { transform:scale(1); } }
+.au-ov-ta .au-ov-ico { animation:augrab .48s ease-in-out; }
+@keyframes augrab { 0%,100% { transform:translateX(0); } 20% { transform:translateX(-9px) rotate(-7deg); } 45% { transform:translateX(8px) rotate(6deg); } 70% { transform:translateX(-5px) rotate(-4deg); } }
+.au-ov-pass .au-ov-ico { animation:aupass .55s ease forwards; }
+@keyframes aupass { 0% { transform:none; opacity:1; filter:none; } 100% { transform:translateY(6px) scale(.86); opacity:.55; filter:grayscale(.9); } }
+/* 弱动效偏好：拍卖会动画关闭（布局不受影响） */
+@media (prefers-reduced-motion: reduce) {
+  .au-item.au-in > *, .au-bid, #au-overlay:not([hidden]) > *, .au-ov-win .au-ov-ico,
+  .au-ov-ta .au-ov-ico, .au-ov-pass .au-ov-ico { animation:none !important; }
+}
 /* #321 玩法说明：帮助弹窗 + 开场步骤 + 档位按钮直白化 */
 .au-help-body { width:92%; max-width:300px; text-align:left; font-size:12.5px; line-height:1.75; color:rgba(255,255,255,.92); overflow-y:auto; max-height:48vh; }
 .au-help-body b { color:#ffd479; }

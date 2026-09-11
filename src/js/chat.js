@@ -4239,10 +4239,17 @@ setTimeout(() => {
 if (!sameAutoCid()) return; // FIX #187
 hideTyping();
 const am = autoMsg();
-const m = addIn(am.text, { type: am.type, initiative: true, silent: i > 0 });
+// FIX 2026-09-12 #345 撤回先掷签后投递：横幅/系统通知在 addIn 同步链内发出（切后台=系统通知），
+// 旧实现 900ms 后才掷 rc-prob 撤回签——通知已把内容承诺给用户，撤回（rc-refix 未命中不补发）
+// 后进聊天只剩「对方撤回了一条消息」＝「TA 刚主动发的消息被吞」（红米 K80 Chrome 报障：后台
+// 保活存活期消息到达+通知已弹，进聊天没有；全机型同现，与设备无关）。改为投递前定生死：
+// 命中撤回的本条静默落地（不弹横幅/系统通知，未读角标照增——墓碑也是未读事件），900ms 后
+// 照常撤回；rc-refix 命中的补发消息走正常投递（此刻弹通知名正言顺，内容不会再消失）。
+const willRetract = hit(c['rc-prob']);
+const m = addIn(am.text, { type: am.type, initiative: true, silent: i > 0 || willRetract });
 if (i === 0 && window.replyGuideHint) window.replyGuideHint('as'); // v3.27.x #218 互动频率引导（首条主动消息落地时提醒可调）
-try { console.log('[mochi-auto] 主动发送消息: type=%s initiative=true', am.type); } catch(e){}
-if (hit(c['rc-prob'])) {
+try { console.log('[mochi-auto] 主动发送消息: type=%s initiative=true retract=%s', am.type, willRetract); } catch(e){}
+if (willRetract && m) {
 setTimeout(() => {
 if (!sameAutoCid()) return; // FIX #187
 retractMsg(m, 'in');

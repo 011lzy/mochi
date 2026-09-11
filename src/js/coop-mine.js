@@ -332,29 +332,36 @@
     }
   }
   function cellAt(i) { return boardEl.children[i] || null; }
-  function renderCell(i, pop) {
+  function renderCell(i, pop, delay) {
     const cell = cellAt(i);
     if (!cell) return;
-    const face = cell.firstChild;
-    let txt = '', cls = 'ms-cell';
-    if (st.boom[i]) { cls += ' ms-open ms-boom'; txt = '💥'; }
-    else if (st.open[i]) {
-      cls += ' ms-open';
-      const c = st.content[i];
-      if (c === 'coin') { txt = '🪙'; cls += ' ms-tr'; }
-      else if (c === 'gift') { txt = '🎁'; cls += ' ms-tr'; }
-      else if (c === 'flower') { txt = '🌸'; cls += ' ms-tr'; }
-      else if (st.num[i] > 0) {
-        txt = String(st.num[i]);
-        cls += ' ms-n' + st.num[i];
+    const gen = st;   // #343 局代币：延迟应用前若已换局（newGame 换 st）则丢弃，防旧局渲染污染新盘
+    const apply = function () {
+      if (st !== gen) return;
+      const face = cell.firstChild;
+      let txt = '', cls = 'ms-cell';
+      if (st.boom[i]) { cls += ' ms-open ms-boom'; txt = '💥'; }
+      else if (st.open[i]) {
+        cls += ' ms-open';
+        const c = st.content[i];
+        if (c === 'coin') { txt = '🪙'; cls += ' ms-tr'; }
+        else if (c === 'gift') { txt = '🎁'; cls += ' ms-tr'; }
+        else if (c === 'flower') { txt = '🌸'; cls += ' ms-tr'; }
+        else if (st.num[i] > 0) {
+          txt = String(st.num[i]);
+          cls += ' ms-n' + st.num[i];
+        }
+      } else if (st.flag[i]) {
+        txt = '🚩';
+        cls += st.flag[i] === 1 ? ' ms-fyou' : ' ms-fta';
       }
-    } else if (st.flag[i]) {
-      txt = '🚩';
-      cls += st.flag[i] === 1 ? ' ms-fyou' : ' ms-fta';
-    }
-    cell.className = cls;
-    face.textContent = txt;
-    if (pop) { face.classList.remove('ms-pop'); void face.offsetWidth; face.classList.add('ms-pop'); }
+      cell.className = cls;
+      face.textContent = txt;
+      if (pop) { face.classList.remove('ms-pop'); void face.offsetWidth; face.classList.add('ms-pop'); }
+    };
+    // #343 delay：级联展开的视觉延迟（逻辑已同步开，仅表现层晚到）；测试 fast 倍率下 ≈0
+    if (delay) { setTimeout(apply, Math.round(delay * fastMul())); return; }
+    apply();
   }
   function heartsStr() { return '❤️'.repeat(st.lives) + '🖤'.repeat(MAX_LIVES - st.lives); }
   function openCount() { let x = 0; for (let i = 0; i < N(); i++) if (st.open[i]) x++; return x; }
@@ -388,18 +395,23 @@
 
   // ---- 核心流程 ----
   let extraMsg = '';    // 一次性补充说明（如 TA 挪旗吐槽），由 composeStatus 消费
-  function floodOpen(start, out) {
-    if (st.mineTotal === 0) { st.open[start] = true; out.push(start); return; }
-    const stack = [start];
-    while (stack.length) {
-      const i = stack.pop();
+  // #343 改 BFS（原 DFS 栈）：out 顺序＝从起点向外扩散的圈层序，distOut 记录各格圈层
+  // （渲染按层加 delay 形成涟漪；打开集合与原实现完全一致，仅顺序不同）
+  function floodOpen(start, out, distOut) {
+    if (st.mineTotal === 0) { st.open[start] = true; out.push(start); if (distOut) distOut[start] = 0; return; }
+    const dist = {};
+    dist[start] = 0;
+    const queue = [start];
+    while (queue.length) {
+      const i = queue.shift();
       if (st.open[i] || st.flag[i]) continue;
       st.open[i] = true;
       out.push(i);
       if (st.num[i] === 0) {
-        neighborsOf(i).forEach((j) => { if (!st.open[j] && !st.flag[j]) stack.push(j); });
+        neighborsOf(i).forEach((j) => { if (!st.open[j] && !st.flag[j] && dist[j] == null) { dist[j] = dist[i] + 1; queue.push(j); } });
       }
     }
+    if (distOut) Object.keys(dist).forEach((k) => { distOut[k] = dist[k]; });
   }
   function allSafeOpened() {
     for (let i = 0; i < N(); i++) { if (!st.mine[i] && !st.open[i]) return false; }
@@ -441,25 +453,31 @@
       s.lives--; s.minesFound++;
       s.digs[byYou ? 'you' : 'ta']++;
       renderCell(idx, true);
+      // #343 踩雷：棋盘震屏（CSS ms-quake），局面若终局让爆炸看完再弹结果
+      boardEl.classList.remove('ms-quake'); void boardEl.offsetWidth; boardEl.classList.add('ms-quake');
       updateHud();
       sfxBoom();
       const who = byYou ? '你' : T('TA');
       let msg = '💥 ' + who + '踩到了雷！' + heartsStr();
       if (wasTaFlagged && !s.judged[idx]) { msg += '（不过 ' + T('TA') + ' 的旗没错）'; s.judged[idx] = 1; }
       if (hadPlayerFlag && byYou) msg += '（是你自己插的旗那格…）';
-      if (s.lives <= 0) { setStatus(msg); finish(false); return true; }
+      if (s.lives <= 0) { setStatus(msg); finish(false, 640); return true; }
       setStatus(msg);
       passTurn(byYou, 950);   // 停一拍再让 TA 开口，踩雷提示不会被思考语立刻顶掉
       return true;
     }
 
-    const newly = [];
-    floodOpen(idx, newly);
+    const newly = [], distMap = {};
+    floodOpen(idx, newly, distMap);
+    let maxDelay = 0;
     const gotIcons = [];
     for (let k = 0; k < newly.length; k++) {
       const i = newly[k];
       s.digs[byYou ? 'you' : 'ta']++;
-      renderCell(i, true);
+      // #343 按 BFS 圈层逐格弹出（纯视觉级联，逻辑上已同步全部打开）
+      const dly = Math.min((distMap[i] || 0) * 34, 374);
+      if (dly > maxDelay) maxDelay = dly;
+      renderCell(i, true, dly);
       const c = s.content ? s.content[i] : null;
       if (!c) continue;
       s.foundList.push(c);
@@ -490,7 +508,8 @@
     }
     if (wasTaFlagged && !s.judged[idx]) { msg += ' —— 这里其实是安全的，' + T('TA') + '判断错了'; s.judged[idx] = 1; }
     if (extraMsg) { msg += '（' + extraMsg + '）'; extraMsg = ''; }
-    if (allSafeOpened()) { setStatus(msg); finish(true); return true; }
+    // #343 通关：等涟漪铺完再弹结算（单格小展开不延迟）
+    if (allSafeOpened()) { setStatus(msg); finish(true, newly.length > 2 ? maxDelay + 260 : 0); return true; }
     setStatus(msg);
     passTurn(byYou, gotIcons.length ? 1100 : undefined);   // 有发现时同样停一拍
     return true;
@@ -504,7 +523,7 @@
     const s = st;
     if (!s || !s.started || s.over || s.lock || s.open[idx]) return;
     s.flag[idx] = s.flag[idx] === who ? 0 : who;
-    renderCell(idx);
+    renderCell(idx, true);   // #343 旗子弹出/收回带缩放
     sfxFlag();
   }
   function placeTaFlag(idx) {
@@ -512,7 +531,7 @@
     if (!s || s.open[idx] || s.flag[idx] === 2) return;
     s.taFlagged[idx] = 1;
     s.flag[idx] = 2;
-    renderCell(idx);
+    renderCell(idx, true);   // #343 同上
   }
   function passTurn(byYou, taDelay) {
     const s = st;
@@ -559,7 +578,8 @@
   }
 
   // ---- 结束：覆盖层 / 战绩 / 奖励 / 聊天联动 ----
-  function finish(win) {
+  // #343 overlayDelay：踩雷/通关动画先演完再弹结果浮层；延迟期间关面板或开新局则不再弹
+  function finish(win, overlayDelay) {
     const s = st;
     s.over = true; s.lock = false;
     clearTimeout(taT); taT = null;
@@ -593,7 +613,13 @@
     }
     if (s.coinEarned > 0) body += '<div class="pong-end-stat">🪙 我的心意币 +¥' + (s.coinEarned / 100).toFixed(2) + '</div>';
     body += '<div class="pong-end-stat ms-quote">「' + (win ? pick(['一起找完了。', '我们配合得不错嘛。', '全部清完啦，开心。']) : pick(['差一点点而已，再来！', '下次小心一点就好。'])) + '」</div>';
-    showOverlay(win ? '💣 合作完成' : '💥 差一点', body, '再来一次');
+    const showResult = function () {
+      // 延迟窗内可能已关面板/再来一局（st 被换/未 over）——此时不再弹结果
+      if (!st || !st.over || panel.hidden) return;
+      showOverlay(win ? '💣 合作完成' : '💥 差一点', body, '再来一次');
+    };
+    if (overlayDelay) setTimeout(showResult, Math.round(overlayDelay * fastMul()));
+    else showResult();
     if (startBtn) startBtn.textContent = '再来一次';
     if (endBtn) endBtn.hidden = false;
     try {

@@ -101,7 +101,9 @@
   function yuanC(fen) { const v = fen / 100; return Number.isInteger(v) ? '¥' + v : '¥' + v.toFixed(2); } // #321 整数省略 .00，按钮直白些
 
   // ---- 音效 ----
-  let audioCtx = null, soundOn = true;
+  let audioCtx = null;
+  let soundOn = true;
+  try { soundOn = localStorage.getItem('xy-home-v2:au-sound') !== '0'; } catch (e) {} // #343 音效偏好全局记忆（非联系人维度）
   function beep(freq, dur, vol) {
     if (!soundOn) return;
     try {
@@ -174,6 +176,8 @@
     });
     if (rest.length !== pend.length) savePending(rest);
     if (delivered && statusEl && !panel.hidden) setStatus('📬 ' + T('TA') + ' 寄来了 ' + delivered + ' 件拍品，已收进 🎒');
+    // #343 寄到时背包列表开着就重渲染：unshift 会让已渲染行的 data-i 整体 +1，不重渲＝「送TA」可能送错件
+    if (delivered && bagOpen) { try { showBag(); } catch (e) {} }
   }
 
   // ---- 场次状态 ----
@@ -209,13 +213,17 @@
       // #301 蒙面拍品：开拍只给描述，落槌才揭晓
       const showIco = item.mystery ? '🎁' : item.ico;
       const showName = item.mystery ? '神秘拍品' : item.name;
+      // #343 领价方着色 + 价格跳动（innerHTML 重建节点即自动重放 aubump）
+      const leadCls = st.leader === 'you' ? ' au-lead-you' : st.leader === 'ta' ? ' au-lead-ta' : '';
       itemEl.innerHTML =
         '<div class="au-ico">' + showIco + '</div>' +
         '<div class="au-name">' + showName + '</div>' +
         '<div class="au-desc">' + item.desc + '</div>' +
-        '<div class="au-bid">' + bidTxt + '</div>';
+        '<div class="au-bid' + leadCls + '">' + bidTxt + '</div>';
     }
     updateBidBtns();
+    // #343 拍品登场：四行错峰浮起（renderLot 后重触发）
+    if (itemEl) { itemEl.classList.remove('au-in'); void itemEl.offsetWidth; itemEl.classList.add('au-in'); }
   }
   function lotActive() { return st && st.started && !st.over && st.phase === 'bidding'; }
   function updateBidBtns() {
@@ -267,6 +275,8 @@
   }
   function openLot() {
     st.phase = 'bidding';
+    hideOverlay();   // #343 上一件的结果浮层必须收掉——原先漏收，「下一件」后新拍品被结果层盖住点不了
+    if (endBtn) endBtn.hidden = true;
     const r = Math.random();
     st.mode = r < 0.25 ? 'eager' : r < 0.6 ? 'normal' : r < 0.85 ? 'stingy' : 'bluff';
     const item = st.lots[st.idx];
@@ -356,7 +366,7 @@
       '<div class="au-ov-ico">' + item.ico + '</div>' +
       '<div class="pong-end-stat">' + item.name + ' · ' + yuan(st.cur) + ' 归 ' + T('TA') + '</div>' +
       '<div class="pong-end-stat">📬 不过 TA 拍走的拍品，过几天会寄回给你</div>',
-      st.idx + 1 < st.lots.length ? '下一件' : '结算');
+      st.idx + 1 < st.lots.length ? '下一件' : '结算', 'ta');
     setStatus(T('TA') + '把「' + item.name + '」抱走了');
     try {
       const fb = ['这件归我啦。', '嘿嘿，到手。', '眼光不错吧。'];
@@ -374,7 +384,7 @@
     showOverlay('流拍了',
       '<div class="au-ov-ico">' + item.ico + '</div>' +
       '<div class="pong-end-stat">' + item.name + ' 没人要，收回仓库</div>',
-      st.idx + 1 < st.lots.length ? '下一件' : '结算');
+      st.idx + 1 < st.lots.length ? '下一件' : '结算', 'pass');
     setStatus('「' + item.name + '」流拍了');
     try {
       const fb = ['这玩意没人要啊。', '亏本了亏本了。'];
@@ -411,7 +421,7 @@
       '<div class="pong-end-stat">' + item.name + ' · ' + yuan(st.cur) + ' 拍下</div>' +
       '<div class="pong-end-stat">💌 ' + item.wish + '</div>' +
       '<div class="pong-end-stat">已收进 🎒 小收藏（剩 ' + yuan(myBalance()) + '）· 可在 🎒 里转赠给 ' + T('TA') + '</div>',
-      st.idx + 1 < st.lots.length ? '下一件' : '结算');
+      st.idx + 1 < st.lots.length ? '下一件' : '结算', 'win');
     setStatus('「' + item.name + '」是你的了，花了 ' + yuan(st.cur));
     try {
       const fb = ['被你拍走了…', '亏了亏了。', '那件本来我想要来着。'];
@@ -495,11 +505,14 @@
   }
 
   // ---- 覆盖层 ----
-  function showOverlay(title, body, btnText) {
+  // #343 mood：win=落槌成交（砸下回弹）/ ta=TA抱走（左右挣扎）/ pass=流拍（褪色下沉）
+  function showOverlay(title, body, btnText, mood) {
     if (!overlayEl) return;
     if (ovTitleEl) ovTitleEl.innerHTML = title || '';
     if (ovBodyEl) ovBodyEl.innerHTML = body || '';
     if (startBtn && btnText) startBtn.textContent = btnText;
+    overlayEl.classList.remove('au-ov-win', 'au-ov-ta', 'au-ov-pass');
+    if (mood) overlayEl.classList.add('au-ov-' + mood);
     overlayEl.hidden = false;
     updateBidBtns();
   }

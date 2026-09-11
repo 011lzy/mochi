@@ -98,6 +98,7 @@
       grid: [],                // grid[r][c] = 种类下标或 -1（已消除）
       turn: 1,                 // 1 玩家 / 2 TA
       over: false,
+      lock: false,             // #341 动画链进行中，锁输入
       started: false,
       sel: null,               // 玩家当前选中 [r,c]
       remaining: 0,
@@ -142,28 +143,30 @@
     }
     return false;
   }
-  // 两张同款牌是否可连（≤2 拐角）；返回 true/false
-  function connected(st2, a, b) {
+  // #341 两张同款牌的连线路径（≤2 拐角）；可连返回途经点数组（含两端），否则 null——
+  // 规则判断与旧 connected 完全一致，只是把「能连」升级成「怎么连」供走线动画用
+  function findPath(st2, a, b) {
     const va = at(st2, a[0], a[1]), vb = at(st2, b[0], b[1]);
-    if (va < 0 || vb < 0 || va !== vb) return false;
-    if (a[0] === b[0] && a[1] === b[1]) return false;
+    if (va < 0 || vb < 0 || va !== vb) return null;
+    if (a[0] === b[0] && a[1] === b[1]) return null;
     // 0 拐：同线直达
-    if ((a[0] === b[0] || a[1] === b[1]) && lineClear(st2, a[0], a[1], b[0], b[1])) return true;
+    if ((a[0] === b[0] || a[1] === b[1]) && lineClear(st2, a[0], a[1], b[0], b[1])) return [a.slice(), b.slice()];
     // 1 拐：两个可能角点
     const c1 = [a[0], b[1]], c2 = [b[0], a[1]];
-    if (empty(st2, c1[0], c1[1]) && lineClear(st2, a[0], a[1], c1[0], c1[1]) && lineClear(st2, c1[0], c1[1], b[0], b[1])) return true;
-    if (empty(st2, c2[0], c2[1]) && lineClear(st2, a[0], a[1], c2[0], c2[1]) && lineClear(st2, c2[0], c2[1], b[0], b[1])) return true;
+    if (empty(st2, c1[0], c1[1]) && lineClear(st2, a[0], a[1], c1[0], c1[1]) && lineClear(st2, c1[0], c1[1], b[0], b[1])) return [a.slice(), c1.slice(), b.slice()];
+    if (empty(st2, c2[0], c2[1]) && lineClear(st2, a[0], a[1], c2[0], c2[1]) && lineClear(st2, c2[0], c2[1], b[0], b[1])) return [a.slice(), c2.slice(), b.slice()];
     // 2 拐：沿 a 的行/列找一条空线，使其能分别直达 a 与 b
     for (let x = -1; x <= st2.cols; x++) {
       if (empty(st2, a[0], x) && empty(st2, b[0], x) &&
-          lineClear(st2, a[0], a[1], a[0], x) && lineClear(st2, a[0], x, b[0], x) && lineClear(st2, b[0], x, b[0], b[1])) return true;
+          lineClear(st2, a[0], a[1], a[0], x) && lineClear(st2, a[0], x, b[0], x) && lineClear(st2, b[0], x, b[0], b[1])) return [a.slice(), [a[0], x], [b[0], x], b.slice()];
     }
     for (let y = -1; y <= st2.rows; y++) {
       if (empty(st2, y, a[1]) && empty(st2, y, b[1]) &&
-          lineClear(st2, a[0], a[1], y, a[1]) && lineClear(st2, y, a[1], y, b[1]) && lineClear(st2, y, b[1], b[0], b[1])) return true;
+          lineClear(st2, a[0], a[1], y, a[1]) && lineClear(st2, y, a[1], y, b[1]) && lineClear(st2, y, b[1], b[0], b[1])) return [a.slice(), [y, a[1]], [y, b[1]], b.slice()];
     }
-    return false;
+    return null;
   }
+  function connected(st2, a, b) { return !!findPath(st2, a, b); }
   // 当前所有可连对（TA 扫盘 / 死锁检测 / 提示共用）
   function allPairs(st2) {
     const cells = [];
@@ -195,20 +198,40 @@
     } while (allPairs({ rows: d.rows, cols: d.cols, grid: grid }).length === 0);
     return grid;
   }
-  // 死锁处理：剩余牌随机重排直到有解（每类牌张数不变）
+  // 死锁处理：剩余牌随机重排直到有解（每类牌张数不变）；#341 成功后播「翻乱→摆好」动画
   function reshuffle() {
     const cells = [];
     const kinds = [];
     for (let r = 0; r < st.rows; r++) for (let c = 0; c < st.cols; c++) {
       if (st.grid[r][c] >= 0) { cells.push([r, c]); kinds.push(st.grid[r][c]); }
     }
+    let ok = false;
     for (let tries = 0; tries < 80; tries++) {
       shuffle(kinds);
       for (let i = 0; i < cells.length; i++) st.grid[cells[i][0]][cells[i][1]] = kinds[i];
-      if (allPairs(st).length > 0) { renderBoard(); return true; }
+      if (allPairs(st).length > 0) { ok = true; break; }
     }
-    renderBoard();
-    return false;
+    if (!ok) { renderBoard(); return false; }
+    const s = st;
+    s.lock = true;
+    const alive = cells.map((p) => tileAt(p[0], p[1])).filter(Boolean);
+    alive.forEach((el) => { el.classList.remove('lk-shufin'); el.classList.add('lk-shufout'); });
+    setTimeout(() => {
+      if (s !== st) return;
+      renderBoard();
+      const ts = boardEl.querySelectorAll('.lk-tile');
+      for (let i = 0; i < ts.length; i++) {
+        if (ts[i].classList.contains('lk-gone')) continue;
+        ts[i].classList.remove('lk-shufout'); ts[i].classList.add('lk-shufin');
+      }
+      setTimeout(() => {
+        if (s !== st) return;
+        const ts2 = boardEl.querySelectorAll('.lk-tile');
+        for (let i = 0; i < ts2.length; i++) ts2[i].classList.remove('lk-shufin');
+        s.lock = false;
+      }, Math.round(220 * fastMul()));
+    }, Math.round(180 * fastMul()));
+    return true;
   }
 
   // ---- 渲染 ----
@@ -256,6 +279,53 @@
       (st.combo >= 2 ? '<span>🔥 连击 ×' + st.combo + '</span>' : '') +
       '<span>💕 ' + chemNow() + '</span>';
   }
+  // ---- #341 表现层动画：连线走线 / 消除爆开 / 开局发牌 ----
+  const POP_MS = 260;
+  let pathSvgT = null;
+  // 在棋盘上叠一层 SVG，把 ≤2 拐角的连线画出来（描线动画 + 淡出自删）；棋盘外圈虚拟点按格距外推
+  function drawPathLine(path) {
+    if (!boardEl || !path || path.length < 2) return;
+    try {
+      const t0 = tileAt(0, 0);
+      if (!t0 || !t0.offsetWidth) return;
+      const GAP = 3, cw = t0.offsetWidth, ch = t0.offsetHeight;
+      const pt = (p) => (t0.offsetLeft + p[1] * (cw + GAP) + cw / 2) + ',' + (t0.offsetTop + p[0] * (ch + GAP) + ch / 2);
+      const old = boardEl.querySelector('.lk-pathline');
+      if (old) old.remove();
+      const NS = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(NS, 'svg');
+      svg.setAttribute('class', 'lk-pathline');
+      const pl = document.createElementNS(NS, 'polyline');
+      pl.setAttribute('points', path.map(pt).join(' '));
+      pl.setAttribute('pathLength', '1');
+      svg.appendChild(pl);
+      boardEl.appendChild(svg);
+      clearTimeout(pathSvgT);
+      pathSvgT = setTimeout(() => { try { const s = boardEl.querySelector('.lk-pathline'); if (s) s.remove(); } catch (e) {} }, Math.round(480 * fastMul()));
+    } catch (e) {}
+  }
+  // 开局发牌：整盘棋子按对角波次出生
+  function dealInAnim() {
+    if (!boardEl) return;
+    const mult = fastMul();
+    const tiles = boardEl.querySelectorAll('.lk-tile');
+    let maxD = 0;
+    for (let i = 0; i < tiles.length; i++) {
+      const el = tiles[i];
+      const r = parseInt(el.getAttribute('data-r'), 10) || 0;
+      const c = parseInt(el.getAttribute('data-c'), 10) || 0;
+      const d = Math.round(Math.min((r + c) * 18, 260) * mult);
+      if (d > maxD) maxD = d;
+      el.style.animationDelay = d + 'ms';
+      el.classList.add('lk-born');
+    }
+    setTimeout(() => {
+      try {
+        const ts = boardEl.querySelectorAll('.lk-tile');
+        for (let i = 0; i < ts.length; i++) { ts[i].classList.remove('lk-born'); ts[i].style.animationDelay = ''; }
+      } catch (e) {}
+    }, maxD + Math.round(240 * mult));
+  }
   function chemNow() {
     if (!st.totalPairs) return 60;
     const share = st.myPairs / Math.max(1, st.myPairs + st.taPairs);
@@ -297,6 +367,7 @@
     buildBoard();
     fitBoard();
     renderBoard();
+    dealInAnim();
     st.turn = 1;
     setStatus(dot(1) + '你的回合：点两张相同的牌');
   }
@@ -305,18 +376,28 @@
     if (st.seen.length > 12) st.seen.splice(0, st.seen.length - 12);
   }
   function removePair(a, b, byMe) {
-    st.grid[a[0]][a[1]] = -1;
-    st.grid[b[0]][b[1]] = -1;
-    st.remaining -= 2;
-    if (byMe) st.myPairs++; else st.taPairs++;
+    // #341 动画链：画连线 + 爆开 → 动画收尾才清字/交棒。逻辑状态（grid/remaining/计分）
+    // 同步更新，期间 st.lock 锁输入；s 捕获本局，防重开后旧链接管新局
+    const s = st;
     const ea = tileAt(a[0], a[1]), eb = tileAt(b[0], b[1]);
-    [ea, eb].forEach((el) => { if (el) { el.classList.add('lk-gone'); el.textContent = ''; } });
-    st.sel = null;
+    drawPathLine(findPath(s, a, b));
+    s.lock = true;
+    s.grid[a[0]][a[1]] = -1;
+    s.grid[b[0]][b[1]] = -1;
+    s.remaining -= 2;
+    if (byMe) s.myPairs++; else s.taPairs++;
+    s.sel = null;
     boardEl.querySelectorAll('.lk-sel').forEach((el) => el.classList.remove('lk-sel'));
+    [ea, eb].forEach((el) => { if (el) el.classList.add('lk-pop'); });
     updateInfo();
+    setTimeout(() => {
+      [ea, eb].forEach((el) => { if (el) { el.classList.remove('lk-pop'); el.classList.add('lk-gone'); el.textContent = ''; } });
+      s.lock = false;
+      if (s === st) afterClear(byMe);   // 对局已被重开则丢弃这条链
+    }, Math.round(POP_MS * fastMul()));
   }
   function playerPick(r, c) {
-    if (!st || !st.started || st.over || st.turn !== 1) return;
+    if (!st || !st.started || st.over || st.lock || st.turn !== 1) return;
     if (st.grid[r][c] < 0) return;
     remember(r, c);
     const el = tileAt(r, c);
@@ -336,9 +417,7 @@
       st.combo++;
       if (st.combo > (st.maxCombo || 0)) st.maxCombo = st.combo;
       if (st.combo >= 2) taSay(pick(['连击 ×' + st.combo + '，好默契！', '又连上啦！', '手气不错嘛']));
-      removePair(a, [r, c], true);
-      updateInfo();
-      afterClear(true);
+      removePair(a, [r, c], true);   // #341 清格后流程由动画链尾 afterClear(true) 接管，此处不再直调
     } else {
       st.misPicks++;
       st.combo = 0;
@@ -356,6 +435,7 @@
     if (allPairs(st).length === 0) {
       reshuffle();
       setStatus('🌀 没有能连的了，自动洗了个牌');
+      st.turn = 1;   // #341 合并 TA 路径语义：死锁自动洗牌后始终轮回玩家
       return;
     }
     st.turn = byMe ? 2 : 1;
@@ -376,7 +456,7 @@
     thinkT = setTimeout(taTurn, Math.round(delay * fastMul()));
   }
   function taTurn() {
-    if (!st || st.over || st.turn !== 2) return;
+    if (!st || st.over || st.lock || st.turn !== 2) return;
     st.mode = rollMode();
     let pair = null;
     const pairs = allPairs(st);
@@ -417,16 +497,7 @@
     if (!pair) { endGame(); return; }
     remember(pair[0][0], pair[0][1]); remember(pair[1][0], pair[1][1]);
     sfxMatch();
-    removePair(pair[0], pair[1], false);
-    if (st.remaining <= 0) { endGame(); return; }
-    if (allPairs(st).length === 0) {
-      reshuffle();
-      setStatus('🌀 没有能连的了，自动洗了个牌');
-      st.turn = 1;
-      return;
-    }
-    st.turn = 1;
-    showTurnStatus();
+    removePair(pair[0], pair[1], false);   // #341 清格/死锁/交棒统一移入动画链尾 afterClear(false)
   }
 
   // ---- 结束：默契 / 奖励 / 聊天联动 ----
@@ -525,7 +596,7 @@
   });
   if (hintBtn) hintBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    if (!st || !st.started || st.over || st.turn !== 1 || st.hints <= 0) return;
+    if (!st || !st.started || st.over || st.lock || st.turn !== 1 || st.hints <= 0) return;
     const pairs = allPairs(st);
     if (!pairs.length) return;
     st.hints--;
@@ -540,7 +611,7 @@
   });
   if (shufBtn) shufBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    if (!st || !st.started || st.over || st.shuffles <= 0 || st.turn !== 1) return;
+    if (!st || !st.started || st.over || st.lock || st.shuffles <= 0 || st.turn !== 1) return;
     st.shuffles--;
     st.sel = null;
     reshuffle();
@@ -645,6 +716,7 @@
     st: () => st,
     newGame: newGame,
     connected: connected,
+    findPath: findPath,
     allPairs: allPairs,
     fast: false
   };

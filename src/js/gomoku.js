@@ -114,6 +114,7 @@
   // ---- 对局状态 ----
   let st = null;
   let thinkT = null;
+  let ovT = null;               // #341 胜利连线动画播完再弹结果浮层的定时器
   let cellPx = 30;
 
   function newState() {
@@ -329,8 +330,11 @@
   function drawStone(r, c, side) {
     const cell = cellAt(r, c);
     if (!cell) return;
+    // #341 先清同格退场中的棋子（悔棋动画未摘除时同点立即落子不残留）
+    cell.querySelectorAll('.gk-stone.gk-vanish').forEach((s) => s.remove());
     const s = document.createElement('span');
-    s.className = 'gk-stone ' + (side === 1 ? 'gk-you' : 'gk-ta');
+    // #341 落子动画：压下回弹（纯表现层，逻辑不变）
+    s.className = 'gk-stone ' + (side === 1 ? 'gk-you' : 'gk-ta') + ' gk-drop';
     cell.appendChild(s);
   }
   function markLast(r, c) {
@@ -340,10 +344,16 @@
   }
   function highlightWin(cells) {
     st.winCells = cells;
+    // #341 按连线走向排序逐颗点亮（stagger），棋盘加 gk-dim 让其余子退暗衬托
+    cells.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
     for (let i = 0; i < cells.length; i++) {
       const cell = cellAt(cells[i][0], cells[i][1]);
-      if (cell) { const s = cell.querySelector('.gk-stone'); if (s) s.classList.add('gk-win'); }
+      if (cell) {
+        const s = cell.querySelector('.gk-stone');
+        if (s) { s.classList.add('gk-win'); s.style.setProperty('--gk-win-i', String(i)); }
+      }
     }
+    boardEl.classList.add('gk-dim');
   }
 
   function setStatus(html) { if (statusEl) statusEl.innerHTML = html; }
@@ -369,11 +379,13 @@
   // ---- 对局流程 ----
   function clearBoardDom() {
     boardEl.querySelectorAll('.gk-stone').forEach((s) => s.remove());
+    boardEl.classList.remove('gk-dim');
     boardEl.querySelectorAll('.gk-win').forEach((el) => el.classList.remove('gk-win'));
     boardEl.querySelectorAll('.gk-last').forEach((el) => el.classList.remove('gk-last'));
   }
   function newGame() {
     clearTimeout(thinkT); thinkT = null;
+    clearTimeout(ovT);
     st = newState();
     st.grid = newGrid();
     st.started = true;
@@ -435,7 +447,14 @@
       st.grid[p[0]][p[1]] = 0;
       st.moves = Math.max(0, st.moves - 1);
       const cell = cellAt(p[0], p[1]);
-      if (cell) { const s = cell.querySelector('.gk-stone'); if (s) s.remove(); }
+      if (cell) {
+        const s = cell.querySelector('.gk-stone');
+        if (s) {
+          // #341 悔棋退场：缩小淡出后再摘除；期间同点落子由 drawStone 兜底先清
+          s.classList.add('gk-vanish');
+          setTimeout(() => { try { if (s.parentNode) s.parentNode.removeChild(s); } catch (e) {} }, Math.round(190 * fastMul()) + 30);
+        }
+      }
     });
     st.lastTaPt = null; st.lastPlayer = null; st.winCells = null;
     st.undoUsed = true;
@@ -496,9 +515,15 @@
       dropLine +
       pillsHtml() +
       '<div class="ms-cur" id="gk-cur">' + diffHint() + '</div>';
-    showOverlay(title, body, '再来一局');
-    if (startBtn) startBtn.textContent = '再来一局';
-    if (endBtn) endBtn.hidden = false;
+    // #341 有胜利连线时先让连线逐颗点亮（~1s）再弹结果浮层；平局/满盘直接弹
+    const showResult = () => {
+      showOverlay(title, body, '再来一局');
+      if (startBtn) startBtn.textContent = '再来一局';
+      if (endBtn) endBtn.hidden = false;
+    };
+    clearTimeout(ovT);
+    if (st.winCells && st.winCells.length) ovT = setTimeout(showResult, Math.round(1000 * fastMul()));
+    else showResult();
     setStatus(winner === 1 ? '🎉 你赢了！' : winner === 2 ? T('TA') + '赢了这一局' : '棋盘下满了，平局');
     // 写聊天系统消息 + TA 随机回应（分组语义同四子棋：输的一方视角）
     try {
@@ -606,6 +631,7 @@
   };
   function closePanel() {
     clearTimeout(thinkT); thinkT = null;
+    clearTimeout(ovT);
     if (panel) panel.hidden = true;
   }
   window.closeGomokuPanel = closePanel;

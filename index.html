@@ -5830,8 +5830,17 @@ to { filter:brightness(1.25) drop-shadow(0 0 7px rgba(255,224,138,.9)); }
 .ms-note { font-size:11px; color:rgba(255,255,255,.6); text-align:center; margin-bottom:4px; }
 .ms-quote { font-size:11.5px; color:rgba(255,255,255,.62); font-style:normal; }
 .snake-icon-btn.ms-mode-on { background:#fde8e0; color:#e8533d; }
+.ms-cell.ms-boom .ms-face.ms-pop { animation:msboompop .42s cubic-bezier(.2,.8,.3,1.3); }
+@keyframes msboompop { 0% { transform:scale(.4); opacity:.3; } 55% { transform:scale(1.6); opacity:1; } 100% { transform:scale(1); } }
+.ms-board.ms-quake { animation:msquake .45s ease-in-out; }
+@keyframes msquake { 0%,100% { transform:translateX(0); } 18% { transform:translateX(-6px); } 38% { transform:translateX(6px); } 58% { transform:translateX(-4px); } 78% { transform:translateX(4px); } }
+#ms-overlay:not([hidden]) > * { animation:msovin .24s ease both; }
+#ms-overlay:not([hidden]) > :nth-child(2) { animation-delay:45ms; }
+#ms-overlay:not([hidden]) > :nth-child(3) { animation-delay:90ms; }
+@keyframes msovin { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
 @media (prefers-reduced-motion: reduce) {
 .ms-face.ms-pop, .ms-shake { animation:none; }
+.ms-cell.ms-boom .ms-face.ms-pop, .ms-board.ms-quake, #ms-overlay:not([hidden]) > * { animation:none; }
 }
 #chat-fish-panel { height:auto; max-height:86%; }
 #chat-fish-panel .poke-card-scroll { min-height:0; max-height:none; }
@@ -6252,6 +6261,30 @@ padding-bottom:max(var(--mochi-safe-bottom, env(safe-area-inset-bottom, 0px)), 8
 [data-theme="dark"] .au-bids .pong-overlay-btn2 { background:rgba(255,255,255,.16); color:#f0f0f0; }
 .au-status { min-height:20px; font-size:13px; color:var(--muted); text-align:center; }
 .au-ov-ico { font-size:44px; margin-bottom:4px; line-height:1.2; }
+.au-item.au-in > :not(.au-bid) { animation:auin .3s cubic-bezier(.2,.8,.3,1.1) both; }
+.au-item.au-in > :nth-child(2) { animation-delay:45ms; }
+.au-item.au-in > :nth-child(3) { animation-delay:90ms; }
+.au-item.au-in > :nth-child(4) { animation-delay:135ms; }
+@keyframes auin { from { opacity:0; transform:translateY(8px) scale(.92); } to { opacity:1; transform:none; } }
+.au-bid { animation:aubump .26s ease-out; transform-origin:center bottom; }
+@keyframes aubump { 0% { transform:scale(1.22); } 100% { transform:scale(1); } }
+.au-lead-ta { color:#7a5af5; }
+[data-theme="dark"] .au-lead-ta { color:#c4b5fd; }
+.au-bids button:active { transform:scale(.94); }
+#au-overlay:not([hidden]) > * { animation:auovin .26s ease both; }
+#au-overlay:not([hidden]) > :nth-child(2) { animation-delay:50ms; }
+#au-overlay:not([hidden]) > :nth-child(3) { animation-delay:100ms; }
+@keyframes auovin { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+.au-ov-win .au-ov-ico { animation:auhammer .5s cubic-bezier(.2,.8,.3,1.3); }
+@keyframes auhammer { 0% { transform:scale(2.1) rotate(-8deg); opacity:0; } 55% { transform:scale(.9) rotate(2deg); opacity:1; } 78% { transform:scale(1.1); } 100% { transform:scale(1); } }
+.au-ov-ta .au-ov-ico { animation:augrab .48s ease-in-out; }
+@keyframes augrab { 0%,100% { transform:translateX(0); } 20% { transform:translateX(-9px) rotate(-7deg); } 45% { transform:translateX(8px) rotate(6deg); } 70% { transform:translateX(-5px) rotate(-4deg); } }
+.au-ov-pass .au-ov-ico { animation:aupass .55s ease forwards; }
+@keyframes aupass { 0% { transform:none; opacity:1; filter:none; } 100% { transform:translateY(6px) scale(.86); opacity:.55; filter:grayscale(.9); } }
+@media (prefers-reduced-motion: reduce) {
+.au-item.au-in > *, .au-bid, #au-overlay:not([hidden]) > *, .au-ov-win .au-ov-ico,
+.au-ov-ta .au-ov-ico, .au-ov-pass .au-ov-ico { animation:none !important; }
+}
 .au-help-body { width:92%; max-width:300px; text-align:left; font-size:12.5px; line-height:1.75; color:rgba(255,255,255,.92); overflow-y:auto; max-height:48vh; }
 .au-help-body b { color:#ffd479; }
 .au-how-step { text-align:left; }
@@ -9189,9 +9222,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1789168519420">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.595</b></span>
-        <span class="sv-deploy">部署于 2026-09-12 07:15<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1789170283014">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.596</b></span>
+        <span class="sv-deploy">部署于 2026-09-12 07:44<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -10380,7 +10413,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.595</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.596</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10675,7 +10708,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.595</span>
+              <span class="lic-ver">v3.26.596</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -30286,10 +30319,11 @@ setTimeout(() => {
 if (!sameAutoCid()) return; // FIX #187
 hideTyping();
 const am = autoMsg();
-const m = addIn(am.text, { type: am.type, initiative: true, silent: i > 0 });
+const willRetract = hit(c['rc-prob']);
+const m = addIn(am.text, { type: am.type, initiative: true, silent: i > 0 || willRetract });
 if (i === 0 && window.replyGuideHint) window.replyGuideHint('as'); // v3.27.x #218 互动频率引导（首条主动消息落地时提醒可调）
-try { console.log('[mochi-auto] 主动发送消息: type=%s initiative=true', am.type); } catch(e){}
-if (hit(c['rc-prob'])) {
+try { console.log('[mochi-auto] 主动发送消息: type=%s initiative=true retract=%s', am.type, willRetract); } catch(e){}
+if (willRetract && m) {
 setTimeout(() => {
 if (!sameAutoCid()) return; // FIX #187
 retractMsg(m, 'in');
@@ -43788,6 +43822,26 @@ window.DEFAULT_CARD_DATA.dict_ext = [
 ["和好的仪式", ["一套","小小的","和好仪式","第一步","情绪","不好","受","火","灭","一半","第二步","复述","用自己的","一步","第三步","这一步","认领","炸药","第四步","约","第五步","本次","连接","监制","我俩","和好后","假装","比如"]],
 ["沟通的慢车道", ["之间","车道","专","慢车道","不知道","气氛","中途","停车","不急","很难","第三张","答复","安全","快车道","那件","主"]],
 ["误会消散的过程", ["容","易","产","误","语","情","遇","兴","其","现","候","标","准","动","作","许","笨","式","法","铺","什","往","整","正","机","知","道","季","节","休","眠","原","谅","解","音","样","忐","忑","松","例","病","偶","尔","锻","炼","处","透"]],
+["梦里的重逢", ["如果在梦里重逢","我想过","版本一","人群","笑了","先看","版本二","老房子","煮","头也不","洗手","版本三","背对着","转身","重逢","只问","吃了","分开的","占","重点","前三秒","第一秒","第二秒","第三秒","出错","三秒","赚","也会有","意外","带了","不下雨","防","万一","撑","一段","而我","一整天","动词","承诺","履行","攒到","一本书","书名","现成的","第N次","那场"]],
+["卡里的小心翼翼", ["小心","说到","绕了","一大圈","包了","糖纸","压力","小心翼翼","睡了吗","正题","于是","删了","七版","第八版","第一版","的一件","小事","当场","更正","附","喜好","爱吃","同一种","两面","吓到","踮","这段","感情","落","雪落","内伤","每周","不经","大脑","放飞","制度","嫌","礼貌","两样","刚刚"]],
+["卡里的暗号商店", ["多到","一家","商店","货架","分区","一号","是很想你","空卡","抱我","问号","你猜","二号","求助","一朵云","不太好","三号","连发","同一张","有好事","四号","禁售","品","懂","镇店","营业","打烊","拉闸","试吃","上架","一周","不好用","下架","好用","转正","试用了","试用期","不舍得","限量","某天","绝版","复制","失物","招领","摆着","会员","入会","相见","权益","店长","轮流","这周","下周","职责","保证","货源","新鲜","出炉","停业","哪怕","照常"]],
+["安慰的说明书", ["用久","讲道理","站到","正确","我听","轮到","大部分","前两步","第三页","禁忌","夹","惨","对比","这三条","犯","第四页","句式","万能","第五页","重听","效","第六页","特殊","情况","处理","明显","做法","拆穿","熟","基本","化","第七页","售后","条款","效力","大于","完美","作者","执笔","这份","免得"]],
+["字卡库的四季", ["字卡库","四季","月份","上线的","季节","夏夜","蒲扇","味道","高产","收获季","收获","被窝","捞","特点","春","秋","总体积","恒定","春卡","秋卡","休眠","闲着","交替","换季","替","两眼","了解","你那个","分组","管理员","归档","暖手","见面季","不分","出动","不再是","亲自","夏","冬","一本","哪页"]],
+["收件箱的夜晚", ["办公室","井井有条","路径","某一张","北极星","问候","深","夜间","只许","那三个","破","会有","一睁眼","几百","人选","催","顺从","养精蓄锐","在想","一晚","刊"]],
+["卡到之前的天气预报", ["特殊的","等待前","无关","有关","空气","修辞","闻","体感","泥土","味","几种","型号","带起","纠结","闷","无缘无故","播报员","胃","灵","积","土地","肥","私下","卡前","气象学","实验","麻","怪","症状","气象","通用","浮现"]],
+["梦里的小卖部", ["梦里有","小卖部","货架上","想买","货价","入睡","峰","生意","货品","买到","几样","好货","缝","一瓶","只能","不能","新货","上新","好睡","赊账","欠条","遗憾","结","关门","播","倒数","听到","才发现","这家","商品","心愿","取","招牌","手写","名","本店","客","一位","意义"]],
+["卡里的对白练习", ["冷场","练","五个","瘦","又不是","胖","来啦","分别","否","决","硬","下个","评价","戏","求和","题","冠军","凶","问问","介绍","说法","准备","前半句","场景","这些","对白","底稿","笑脸","不出","台词","回应"]],
+["两个世界的接力赛", ["接力","赛","第一棒","补给","夜幕","降临","中继","段","赛道","随手","交","区","掉","倍","总","成绩","反而","纪录","合并","队","两条","勤","计时","赛程","席","位","彩","进行","不怕","口号"]],
+["卡里的年轮", ["年份","窄","扩容","闲话","碎碎念","的一","疤","简短","管","愈合","增强","度","全名","第二年","小名","第三年","反","放大","一串","数字","挨","用处","校","怀疑","想象","两圈","第七圈","退货","想过","塔","爬","顶","第一天","锁"]],
+["晚安的年度总结", ["十二月","三十一","年度","统计","角","应该是","三百六十五","金句","评选","提名","并列","事故","分析","原因","话题","自制力","收录","新增","分界","第五项","来年","规划","称","默默","不肯","展示","压轴","颁奖","最佳","奖","裁判","末","尾","陈"]],
+["字卡的航海日志", ["航","库","志","出港","海况","晴转阴","风浪","维护","海上","漂","六个小时","英雄","航速","加急","超频","模式","最短","航行","航程","闪烁","最急","想见","铅笔","一页","艘","卡队","编队","起点","密密麻麻","虚","航迹","栏","预留","待补","红笔","航海","到港","样式","爸妈","第一行","全都是"]],
+["晚安留言簿", ["留言","簿","虚拟","册","类型","稳定","短句","痨","大会","闹","脾","达成","神奇","最后一天","订","按时","毒","页","篇","临近","失","控","越写","撒","欢","封底","适用","人数","年限","弄丢","概率","备份","耳语"]],
+["你那边的声音", ["不多","每一种","风声","路过","不置","节奏","常出现","成形","属于","振动","桌面","嗡","彻底","动静"]],
+["等待里的仪式感", ["仪式感","三遍","这一周","归类","类","本周","况","封","箱","粮","每当","水壶","消耗","量","强度","晴雨","对等","升","必定","表白","退役","惊"]],
+["字卡员的点名册", ["拟","理","具","规","矩","随","抽","组","功","踪","底","首","献","永","身","率","额","录","荣","役","室","至","申","继","续","者"]],
+["两个世界的对照时钟", ["座","计","飞","折","速","盘","针","暂","懒","自","己","偏","子","卫","辰","殊","电","置","估","使","命","需"]],
+["卡里的观星台", ["建","观","台","设备","简","陋","睛","然","汇","奇","北","斗","勺","柄","尽","儿","承","流","愿","括","固","执","闭","馆","息","代","资","众","吸","镇","途","借","内","券","免","必","须","抬"]],
+["卡里的晚安巡逻", ["活","巡","逻","档","灰","义","郑","哨","兵","状","立","临","秘","密","任","务","喜","符","备","部","终","枕","糊","制","创","始","踏","习","惯"]],
 ];
 } catch (__e) { try { console.error("[JS] dict-ext-data.js", __e && __e.message || __e); } catch (x) {} if (window.__jsErrors) window.__jsErrors.push(String(__e && __e.message || __e)); } })();
 (function () { try {
@@ -79024,9 +79078,12 @@ cells[i].style.fontSize = Math.round(cellPx * 0.46) + 'px';
 }
 }
 function cellAt(i) { return boardEl.children[i] || null; }
-function renderCell(i, pop) {
+function renderCell(i, pop, delay) {
 const cell = cellAt(i);
 if (!cell) return;
+const gen = st;   // #343 局代币：延迟应用前若已换局（newGame 换 st）则丢弃，防旧局渲染污染新盘
+const apply = function () {
+if (st !== gen) return;
 const face = cell.firstChild;
 let txt = '', cls = 'ms-cell';
 if (st.boom[i]) { cls += ' ms-open ms-boom'; txt = '💥'; }
@@ -79047,6 +79104,9 @@ cls += st.flag[i] === 1 ? ' ms-fyou' : ' ms-fta';
 cell.className = cls;
 face.textContent = txt;
 if (pop) { face.classList.remove('ms-pop'); void face.offsetWidth; face.classList.add('ms-pop'); }
+};
+if (delay) { setTimeout(apply, Math.round(delay * fastMul())); return; }
+apply();
 }
 function heartsStr() { return '❤️'.repeat(st.lives) + '🖤'.repeat(MAX_LIVES - st.lives); }
 function openCount() { let x = 0; for (let i = 0; i < N(); i++) if (st.open[i]) x++; return x; }
@@ -79077,18 +79137,21 @@ if (!cell) return;
 cell.classList.remove('ms-shake'); void cell.offsetWidth; cell.classList.add('ms-shake');
 }
 let extraMsg = '';    // 一次性补充说明（如 TA 挪旗吐槽），由 composeStatus 消费
-function floodOpen(start, out) {
-if (st.mineTotal === 0) { st.open[start] = true; out.push(start); return; }
-const stack = [start];
-while (stack.length) {
-const i = stack.pop();
+function floodOpen(start, out, distOut) {
+if (st.mineTotal === 0) { st.open[start] = true; out.push(start); if (distOut) distOut[start] = 0; return; }
+const dist = {};
+dist[start] = 0;
+const queue = [start];
+while (queue.length) {
+const i = queue.shift();
 if (st.open[i] || st.flag[i]) continue;
 st.open[i] = true;
 out.push(i);
 if (st.num[i] === 0) {
-neighborsOf(i).forEach((j) => { if (!st.open[j] && !st.flag[j]) stack.push(j); });
+neighborsOf(i).forEach((j) => { if (!st.open[j] && !st.flag[j] && dist[j] == null) { dist[j] = dist[i] + 1; queue.push(j); } });
 }
 }
+if (distOut) Object.keys(dist).forEach((k) => { distOut[k] = dist[k]; });
 }
 function allSafeOpened() {
 for (let i = 0; i < N(); i++) { if (!st.mine[i] && !st.open[i]) return false; }
@@ -79126,24 +79189,28 @@ s.open[idx] = true; s.boom[idx] = true;
 s.lives--; s.minesFound++;
 s.digs[byYou ? 'you' : 'ta']++;
 renderCell(idx, true);
+boardEl.classList.remove('ms-quake'); void boardEl.offsetWidth; boardEl.classList.add('ms-quake');
 updateHud();
 sfxBoom();
 const who = byYou ? '你' : T('TA');
 let msg = '💥 ' + who + '踩到了雷！' + heartsStr();
 if (wasTaFlagged && !s.judged[idx]) { msg += '（不过 ' + T('TA') + ' 的旗没错）'; s.judged[idx] = 1; }
 if (hadPlayerFlag && byYou) msg += '（是你自己插的旗那格…）';
-if (s.lives <= 0) { setStatus(msg); finish(false); return true; }
+if (s.lives <= 0) { setStatus(msg); finish(false, 640); return true; }
 setStatus(msg);
 passTurn(byYou, 950);   // 停一拍再让 TA 开口，踩雷提示不会被思考语立刻顶掉
 return true;
 }
-const newly = [];
-floodOpen(idx, newly);
+const newly = [], distMap = {};
+floodOpen(idx, newly, distMap);
+let maxDelay = 0;
 const gotIcons = [];
 for (let k = 0; k < newly.length; k++) {
 const i = newly[k];
 s.digs[byYou ? 'you' : 'ta']++;
-renderCell(i, true);
+const dly = Math.min((distMap[i] || 0) * 34, 374);
+if (dly > maxDelay) maxDelay = dly;
+renderCell(i, true, dly);
 const c = s.content ? s.content[i] : null;
 if (!c) continue;
 s.foundList.push(c);
@@ -79174,7 +79241,7 @@ msg = T('TA') + '挖开了一格';
 }
 if (wasTaFlagged && !s.judged[idx]) { msg += ' —— 这里其实是安全的，' + T('TA') + '判断错了'; s.judged[idx] = 1; }
 if (extraMsg) { msg += '（' + extraMsg + '）'; extraMsg = ''; }
-if (allSafeOpened()) { setStatus(msg); finish(true); return true; }
+if (allSafeOpened()) { setStatus(msg); finish(true, newly.length > 2 ? maxDelay + 260 : 0); return true; }
 setStatus(msg);
 passTurn(byYou, gotIcons.length ? 1100 : undefined);   // 有发现时同样停一拍
 return true;
@@ -79188,7 +79255,7 @@ function toggleFlag(idx, who) {
 const s = st;
 if (!s || !s.started || s.over || s.lock || s.open[idx]) return;
 s.flag[idx] = s.flag[idx] === who ? 0 : who;
-renderCell(idx);
+renderCell(idx, true);   // #343 旗子弹出/收回带缩放
 sfxFlag();
 }
 function placeTaFlag(idx) {
@@ -79196,7 +79263,7 @@ const s = st;
 if (!s || s.open[idx] || s.flag[idx] === 2) return;
 s.taFlagged[idx] = 1;
 s.flag[idx] = 2;
-renderCell(idx);
+renderCell(idx, true);   // #343 同上
 }
 function passTurn(byYou, taDelay) {
 const s = st;
@@ -79240,7 +79307,7 @@ renderCell(act.idx);
 s.lock = false;   // dig 入口会重新上锁；TA 的思考期锁在这里解除
 dig(act.idx, false, true);
 }
-function finish(win) {
+function finish(win, overlayDelay) {
 const s = st;
 s.over = true; s.lock = false;
 clearTimeout(taT); taT = null;
@@ -79274,7 +79341,12 @@ body +=
 }
 if (s.coinEarned > 0) body += '<div class="pong-end-stat">🪙 我的心意币 +¥' + (s.coinEarned / 100).toFixed(2) + '</div>';
 body += '<div class="pong-end-stat ms-quote">「' + (win ? pick(['一起找完了。', '我们配合得不错嘛。', '全部清完啦，开心。']) : pick(['差一点点而已，再来！', '下次小心一点就好。'])) + '」</div>';
+const showResult = function () {
+if (!st || !st.over || panel.hidden) return;
 showOverlay(win ? '💣 合作完成' : '💥 差一点', body, '再来一次');
+};
+if (overlayDelay) setTimeout(showResult, Math.round(overlayDelay * fastMul()));
+else showResult();
 if (startBtn) startBtn.textContent = '再来一次';
 if (endBtn) endBtn.hidden = false;
 try {
@@ -80830,6 +80902,7 @@ const sfxLose = () => { beep(300, 0.14, 0.18); setTimeout(() => beep(220, 0.2, 0
 const sfxDraw = () => beep(440, 0.12, 0.16);
 let st = null;
 let thinkT = null;
+let ovT = null;               // #341 胜利连线动画播完再弹结果浮层的定时器
 let cellPx = 30;
 function newState() {
 return {
@@ -81026,8 +81099,9 @@ return boardEl.children[i] || null;
 function drawStone(r, c, side) {
 const cell = cellAt(r, c);
 if (!cell) return;
+cell.querySelectorAll('.gk-stone.gk-vanish').forEach((s) => s.remove());
 const s = document.createElement('span');
-s.className = 'gk-stone ' + (side === 1 ? 'gk-you' : 'gk-ta');
+s.className = 'gk-stone ' + (side === 1 ? 'gk-you' : 'gk-ta') + ' gk-drop';
 cell.appendChild(s);
 }
 function markLast(r, c) {
@@ -81037,10 +81111,15 @@ if (cell) { const s = cell.querySelector('.gk-stone'); if (s) s.classList.add('g
 }
 function highlightWin(cells) {
 st.winCells = cells;
+cells.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
 for (let i = 0; i < cells.length; i++) {
 const cell = cellAt(cells[i][0], cells[i][1]);
-if (cell) { const s = cell.querySelector('.gk-stone'); if (s) s.classList.add('gk-win'); }
+if (cell) {
+const s = cell.querySelector('.gk-stone');
+if (s) { s.classList.add('gk-win'); s.style.setProperty('--gk-win-i', String(i)); }
 }
+}
+boardEl.classList.add('gk-dim');
 }
 function setStatus(html) { if (statusEl) statusEl.innerHTML = html; }
 let bubbleT = null;
@@ -81062,11 +81141,13 @@ setStatus(st.turn === 1 ? dot(1) + '你的回合' : T('TA') + '正在想……')
 }
 function clearBoardDom() {
 boardEl.querySelectorAll('.gk-stone').forEach((s) => s.remove());
+boardEl.classList.remove('gk-dim');
 boardEl.querySelectorAll('.gk-win').forEach((el) => el.classList.remove('gk-win'));
 boardEl.querySelectorAll('.gk-last').forEach((el) => el.classList.remove('gk-last'));
 }
 function newGame() {
 clearTimeout(thinkT); thinkT = null;
+clearTimeout(ovT);
 st = newState();
 st.grid = newGrid();
 st.started = true;
@@ -81127,7 +81208,13 @@ clearTimeout(thinkT); thinkT = null;
 st.grid[p[0]][p[1]] = 0;
 st.moves = Math.max(0, st.moves - 1);
 const cell = cellAt(p[0], p[1]);
-if (cell) { const s = cell.querySelector('.gk-stone'); if (s) s.remove(); }
+if (cell) {
+const s = cell.querySelector('.gk-stone');
+if (s) {
+s.classList.add('gk-vanish');
+setTimeout(() => { try { if (s.parentNode) s.parentNode.removeChild(s); } catch (e) {} }, Math.round(190 * fastMul()) + 30);
+}
+}
 });
 st.lastTaPt = null; st.lastPlayer = null; st.winCells = null;
 st.undoUsed = true;
@@ -81182,9 +81269,14 @@ const body =
 dropLine +
 pillsHtml() +
 '<div class="ms-cur" id="gk-cur">' + diffHint() + '</div>';
+const showResult = () => {
 showOverlay(title, body, '再来一局');
 if (startBtn) startBtn.textContent = '再来一局';
 if (endBtn) endBtn.hidden = false;
+};
+clearTimeout(ovT);
+if (st.winCells && st.winCells.length) ovT = setTimeout(showResult, Math.round(1000 * fastMul()));
+else showResult();
 setStatus(winner === 1 ? '🎉 你赢了！' : winner === 2 ? T('TA') + '赢了这一局' : '棋盘下满了，平局');
 try {
 const resTxt = winner === 1 ? '你赢' : winner === 2 ? T('TA') + '赢' : '平局';
@@ -81283,6 +81375,7 @@ setStatus('点击「开始对局」');
 };
 function closePanel() {
 clearTimeout(thinkT); thinkT = null;
+clearTimeout(ovT);
 if (panel) panel.hidden = true;
 }
 window.closeGomokuPanel = closePanel;
@@ -81416,6 +81509,7 @@ rows: d.rows, cols: d.cols,
 grid: [],                // grid[r][c] = 种类下标或 -1（已消除）
 turn: 1,                 // 1 玩家 / 2 TA
 over: false,
+lock: false,             // #341 动画链进行中，锁输入
 started: false,
 sel: null,               // 玩家当前选中 [r,c]
 remaining: 0,
@@ -81455,24 +81549,25 @@ return true;
 }
 return false;
 }
-function connected(st2, a, b) {
+function findPath(st2, a, b) {
 const va = at(st2, a[0], a[1]), vb = at(st2, b[0], b[1]);
-if (va < 0 || vb < 0 || va !== vb) return false;
-if (a[0] === b[0] && a[1] === b[1]) return false;
-if ((a[0] === b[0] || a[1] === b[1]) && lineClear(st2, a[0], a[1], b[0], b[1])) return true;
+if (va < 0 || vb < 0 || va !== vb) return null;
+if (a[0] === b[0] && a[1] === b[1]) return null;
+if ((a[0] === b[0] || a[1] === b[1]) && lineClear(st2, a[0], a[1], b[0], b[1])) return [a.slice(), b.slice()];
 const c1 = [a[0], b[1]], c2 = [b[0], a[1]];
-if (empty(st2, c1[0], c1[1]) && lineClear(st2, a[0], a[1], c1[0], c1[1]) && lineClear(st2, c1[0], c1[1], b[0], b[1])) return true;
-if (empty(st2, c2[0], c2[1]) && lineClear(st2, a[0], a[1], c2[0], c2[1]) && lineClear(st2, c2[0], c2[1], b[0], b[1])) return true;
+if (empty(st2, c1[0], c1[1]) && lineClear(st2, a[0], a[1], c1[0], c1[1]) && lineClear(st2, c1[0], c1[1], b[0], b[1])) return [a.slice(), c1.slice(), b.slice()];
+if (empty(st2, c2[0], c2[1]) && lineClear(st2, a[0], a[1], c2[0], c2[1]) && lineClear(st2, c2[0], c2[1], b[0], b[1])) return [a.slice(), c2.slice(), b.slice()];
 for (let x = -1; x <= st2.cols; x++) {
 if (empty(st2, a[0], x) && empty(st2, b[0], x) &&
-lineClear(st2, a[0], a[1], a[0], x) && lineClear(st2, a[0], x, b[0], x) && lineClear(st2, b[0], x, b[0], b[1])) return true;
+lineClear(st2, a[0], a[1], a[0], x) && lineClear(st2, a[0], x, b[0], x) && lineClear(st2, b[0], x, b[0], b[1])) return [a.slice(), [a[0], x], [b[0], x], b.slice()];
 }
 for (let y = -1; y <= st2.rows; y++) {
 if (empty(st2, y, a[1]) && empty(st2, y, b[1]) &&
-lineClear(st2, a[0], a[1], y, a[1]) && lineClear(st2, y, a[1], y, b[1]) && lineClear(st2, y, b[1], b[0], b[1])) return true;
+lineClear(st2, a[0], a[1], y, a[1]) && lineClear(st2, y, a[1], y, b[1]) && lineClear(st2, y, b[1], b[0], b[1])) return [a.slice(), [y, a[1]], [y, b[1]], b.slice()];
 }
-return false;
+return null;
 }
+function connected(st2, a, b) { return !!findPath(st2, a, b); }
 function allPairs(st2) {
 const cells = [];
 for (let r = 0; r < st2.rows; r++) for (let c = 0; c < st2.cols; c++) {
@@ -81507,13 +81602,33 @@ const kinds = [];
 for (let r = 0; r < st.rows; r++) for (let c = 0; c < st.cols; c++) {
 if (st.grid[r][c] >= 0) { cells.push([r, c]); kinds.push(st.grid[r][c]); }
 }
+let ok = false;
 for (let tries = 0; tries < 80; tries++) {
 shuffle(kinds);
 for (let i = 0; i < cells.length; i++) st.grid[cells[i][0]][cells[i][1]] = kinds[i];
-if (allPairs(st).length > 0) { renderBoard(); return true; }
+if (allPairs(st).length > 0) { ok = true; break; }
 }
+if (!ok) { renderBoard(); return false; }
+const s = st;
+s.lock = true;
+const alive = cells.map((p) => tileAt(p[0], p[1])).filter(Boolean);
+alive.forEach((el) => { el.classList.remove('lk-shufin'); el.classList.add('lk-shufout'); });
+setTimeout(() => {
+if (s !== st) return;
 renderBoard();
-return false;
+const ts = boardEl.querySelectorAll('.lk-tile');
+for (let i = 0; i < ts.length; i++) {
+if (ts[i].classList.contains('lk-gone')) continue;
+ts[i].classList.remove('lk-shufout'); ts[i].classList.add('lk-shufin');
+}
+setTimeout(() => {
+if (s !== st) return;
+const ts2 = boardEl.querySelectorAll('.lk-tile');
+for (let i = 0; i < ts2.length; i++) ts2[i].classList.remove('lk-shufin');
+s.lock = false;
+}, Math.round(220 * fastMul()));
+}, Math.round(180 * fastMul()));
+return true;
 }
 function buildBoard() {
 boardEl.innerHTML = '';
@@ -81557,6 +81672,50 @@ if (infoEl) infoEl.innerHTML =
 (st.combo >= 2 ? '<span>🔥 连击 ×' + st.combo + '</span>' : '') +
 '<span>💕 ' + chemNow() + '</span>';
 }
+const POP_MS = 260;
+let pathSvgT = null;
+function drawPathLine(path) {
+if (!boardEl || !path || path.length < 2) return;
+try {
+const t0 = tileAt(0, 0);
+if (!t0 || !t0.offsetWidth) return;
+const GAP = 3, cw = t0.offsetWidth, ch = t0.offsetHeight;
+const pt = (p) => (t0.offsetLeft + p[1] * (cw + GAP) + cw / 2) + ',' + (t0.offsetTop + p[0] * (ch + GAP) + ch / 2);
+const old = boardEl.querySelector('.lk-pathline');
+if (old) old.remove();
+const NS = 'http://www.w3.org/2000/svg';
+const svg = document.createElementNS(NS, 'svg');
+svg.setAttribute('class', 'lk-pathline');
+const pl = document.createElementNS(NS, 'polyline');
+pl.setAttribute('points', path.map(pt).join(' '));
+pl.setAttribute('pathLength', '1');
+svg.appendChild(pl);
+boardEl.appendChild(svg);
+clearTimeout(pathSvgT);
+pathSvgT = setTimeout(() => { try { const s = boardEl.querySelector('.lk-pathline'); if (s) s.remove(); } catch (e) {} }, Math.round(480 * fastMul()));
+} catch (e) {}
+}
+function dealInAnim() {
+if (!boardEl) return;
+const mult = fastMul();
+const tiles = boardEl.querySelectorAll('.lk-tile');
+let maxD = 0;
+for (let i = 0; i < tiles.length; i++) {
+const el = tiles[i];
+const r = parseInt(el.getAttribute('data-r'), 10) || 0;
+const c = parseInt(el.getAttribute('data-c'), 10) || 0;
+const d = Math.round(Math.min((r + c) * 18, 260) * mult);
+if (d > maxD) maxD = d;
+el.style.animationDelay = d + 'ms';
+el.classList.add('lk-born');
+}
+setTimeout(() => {
+try {
+const ts = boardEl.querySelectorAll('.lk-tile');
+for (let i = 0; i < ts.length; i++) { ts[i].classList.remove('lk-born'); ts[i].style.animationDelay = ''; }
+} catch (e) {}
+}, maxD + Math.round(240 * mult));
+}
 function chemNow() {
 if (!st.totalPairs) return 60;
 const share = st.myPairs / Math.max(1, st.myPairs + st.taPairs);
@@ -81594,6 +81753,7 @@ hideOverlay();
 buildBoard();
 fitBoard();
 renderBoard();
+dealInAnim();
 st.turn = 1;
 setStatus(dot(1) + '你的回合：点两张相同的牌');
 }
@@ -81602,18 +81762,26 @@ st.seen.push([r, c]);
 if (st.seen.length > 12) st.seen.splice(0, st.seen.length - 12);
 }
 function removePair(a, b, byMe) {
-st.grid[a[0]][a[1]] = -1;
-st.grid[b[0]][b[1]] = -1;
-st.remaining -= 2;
-if (byMe) st.myPairs++; else st.taPairs++;
+const s = st;
 const ea = tileAt(a[0], a[1]), eb = tileAt(b[0], b[1]);
-[ea, eb].forEach((el) => { if (el) { el.classList.add('lk-gone'); el.textContent = ''; } });
-st.sel = null;
+drawPathLine(findPath(s, a, b));
+s.lock = true;
+s.grid[a[0]][a[1]] = -1;
+s.grid[b[0]][b[1]] = -1;
+s.remaining -= 2;
+if (byMe) s.myPairs++; else s.taPairs++;
+s.sel = null;
 boardEl.querySelectorAll('.lk-sel').forEach((el) => el.classList.remove('lk-sel'));
+[ea, eb].forEach((el) => { if (el) el.classList.add('lk-pop'); });
 updateInfo();
+setTimeout(() => {
+[ea, eb].forEach((el) => { if (el) { el.classList.remove('lk-pop'); el.classList.add('lk-gone'); el.textContent = ''; } });
+s.lock = false;
+if (s === st) afterClear(byMe);   // 对局已被重开则丢弃这条链
+}, Math.round(POP_MS * fastMul()));
 }
 function playerPick(r, c) {
-if (!st || !st.started || st.over || st.turn !== 1) return;
+if (!st || !st.started || st.over || st.lock || st.turn !== 1) return;
 if (st.grid[r][c] < 0) return;
 remember(r, c);
 const el = tileAt(r, c);
@@ -81633,9 +81801,7 @@ sfxMatch();
 st.combo++;
 if (st.combo > (st.maxCombo || 0)) st.maxCombo = st.combo;
 if (st.combo >= 2) taSay(pick(['连击 ×' + st.combo + '，好默契！', '又连上啦！', '手气不错嘛']));
-removePair(a, [r, c], true);
-updateInfo();
-afterClear(true);
+removePair(a, [r, c], true);   // #341 清格后流程由动画链尾 afterClear(true) 接管，此处不再直调
 } else {
 st.misPicks++;
 st.combo = 0;
@@ -81653,6 +81819,7 @@ if (st.remaining <= 0) { endGame(); return; }
 if (allPairs(st).length === 0) {
 reshuffle();
 setStatus('🌀 没有能连的了，自动洗了个牌');
+st.turn = 1;   // #341 合并 TA 路径语义：死锁自动洗牌后始终轮回玩家
 return;
 }
 st.turn = byMe ? 2 : 1;
@@ -81671,7 +81838,7 @@ setStatus(T(THINK_LINES[Math.floor(Math.random() * THINK_LINES.length)]));
 thinkT = setTimeout(taTurn, Math.round(delay * fastMul()));
 }
 function taTurn() {
-if (!st || st.over || st.turn !== 2) return;
+if (!st || st.over || st.lock || st.turn !== 2) return;
 st.mode = rollMode();
 let pair = null;
 const pairs = allPairs(st);
@@ -81709,16 +81876,7 @@ pair = pairs.length ? pick(pairs) : null;
 if (!pair) { endGame(); return; }
 remember(pair[0][0], pair[0][1]); remember(pair[1][0], pair[1][1]);
 sfxMatch();
-removePair(pair[0], pair[1], false);
-if (st.remaining <= 0) { endGame(); return; }
-if (allPairs(st).length === 0) {
-reshuffle();
-setStatus('🌀 没有能连的了，自动洗了个牌');
-st.turn = 1;
-return;
-}
-st.turn = 1;
-showTurnStatus();
+removePair(pair[0], pair[1], false);   // #341 清格/死锁/交棒统一移入动画链尾 afterClear(false)
 }
 function endGame() {
 st.over = true; st.turn = 0;
@@ -81808,7 +81966,7 @@ if (st && st.started && !st.over) { /* 对局中不换难度，下一局生效 *
 });
 if (hintBtn) hintBtn.addEventListener('click', (e) => {
 e.stopPropagation();
-if (!st || !st.started || st.over || st.turn !== 1 || st.hints <= 0) return;
+if (!st || !st.started || st.over || st.lock || st.turn !== 1 || st.hints <= 0) return;
 const pairs = allPairs(st);
 if (!pairs.length) return;
 st.hints--;
@@ -81823,7 +81981,7 @@ sfxPick();
 });
 if (shufBtn) shufBtn.addEventListener('click', (e) => {
 e.stopPropagation();
-if (!st || !st.started || st.over || st.shuffles <= 0 || st.turn !== 1) return;
+if (!st || !st.started || st.over || st.lock || st.shuffles <= 0 || st.turn !== 1) return;
 st.shuffles--;
 st.sel = null;
 reshuffle();
@@ -81917,6 +82075,7 @@ window.__lkDebug = {
 st: () => st,
 newGame: newGame,
 connected: connected,
+findPath: findPath,
 allPairs: allPairs,
 fast: false
 };
@@ -82875,13 +83034,15 @@ else if (st.leader === 'you') bidTxt = '你的出价 ' + yuan(st.cur);
 else bidTxt = T('TA') + ' 出价 ' + yuan(st.cur);
 const showIco = item.mystery ? '🎁' : item.ico;
 const showName = item.mystery ? '神秘拍品' : item.name;
+const leadCls = st.leader === 'you' ? ' au-lead-you' : st.leader === 'ta' ? ' au-lead-ta' : '';
 itemEl.innerHTML =
 '<div class="au-ico">' + showIco + '</div>' +
 '<div class="au-name">' + showName + '</div>' +
 '<div class="au-desc">' + item.desc + '</div>' +
-'<div class="au-bid">' + bidTxt + '</div>';
+'<div class="au-bid' + leadCls + '">' + bidTxt + '</div>';
 }
 updateBidBtns();
+if (itemEl) { itemEl.classList.remove('au-in'); void itemEl.offsetWidth; itemEl.classList.add('au-in'); }
 }
 function lotActive() { return st && st.started && !st.over && st.phase === 'bidding'; }
 function updateBidBtns() {
@@ -82927,6 +83088,8 @@ openLot();
 }
 function openLot() {
 st.phase = 'bidding';
+hideOverlay();   // #343 上一件的结果浮层必须收掉——原先漏收，「下一件」后新拍品被结果层盖住点不了
+if (endBtn) endBtn.hidden = true;
 const r = Math.random();
 st.mode = r < 0.25 ? 'eager' : r < 0.6 ? 'normal' : r < 0.85 ? 'stingy' : 'bluff';
 const item = st.lots[st.idx];
@@ -83010,7 +83173,7 @@ showOverlay(T('TA') + '拍得了',
 '<div class="au-ov-ico">' + item.ico + '</div>' +
 '<div class="pong-end-stat">' + item.name + ' · ' + yuan(st.cur) + ' 归 ' + T('TA') + '</div>' +
 '<div class="pong-end-stat">📬 不过 TA 拍走的拍品，过几天会寄回给你</div>',
-st.idx + 1 < st.lots.length ? '下一件' : '结算');
+st.idx + 1 < st.lots.length ? '下一件' : '结算', 'ta');
 setStatus(T('TA') + '把「' + item.name + '」抱走了');
 try {
 const fb = ['这件归我啦。', '嘿嘿，到手。', '眼光不错吧。'];
@@ -83028,7 +83191,7 @@ const item = st.lots[st.idx];
 showOverlay('流拍了',
 '<div class="au-ov-ico">' + item.ico + '</div>' +
 '<div class="pong-end-stat">' + item.name + ' 没人要，收回仓库</div>',
-st.idx + 1 < st.lots.length ? '下一件' : '结算');
+st.idx + 1 < st.lots.length ? '下一件' : '结算', 'pass');
 setStatus('「' + item.name + '」流拍了');
 try {
 const fb = ['这玩意没人要啊。', '亏本了亏本了。'];
@@ -83064,7 +83227,7 @@ showOverlay('落槌！',
 '<div class="pong-end-stat">' + item.name + ' · ' + yuan(st.cur) + ' 拍下</div>' +
 '<div class="pong-end-stat">💌 ' + item.wish + '</div>' +
 '<div class="pong-end-stat">已收进 🎒 小收藏（剩 ' + yuan(myBalance()) + '）· 可在 🎒 里转赠给 ' + T('TA') + '</div>',
-st.idx + 1 < st.lots.length ? '下一件' : '结算');
+st.idx + 1 < st.lots.length ? '下一件' : '结算', 'win');
 setStatus('「' + item.name + '」是你的了，花了 ' + yuan(st.cur));
 try {
 const fb = ['被你拍走了…', '亏了亏了。', '那件本来我想要来着。'];
@@ -83142,11 +83305,13 @@ try { if (window.chatAddIn) window.chatAddIn(pick(['收下啦！超喜欢', '你
 }, 900);
 showBag();
 }
-function showOverlay(title, body, btnText) {
+function showOverlay(title, body, btnText, mood) {
 if (!overlayEl) return;
 if (ovTitleEl) ovTitleEl.innerHTML = title || '';
 if (ovBodyEl) ovBodyEl.innerHTML = body || '';
 if (startBtn && btnText) startBtn.textContent = btnText;
+overlayEl.classList.remove('au-ov-win', 'au-ov-ta', 'au-ov-pass');
+if (mood) overlayEl.classList.add('au-ov-' + mood);
 overlayEl.hidden = false;
 updateBidBtns();
 }
@@ -89327,4 +89492,4 @@ lastHeal: his
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mtxkqozg -->
+<!-- __MOCHI_EOF__ mtxlshs6 -->
