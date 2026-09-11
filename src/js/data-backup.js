@@ -666,8 +666,10 @@
   // v3.9.x：保存备份文件——返回 'ok'（已分享/已保存）/ 'cancel'（用户取消）/ 其他（被拦截或无法确认）。
   // 必须在用户手势（点击）触发链上调用：navigator.share / showSaveFilePicker 都要求用户激活，
   // async 数据收集超过激活窗口后第一次可能被拒，所以调用方失败后会给用户弹窗再点一次重试。
-  async function saveBackupFile(blob, fname) {
-    const file = new File([blob], fname, { type: 'application/json;charset=utf-8' });
+  // FIX 2026-09-11 #333：参数化分享标题/文件 MIME/保存框类型——诊断 docx 导出复用本链路
+  // （设备.js buildDocxBlob 产物），不再只能分享「JSON 备份」。默认值保持原行为零变化。
+  async function saveBackupFile(blob, fname, shareTitle, saveTypes) {
+    const file = new File([blob], fname, { type: blob.type || 'application/json;charset=utf-8' });
     // ① 系统分享面板
     // v3.9.x：华为（Mate20 默认浏览器）与夸克对 navigator.share({files}) 支持不稳定——
     // canShare 返回 true 但实际调用立刻抛 AbortError（分享面板不弹、直接「已取消保存」），
@@ -680,7 +682,7 @@
     const shareMax = 50 * 1024 * 1024;
     if (!brokenFileShare && blob.size <= shareMax && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
       try {
-        await navigator.share({ files: [file], title: 'mochi 数据备份' });
+        await navigator.share({ files: [file], title: shareTitle || 'mochi 数据备份' });
         return 'ok';
       } catch (e) {
         if (e && e.name === 'AbortError') return 'cancel';
@@ -692,7 +694,7 @@
       try {
         const handle = await window.showSaveFilePicker({
           suggestedName: fname,
-          types: [{ description: 'JSON 备份', accept: { 'application/json': ['.json'] } }]
+          types: saveTypes || [{ description: 'JSON 备份', accept: { 'application/json': ['.json'] } }]
         });
         const w = await handle.createWritable();
         await w.write(blob);
@@ -744,12 +746,33 @@
   window.mochiExportFile = function (json, fname, title) {
     let blob;
     try { blob = new Blob([json], { type: 'application/json;charset=utf-8' }); } catch (e) { return Promise.resolve('fail'); }
-    return Promise.resolve(saveBackupFile(blob, fname)).then((res) => {
+    return Promise.resolve(saveBackupFile(blob, fname, title)).then((res) => {
       if (res === 'ok') { toast('已保存「' + fname + '」'); return 'ok'; }
       if (res === 'cancel') return 'cancel';
       if (window.openModal) {
         window.openModal('文件已打包（' + fmtSize(blob.size) + '）', '', () => {
           if (anchorDownload(blob, fname)) toast('已导出「' + fname + '」');
+          else toast('仍未触发下载，请改用复制文字或换系统浏览器重试');
+        }, { noInput: true, staticText: '点「确定」开始下载保存到本机，点「取消」放弃本次保存。' });
+        return 'blocked';
+      }
+      return 'fail';
+    });
+  };
+
+  // FIX 2026-09-11 #333：Blob 版三级降级导出（诊断 docx 等任意二进制文件用）——
+  // 与 runBackupExport 同语义：'cancel'（华为/夸克分享面板秒 AbortError，面板根本没弹）
+  // 不当用户反悔处理，统一交给「确定后 a[download]」兜底，保证任何内核至少有一条活路；
+  // mochiExportFile 保持旧 'cancel' 短路语义不变（美化方案三个调用方依赖它，勿合并）。
+  // saveTypes：showSaveFilePicker 的 types（docx 传 Word 类型，防保存框强改 .json 后缀）。
+  window.mochiExportBlob = function (blob, fname, shareTitle, saveTypes) {
+    if (!(blob instanceof Blob)) return Promise.resolve('fail');
+    return Promise.resolve(saveBackupFile(blob, fname, shareTitle, saveTypes)).then((res) => {
+      if (res === 'ok') { toast('已保存「' + fname + '」'); return 'ok'; }
+      if (res === 'fail') return 'fail';
+      if (window.openModal) {
+        window.openModal('文件已打包（' + fmtSize(blob.size) + '）', '', () => {
+          if (anchorDownload(blob, fname)) toast('已开始下载「' + fname + '」');
           else toast('仍未触发下载，请改用复制文字或换系统浏览器重试');
         }, { noInput: true, staticText: '点「确定」开始下载保存到本机，点「取消」放弃本次保存。' });
         return 'blocked';

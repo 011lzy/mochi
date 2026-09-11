@@ -93,6 +93,10 @@ async function openPage() {
 async function gotoChat() { await evalJs("(function(){var a=document.querySelector('.app[data-app=\"chat\"]'); if(a) a.click(); return true;})()"); await sleep(700); }
 
 const N = 841;
+// #334 图片带：旧区（20..300 每 7 条一张 1×1 PNG，含目标 43 紧邻的 35/42/49）——
+// 复现真机「跳到旧消息被 #162 图片补滚拽回底部」：跳转落地前后旧区 lazy 图 onload，
+// 钉住态下 rAF(scrollChatBottom) 把视图拽回底部＝搜索/引用跳转「点了没反应」
+const IMG1x1 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 await openPage();
 // 种 841 条历史，含唯一关键词在 idx=40（最老区）与 idx=820（接近最新，用于下界跳转）
 await evalJs(`(function(){
@@ -100,6 +104,8 @@ await evalJs(`(function(){
   const arr = [];
   for (let i = 0; i < ${N}; i++) {
     if (i === 40 || i === 820) arr.push({ side: 'out', text: '老KEY唯一关键词历史消息' + i, ts: now - (${N} - i) * 60000 });
+    else if (i === 43) arr.push({ side: 'in', text: '图区跳转关键词43', ts: now - (${N} - i) * 60000 });
+    else if (i > 20 && i < 300 && i % 7 === 0) arr.push({ side: i % 2 ? 'in' : 'out', type: 'image', text: '${IMG1x1}', ts: now - (${N} - i) * 60000 });
     else if (i % 2 === 0) arr.push({ side: 'out', text: '历史消息' + i, ts: now - (${N} - i) * 60000 });
     else arr.push({ side: 'in', text: '对方消息' + i, ts: now - (${N} - i) * 60000 });
   }
@@ -112,6 +118,21 @@ await gotoChat();
 await sleep(600);
 
 // 首屏应只渲染最近 RENDER_MAX=200 条
+// #334：轮询到达（4s 上限）——解钉+滚动锚定开启后，下界扩窗+长距 smooth 的到达时长环境差异大
+async function waitArrived(sel, pollMs) {
+  for (let t = 0; t <= pollMs; t += 200) {
+    await sleep(200);
+    const r = await evalJs(`(function(){
+      const b = document.getElementById('chat-body');
+      const el = document.querySelector('#chat-body ' + '${sel}'.replace(/'/g, ''));
+      if (!el) return JSON.stringify({ has:false });
+      const r2 = el.getBoundingClientRect(), br = b.getBoundingClientRect();
+      return JSON.stringify({ has:true, visible: r2.bottom>br.top && r2.top<br.bottom });
+    })()`);
+    try { const j = JSON.parse(r); if (j.has && j.visible) return j; } catch (e) {}
+  }
+  return { has:false, visible:false };
+}
 const s0 = await evalJs(`(function(){
   const b = document.getElementById('chat-body');
   const items = b.querySelectorAll('.msg');
@@ -122,9 +143,9 @@ check('首屏分页：只渲染最近 ~200 条 (firstIdx≈641)', Number(JSON.pa
 
 // ---- 症状1：持续上滑，能否一路加载回最老消息 ----
 // 真实用户手势：拖到最顶（scrollTop 被钉在 0），每次触发向上加载后继续拖
-for (let k = 0; k < 14; k++) {
+for (let k = 0; k < 22; k++) {
   await evalJs(`(function(){var b=document.getElementById('chat-body'); b.scrollTop=0; b.dispatchEvent(new Event('scroll',{bubbles:true})); return true;})()`);
-  await sleep(280);
+  await sleep(320);
 }
 const sTop = await evalJs(`(function(){
   const b = document.getElementById('chat-body');
@@ -159,18 +180,8 @@ await evalJs(`(function(){
   if (hit) hit.click();
   return true;
 })()`);
-await sleep(1300);
-const sj1 = await evalJs(`(function(){
-  const b = document.getElementById('chat-body');
-  const hl = document.querySelector('#chat-body .msg.highlight');
-  if (!hl) return JSON.stringify({ hasHl:false });
-  const r = hl.getBoundingClientRect(), br = b.getBoundingClientRect();
-  return JSON.stringify({ hasHl:true, idx: hl.dataset.idx, visible: r.bottom>br.top && r.top<br.bottom });
-})()`);
-const j1 = JSON.parse(sj1);
-check('症状2 老区搜索跳转：hasHl=true', j1.hasHl === true, sj1);
-check('症状2 老区搜索跳转：idx=40', j1.idx === '40', sj1);
-check('症状2 老区搜索跳转：目标在视口内可见', j1.visible === true, sj1);
+const j1 = await waitArrived('.msg.highlight', 4000);
+check('症状2 老区搜索跳转：高亮目标 4s 内到达可见', j1.has === true && j1.visible === true, JSON.stringify(j1));
 
 // ---- 症状3：点击 idx=820（接近最新）引用/搜索结果也应能跳转 ----
 await evalJs("(function(){var g=document.getElementById('chat-search-go'); if(g) g.click(); return true;})()");
@@ -181,16 +192,43 @@ await evalJs(`(function(){
   if (hit) hit.click();
   return true;
 })()`);
-await sleep(1300);
-const sj2 = await evalJs(`(function(){
+const j2 = await waitArrived('.msg.highlight[data-idx="820"]', 4000);
+check('症状3 近最新区搜索跳转：idx=820 高亮 4s 内到达可见', j2.has === true && j2.visible === true, JSON.stringify(j2));
+
+
+// ---- 症状4（#334）：重开干净态（贴底钉住+旧区图片未加载），搜索点击图片带旁的 idx=43——
+// 跳转落地前后旧区 lazy 图 onload，钉住态不得把视图拽回底部（真机 OPPO Reno14/Edge 复现：
+// 「旧的聊天记录依旧无法跳转」＝点了没反应/被弹回底部）
+await openPage();
+await gotoChat();
+await sleep(600);
+await evalJs(`(function(){
+  const cs = document.getElementById('chat-search'); if (cs) cs.hidden=false;
+  const inp = document.getElementById('chat-search-input'); if (inp) inp.value='图区跳转关键词43';
+  return true;
+})()`);
+await sleep(200);
+await evalJs("(function(){var g=document.getElementById('chat-search-go'); if(g) g.click(); return true;})()");
+await sleep(500);
+await evalJs(`(function(){
+  const its = document.querySelectorAll('#chat-search-results .tc-listitem');
+  const hit = Array.from(its).find(x => x.dataset.sidx === '43');
+  if (hit) hit.click();
+  return true;
+})()`);
+await sleep(1500);
+const sj3 = await evalJs(`(function(){
   const b = document.getElementById('chat-body');
   const hl = document.querySelector('#chat-body .msg.highlight');
   if (!hl) return JSON.stringify({ hasHl:false });
   const r = hl.getBoundingClientRect(), br = b.getBoundingClientRect();
-  return JSON.stringify({ hasHl:true, idx: hl.dataset.idx, visible: r.bottom>br.top && r.top<br.bottom });
+  const atBottom = b.scrollHeight - b.scrollTop - b.clientHeight < 60;
+  return JSON.stringify({ hasHl:true, idx: hl.dataset.idx, visible: r.bottom>br.top && r.top<br.bottom, atBottom: atBottom });
 })()`);
-const j2 = JSON.parse(sj2);
-check('症状3 近最新区搜索跳转：hasHl=true 且 idx=820 可见', j2.hasHl === true && j2.idx === '820' && j2.visible === true, sj2);
+const j3 = JSON.parse(sj3);
+check('症状4 图片区跳转：hasHl=true 且 idx=43', j3.hasHl === true && j3.idx === '43', sj3);
+check('症状4 图片区跳转：目标可见（未被图片 onload 回底拉扯）', j3.visible === true, sj3);
+check('症状4 图片区跳转：视图未回到底部', j3.atBottom === false, sj3);
 
 try { if (ws) ws.close(); } catch (e) {}
 try { chrome.kill(); } catch (e) {}

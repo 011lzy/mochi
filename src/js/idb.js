@@ -926,7 +926,7 @@
     });
   } catch (e) {}
   try { if (window.addEventListener) window.addEventListener('pagehide', wrjMarkFlush); } catch (e) {}
-  // 回放：把日志里的「最近一次写入」补进 内存+LS+IDB。时间戳守卫保证只应用比
+  // 回放：把日志里的「最近一次写入」补进 内存+LS。时间戳守卫保证只应用比
   // 已知写入更新的条目（不会覆盖本会话新写入的值）。
   function wrjReplay(entries) {
     if (!entries || !entries.length) return 0;
@@ -938,12 +938,23 @@
       if (memoryCache[e.k] === e.v) return;
       memoryCache[e.k] = e.v;
       try { if (e.v.length <= LS_BIG_LIMIT) localStorage.setItem(e.k, e.v); } catch (e2) {}
-      try { if (window.idbSet) window.idbSet(e.k, e.v); } catch (e2) {}
+      // #339 修复锚：WRJ_REPLAY_NO_IDB 恒真——回放值可能是被回滚的旧值，回写 IDB 会踩掉
+      // 更新的值（见下方 FIX 注释）；此守卫若被翻转/删除恢复无条件 idbSet，即本 bug 回归
+      if (!WRJ_REPLAY_NO_IDB) { try { if (window.idbSet) window.idbSet(e.k, e.v); } catch (e2) {} }
       n++;
     });
     return n;
   }
   // 同步回放 LS 日志（杀进程场景下 LS 值与 LS 日志常同批回滚，此路为空时靠下方 IDB 合并兜底）
+  // FIX 2026-09-12 #339（LS 回滚家族第五层，同族 #82/#88/#226/#229/#233/#265）：回放
+  //   【绝不回写 IDB】。写路径顺序＝LS 日志→LS 值→IDB 值→(≤150ms 微批)IDB 标记；杀进程
+  //   回滚后 LS 值与 LS 日志同批退回上次磁盘提交，日志里的条目因此可能是旧值，而 IDB 值+
+  //   标记早已落库（更新）。旧实现在回放里 idbSet 回写 → 用旧值踩掉 IDB 里的新值 → 随后
+  //   wrjMergeFromIdb 按「标记比已知新 → 取 IDB 值自愈」读到的恰是被踩掉的旧值 → 自愈被
+  //   自己废掉，用户「改完设置就退浏览器」的最近一次改动 100% 丢失（默认字卡概率/回复速度/
+  //   emoji 概率等全站小键设置，多机型）。回放只救 内存+LS；IDB 方向的调和全权交给
+  //   wrjMergeFromIdb（其时间戳守卫保证只前不后）。
+  var WRJ_REPLAY_NO_IDB = true;
   try { wrjReplay(wrjLoad(wrjLsRaw())); } catch (e) {}
   // FIX 2026-09-07 #229：合并失败必须重试——原实现入口即置 _wrjMerged=true，且走
   // idbGetAllKeys（把「清单读取失败(null)」折叠成「空数组」，与「库里确实没有标记」

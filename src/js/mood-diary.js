@@ -52,7 +52,7 @@
     try { if (window.idbSet) window.idbSet(window.activePrefix() + ':' + KEY, JSON.stringify(data)); } catch (e) {}
   }
 
-  // TA 心情：字符串哈希 → 伪随机，与日期+桌面绑定，同日稳定；约 35% 概率跟随我当天心情。
+  // TA 心情：字符串哈希 → 伪随机，与日期+桌面绑定，同日稳定；与「我当天记录的心情」完全独立（#338）。
   // 仅当「当天有真实交互（聊天有消息）」才生成 TA 心情，无交互日期返回 null（不显示）。
   function hashStr(s) {
     let h = 5381;
@@ -80,9 +80,9 @@
   }
   function taMoodFor(dateKey) {
     if (!hasInteraction(dateKey)) return null; // 无真实交互 → 不显示 TA 心情
-    const mine = loadAll().d[dateKey];
-    const h = hashStr((window.__activeCid || 'default') + '|' + dateKey);
-    if (mine && h % 100 < 35) return moodByEmoji(mine.m);
+    // FIX #338：不再读 mood-diary 我的当日记录（旧版 35% 概率返回 moodByEmoji(mine.m)，
+    // 导致我记录心情后 TA 心情被改成同款）；哈希加盐保证与旧跟随逻辑不可逆混淆。
+    const h = hashStr('ta-mood-indep|' + (window.__activeCid || 'default') + '|' + dateKey);
     return MOODS[h % MOODS.length];
   }
 

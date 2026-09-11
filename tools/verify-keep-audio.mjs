@@ -102,12 +102,12 @@ console.log('【安卓路径】（OPPO R15 HeyTapBrowser 真实 UA）');
   ok('非零样本比例 > 95%（防「全零=数字静音」形态）', (() => { let nz = 0; for (let i = 0; i < w.s.length; i++) if (w.s[i] !== 0) nz++; return nz / w.s.length; })() > 0.95);
   ok('频率低于奈奎斯特留余量（18000 < 20000 ≤ 44100/2，48k 重采样不落抗混叠滤波带）', a.freq < 20000 && a.freq < w.sr / 2 * 0.95);
 }
-console.log('【iOS 路径】（220Hz@0.002，v3.15.x 已收敛，bit 级防回归）');
+console.log('【iOS 路径】（#340：iOS 同改 18000Hz@0.002——iOS Safari 忽略 audio.volume，220Hz 实听电平比安卓被投诉值还大=「打开一直嗡鸣」；amp 0.002 防顺手改）');
 {
   const w = parseWav(genFor(IOS_UA));
   const a = analyze(w.s, w.sr);
-  ok('频率 = 220Hz（±2，iOS 分支未被换频波及）', Math.abs(a.freq - 220) <= 2, '估频 ' + a.freq.toFixed(1) + 'Hz');
-  ok('峰值幅度 ≈ 0.002（iOS 幅度未被顺手改）', Math.abs(a.peakAmp - 0.002) < 0.0003, 'peak=' + a.peakAmp.toFixed(5));
+  ok('频率 = 18000Hz（±5，#340 iOS 分支同换频，220Hz 嗡鸣根因不再分支保留）', Math.abs(a.freq - 18000) <= 5, '估频 ' + a.freq.toFixed(1) + 'Hz');
+  ok('峰值幅度 ≈ 0.002（iOS 幅度未被顺手改，保活电平语义零变化）', Math.abs(a.peakAmp - 0.002) < 0.0003, 'peak=' + a.peakAmp.toFixed(5));
 }
 console.log('【#260 双锚与取证】（WebRTC 第二冻结豁免锚 + 后台心跳 + 诊断出口，防「锚点整块被删」）');
 {

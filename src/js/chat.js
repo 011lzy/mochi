@@ -346,14 +346,28 @@ try { store.remove('chat-tail'); } catch (e) {}
 // 令牌化稍后会把该条 text 改写成 @@m:令牌，日志里留存的旧文本签名随之漂移，下次启动
 // chatTailMerge 把它当「没落盘的新消息」回放＝同一表情包旁边多出一条乱码/坏图复制。
 // parts 混合消息（回放丢图成半条）与超长文本（截断存储）同理。宁可不兜底，绝不回放坏数据。
+// #337 互动卡字段随日志回放：special 为 ask-*/查岗/邀请的记录，问题/选项字段
+// （askQuestion/choiceQuestion/curiousQuestion/roastText 及各自选项）不进日志的话，
+// IDB 整包落盘失败后靠尾巴日志恢复出的互动卡＝「卡片在、问题空白」（choose/curious
+// 渲染只读专用字段不回退 text）＋单选丢选项。这些字段都是小文本/小数组，随条收录。
+const CHAT_TAIL_INTERACT_FIELDS = ['askQuestion', 'askOptions', 'askType', 'deskCk', 'deskCkDir',
+'choiceQuestion', 'choiceOptions', 'choicePref', 'choiceCat',
+'curiousQuestion', 'curiousQuick', 'curiousReplies', 'curiousFollowup', 'curiousQid', 'curiousCat',
+'roastText', 'roastCat', 'inviteContent', 'inviteStatus', 'inviteAnswer', 'inviteType'];
 function chatTailAppend(rec) {
 try {
 if (!rec || rec.retracted || rec.img || rec.voice) return;
 if (rec.type === 'sticker' || rec.type === 'image' || rec.type === 'voice') return;
 if (Array.isArray(rec.parts) && rec.parts.length) return;
 if (typeof rec.text !== 'string' || rec.text.length > CHAT_TAIL_TEXT_MAX) return;
+const entry = { ts: rec.ts || Date.now(), side: rec.side || '', special: rec.special || '', text: rec.text, x: null };
+for (let fi = 0; fi < CHAT_TAIL_INTERACT_FIELDS.length; fi++) {
+const k = CHAT_TAIL_INTERACT_FIELDS[fi];
+if (rec[k] !== undefined) { if (!entry.x) entry.x = {}; entry.x[k] = rec[k]; }
+}
+if (JSON.stringify(entry).length > CHAT_TAIL_TEXT_MAX * 3) return; // 超限宁可不兜底（同 #206 口径）
 const arr = chatTailRead();
-arr.push({ ts: rec.ts || Date.now(), side: rec.side || '', special: rec.special || '', text: rec.text });
+arr.push(entry);
 while (arr.length > CHAT_TAIL_MAX) arr.shift();
 store.set('chat-tail', JSON.stringify(arr));
 } catch (e) {}
@@ -384,7 +398,12 @@ if (!j || have.has(chatTailSig(j))) continue;
 // 该条随日志 60 条滚动自然淘汰，不再新增（chatTailAppend 已拒收媒体型消息）。
 const jt = typeof j.text === 'string' ? j.text : '';
 if (jt.indexOf('data:') === 0 || jt.indexOf('@@m:') === 0) continue;
-add.push({ ts: j.ts, side: j.side, special: j.special, text: jt });
+// #337：互动卡条目还原问题/选项字段（旧版日志条目无 x＝照旧只回放四字段）
+const r = { ts: j.ts, side: j.side, special: j.special, text: jt };
+if (j.x && typeof j.x === 'object') {
+for (const k in j.x) { if (Object.prototype.hasOwnProperty.call(j.x, k)) r[k] = j.x[k]; }
+}
+add.push(r);
 }
 if (!add.length) return;
 msgs = msgs.concat(add).sort((a, b) => ((a && a.ts) || 0) - ((b && b.ts) || 0));
@@ -1280,15 +1299,16 @@ if (!typingEl) return;
 typingOn = true;
 if (chatVisible()) {
 typingEl.hidden = false;
-scrollChatBottom();
-setTimeout(scrollChatBottom, 60);
+// FIX 2026-09-11 #331：#162 契约「复写只在钉住时进行」——已解钉（手动上翻/跳转定位历史）不再抢滚动权拽回底部，贴底态行为不变
+if (chatPinnedBottom) scrollChatBottom();
+setTimeout(() => { if (chatPinnedBottom) scrollChatBottom(); }, 60);
 }
 }
 function hideTyping() {
 if (!typingEl) return;
 typingOn = false;
 typingEl.hidden = true;
-scrollChatBottom();
+if (chatPinnedBottom) scrollChatBottom(); // FIX 2026-09-11 #334 同 showTyping：解钉态不抢滚动权
 }
 function cfg() { return (window.replyCfg && window.replyCfg()) || {}; }
 function cfgn(c, k, d) { const v = c[k]; return v === undefined ? d : v; }
@@ -2609,7 +2629,7 @@ m.className = 'msg-ask';
 m.dataset.idx = msgs.length - 1;
 const answered = rec.choiceStatus === 'answered';
 m.innerHTML = '<div class="msg-choose-card' + (answered ? ' answered' : '') + '">' +
-'<div class="msg-ask-q">' + escTxt(rec.choiceQuestion || '') + '</div>' +
+'<div class="msg-ask-q">' + escTxt(rec.choiceQuestion || rec.text || '') + '</div>' +
 (answered
 ? '<div class="msg-ask-a">✓ 你选择了：' + escTxt(rec.choiceAnswer) + '</div><div class="msg-choose-r">' + T('TA：') + escTxt(T(rec.choiceReply)) + '</div>'
 : '<div class="msg-ask-tip">点击选择你的答案</div>') +
@@ -2624,7 +2644,7 @@ m.className = 'msg-ask';
 m.dataset.idx = msgs.length - 1;
 const answered = rec.curiousStatus === 'answered';
 m.innerHTML = '<div class="msg-choose-card' + (answered ? ' answered' : '') + '">' +
-'<div class="msg-ask-q">' + escTxt(rec.curiousQuestion || '') + '</div>' +
+'<div class="msg-ask-q">' + escTxt(rec.curiousQuestion || rec.text || '') + '</div>' +
 (answered
 ? '<div class="msg-ask-a">✓ 你：' + escTxt(rec.curiousAnswer) + '</div><div class="msg-choose-r">' + T('TA：') + escTxt(T(rec.curiousReply)) + '</div>'
 : '<div class="msg-ask-tip">' + T('点击回答 TA 的好奇') + '</div>') +
@@ -2639,7 +2659,7 @@ m.className = 'msg-ask';
 m.dataset.idx = msgs.length - 1;
 const answered = rec.roastStatus === 'answered';
 m.innerHTML = '<div class="msg-choose-card' + (answered ? ' answered' : '') + '">' +
-'<div class="msg-ask-q">' + escTxt(rec.roastText || '') + '</div>' +
+'<div class="msg-ask-q">' + escTxt(rec.roastText || rec.text || '') + '</div>' +
 (answered
 ? '<div class="msg-ask-a">✓ 你：' + escTxt(rec.roastAnswer) + '</div><div class="msg-choose-r">' + T('TA：') + escTxt(T(rec.roastReply)) + '</div>'
 : '<div class="msg-ask-tip">' + T('点击回 TA 一句') + '</div>') +
@@ -2780,7 +2800,9 @@ mm.className = 'msg-moods';
 const recalled = [];
 rec.mood.forEach((md, mi) => {
 if (rec.retractedMood && rec.retractedMood.indexOf(mi) >= 0) { recalled.push(md); return; }
-      const mt = escTxt(T(md.tag)), ml = escTxt(T(md.label));
+      // #333 旧数据兼容：词典拼字 tag 旧文案「词典」存量 chip 渲染时统一显示「词典拼字」（只改显示，不动存储）
+      const _tagShow = md.tag === '词典' ? '词典拼字' : md.tag;
+      const mt = escTxt(T(_tagShow)), ml = escTxt(T(md.label));
       // v3.16.x：来源标签 chip（opts.tag 生成）的 label 恒等于气泡正文，不再重复渲染右侧文案，
       // 否则「字卡一行 + 标签行同文」内容重复（摸鱼抓包等）；真实情绪字卡 label≠正文不受影响
       const dupBody = md.label != null && String(md.label) !== '' && String(md.label) === String(rec.text == null ? '' : rec.text);
@@ -3425,7 +3447,7 @@ addIn(reply || '…');
 taFavCard(rec);
 const el = body.querySelector('.msg-ask[data-idx="' + msgIdx + '"]');
 if (el) {
-el.innerHTML = '<div class="msg-choose-card answered"><div class="msg-ask-q">' + escTxt(rec.choiceQuestion || '') + '</div><div class="msg-ask-a">✓ 你选择了：' + escTxt(answer) + '</div><div class="msg-choose-r">' + (window.taFit ? window.taFit('TA：') : 'TA：') + escTxt(window.taFit ? window.taFit(reply || '…') : (reply || '…')) + '</div>' + favHeartHtml(rec) + '</div>';
+el.innerHTML = '<div class="msg-choose-card answered"><div class="msg-ask-q">' + escTxt(rec.choiceQuestion || rec.text || '') + '</div><div class="msg-ask-a">✓ 你选择了：' + escTxt(answer) + '</div><div class="msg-choose-r">' + (window.taFit ? window.taFit('TA：') : 'TA：') + escTxt(window.taFit ? window.taFit(reply || '…') : (reply || '…')) + '</div>' + favHeartHtml(rec) + '</div>';
 }
 };
 window.chatCuriousReply = function (msgIdx, answer, reply, followup) {
@@ -3442,7 +3464,7 @@ if (followup) addIn(followup);
 taFavCard(rec);
 const el = body.querySelector('.msg-ask[data-idx="' + msgIdx + '"]');
 if (el) {
-el.innerHTML = '<div class="msg-choose-card answered"><div class="msg-ask-q">' + escTxt(rec.curiousQuestion || '') + '</div><div class="msg-ask-a">✓ 你：' + escTxt(answer) + '</div><div class="msg-choose-r">' + (window.taFit ? window.taFit('TA：') : 'TA：') + escTxt(window.taFit ? window.taFit(reply || '…') : (reply || '…')) + '</div>' + favHeartHtml(rec) + '</div>';
+el.innerHTML = '<div class="msg-choose-card answered"><div class="msg-ask-q">' + escTxt(rec.curiousQuestion || rec.text || '') + '</div><div class="msg-ask-a">✓ 你：' + escTxt(answer) + '</div><div class="msg-choose-r">' + (window.taFit ? window.taFit('TA：') : 'TA：') + escTxt(window.taFit ? window.taFit(reply || '…') : (reply || '…')) + '</div>' + favHeartHtml(rec) + '</div>';
 }
 };
 window.chatRoastReply = function (msgIdx, answer, reply) {
@@ -3458,10 +3480,10 @@ addIn(reply || '…');
 taFavCard(rec);
 const el = body.querySelector('.msg-ask[data-idx="' + msgIdx + '"]');
 if (el) {
-el.innerHTML = '<div class="msg-choose-card answered"><div class="msg-ask-q">' + escTxt(rec.roastText || '') + '</div><div class="msg-ask-a">✓ 你：' + escTxt(answer) + '</div><div class="msg-choose-r">' + (window.taFit ? window.taFit('TA：') : 'TA：') + escTxt(window.taFit ? window.taFit(reply || '…') : (reply || '…')) + '</div>' + favHeartHtml(rec) + '</div>';
+el.innerHTML = '<div class="msg-choose-card answered"><div class="msg-ask-q">' + escTxt(rec.roastText || rec.text || '') + '</div><div class="msg-ask-a">✓ 你：' + escTxt(answer) + '</div><div class="msg-choose-r">' + (window.taFit ? window.taFit('TA：') : 'TA：') + escTxt(window.taFit ? window.taFit(reply || '…') : (reply || '…')) + '</div>' + favHeartHtml(rec) + '</div>';
 }
 };
-window.chatAskReply = function (msgIdx, answer, reply) {
+window.chatAskReply = function (msgIdx, answer, reply, opts) {
 const rec = msgs[msgIdx];
 if (!rec || rec.special !== 'ask-card' || rec.askStatus === 'answered') return;
 rec.askStatus = 'answered';
@@ -3473,9 +3495,16 @@ if (arr.length) preset = arr[Math.floor(Math.random() * arr.length)];
 } else if (typeof reply === 'string' && reply.trim()) {
 preset = reply.trim();
 }
-const taReply = preset
+let taReply;
+if (opts && opts.raw && preset) {
+// v3.32.x #335：raw 直传——问问TA文字题「接聊天字卡/词典」开关路径（ta-ask.js
+// taAskTextReply 已按普通聊天同源逻辑生成整条回应），不再走 pickAskCardReply 90/10 混合
+taReply = preset;
+} else {
+taReply = preset
 ? (window.pickAskCardReply ? window.pickAskCardReply([preset]) : preset)
 : (window.pickAskCardReply ? window.pickAskCardReply() : '收到你的回答。');
+}
 // v3.17.x：桌面查岗卡（跨桌面「来消息」触发，带 deskCk 标记）回答后——
 // 按概率从「桌面查岗」回应字卡池抽 1~5 张、空格分隔，作为 TA 的回应。
 //（用户要求：回复后概率触发查岗我的那个联系人的回复字卡，最多 5 张、每张中间空一格；
@@ -3521,7 +3550,7 @@ addIn(finalReply);
 taFavCard(rec);
 const el = body.querySelector('.msg-ask[data-idx="' + msgIdx + '"]');
 if (el) {
-el.innerHTML = '<div class="msg-ask-card answered"><div class="msg-ask-q">' + escTxt(rec.askQuestion || '') + '</div><div class="msg-ask-a">✓ 已回答：' + escTxt(answer) + '</div><div class="msg-choose-r">' + (window.taFit ? window.taFit('TA：') : 'TA：') + escTxt(window.taFit ? window.taFit(finalReply) : finalReply) + '</div>' + favHeartHtml(rec) + '</div>';
+el.innerHTML = '<div class="msg-ask-card answered"><div class="msg-ask-q">' + escTxt(rec.askQuestion || rec.text || '') + '</div><div class="msg-ask-a">✓ 已回答：' + escTxt(answer) + '</div><div class="msg-choose-r">' + (window.taFit ? window.taFit('TA：') : 'TA：') + escTxt(window.taFit ? window.taFit(finalReply) : finalReply) + '</div>' + favHeartHtml(rec) + '</div>';
 }
 return finalReply;
 };
@@ -3620,6 +3649,9 @@ if (rec.mood && rec.mood.length) {
 rec.retractedMood = rec.retractedMood || [];
 const remain = [];
 for (let i = 0; i < rec.mood.length; i++) {
+// #332 来源 chip（词典拼字/梦角造句等 opts.tag + tagNoDup → mood.label 恒空串）不是情绪字卡，
+// 不进「撤回情绪字卡」候选——否则联系人局部撤回会错误撤掉来源标签
+if (!(rec.mood[i] && String(rec.mood[i].label || '').trim())) continue;
 if (rec.retractedMood.indexOf(i) < 0) remain.push(i);
 }
 if (remain.length) {
@@ -3756,7 +3788,7 @@ qidx: quote ? quoteIdx : undefined,
 type: 'text',
 parts: rep.parts,
 silent: silent,
-tag: '词典',
+tag: '词典拼字',
 tagNoDup: true
 });
 } else if (rep.spell) {
@@ -3776,7 +3808,7 @@ parts: si === rep.spell.length - 1 ? rep.parts : null,
 silent: si > 0 ? true : silent,
 // #310b：逐词连发的每条断续气泡同样挂「词典拼字」来源 tag（与单气泡形态一致，
 // 用户能看出这一串是拼字；tagNoDup 不重复正文，chip 随消息持久化重进聊天仍在）
-tag: '词典',
+tag: '词典拼字',
 tagNoDup: true
 });
 }
@@ -4242,7 +4274,7 @@ function enterChat() {
 document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
 const phoneTab = document.querySelector('.tab[data-page="page-phone"]');
 if (phoneTab) phoneTab.classList.add('active');
-document.querySelectorAll('.page').forEach(p => p.hidden = true);
+document.querySelectorAll('.page').forEach(p => { if (!p.hidden) p.hidden = true; }); // FIX #336 同值写也发 mutation，44 页全扫=唤醒全部页面观察器
 chatPage.hidden = false;
 // v3.28.x：进入聊天页即按需取回字卡库（冷启动挂起大键）——专属字卡优先（回复池主源），
 // 公用随后；配合 replyOnce 内的等待，避免首条/持续回复落兜底卡。
@@ -4283,7 +4315,7 @@ if (back) {
 back.addEventListener('click', () => {
 const phonePage = document.getElementById('page-phone');
 if (phonePage) {
-document.querySelectorAll('.page').forEach(p => p.hidden = true);
+document.querySelectorAll('.page').forEach(p => { if (!p.hidden) p.hidden = true; }); // FIX #336 同值写也发 mutation，44 页全扫=唤醒全部页面观察器
 phonePage.hidden = false;
 }
 });
@@ -4292,14 +4324,14 @@ const csOpenBtn = document.getElementById('chat-settings-btn');
 const csPage = document.getElementById('page-chat-settings');
 if (csOpenBtn && csPage) {
 csOpenBtn.addEventListener('click', () => {
-document.querySelectorAll('.page').forEach(p => p.hidden = true);
+document.querySelectorAll('.page').forEach(p => { if (!p.hidden) p.hidden = true; }); // FIX #336 同值写也发 mutation，44 页全扫=唤醒全部页面观察器
 csPage.hidden = false;
 });
 }
 const csBack = document.getElementById('cs-back');
 if (csBack) {
 csBack.addEventListener('click', () => {
-document.querySelectorAll('.page').forEach(p => p.hidden = true);
+document.querySelectorAll('.page').forEach(p => { if (!p.hidden) p.hidden = true; }); // FIX #336 同值写也发 mutation，44 页全扫=唤醒全部页面观察器
 chatPage.hidden = false;
 });
 }
@@ -6450,7 +6482,11 @@ chatSearchResults.querySelectorAll('.tc-listitem').forEach(el => {
 el.addEventListener('click', () => {
 const idx = Number(el.dataset.sidx);
 closeChatSearch();
+// FIX 2026-09-11 #331：搜索时输入框持有焦点＝软键盘展开，点结果先收键盘、等面板关闭/失焦落定再起跳（部分内核在 visualViewport 回弹窗口期会取消 smooth 滚动）
+try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch (e) {}
+requestAnimationFrame(() => requestAnimationFrame(() => {
 if (!jumpToMsg(idx)) body.scrollTop = body.scrollHeight;
+}));
 });
 });
 }
@@ -6878,10 +6914,10 @@ return true;
 function cardSnapshot(rec) {
 if (!rec) return null;
 let q = '', mine = '', ta = '', special = rec.special;
-if (special === 'ask-choose') { q = rec.choiceQuestion || ''; mine = rec.choiceAnswer || ''; ta = rec.choiceReply || ''; }
-else if (special === 'ask-curious') { q = rec.curiousQuestion || ''; mine = rec.curiousAnswer || ''; ta = rec.curiousReply || ''; }
-else if (special === 'ask-roast') { q = rec.roastText || ''; mine = rec.roastAnswer || ''; ta = rec.roastReply || ''; }
-else if (special === 'ask-card') { q = rec.askQuestion || ''; mine = rec.askAnswer || ''; ta = rec.askReply || ''; }
+if (special === 'ask-choose') { q = rec.choiceQuestion || rec.text || ''; mine = rec.choiceAnswer || ''; ta = rec.choiceReply || ''; }
+else if (special === 'ask-curious') { q = rec.curiousQuestion || rec.text || ''; mine = rec.curiousAnswer || ''; ta = rec.curiousReply || ''; }
+else if (special === 'ask-roast') { q = rec.roastText || rec.text || ''; mine = rec.roastAnswer || ''; ta = rec.roastReply || ''; }
+else if (special === 'ask-card') { q = rec.askQuestion || rec.text || ''; mine = rec.askAnswer || ''; ta = rec.askReply || ''; }
 else if (special === 'invite') { q = rec.inviteContent || ''; ta = rec.inviteAnswer || ''; }
 // v3.28.x 修复：以下卡片在 renderMsg 都渲染了收藏心形（favHeartHtml），但 cardSnapshot
 // 未覆盖 → 点收藏静默无效（无 toast、不进收藏夹）。补齐快照，收藏夹按通用卡渲染。
@@ -6980,6 +7016,7 @@ loadNewerIncremental(Math.min(idx + JUMP_VIEW + 1, limit));
 target = body.querySelector('.msg[data-idx="' + idx + '"]');
 }
 if (!target) return false;
+unpinChatAndAnchor(); // FIX 2026-09-11 #334：跳转=用户定位历史浏览，与手动上翻同权解除贴底钉住——钉住态下旧区 lazy 图 onload 触发 #162 图片补滚把视图拽回底部，搜索/引用跳转表现「点了没反应」
 try { target.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) { target.scrollIntoView(); }
 target.classList.add('highlight');
 setTimeout(() => target.classList.remove('highlight'), 2200);
@@ -7506,7 +7543,7 @@ if (favApp && favPage) {
 favApp.addEventListener('click', () => {
 const editing = Array.from(document.querySelectorAll('.app-grid')).some(g => g.classList.contains('editing'));
 if (editing) return;
-document.querySelectorAll('.page').forEach(p => p.hidden = true);
+document.querySelectorAll('.page').forEach(p => { if (!p.hidden) p.hidden = true; }); // FIX #336 同值写也发 mutation，44 页全扫=唤醒全部页面观察器
 favPage.hidden = false;
 renderFav();
 });
@@ -7516,7 +7553,7 @@ if (favBack) {
 favBack.addEventListener('click', () => {
 favBatch = false; // v3.31.x 离开收藏页退出批量模式
 favBatchSel = [];
-document.querySelectorAll('.page').forEach(p => p.hidden = true);
+document.querySelectorAll('.page').forEach(p => { if (!p.hidden) p.hidden = true; }); // FIX #336 同值写也发 mutation，44 页全扫=唤醒全部页面观察器
 const phonePage = document.getElementById('page-phone');
 if (phonePage) phonePage.hidden = false;
 });

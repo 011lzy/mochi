@@ -324,7 +324,7 @@ const FIX_SENTINELS = [
   { name: '番茄钟提前结束预选「结束」pill（只点确定也生效）', file: 'js/p2-features.js', needle: "noInput: true, lock: true, pill: '1', pills" },
   { name: '导出进度遮罩 + 确认后再下载（impShow 复用 + anchorDownload 只在用户点确定后触发）', file: 'js/data-backup.js', needle: 'anchorDownload' },
   { name: '诊断复制改原生 execCommand + 按钮补 type=button（修点【复制】无反馈/整页刷新）', file: 'js/device.js', needle: 'document.execCommand(\'copy\')' },
-  { name: '#113 诊断取消自动复制（点开不再弹输入法又收起致灰屏；手机剪贴板有字数上限、长文本静默截断，改由用户手动【复制】/【导出】；#227 txt→docx 同步改锚 exportDocx）', file: 'js/device.js', needle: 'exportDocx(c ? c.text() : cur)' },
+  { name: '#113 诊断取消自动复制（点开不再弹输入法又收起致灰屏；手机剪贴板有字数上限、长文本静默截断，改由用户手动【复制】/【导出】；#227 txt→docx 同步改锚 exportDocx→#227 改名后锚 diagExportDocx）', file: 'js/device.js', needle: 'diagExportDocx(c ? c.text() : cur)' },
   { name: '#227 诊断导出 docx（手写存储式 ZIP 本地头签名——docx 生成本体；删掉改回纯文本即消失=「导出docx」点了下不动）', file: 'js/device.js', needle: 'setUint32(0, 0x04034b50' },
   { name: '弹窗底部按钮补 type=button（取消默认 submit 整页刷新）', file: 'index.html', needle: 'type="button" class="modal-btn copy" id="modal-export"' },
   { name: '编辑消息同步重建 parts（防发送新消息后重渲染回退成原文）', file: 'js/chat.js', needle: '.filter(p => p && p.k !== \'text\')' },
@@ -678,7 +678,7 @@ const FIX_SENTINELS = [
   { name: '#206 表情重复+乱码+空白·尾巴日志拒收媒体型消息（sticker/image 的 text=媒体本体，回放丢 type + 令牌化后签名漂移被当新消息回放=同一表情旁多出乱码/坏图复制）', file: 'js/chat.js', needle: "if (rec.type === 'sticker' || rec.type === 'image' || rec.type === 'voice') return;" },
   { name: '#206 表情重复+乱码+空白·超长文本/parts 不进尾巴日志（截断存储与丢图回放同样失真）', file: 'js/chat.js', needle: "if (typeof rec.text !== 'string' || rec.text.length > CHAT_TAIL_TEXT_MAX) return;" },
   { name: '#206 表情重复+乱码+空白·回放端拦截旧版存量媒体存根（data:/@@m: 开头无 type 的条目跳过，防 normCell 误迁移成坏图 image）', file: 'js/chat.js', needle: "if (jt.indexOf('data:') === 0 || jt.indexOf('@@m:') === 0) continue;" },
-  { name: '#207 保活音频电流声·安卓频率换 18kHz（220Hz 在人耳最敏感频段，#190 降幅度后 OPPO R15 自带浏览器等多机型仍实听嗡声；数字振幅/volume 不动=audible 判定零回归，iOS 分支 bit 级不动）', file: 'js/bg-keep.js', needle: 'kaIsIOS() ? 220 : 18000' },
+  { name: '#207+#340 保活音频电流声/嗡鸣·频率统一换 18kHz（220Hz 在人耳最敏感频段：#190 降幅度后安卓多机型仍实听嗡声→#207 换 18kHz；#340 iPhone 16 Pro Safari 同根因复发——iOS 忽略 audio.volume，220Hz@0.002 实听比安卓被投诉电平还大 4 倍=「打开一直震动响声重启无用」；iOS 无 Chromium audible 判定，amp 分支不动=电平语义零回归）', file: 'js/bg-keep.js', needle: 'const freq = 18000;' },
   { name: '#208 聊天输入栏上移白边·键盘收起视口未还原自愈（iOS standalone 键盘收起 WebKit 偶发不还原视口，restoreKb 的 60px 还原门槛永不满足=kbActive 卡真 .phone 卡收缩高；失焦>4s 且视口仍<基线−60 强制复原）', file: 'js/mobile-adapt.js', needle: 'Date.now() - _focLostAt > 4000 && _vv && _vv.height < _fullVv - 60' },
   { name: '#208 聊天输入栏上移白边·tabbar 隐藏跳过采集（全屏页 tabs.js 给 tabbar 挂 hidden，矩形全 0 被判悬空 860px 每 5s 刷假错误环）', file: 'js/device.js', needle: 'if (!tb || tb.hidden) return null;' },
   { name: '#208 聊天输入栏上移白边·判定器布局视口未贴底（保留形态 diff 应≈envTop；键盘收起未还原时按 inner 判贴合全绿漏报，单列 ✗ 让白带状态可诊断）', file: 'js/device.js', needle: 'diff > envTop + 24 && !(inp.kb && inp.kb.kbActive)' },
@@ -941,7 +941,7 @@ const FIX_SENTINELS = [
   { name: '#323 词典拼字双形态选择·qs-one 单气泡/qs-multi 逐卡混合掷币（删则退回单一形态＝可开关混合失效；双关兜底逐卡 else one=false）', file: 'js/quote-spell.js', needle: "if (oneOn && multiOn) one = Math.random() < 0.5;" },
   { name: '#330 逐卡连发受回复条数最多上限·完整字卡连发≤reply-max（删则完整字卡一次刷 5 条＝超出联系人回复条数设置）', file: 'js/quote-spell.js', needle: 'if (want > rmax) want = rmax;' },
   { name: '#310 qs-cc 旧默认 1→0 迁移（删则存量桌面普通字卡继续被抽去拼字截断＝用户报障回流）', file: 'js/reply-settings.js', needle: "s.set('reply-qs-cc', '0'); changed = true; }" },
-  { name: '#310b/325 逐卡连发每条气泡挂「词典」tag（删则多气泡无来源标注；#325 用户要求 tag 统一改为「词典」）', file: 'js/chat.js', needle: "silent: si > 0 ? true : silent,\ntag: '词典'," },
+  { name: '#310b/325/333 逐卡连发每条气泡挂「词典拼字」tag（删则多气泡无来源标注；#325 曾统一为「词典」，#333 用户规格改为「词典拼字」）', file: 'js/chat.js', needle: "silent: si > 0 ? true : silent,\ntag: '词典拼字'," },
   // ==== 2026-09-11 #317 梦角自由造句（梦角语料抽卡→截断几字重造句→入库自定义字卡「梦角自由造句」分类）====
   { name: '#317 梦角自由造句抽句门·mjf-en/mjf-prob 生效（删则开关概率失效，梦角永不造句）', file: 'js/dream-free.js', needle: "if (!c || c['mjf-en'] !== 1) return null;" },
   { name: '#327 撤回式截断·词间隙切尾前缀成新句（删则造句变回随机截补＝句子离奇，用户明确否决）', file: 'js/dream-free.js', needle: "const out = toks.slice(0, gi).join('').replace(/[，、,\\s]+$/, '');" },
@@ -980,6 +980,30 @@ const FIX_SENTINELS = [
   { name: '#317 开屏解锁卡接线（clock.js setupCardLockCard，删则开屏无解锁入口＝锁死无法使用）', file: 'js/clock.js', needle: 'function setupCardLockCard() {' },
   // ==== 2026-09-11 #320 全屏游戏面板抬层（.game-fs 在 .page(z-index:2) 上下文内，z-9999 被压到 2 永远低于全局顶部提醒条 998 → 连连看/消消乐全屏时头部难度下拉被提醒条盖住点不到、选不了难度的根因）====
   { name: '#320 全屏期间给 .phone 挂 game-fs-active（全屏面板所在 page 抬到 1000，删则提醒条继续盖住全屏头部难度下拉=全屏选不了难度），配套 CSS：css/chat-pages.css .phone.game-fs-active .page{z-index:1000}', file: 'js/fullscreen.js', needle: "_gfsPhone.classList.toggle('game-fs-active', gameFsHasActive())" },
+  // ==== 2026-09-11 #331 拍卖会「按钮没用+页面卡死」（#321 全屏教学浮层 #au-intro/#au-help 用 ID 选择器写 display:flex，特异性压过 UA 的 [hidden] 和 .pong-overlay[hidden] 救援 → hidden 属性失效，不透明黑罩永远盖屏拦掉全站点击；全机型必现，与浏览器无关）====
+  { name: '#331 拍卖全屏浮层 hidden 救援（删则开场/玩法浮层永远盖屏＝拍卖会及全站按钮点不到像卡死；行为断言 tools/verify-auction-overlay.mjs）', file: 'css/chat-pages.css', needle: '#au-intro[hidden], #au-help[hidden] { display:none; }' },
+  // ==== 2026-09-11 #335 问问TA文字题回应接聊天字卡/词典：开关（ta-ask settings.useChatReply，默认关）开启后，文字题回答按普通聊天同源顺序生成回应——① getDefaultCards('chat') 整体概率抽默认聊天字卡 ② quoteSpellPick 拼字概率抽词典语录（问答卡只回一条，固定单气泡空格连卡） ③ 都未命中走原「询问·回应」预设池 90/10 混合；回应经 chatAskReply 新增 opts.raw 直传，跳过 pickAskCardReply 再混合 ====
+  { name: '#335 文字题聊天链路回应·开关门（settings.useChatReply，删则开关失效＝永远走预设池）', file: 'js/ta-ask.js', needle: 'if (!(d.settings && d.settings.useChatReply)) return null;' },
+  { name: '#335 文字题聊天链路回应·raw 直传（删则 pickAskCardReply 90/10 混合把词典/默认字卡回应换掉＝开关开了也不生效）', file: 'js/chat.js', needle: 'if (opts && opts.raw && preset) {' },
+  // ==== 2026-09-11 #334 搜索/引用跳转被回底机制抵消（OPPO Reno14 Edge 报「旧的聊天记录依旧无法跳转」复发，#268 下界扩窗治不了这类）：jumpToMsg 是程序化滚动从不解钉，chatPinnedBottom 恒真＝跳到旧区后 lazy 图 onload 触发 #162 图片补滚 rAF(scrollChatBottom) 把视图拽回底部（无头红绿实证：hasHl:true+atBottom:true+visible:false，与真机「点了没反应」一致）＋show/hideTyping 无条件回底同类抢滚动权。修复：①跳转成功即 unpinChatAndAnchor()（与手动上翻同权开回滚动锚定）②typing 复写守钉 ③搜索点击先收键盘双 rAF 后起跳。行为断言 tools/verify-chat-pgjump.mjs 症状4 ====
+  { name: '#334 跳转解钉（删则钉住态下跳到旧区被 #162 图片 onload 补滚拽回底部＝搜索/引用跳转「点了没反应」）', file: 'js/chat.js', needle: 'unpinChatAndAnchor(); // FIX 2026-09-11 #334' },
+  { name: '#334 showTyping 复写守钉（删则用户读历史时「对方正在输入」把视图无条件拽回底部并重新钉住）', file: 'js/chat.js', needle: 'setTimeout(() => { if (chatPinnedBottom) scrollChatBottom(); }, 60);' },
+  { name: '#334 hideTyping 复写守钉（删则回复落地收打字态时把已跳到旧区的视图拽回底部）', file: 'js/chat.js', needle: 'if (chatPinnedBottom) scrollChatBottom(); // FIX 2026-09-11 #334 同 showTyping' },
+  // ==== 2026-09-12 #333 词典拼字 tag 旧文案「词典」存量 chip 渲染映射为「词典拼字」（#325→#333 规格两改，历史消息 chip 统一显示，不动存储数据）====
+  { name: '#333 词典旧文案渲染映射（删则历史拼字消息左下角仍显示旧「词典」tag，与新「词典拼字」并存两种叫法）', file: 'js/chat.js', needle: "const _tagShow = md.tag === '词典' ? '词典拼字' : md.tag;" },
+  // ==== 2026-09-11 #337 安卓键盘盖输入栏（荣耀畅玩80Pro 自带浏览器，多机型同族）：键盘弹出时 vv 读数漂移/不缩 → 读数判据 _aProvCheck 永不命中 + 58% 盲猜对高占比输入法停靠不足。三件套：①可见性触发停靠（聚焦>900ms+手势武装+实测元素底边低于可视区底边=被盖才动作，与内核读数无关）②VirtualKeyboard 实测尺（overlaysContent=true+geometrychange 按 base−kbH 精停，特性探测，_aProvClear 归还）③欠深自纠（停靠后仍被盖每 250ms 再收 8% 基准至露出/34% 地板）。行为断言 tools/verify-kb-cover-dock.mjs ====
+  { name: '#337 键盘可见性触发停靠（删则读数漂移内核输入栏整行留在键盘下=畅玩80Pro 族无法聊天）', file: 'js/mobile-adapt.js', needle: 'if (_r && _r.height > 0 && _r.bottom > _visBottom + 12) _aProvDock();' },
+  { name: '#337 VirtualKeyboard 实测尺拉起（删则悬浮键盘只能 58% 盲猜，高占比输入法停靠不足仍被盖）', file: 'js/mobile-adapt.js', needle: 'vk.overlaysContent = true;' },
+  { name: '#337 欠深自纠逐拍收紧（删则保底停靠不足时输入栏仍被盖不自愈）', file: 'js/mobile-adapt.js', needle: 'var ph = Math.max(Math.round(base * 0.34), cur - Math.round(base * 0.08));' },
+  // ==== 2026-09-11 #336 信息诊断导出 docx 无反应（荣耀畅玩80Pro 自带浏览器对合成 a[download]+blob URL 静默忽略）：接入数据备份同款三级降级链 window.mochiExportBlob（①系统分享面板 ②系统保存框 ③确认后 a[download]），裸下载只作兜底；两处诊断弹窗统一走 diagExportDocx。行为断言 tools/verify-docx-export.mjs E5~E11 ====
+  { name: '#336 诊断 docx 走三级降级链（删则壳浏览器点导出docx无反应=用户报障回流）', file: 'js/device.js', needle: "window.mochiExportBlob(blob, fname, 'mochi 诊断报告'" },
+  { name: '#336 mochiExportBlob Blob 版导出（删则分享面板/保存框通道断链，仅剩裸下载）', file: 'js/data-backup.js', needle: 'window.mochiExportBlob = function (blob, fname, shareTitle, saveTypes)' },
+  { name: '#338 心情日记 TA心情独立（删则 taMoodFor 恢复读我的当日记录、35% 概率跟随＝我记录心情后 TA 心情被改成同款）', file: 'js/mood-diary.js', needle: "hashStr('ta-mood-indep|'" },
+  // ==== 2026-09-12 #339 设置改完退后台/等一两小时回退成默认值（默认字卡概率/回复速度/emoji 概率等全站小键，多机型；LS 回滚家族第五层 #82/#88/#226/#229/#233/#265）：wrj 启动回放 wrjReplay 把回滚日志里的旧值 idbSet 回写 IDB 踩掉新值，wrjMergeFromIdb 按「标记更新→取 IDB 值自愈」读到的恰是被踩掉的旧值＝自愈被自己废掉。修复：回放只救 内存+LS，绝不回写 IDB。行为断言 tools/verify-wrj-replay-no-stomp.mjs 红绿对照 ====
+  { name: '#339 wrj 回放禁写 IDB·守卫常量（翻成 false/删除＝恢复无条件回写＝「改完设置就退浏览器」最近一次改动 100% 丢失回归）', file: 'js/idb.js', needle: 'var WRJ_REPLAY_NO_IDB = true;' },
+  { name: '#339 wrj 回放禁写 IDB·守卫包住 idbSet（删守卫留裸 idbSet＝回放旧值踩掉 IDB 新值、wrjMerge 自愈读回被踩旧值）', file: 'js/idb.js', needle: 'if (!WRJ_REPLAY_NO_IDB) { try { if (window.idbSet) window.idbSet(e.k, e.v); } catch (e2) {} }' },
+  { name: '#337 尾巴日志收录互动卡问题/选项字段（删字段清单＝IDB 落盘失败回放出的互动卡「卡片在、问题空白」回归）', file: 'js/chat.js', needle: "const CHAT_TAIL_INTERACT_FIELDS = ['askQuestion', 'askOptions', 'askType', 'deskCk', 'deskCkDir'," },
+  { name: '#337 互动卡渲染回退 rec.text 自愈（三个 || 去掉＝存量空白卡永远空白、无自愈路径）', file: 'js/chat.js', needle: "escTxt(rec.choiceQuestion || rec.text || '')" },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

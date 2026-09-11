@@ -42,6 +42,8 @@
   const partnerNameEl = document.getElementById('m3-partner-name');
 
   const N = 8, KIND_N = 6;
+  const GAP = 3;                 // 格间距（fitBoard 哨兵表达式依赖）
+  const SWAP_MS = 170, POP_MS = 220, FALL_MS = 300;  // 交换/消除/下落动画时长
   const KINDS = ['🍓', '🍋', '🍇', '🔔', '⭐', '🎈'];
   const BOMB_BASE = 10;    // 10+c = 该色炸弹（💥）
   const RAINBOW = 20;      // 彩虹（🌈）
@@ -57,6 +59,7 @@
   function prefix() { return (window.activePrefix && window.activePrefix()) || 'xy-home-v2'; }
   function fastMul() { return (window.__m3Debug && window.__m3Debug.fast) ? 0.05 : 1; }
   function pick(arr) { return arr && arr.length ? arr[Math.floor(Math.random() * arr.length)] : null; }
+  function animMs(x) { return Math.round(x * fastMul()); }
   function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
   function inBoard(r, c) { return r >= 0 && r < N && c >= 0 && c < N; }
   // 彩虹没有颜色（不参与连线），炸弹按所携带颜色参与匹配
@@ -257,47 +260,116 @@
     return false;
   }
 
-  // ---- 渲染 ----
+  // ---- 渲染（棋子层：每颗棋子一个绝对定位元素，交换/下落走 left/top 过渡动画） ----
+  let pidGrid = [];              // pidGrid[r][c] = 棋子 id / -1（空位）
+  const pieces = new Map();      // id -> { v, el }
+  let nextPid = 1;
+  let cellPx = 40;
+  function setGlyph(el, v) {
+    el.classList.remove('m3-bomb');
+    if (v >= RAINBOW) el.textContent = '🌈';
+    else if (v >= BOMB_BASE) { el.textContent = '💥'; el.classList.add('m3-bomb'); }
+    else el.textContent = KINDS[v];
+  }
+  function layoutTile(el, r, c) {
+    el.style.width = cellPx + 'px';
+    el.style.height = cellPx + 'px';
+    el.style.fontSize = Math.round(cellPx * 0.54) + 'px';
+    el.style.left = (c * (cellPx + GAP)) + 'px';
+    el.style.top = (r * (cellPx + GAP)) + 'px';
+    el._r = r; el._c = c;
+  }
+  function spawnTile(v, r, c, fromRow, born) {
+    const el = document.createElement('div');
+    el.className = 'm3-tile' + (born ? ' m3-born' : '');
+    const id = nextPid++;
+    setGlyph(el, v);
+    el.style.width = cellPx + 'px';
+    el.style.height = cellPx + 'px';
+    el.style.fontSize = Math.round(cellPx * 0.54) + 'px';
+    el.style.left = (c * (cellPx + GAP)) + 'px';
+    el.style.top = ((fromRow != null ? fromRow : r) * (cellPx + GAP)) + 'px';
+    el._r = r; el._c = c;
+    boardEl.appendChild(el);
+    pieces.set(id, { v: v, el: el });
+    pidGrid[r][c] = id;
+    if (fromRow != null) requestAnimationFrame(() => { layoutTile(el, r, c); });
+    return id;
+  }
   function buildBoard() {
     boardEl.innerHTML = '';
-    boardEl.style.gridTemplateColumns = 'repeat(' + N + ',1fr)';
-    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
-      const cell = document.createElement('div');
-      cell.className = 'm3-tile';
-      cell.setAttribute('data-r', String(r));
-      cell.setAttribute('data-c', String(c));
-      boardEl.appendChild(cell);
-    }
+    pieces.clear();
+    pidGrid = [];
+    for (let r = 0; r < N; r++) pidGrid.push(new Array(N).fill(-1));
+    nextPid = 1;
+    boardEl.classList.add('m3-noanim');
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) spawnTile(st.grid[r][c], r, c, null, false);
+    void boardEl.offsetWidth;
+    boardEl.classList.remove('m3-noanim');
   }
   function fitBoard() {
     if (!stageEl || panel.hidden || !st) return;
     const w = stageEl.clientWidth;
     if (!w) return;
     // #306：同连连看——格宽固定 px + grid 3px gap，cellPx 不先扣 gap 会溢出右缘截断
-    const GAP = 3;
-    const cellPx = Math.max(26, Math.min(46, Math.floor((w - (N - 1) * GAP) / N)));
+    cellPx = Math.max(26, Math.min(46, Math.floor((w - (N - 1) * GAP) / N)));
     boardEl.style.width = (cellPx * N + (N - 1) * GAP) + 'px';
-    const tiles = boardEl.querySelectorAll('.m3-tile');
-    for (let i = 0; i < tiles.length; i++) { tiles[i].style.width = cellPx + 'px'; tiles[i].style.height = cellPx + 'px'; tiles[i].style.fontSize = Math.round(cellPx * 0.54) + 'px'; }
+    boardEl.style.height = (cellPx * N + (N - 1) * GAP) + 'px';
+    boardEl.classList.add('m3-noanim');
+    pieces.forEach((p) => { layoutTile(p.el, p.el._r, p.el._c); });
+    void boardEl.offsetWidth;
+    boardEl.classList.remove('m3-noanim');
   }
-  function tileAt(r, c) { return boardEl.children[r * N + c] || null; }
-  function renderBoard() {
-    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
-      const el = tileAt(r, c);
-      if (!el) continue;
-      el.classList.remove('m3-sel', 'm3-hint', 'm3-shake', 'm3-bomb');
-      const v = st.grid[r][c];
-      if (v < 0) el.textContent = '';
-      else if (v >= RAINBOW) { el.textContent = '🌈'; }
-      else if (v >= BOMB_BASE) { el.textContent = '💥'; el.classList.add('m3-bomb'); }
-      else el.textContent = KINDS[v];
-    }
-    updateInfo();
+  function tileAt(r, c) {
+    const id = pidGrid[r] ? pidGrid[r][c] : -1;
+    const p = id >= 0 ? pieces.get(id) : null;
+    return p ? p.el : null;
   }
-  function flashClear(cells) {
+  function renderBoard() { buildBoard(); updateInfo(); }
+  // 交换动画：pid 随模型换位，两颗棋子滑到对方位置
+  function swapPid(a, b) {
+    const ia = pidGrid[a[0]][a[1]], ib = pidGrid[b[0]][b[1]];
+    pidGrid[a[0]][a[1]] = ib; pidGrid[b[0]][b[1]] = ia;
+    const pa = pieces.get(ia), pb = pieces.get(ib);
+    if (pa) layoutTile(pa.el, b[0], b[1]);
+    if (pb) layoutTile(pb.el, a[0], a[1]);
+  }
+  // 消除动画：棋子缩放爆开后移除（模型已在调用前置 -1）
+  function popClear(cells) {
     for (let i = 0; i < cells.length; i++) {
-      const el = tileAt(cells[i][0], cells[i][1]);
-      if (el) { el.classList.add('m3-pop'); setTimeout(((el2) => () => el2.classList.remove('m3-pop'))(el), 220); }
+      const r = cells[i][0], c = cells[i][1];
+      const id = pidGrid[r][c];
+      if (id == null || id < 0) continue;
+      pidGrid[r][c] = -1;
+      const p = pieces.get(id);
+      if (!p) continue;
+      pieces.delete(id);
+      p.el.classList.remove('m3-sel', 'm3-hint');
+      p.el.classList.add('m3-pop');
+      setTimeout(((el) => () => { if (el.parentNode) el.parentNode.removeChild(el); })(p.el), animMs(POP_MS) + 60);
+    }
+  }
+  // 重力下落动画：现有棋子滑到新位，顶部空位生成新棋子从棋盘上方落进
+  function collapseAnimated() {
+    for (let c = 0; c < N; c++) {
+      let write = N - 1;
+      for (let r = N - 1; r >= 0; r--) {
+        const id = pidGrid[r][c];
+        if (id >= 0) {
+          if (write !== r) {
+            const p = pieces.get(id);
+            pidGrid[write][c] = id; pidGrid[r][c] = -1;
+            st.grid[write][c] = st.grid[r][c]; st.grid[r][c] = -1;
+            if (p) layoutTile(p.el, write, c);
+          }
+          write--;
+        }
+      }
+      for (let r = write; r >= 0; r--) {
+        const v = Math.floor(Math.random() * KIND_N);
+        st.grid[r][c] = v;
+        spawnTile(v, r, c, r - (write + 1), true);
+      }
     }
   }
   function updateInfo() {
@@ -343,11 +415,12 @@
     hideOverlay();
     buildBoard();
     fitBoard();
-    renderBoard();
+    updateInfo();
     st.turn = 1;
     setStatus(dot(1) + '你的回合：点一格再点相邻一格交换');
   }
   // 交换后完整结算：彩虹交换走特殊分支；普通路径四连生成炸弹、五连生成彩虹（仅首段）
+  // 动画时序：滑动交换 → 每段「消除爆开 → 下落补位」→ 连锁，全部走完才解锁
   function doSwap(a, b, byMe, cb) {
     st.lock = true;
     const va = st.grid[a[0]][a[1]], vb = st.grid[b[0]][b[1]];
@@ -356,16 +429,21 @@
     const t = st.grid[a[0]][a[1]];
     st.grid[a[0]][a[1]] = st.grid[b[0]][b[1]];
     st.grid[b[0]][b[1]] = t;
+    swapPid(a, b);
     let chain = 0, gained = 0;
     const step = () => {
       const runs = findRuns(st.grid);
       if (!runs.length) {
         if (!chain) {
-          // 无效交换：换回去
+          // 无效交换：滑回去 + 两格抖一下
           const t2 = st.grid[a[0]][a[1]];
           st.grid[a[0]][a[1]] = st.grid[b[0]][b[1]];
           st.grid[b[0]][b[1]] = t2;
-          renderBoard();
+          swapPid(a, b);
+          [a, b].forEach((p) => {
+            const el = tileAt(p[0], p[1]);
+            if (el) { el.classList.add('m3-shake'); setTimeout(((e2) => () => e2.classList.remove('m3-shake'))(el), 320); }
+          });
           st.lock = false;
           sfxBad();
           if (cb) cb(false, 0);
@@ -381,6 +459,7 @@
       const hadBoom = cells.some((p) => { const v = st.grid[p[0]][p[1]]; return v >= BOMB_BASE; });
       cells.forEach((p) => { st.grid[p[0]][p[1]] = -1; });
       // #301 特殊生成：仅交换引发的首段消除——四连→炸弹、五连+→彩虹（放最长一道的交换格/中格）
+      let kept = null;
       if (chain === 1) {
         const best = runs.slice().sort((x, y) => y.len - x.len)[0];
         if (best.len >= 5) {
@@ -388,11 +467,13 @@
           const at2 = inBest ? b : best.cells[Math.floor(best.cells.length / 2)];
           st.grid[at2[0]][at2[1]] = RAINBOW;
           cells.push([at2[0], at2[1]]);
+          kept = at2;
           taSay(pick(['🌈 彩虹出现了！', '快用彩虹，超好用']));
         } else if (best.len === 4) {
           const at2 = best.cells.some((p) => p[0] === b[0] && p[1] === b[1]) ? b : best.cells[Math.floor(best.cells.length / 2)];
           st.grid[at2[0]][at2[1]] = BOMB_BASE + best.color;
           cells.push([at2[0], at2[1]]);
+          kept = at2;
           taSay(pick(['💣 炸弹生成！', '四连！收下这个💥']));
         }
       }
@@ -400,20 +481,29 @@
       gained += pts;
       st.score += pts;
       if (byMe) st.myScore += pts; else st.taScore += pts;
-      flashClear(cells);
+      popClear(kept ? cells.filter((p) => p[0] !== kept[0] || p[1] !== kept[1]) : cells);
+      if (kept) {
+        // 生成特殊棋子：原格变身 + 出生弹跳
+        const el = tileAt(kept[0], kept[1]);
+        if (el) {
+          setGlyph(el, st.grid[kept[0]][kept[1]]);
+          el.classList.remove('m3-born'); void el.offsetWidth; el.classList.add('m3-born');
+        }
+      }
       if (hadBoom) sfxBoom();
       sfxClear(chain);
       if (chain >= 3) taSay('连锁 ×' + chain + (byMe ? '，好强！' : '，我也行吧'));
-      collapse(st.grid);          // 重力补落后再等下一轮查连锁
-      renderBoard();
-      setTimeout(step, Math.round(230 * fastMul()));
+      setTimeout(() => {
+        collapseAnimated();         // 下落补位后再等下一轮查连锁
+        setTimeout(step, animMs(FALL_MS));
+      }, animMs(POP_MS));
     };
     const finish = () => {
       updateInfo();
       st.lock = false;
       if (cb) cb(true, gained);
     };
-    step();
+    setTimeout(step, animMs(SWAP_MS));
   }
   // 彩虹交换：单彩虹+色=清全该色；双彩虹=随机清两色。走完照常 collapse+连锁
   function doRainbowSwap(a, b, both, byMe, cb) {
@@ -438,13 +528,14 @@
     const pts = cells.length;
     st.score += pts;
     if (byMe) st.myScore += pts; else st.taScore += pts;
-    flashClear(cells);
-    collapse(st.grid);
-    renderBoard();
+    popClear(cells);
     setTimeout(() => {
-      st.lock = false;
-      if (cb) cb(true, pts);
-    }, Math.round(230 * fastMul()));
+      collapseAnimated();
+      setTimeout(() => {
+        st.lock = false;
+        if (cb) cb(true, pts);
+      }, animMs(FALL_MS));
+    }, animMs(POP_MS));
   }
   function afterMove(byMe) {
     if (st.score >= st.target) { endGame(); return; }
@@ -613,8 +704,8 @@
     e.stopPropagation();
     const cell = e.target.closest('.m3-tile');
     if (!cell) return;
-    const r = parseInt(cell.getAttribute('data-r'), 10) || 0;
-    const c = parseInt(cell.getAttribute('data-c'), 10) || 0;
+    const r = typeof cell._r === 'number' ? cell._r : 0;
+    const c = typeof cell._c === 'number' ? cell._c : 0;
     if (!st || !st.started || st.over || st.lock || st.turn !== 1) return;
     if (st.sel && st.sel[0] === r && st.sel[1] === c) {
       st.sel = null;

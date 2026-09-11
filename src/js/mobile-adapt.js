@@ -1491,6 +1491,8 @@
         var _aTextFocused = null;
         // v3.12.x：悬浮键盘保底停靠状态（见下方 _aProvCheck 注释）
         var _aFocusAt = 0, _aProv = false, _aIH = window.innerHeight;
+        // #337：本会话 vv 是否出现过真实收缩——漂移/悬浮内核恒 false＝「vv 高」不构成键盘已收证据
+        var _aVvShrunkSeen = false;
         // v3.13.x：推定停靠自愈的活动基线——浮悬键盘收回后输入框仍保持聚焦时，
         // focusout/vv.resize 都可能不来（摩托罗拉 G100 / 雨见 实测），58% 推顶
         // 会残留到用户下次交互才复位（表现为「输入框停留几秒才回底」）。用
@@ -1631,6 +1633,8 @@
             offsetTop: Math.round(_aVV.offsetTop || 0),
             panSeen: Math.round(_aPanSeen), // #267：本会话实测到的浏览器最大平移量＝保底停靠的尺子
             panSeenAgo: _aPanSeenAt ? Date.now() - _aPanSeenAt : -1, // 该读数距今多久（>1500ms 不再采信）
+            vkOn: !!_aVkOn, // #337：VirtualKeyboard 实测尺是否已拉起
+            vkH: (function () { try { var b = navigator.virtualKeyboard && navigator.virtualKeyboard.boundingRect; return b ? Math.round(b.height) : -1; } catch (eK) { return -1; } })(),
             burstLeft: Math.max(0, _aBurstUntil - Date.now()),
             focusTag: _aTextFocused ? String(_aTextFocused.tagName || '').toLowerCase() : '',
             watching: !!_aWatch,
@@ -1769,7 +1773,7 @@
           _aPrevH = h;
           var open = (!_aVvStale && h < _aH - 60); // 可视高度明显变小 = 键盘弹出（#236：残留读数闩抑制纯 vv 信号；真键盘不受影响——inner 同缩走原判/交互与回基准解锁）
           if (!open && h > _aH) _aH = h; // 无键盘时更新基准，地址栏变化不误判
-          if (open && !_aKb) { _aClosing = false; _aKb = true; _aKbAt = Date.now(); _aPhone.style.alignSelf = 'flex-start'; kbDockPanels(); _aProvClear(); }
+          if (open && !_aKb) { _aClosing = false; _aKb = true; _aVvShrunkSeen = true; _aKbAt = Date.now(); _aPhone.style.alignSelf = 'flex-start'; kbDockPanels(); _aProvClear(); }
           if (!open && _aKb) {
             // v3.27.x：键盘收起——动画期 visualViewport 还没回到无键盘基准（_aH）时，
             // 不要提前把 .phone 撑回全高 + 面板摘停靠。否则键盘收起动画中途就恢复：
@@ -1832,6 +1836,8 @@
                 nudgeInputVisible();
                 // v3.12.x：悬浮键盘推定停靠复查（vv 不反映键盘的内核走这里兜底）
                 _aProvCheck();
+                // #337：保底停靠后仍被盖（vv 诚实内核）→ 欠深自纠逐拍收紧
+                _aProvDeepen();
                 // v3.15.x：平移残留归零
                 _aPinPan();
                 // v3.14.x：vv 从小变大=键盘收回动画（摩托罗拉G100/雨见 focusout/
@@ -1851,7 +1857,14 @@
                 // v3.13.x：推定停靠自愈——vv 已到无键盘基准（键盘肉眼已收）但
                 // _aProv 仍顶住 58%、输入框保持聚焦干等 focusout 时，用户长时间
                 // 无任何交互即视为键盘已收，立即清除推顶，输入框马上回底
-                if (_aProv && _aVV.height >= _aH - 60 && Date.now() - _aLastAct > 2200) {
+                if (_aProv && _aVvShrunkSeen && _aVV.height >= _aH - 60 && Date.now() - _aLastAct > 2200) {
+                  // FIX 2026-09-11 #337：本会话 vv 从未真实收缩过（漂移/悬浮内核）时，
+                  // 「vv 回基准」不构成键盘已收的证据（读数本来就没动过）——不做此自愈，
+                  // 否则保底停靠被 2.2s 空闲自愈反复撤掉＝盖↔露抽风（无头 F1 实证：
+                  // 1400ms 停靠 490、2500ms 被撤回 844＝畅玩80Pro「完全盖住」的另一半
+                  // 成因）。真收键盘仍由失焦/真实 vv 变化/输入确认/切后台四条复原路接管；
+                  // vv 收缩过的正常内核（_aVvShrunkSeen=true）原自愈语义不变
+                  //（摩托罗拉G100「键盘已收焦点滞留」场景）。
                   _aProvClear();
                 }
               } else if (_aKb) {
@@ -1911,6 +1924,52 @@
           kbDockPanels();
           try { window.scrollTo(0, 0); } catch (e) {}
           _aPinPan(); // v3.15.x：推顶后残留的 vv 平移同样归零（K80 同症状）
+          _aProvVkRuler(base); // #337：Chromium 悬浮键盘改用 VirtualKeyboard 实测几何精停
+        }
+        // FIX 2026-09-11 #337：悬浮键盘实测尺（VirtualKeyboard API，Chromium 94+）——
+        // 畅玩80Pro 族无平移无读数变化，58% 盲猜对高占比输入法（实测 50~62%）停靠不足，
+        // 输入栏仍整行在键盘下。overlaysContent=true 后浏览器把键盘改纯悬浮并经
+        // geometrychange 实测上报几何，按 base−kbH 精确停靠。特性探测：不支持该 API 的
+        // 内核零影响；只在保底停靠已成立时启用（正常内核主路径 _aKb 停靠从不进保底，
+        // 行为零变化）；_aProvClear 复原时关回 overlaysContent 还原内核默认行为。
+        var _aVkOn = false;
+        function _aProvVkRuler(base) {
+          try {
+            var vk = navigator.virtualKeyboard;
+            if (!vk) return;
+            if (!_aVkOn) {
+              _aVkOn = true;
+              vk.overlaysContent = true;
+              vk.addEventListener('geometrychange', function () {
+                try {
+                  if (!_aProv || _aKb || !_aPhone) return;
+                  var kbH = Math.round((vk.boundingRect && vk.boundingRect.height) || 0);
+                  if (kbH < 80) return;
+                  var b2 = Math.min(_aH, _aIH);
+                  var ph2 = Math.max(240, Math.min(b2 - Math.max(kbH, 40), b2 - 40));
+                  if (_aPhone.style.height !== ph2 + 'px') _aPhone.style.height = ph2 + 'px';
+                } catch (eG) {}
+              });
+            }
+          } catch (eVk) {}
+        }
+        // FIX 2026-09-11 #337：欠深自纠——保底停靠后聚焦输入框仍被盖（可视性实测，
+        // 只在 vv 读数诚实的内核可判）⇒ 轮询每拍再收 8% 基准，直至露出或触底 34%。
+        // 只在 _aProv 态跑：主路径 _aKb 停靠高度=vv.height，元素天然可见永不进这里。
+        function _aProvDeepen() {
+          try {
+            if (!_aProv || _aKb) return;
+            var tgt = (_aIsText(_aTextFocused) ? _aTextFocused : null) ||
+              (_aIsText(document.activeElement) ? document.activeElement : null);
+            if (!tgt || !tgt.getBoundingClientRect) return;
+            var visBottom = (_aVV.offsetTop || 0) + _aVV.height;
+            var r = tgt.getBoundingClientRect();
+            if (!(r.height > 0 && _aCoverBottom(tgt) > visBottom + 12)) return; // 已露出
+            var base = Math.min(_aH, _aIH);
+            var cur = parseInt(_aPhone.style.height, 10) || Math.round(base * 0.58);
+            var ph = Math.max(Math.round(base * 0.34), cur - Math.round(base * 0.08));
+            if (ph < cur && _aPhone.style.height !== ph + 'px') _aPhone.style.height = ph + 'px';
+          } catch (eD) {}
         }
         // v3.29.x（#141）：推定收口——悬浮键盘内核收回键盘（focusout 不可靠、
         // vv 不变化时原 _aProvCheck 自愈最迟要等 2200ms 无活动），用户输入
@@ -1934,6 +1993,10 @@
         function _aProvClear() {
           if (!_aProv) return;
           _aProv = false;
+          // #337：保底停靠结束＝把键盘行为还给内核默认（vv 收缩模型），正常内核
+          // 下次聚焦仍走主路径；不支持该 API 的内核此行无效，零影响。
+          // _aVkOn 一并复位：下次保底停靠重新拉起实测尺（否则第二轮键盘会话没尺子）。
+          try { if (_aVkOn && navigator.virtualKeyboard) { navigator.virtualKeyboard.overlaysContent = false; _aVkOn = false; } } catch (eVkOff) {}
           if (_aKb) return; // 正常机制已接管 .phone 高度，交回原逻辑管理
           _aPhone.style.height = '';
           _aPhone.style.alignSelf = '';
@@ -1960,6 +2023,21 @@
                 Math.abs(_aVV.height - _aH) <= 2 &&
                 Math.abs(ih - _aIH) <= 2) {
               _aProvDock();
+            } else if (!_aKb && !_aProv &&
+                Date.now() - _aFocusAt > 900 &&
+                kbTouchArmed(tgt) &&
+                Date.now() > kbHardKeyUntil) {
+              // FIX 2026-09-11 #337：可见性触发停靠（第二判据：实测被盖才动作）——
+              // 荣耀畅玩80Pro 自带浏览器（X50 同族多机型）：键盘弹出时 vv 读数漂移/不缩
+              //（|vv−基线|≤2 恒不成立）→ 上面的读数判据永远不命中，输入栏整行留在键盘下。
+              // 改以「聚焦输入框实际底边低于可视区底边」为尺：被盖＝键盘在场的直接证据，
+              // 与内核读数无关。常规内核主路径几百 ms 内已 _aKb 停靠不进这里；程序化聚焦
+              // 无键盘（元素可见）也不进——零误触发面。高度仍由 _aProvDock 的尺子定。
+              try {
+                var _r = tgt.getBoundingClientRect ? tgt.getBoundingClientRect() : null;
+                var _visBottom = (_aVV.offsetTop || 0) + _aVV.height;
+                if (_r && _r.height > 0 && _r.bottom > _visBottom + 12) _aProvDock();
+              } catch (eV337) {}
             }
           } catch (e) {}
         }

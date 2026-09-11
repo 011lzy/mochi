@@ -1260,7 +1260,7 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
     const editing = Array.from(document.querySelectorAll('.app-grid')).some(g => g.classList.contains('editing'));
     if (editing) return;
     loadGroups(); // 进群前先取回群聊分组（可能在其他会话新建/删除过）
-    document.querySelectorAll('.page').forEach(p => p.hidden = true);
+    document.querySelectorAll('.page').forEach(p => { if (!p.hidden) p.hidden = true; }); // FIX #338 同值写也发 mutation（Blink 实测同值 3 连写=3 条记录），44 页全扫=唤醒全部页面观察器
     if (page) page.hidden = false;
     updateGroupName();
     loadMsgs();
@@ -1271,7 +1271,7 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
   }
   if (backBtn) backBtn.addEventListener('click', () => {
     saveNow();
-    document.querySelectorAll('.page').forEach(p => p.hidden = true);
+    document.querySelectorAll('.page').forEach(p => { if (!p.hidden) p.hidden = true; }); // FIX #338 同值写也发 mutation（Blink 实测同值 3 连写=3 条记录），44 页全扫=唤醒全部页面观察器
     const home = document.getElementById('page-phone'); if (home) home.hidden = false;
   });
 
@@ -2657,7 +2657,7 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
       // 切到聊天页（面板功能按钮的 handler 都在聊天页上下文；半框也在聊天页内）
       const chatPage = document.getElementById('page-chat');
       if (chatPage && chatPage.hidden) {
-        document.querySelectorAll('.page').forEach(p => p.hidden = true);
+        document.querySelectorAll('.page').forEach(p => { if (!p.hidden) p.hidden = true; }); // FIX #338 同值写也发 mutation（Blink 实测同值 3 连写=3 条记录），44 页全扫=唤醒全部页面观察器
         chatPage.hidden = false;
       }
     }, true);

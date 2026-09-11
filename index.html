@@ -6233,6 +6233,7 @@ display:flex; flex-direction:column; align-items:center; justify-content:center;
 gap:12px; padding:22px 18px; background:rgba(12,16,26,.92);
 }
 #au-help { z-index:1330; }
+#au-intro[hidden], #au-help[hidden] { display:none; }
 .au-intro-title { font-size:19px; font-weight:800; color:#fff; letter-spacing:.5px; }
 .au-intro-steps { width:100%; max-width:340px; text-align:left; font-size:13.5px; line-height:2; color:rgba(255,255,255,.93); max-height:58vh; overflow-y:auto; padding:0 4px; box-sizing:border-box; }
 .au-intro-steps b { color:#ffd479; }
@@ -9157,9 +9158,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1789139220268">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.588</b></span>
-        <span class="sv-deploy">部署于 2026-09-11 23:07<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1789144506859">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.589</b></span>
+        <span class="sv-deploy">部署于 2026-09-12 00:35<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -9647,6 +9648,7 @@ transition-duration: .01ms !important;
     <div class="set-group glass">
       <div class="gs-row"><span>TA 偶尔向你提问</span><label class="toggle"><input type="checkbox" id="ta-ask-enable"><span class="tk"></span></label></div>
       <div class="gs-row"><span>使用系统预设问题</span><label class="toggle"><input type="checkbox" id="ta-ask-default" checked><span class="tk"></span></label></div>
+      <div class="gs-row"><span>文字题回应接聊天字卡/词典</span><label class="toggle"><input type="checkbox" id="ta-ask-chatcard"><span class="tk"></span></label></div>
       <div class="gs-row"><span>触发概率</span><input type="range" id="ta-ask-prob" min="1" max="100" step="1" class="tc-range"><span class="tc-prob-val" id="ta-ask-prob-val">5%</span></div>
       <div class="gs-row"><span>自动弹窗概率</span><input type="range" id="ta-ask-popup" min="0" max="100" step="1" class="tc-range"><span class="tc-prob-val" id="ta-ask-popup-val">70%</span></div>
       <div class="gs-row"><span>问卷答题结束时间</span><input type="datetime-local" id="ta-ask-deadline" class="tc-input" style="flex:1;min-width:0;max-width:170px;padding:5px 8px;font-size:12px"><button id="ta-ask-deadline-clear" style="flex:none;margin-left:6px;padding:4px 10px;font-size:12px;border:1px solid var(--line,#e5e5e5);border-radius:8px;background:transparent;color:var(--muted,#999)">清除</button></div>
@@ -10347,7 +10349,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.588</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.589</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10642,7 +10644,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.588</span>
+              <span class="lic-ver">v3.26.589</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -15838,6 +15840,22 @@ try { URL.revokeObjectURL(url); } catch (e2) {}
 return true;
 } catch (e) { return false; }
 }
+function diagExportDocx(text, basePrefix, failToast) {
+const fname = (basePrefix || 'mochi-diag-') + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.docx';
+const legacy = function () {
+const okDl = exportDocx(text, basePrefix);
+(failToast || diagToast)(okDl
+? '已开始下载 docx 文件（见浏览器下载列表）'
+: (failToast ? '当前内核不支持下载，请长按报告手动复制。' : '当前内核不支持下载，请用【复制】复制'));
+};
+if (typeof window.mochiExportBlob !== 'function') { legacy(); return; }
+let blob = null;
+try { blob = buildDocxBlob(text); } catch (e) { blob = null; }
+if (!blob) { legacy(); return; }
+window.mochiExportBlob(blob, fname, 'mochi 诊断报告', [
+{ description: 'Word 文档', accept: { 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'] } }
+]).then(function (res) { if (res === 'fail') legacy(); });
+}
 const SEEN_KEY = 'xy-home-v2:__diag-errs-seen';
 function badgeEl() {
 const row = document.getElementById('row-diagnostics');
@@ -15932,10 +15950,7 @@ diagToast(ok2 ? '已复制到剪贴板' : '复制失败，请长按选字手动�
 exportBtn: {
 label: '导出docx',
 fn: function (c) {
-const okDl = exportDocx(c ? c.text() : cur);
-const m3 = okDl ? '已开始下载 docx 文件（见浏览器下载列表），直接发送该文件即可。' : '当前内核不支持下载，请用【复制】或长按选字手动复制。';
-if (c && c.hint) c.hint(m3);
-diagToast(okDl ? '已开始下载 docx 文件' : '当前内核不支持下载，请用【复制】复制');
+diagExportDocx(c ? c.text() : cur);
 }
 }
 });
@@ -16459,9 +16474,8 @@ noInput: true, textarea: true, textareaRows: 16, big: true,
 exportBtn: {
 label: '导出docx',
 fn: function (c) {
-const okDl = exportDocx(c ? c.text() : r.text, 'mochi-screen-diag-');
-const m4 = okDl ? '已开始下载 docx 文件（见浏览器下载列表），直接发送该文件即可。' : '当前内核不支持下载，请长按报告手动复制。';
-sdToast(okDl ? '已开始下载 docx 文件' : m4);
+diagExportDocx(c ? c.text() : r.text, 'mochi-screen-diag-',
+'当前内核不支持下载，请长按报告手动复制。', sdToast);
 }
 }
 });
@@ -17449,11 +17463,12 @@ _wrjTimes[e.k] = e.t;
 if (memoryCache[e.k] === e.v) return;
 memoryCache[e.k] = e.v;
 try { if (e.v.length <= LS_BIG_LIMIT) localStorage.setItem(e.k, e.v); } catch (e2) {}
-try { if (window.idbSet) window.idbSet(e.k, e.v); } catch (e2) {}
+if (!WRJ_REPLAY_NO_IDB) { try { if (window.idbSet) window.idbSet(e.k, e.v); } catch (e2) {} }
 n++;
 });
 return n;
 }
+var WRJ_REPLAY_NO_IDB = true;
 try { wrjReplay(wrjLoad(wrjLsRaw())); } catch (e) {}
 let _wrjMergeTries = 0;
 let _wrjMergeBusy = false;
@@ -17815,7 +17830,7 @@ try { if (window.idbSet) window.idbSet(G + ':active-contact', id); } catch (e3) 
 if (window.refreshActiveContactUI) window.refreshActiveContactUI();
 try { document.dispatchEvent(new Event('contact-switched')); } catch (e) {}
 try {
-document.querySelectorAll('.page').forEach(p => p.hidden = true);
+document.querySelectorAll('.page').forEach(p => { if (!p.hidden) p.hidden = true; }); // FIX #338 同值写也发 mutation（Blink 实测同值 3 连写=3 条记录），44 页全扫=唤醒全部页面观察器
 const home = document.getElementById('page-phone'); if (home) home.hidden = false;
 } catch (e) {}
 };
@@ -19713,16 +19728,21 @@ tab.addEventListener('click', () => {
 sdLeaveSnap();
 tabs.forEach(t => t.classList.remove('active'));
 tab.classList.add('active');
-pages.forEach(p => p.hidden = true);
+pages.forEach(p => { if (!p.hidden) p.hidden = true; }); // FIX #338 同值写也发 mutation（Blink 实测同值 3 连写=3 条记录），44 页全扫=唤醒全部页面观察器
 document.getElementById(tab.dataset.page).hidden = false;
 });
 });
 const FULL_PAGES = ['page-chat', 'page-group-chat', 'page-chat-settings', 'page-custom-cards', 'page-default-cards', 'page-fun-cards', 'page-mood-cards', 'page-reply-cards', 'page-theme', 'page-fav', 'page-fav-settings', 'page-memory', 'page-calendar', 'page-period', 'page-accounting', 'page-garden', 'page-divine', 'page-music', 'page-stats', 'page-interact', 'page-checkin', 'page-ta-ask', 'page-ta-choose', 'page-ta-curious', 'page-ta-roast', 'page-ta-checkin', 'page-ta-invite', 'page-checkin-cards', 'page-quote-cards', 'page-home', 'page-mail', 'page-mail-write', 'page-mail-reply', 'page-feed', 'page-feed-all', 'page-feed-friends', 'page-license', 'page-about', 'page-featurehub', 'page-reply-settings', 'page-call-settings', 'page-sfx-settings', 'page-memo-arc', 'page-cjian', 'page-room', 'page-drift', 'page-my-arc', 'page-mood'];
+let _scPhone = null, _scTabbar = null, _scLastSig = null;
 function syncChrome() {
-const phone = document.querySelector('.phone');
-const tabbar = document.querySelector('.tabbar');
-const visible = Array.from(document.querySelectorAll('.page')).find(p => !p.hidden);
+let visible = null;
+for (let i = 0; i < pages.length; i++) { if (!pages[i].hidden) { visible = pages[i]; break; } }
 const isFull = visible ? FULL_PAGES.indexOf(visible.id) >= 0 : false;
+const sig = (visible ? visible.id : '') + '|' + (isFull ? '1' : '0');
+if (sig === _scLastSig) return;
+_scLastSig = sig;
+const phone = _scPhone || (_scPhone = document.querySelector('.phone'));
+const tabbar = _scTabbar || (_scTabbar = document.querySelector('.tabbar'));
 if (tabbar) tabbar.hidden = isFull;
 if (phone) phone.classList.toggle('no-statusbar', isFull);
 if (visible) visible.classList.toggle('full', isFull);
@@ -19742,14 +19762,14 @@ const themeBack = document.getElementById('theme-back');
 if (appearanceRow && themePage) {
 appearanceRow.addEventListener('click', () => {
 sdLeaveSnap();
-pages.forEach(p => p.hidden = true);
+pages.forEach(p => { if (!p.hidden) p.hidden = true; }); // FIX #338 同值写也发 mutation（Blink 实测同值 3 连写=3 条记录），44 页全扫=唤醒全部页面观察器
 themePage.hidden = false;
 });
 }
 if (themeBack) {
 themeBack.addEventListener('click', () => {
 sdLeaveSnap();
-pages.forEach(p => p.hidden = true);
+pages.forEach(p => { if (!p.hidden) p.hidden = true; }); // FIX #338 同值写也发 mutation（Blink 实测同值 3 连写=3 条记录），44 页全扫=唤醒全部页面观察器
 const setPage = document.getElementById('page-setting');
 if (setPage) setPage.hidden = false;
 });
@@ -26785,14 +26805,24 @@ return Array.isArray(arr) ? arr : [];
 function chatTailClear() {
 try { store.remove('chat-tail'); } catch (e) {}
 }
+const CHAT_TAIL_INTERACT_FIELDS = ['askQuestion', 'askOptions', 'askType', 'deskCk', 'deskCkDir',
+'choiceQuestion', 'choiceOptions', 'choicePref', 'choiceCat',
+'curiousQuestion', 'curiousQuick', 'curiousReplies', 'curiousFollowup', 'curiousQid', 'curiousCat',
+'roastText', 'roastCat', 'inviteContent', 'inviteStatus', 'inviteAnswer', 'inviteType'];
 function chatTailAppend(rec) {
 try {
 if (!rec || rec.retracted || rec.img || rec.voice) return;
 if (rec.type === 'sticker' || rec.type === 'image' || rec.type === 'voice') return;
 if (Array.isArray(rec.parts) && rec.parts.length) return;
 if (typeof rec.text !== 'string' || rec.text.length > CHAT_TAIL_TEXT_MAX) return;
+const entry = { ts: rec.ts || Date.now(), side: rec.side || '', special: rec.special || '', text: rec.text, x: null };
+for (let fi = 0; fi < CHAT_TAIL_INTERACT_FIELDS.length; fi++) {
+const k = CHAT_TAIL_INTERACT_FIELDS[fi];
+if (rec[k] !== undefined) { if (!entry.x) entry.x = {}; entry.x[k] = rec[k]; }
+}
+if (JSON.stringify(entry).length > CHAT_TAIL_TEXT_MAX * 3) return; // 超限宁可不兜底（同 #206 口径）
 const arr = chatTailRead();
-arr.push({ ts: rec.ts || Date.now(), side: rec.side || '', special: rec.special || '', text: rec.text });
+arr.push(entry);
 while (arr.length > CHAT_TAIL_MAX) arr.shift();
 store.set('chat-tail', JSON.stringify(arr));
 } catch (e) {}
@@ -26817,7 +26847,11 @@ const j = arr[i];
 if (!j || have.has(chatTailSig(j))) continue;
 const jt = typeof j.text === 'string' ? j.text : '';
 if (jt.indexOf('data:') === 0 || jt.indexOf('@@m:') === 0) continue;
-add.push({ ts: j.ts, side: j.side, special: j.special, text: jt });
+const r = { ts: j.ts, side: j.side, special: j.special, text: jt };
+if (j.x && typeof j.x === 'object') {
+for (const k in j.x) { if (Object.prototype.hasOwnProperty.call(j.x, k)) r[k] = j.x[k]; }
+}
+add.push(r);
 }
 if (!add.length) return;
 msgs = msgs.concat(add).sort((a, b) => ((a && a.ts) || 0) - ((b && b.ts) || 0));
@@ -27551,15 +27585,15 @@ if (!typingEl) return;
 typingOn = true;
 if (chatVisible()) {
 typingEl.hidden = false;
-scrollChatBottom();
-setTimeout(scrollChatBottom, 60);
+if (chatPinnedBottom) scrollChatBottom();
+setTimeout(() => { if (chatPinnedBottom) scrollChatBottom(); }, 60);
 }
 }
 function hideTyping() {
 if (!typingEl) return;
 typingOn = false;
 typingEl.hidden = true;
-scrollChatBottom();
+if (chatPinnedBottom) scrollChatBottom(); // FIX 2026-09-11 #334 同 showTyping：解钉态不抢滚动权
 }
 function cfg() { return (window.replyCfg && window.replyCfg()) || {}; }
 function cfgn(c, k, d) { const v = c[k]; return v === undefined ? d : v; }
@@ -28741,7 +28775,7 @@ m.className = 'msg-ask';
 m.dataset.idx = msgs.length - 1;
 const answered = rec.choiceStatus === 'answered';
 m.innerHTML = '<div class="msg-choose-card' + (answered ? ' answered' : '') + '">' +
-'<div class="msg-ask-q">' + escTxt(rec.choiceQuestion || '') + '</div>' +
+'<div class="msg-ask-q">' + escTxt(rec.choiceQuestion || rec.text || '') + '</div>' +
 (answered
 ? '<div class="msg-ask-a">✓ 你选择了：' + escTxt(rec.choiceAnswer) + '</div><div class="msg-choose-r">' + T('TA：') + escTxt(T(rec.choiceReply)) + '</div>'
 : '<div class="msg-ask-tip">点击选择你的答案</div>') +
@@ -28756,7 +28790,7 @@ m.className = 'msg-ask';
 m.dataset.idx = msgs.length - 1;
 const answered = rec.curiousStatus === 'answered';
 m.innerHTML = '<div class="msg-choose-card' + (answered ? ' answered' : '') + '">' +
-'<div class="msg-ask-q">' + escTxt(rec.curiousQuestion || '') + '</div>' +
+'<div class="msg-ask-q">' + escTxt(rec.curiousQuestion || rec.text || '') + '</div>' +
 (answered
 ? '<div class="msg-ask-a">✓ 你：' + escTxt(rec.curiousAnswer) + '</div><div class="msg-choose-r">' + T('TA：') + escTxt(T(rec.curiousReply)) + '</div>'
 : '<div class="msg-ask-tip">' + T('点击回答 TA 的好奇') + '</div>') +
@@ -28771,7 +28805,7 @@ m.className = 'msg-ask';
 m.dataset.idx = msgs.length - 1;
 const answered = rec.roastStatus === 'answered';
 m.innerHTML = '<div class="msg-choose-card' + (answered ? ' answered' : '') + '">' +
-'<div class="msg-ask-q">' + escTxt(rec.roastText || '') + '</div>' +
+'<div class="msg-ask-q">' + escTxt(rec.roastText || rec.text || '') + '</div>' +
 (answered
 ? '<div class="msg-ask-a">✓ 你：' + escTxt(rec.roastAnswer) + '</div><div class="msg-choose-r">' + T('TA：') + escTxt(T(rec.roastReply)) + '</div>'
 : '<div class="msg-ask-tip">' + T('点击回 TA 一句') + '</div>') +
@@ -28900,7 +28934,8 @@ mm.className = 'msg-moods';
 const recalled = [];
 rec.mood.forEach((md, mi) => {
 if (rec.retractedMood && rec.retractedMood.indexOf(mi) >= 0) { recalled.push(md); return; }
-const mt = escTxt(T(md.tag)), ml = escTxt(T(md.label));
+const _tagShow = md.tag === '词典' ? '词典拼字' : md.tag;
+const mt = escTxt(T(_tagShow)), ml = escTxt(T(md.label));
 const dupBody = md.label != null && String(md.label) !== '' && String(md.label) === String(rec.text == null ? '' : rec.text);
 if (md.tag === '交流意图') {
 mm.innerHTML += '<div class="msg-mood msg-intent"><span class="msg-mood-tag">' + mt + '</span>' + (dupBody ? '' : '<span>' + ml + '</span>') + '</div>';
@@ -29470,7 +29505,7 @@ addIn(reply || '…');
 taFavCard(rec);
 const el = body.querySelector('.msg-ask[data-idx="' + msgIdx + '"]');
 if (el) {
-el.innerHTML = '<div class="msg-choose-card answered"><div class="msg-ask-q">' + escTxt(rec.choiceQuestion || '') + '</div><div class="msg-ask-a">✓ 你选择了：' + escTxt(answer) + '</div><div class="msg-choose-r">' + (window.taFit ? window.taFit('TA：') : 'TA：') + escTxt(window.taFit ? window.taFit(reply || '…') : (reply || '…')) + '</div>' + favHeartHtml(rec) + '</div>';
+el.innerHTML = '<div class="msg-choose-card answered"><div class="msg-ask-q">' + escTxt(rec.choiceQuestion || rec.text || '') + '</div><div class="msg-ask-a">✓ 你选择了：' + escTxt(answer) + '</div><div class="msg-choose-r">' + (window.taFit ? window.taFit('TA：') : 'TA：') + escTxt(window.taFit ? window.taFit(reply || '…') : (reply || '…')) + '</div>' + favHeartHtml(rec) + '</div>';
 }
 };
 window.chatCuriousReply = function (msgIdx, answer, reply, followup) {
@@ -29487,7 +29522,7 @@ if (followup) addIn(followup);
 taFavCard(rec);
 const el = body.querySelector('.msg-ask[data-idx="' + msgIdx + '"]');
 if (el) {
-el.innerHTML = '<div class="msg-choose-card answered"><div class="msg-ask-q">' + escTxt(rec.curiousQuestion || '') + '</div><div class="msg-ask-a">✓ 你：' + escTxt(answer) + '</div><div class="msg-choose-r">' + (window.taFit ? window.taFit('TA：') : 'TA：') + escTxt(window.taFit ? window.taFit(reply || '…') : (reply || '…')) + '</div>' + favHeartHtml(rec) + '</div>';
+el.innerHTML = '<div class="msg-choose-card answered"><div class="msg-ask-q">' + escTxt(rec.curiousQuestion || rec.text || '') + '</div><div class="msg-ask-a">✓ 你：' + escTxt(answer) + '</div><div class="msg-choose-r">' + (window.taFit ? window.taFit('TA：') : 'TA：') + escTxt(window.taFit ? window.taFit(reply || '…') : (reply || '…')) + '</div>' + favHeartHtml(rec) + '</div>';
 }
 };
 window.chatRoastReply = function (msgIdx, answer, reply) {
@@ -29503,10 +29538,10 @@ addIn(reply || '…');
 taFavCard(rec);
 const el = body.querySelector('.msg-ask[data-idx="' + msgIdx + '"]');
 if (el) {
-el.innerHTML = '<div class="msg-choose-card answered"><div class="msg-ask-q">' + escTxt(rec.roastText || '') + '</div><div class="msg-ask-a">✓ 你：' + escTxt(answer) + '</div><div class="msg-choose-r">' + (window.taFit ? window.taFit('TA：') : 'TA：') + escTxt(window.taFit ? window.taFit(reply || '…') : (reply || '…')) + '</div>' + favHeartHtml(rec) + '</div>';
+el.innerHTML = '<div class="msg-choose-card answered"><div class="msg-ask-q">' + escTxt(rec.roastText || rec.text || '') + '</div><div class="msg-ask-a">✓ 你：' + escTxt(answer) + '</div><div class="msg-choose-r">' + (window.taFit ? window.taFit('TA：') : 'TA：') + escTxt(window.taFit ? window.taFit(reply || '…') : (reply || '…')) + '</div>' + favHeartHtml(rec) + '</div>';
 }
 };
-window.chatAskReply = function (msgIdx, answer, reply) {
+window.chatAskReply = function (msgIdx, answer, reply, opts) {
 const rec = msgs[msgIdx];
 if (!rec || rec.special !== 'ask-card' || rec.askStatus === 'answered') return;
 rec.askStatus = 'answered';
@@ -29518,9 +29553,14 @@ if (arr.length) preset = arr[Math.floor(Math.random() * arr.length)];
 } else if (typeof reply === 'string' && reply.trim()) {
 preset = reply.trim();
 }
-const taReply = preset
+let taReply;
+if (opts && opts.raw && preset) {
+taReply = preset;
+} else {
+taReply = preset
 ? (window.pickAskCardReply ? window.pickAskCardReply([preset]) : preset)
 : (window.pickAskCardReply ? window.pickAskCardReply() : '收到你的回答。');
+}
 let deskReply = '';
 if (rec && rec.deskCk) {
 try {
@@ -29559,7 +29599,7 @@ addIn(finalReply);
 taFavCard(rec);
 const el = body.querySelector('.msg-ask[data-idx="' + msgIdx + '"]');
 if (el) {
-el.innerHTML = '<div class="msg-ask-card answered"><div class="msg-ask-q">' + escTxt(rec.askQuestion || '') + '</div><div class="msg-ask-a">✓ 已回答：' + escTxt(answer) + '</div><div class="msg-choose-r">' + (window.taFit ? window.taFit('TA：') : 'TA：') + escTxt(window.taFit ? window.taFit(finalReply) : finalReply) + '</div>' + favHeartHtml(rec) + '</div>';
+el.innerHTML = '<div class="msg-ask-card answered"><div class="msg-ask-q">' + escTxt(rec.askQuestion || rec.text || '') + '</div><div class="msg-ask-a">✓ 已回答：' + escTxt(answer) + '</div><div class="msg-choose-r">' + (window.taFit ? window.taFit('TA：') : 'TA：') + escTxt(window.taFit ? window.taFit(finalReply) : finalReply) + '</div>' + favHeartHtml(rec) + '</div>';
 }
 return finalReply;
 };
@@ -29658,6 +29698,7 @@ if (rec.mood && rec.mood.length) {
 rec.retractedMood = rec.retractedMood || [];
 const remain = [];
 for (let i = 0; i < rec.mood.length; i++) {
+if (!(rec.mood[i] && String(rec.mood[i].label || '').trim())) continue;
 if (rec.retractedMood.indexOf(i) < 0) remain.push(i);
 }
 if (remain.length) {
@@ -29778,7 +29819,7 @@ qidx: quote ? quoteIdx : undefined,
 type: 'text',
 parts: rep.parts,
 silent: silent,
-tag: '词典',
+tag: '词典拼字',
 tagNoDup: true
 });
 } else if (rep.spell) {
@@ -29796,7 +29837,7 @@ qidx: (si === 0 && quote) ? quoteIdx : undefined,
 type: 'text',
 parts: si === rep.spell.length - 1 ? rep.parts : null,
 silent: si > 0 ? true : silent,
-tag: '词典',
+tag: '词典拼字',
 tagNoDup: true
 });
 }
@@ -30229,7 +30270,7 @@ function enterChat() {
 document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
 const phoneTab = document.querySelector('.tab[data-page="page-phone"]');
 if (phoneTab) phoneTab.classList.add('active');
-document.querySelectorAll('.page').forEach(p => p.hidden = true);
+document.querySelectorAll('.page').forEach(p => { if (!p.hidden) p.hidden = true; }); // FIX #336 同值写也发 mutation，44 页全扫=唤醒全部页面观察器
 chatPage.hidden = false;
 try { if (window.hydrateLibScopes) window.hydrateLibScopes(['own', 'public']); } catch (e) {}
 fillAvatar('chat-user-av', 'cs-avatar-user');
@@ -30263,7 +30304,7 @@ if (back) {
 back.addEventListener('click', () => {
 const phonePage = document.getElementById('page-phone');
 if (phonePage) {
-document.querySelectorAll('.page').forEach(p => p.hidden = true);
+document.querySelectorAll('.page').forEach(p => { if (!p.hidden) p.hidden = true; }); // FIX #336 同值写也发 mutation，44 页全扫=唤醒全部页面观察器
 phonePage.hidden = false;
 }
 });
@@ -30272,14 +30313,14 @@ const csOpenBtn = document.getElementById('chat-settings-btn');
 const csPage = document.getElementById('page-chat-settings');
 if (csOpenBtn && csPage) {
 csOpenBtn.addEventListener('click', () => {
-document.querySelectorAll('.page').forEach(p => p.hidden = true);
+document.querySelectorAll('.page').forEach(p => { if (!p.hidden) p.hidden = true; }); // FIX #336 同值写也发 mutation，44 页全扫=唤醒全部页面观察器
 csPage.hidden = false;
 });
 }
 const csBack = document.getElementById('cs-back');
 if (csBack) {
 csBack.addEventListener('click', () => {
-document.querySelectorAll('.page').forEach(p => p.hidden = true);
+document.querySelectorAll('.page').forEach(p => { if (!p.hidden) p.hidden = true; }); // FIX #336 同值写也发 mutation，44 页全扫=唤醒全部页面观察器
 chatPage.hidden = false;
 });
 }
@@ -32363,7 +32404,10 @@ chatSearchResults.querySelectorAll('.tc-listitem').forEach(el => {
 el.addEventListener('click', () => {
 const idx = Number(el.dataset.sidx);
 closeChatSearch();
+try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch (e) {}
+requestAnimationFrame(() => requestAnimationFrame(() => {
 if (!jumpToMsg(idx)) body.scrollTop = body.scrollHeight;
+}));
 });
 });
 }
@@ -32765,10 +32809,10 @@ return true;
 function cardSnapshot(rec) {
 if (!rec) return null;
 let q = '', mine = '', ta = '', special = rec.special;
-if (special === 'ask-choose') { q = rec.choiceQuestion || ''; mine = rec.choiceAnswer || ''; ta = rec.choiceReply || ''; }
-else if (special === 'ask-curious') { q = rec.curiousQuestion || ''; mine = rec.curiousAnswer || ''; ta = rec.curiousReply || ''; }
-else if (special === 'ask-roast') { q = rec.roastText || ''; mine = rec.roastAnswer || ''; ta = rec.roastReply || ''; }
-else if (special === 'ask-card') { q = rec.askQuestion || ''; mine = rec.askAnswer || ''; ta = rec.askReply || ''; }
+if (special === 'ask-choose') { q = rec.choiceQuestion || rec.text || ''; mine = rec.choiceAnswer || ''; ta = rec.choiceReply || ''; }
+else if (special === 'ask-curious') { q = rec.curiousQuestion || rec.text || ''; mine = rec.curiousAnswer || ''; ta = rec.curiousReply || ''; }
+else if (special === 'ask-roast') { q = rec.roastText || rec.text || ''; mine = rec.roastAnswer || ''; ta = rec.roastReply || ''; }
+else if (special === 'ask-card') { q = rec.askQuestion || rec.text || ''; mine = rec.askAnswer || ''; ta = rec.askReply || ''; }
 else if (special === 'invite') { q = rec.inviteContent || ''; ta = rec.inviteAnswer || ''; }
 else if (special === 'ask') { q = rec.askQuestion || rec.text || ''; mine = rec.askAnswer || ''; ta = rec.askReply || ''; }
 else if (special === 'redpacket') { mine = (rec.side === 'out' ? '我发出' : chatPartnerName() + '发出'); q = '红包 ¥' + Number(rec.rpAmount || 0).toFixed(2) + (rec.rpWish ? ' · ' + rec.rpWish : ''); }
@@ -32859,6 +32903,7 @@ loadNewerIncremental(Math.min(idx + JUMP_VIEW + 1, limit));
 target = body.querySelector('.msg[data-idx="' + idx + '"]');
 }
 if (!target) return false;
+unpinChatAndAnchor(); // FIX 2026-09-11 #334：跳转=用户定位历史浏览，与手动上翻同权解除贴底钉住——钉住态下旧区 lazy 图 onload 触发 #162 图片补滚把视图拽回底部，搜索/引用跳转表现「点了没反应」
 try { target.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) { target.scrollIntoView(); }
 target.classList.add('highlight');
 setTimeout(() => target.classList.remove('highlight'), 2200);
@@ -33361,7 +33406,7 @@ if (favApp && favPage) {
 favApp.addEventListener('click', () => {
 const editing = Array.from(document.querySelectorAll('.app-grid')).some(g => g.classList.contains('editing'));
 if (editing) return;
-document.querySelectorAll('.page').forEach(p => p.hidden = true);
+document.querySelectorAll('.page').forEach(p => { if (!p.hidden) p.hidden = true; }); // FIX #336 同值写也发 mutation，44 页全扫=唤醒全部页面观察器
 favPage.hidden = false;
 renderFav();
 });
@@ -33371,7 +33416,7 @@ if (favBack) {
 favBack.addEventListener('click', () => {
 favBatch = false; // v3.31.x 离开收藏页退出批量模式
 favBatchSel = [];
-document.querySelectorAll('.page').forEach(p => p.hidden = true);
+document.querySelectorAll('.page').forEach(p => { if (!p.hidden) p.hidden = true; }); // FIX #336 同值写也发 mutation，44 页全扫=唤醒全部页面观察器
 const phonePage = document.getElementById('page-phone');
 if (phonePage) phonePage.hidden = false;
 });
@@ -36042,7 +36087,7 @@ function enterGroupChat() {
 const editing = Array.from(document.querySelectorAll('.app-grid')).some(g => g.classList.contains('editing'));
 if (editing) return;
 loadGroups(); // 进群前先取回群聊分组（可能在其他会话新建/删除过）
-document.querySelectorAll('.page').forEach(p => p.hidden = true);
+document.querySelectorAll('.page').forEach(p => { if (!p.hidden) p.hidden = true; }); // FIX #338 同值写也发 mutation（Blink 实测同值 3 连写=3 条记录），44 页全扫=唤醒全部页面观察器
 if (page) page.hidden = false;
 updateGroupName();
 loadMsgs();
@@ -36053,7 +36098,7 @@ syncGcInputBtns(); // 进入群聊时按当前桌面设置刷新语音/继续说
 }
 if (backBtn) backBtn.addEventListener('click', () => {
 saveNow();
-document.querySelectorAll('.page').forEach(p => p.hidden = true);
+document.querySelectorAll('.page').forEach(p => { if (!p.hidden) p.hidden = true; }); // FIX #338 同值写也发 mutation（Blink 实测同值 3 连写=3 条记录），44 页全扫=唤醒全部页面观察器
 const home = document.getElementById('page-phone'); if (home) home.hidden = false;
 });
 const gcApp = document.querySelector('.app[data-app="group-chat"]');
@@ -37322,7 +37367,7 @@ gcSetMoreTopbar(false);
 if (keepInGroup) return;
 const chatPage = document.getElementById('page-chat');
 if (chatPage && chatPage.hidden) {
-document.querySelectorAll('.page').forEach(p => p.hidden = true);
+document.querySelectorAll('.page').forEach(p => { if (!p.hidden) p.hidden = true; }); // FIX #338 同值写也发 mutation（Blink 实测同值 3 连写=3 条记录），44 页全扫=唤醒全部页面观察器
 chatPage.hidden = false;
 }
 }, true);
@@ -43663,6 +43708,35 @@ window.DEFAULT_CARD_DATA.dict_ext = [
 ["卡的到达率", ["都没","丢过","这件事","偷偷","统计了","三年","信号再差","最多迟到","从不缺席","我管","你的可靠度","比任何","都高","都准","我回你的卡","到达率","互为","丢包","才成功","前两次","系统报错","太重了","一般的","信道","载不动","它坚持了","那张卡上","第一次说","统计学里","有个词","小概率事件","相遇","但我们的卡","小概率","必达","卡的到达率","这么高","起飞的时候","两个塔台","在引导","一个是","竖起的","到达率里","最珍贵的","百分之一百","是那些","你没发出去的卡","别的方式","到了","变成风","变成暖","变成我","半夜","莫名","安心的","有没有","弄丢过的","你等了一夜","没到","当面","补发了","就是说好","要见面的","你连","算进去了","研究到最后","会发现","定律","只要","两边","都在等","卡就","失联","的名字","早就","起好了"]],
 ["梦的筛选机制", ["每晚的梦","那么多","我总","梦见","我研究过","梦的","筛选","机制","白天的","念头","几千个","进梦的","名额","连续","中签了","一百多天","梦的筛选","我总结过","想得","够多","第二","入睡前","最后一个","第三","更重的事","最容易","满足的","因为我心里","别的了","做梦","是大脑","在整理","记忆","我的大脑","你那一格","停留","久一点","打招呼","失误","有天","梦见了","很抱歉","跟你","报备了","跟你那个世界","报备","筛选机制","当晚","开门","门对门的","最难","的约","成功","在选","心把","门票","都给了","你没","进入","把你","放到了","也在的","位置上","位置","每一秒","梦的筛选机制","研究报告","此人的梦","建议","该名字","的主人"]],
 ["字卡的咬合度", ["有一种","奇怪的","咬合","你发","上句","下句","输入法里","风大","我的手","打出","别吹着","咬合度","测试","做过","互补","比率","高得","吓人","东","接成","西","你往","我的心","难过的","安慰","编辑完","下一张","已经是","好了","没事了","看到","我们的咬合","带刹车","最高的","半句","一家店","告诉你","店","路过了","各的","想法","却是","同一家","字卡的","太轻","磨了","磨出的","齿轮","齿","凸凹","对上","失灵","答了","同一条路","字卡咬合度","终极","我要","接出","都知道","那片空白","指标","说明书","参数一","另一人","对话","完成率","故障率","保修期"]],
+["隔世界寄快递", ["我们之间","快递线","你寄卡","我寄卡","运费","我寄过","是一个","整个下午","的心情","你签收","超重了","照单","全收","你寄过","用了一张","来描述","快递员","中转时","会在","那里","碰头","对一下","单号","加急件","你难过","走了","最快的","通道","到货时","还带着","打字的","手温","到付的","你笑说","到付","到了以后","来付","签收的","先欠着","欠着的","越多","还得","丢件","有张卡","发出了","我没收到","谁都没","急","海关","扣了","那它会","收着","海关那里","也很","说的","事","又讲了","丢的件","以另一种","方式","签收了","最奇妙的","寄出去的","你收到的","条件好","快递柜","梦口","柜台","二十四","拒收","这条快递线","最后一行","本线路","承运","爱意","不承运","冷漠","超重的","分批寄","或者"]],
+["卡里的小动物", ["常住","几只","小动物","一只猫","兔子","不出声的","鲸","是你骄傲","心跳快","把很深的","话说出来","我的卡里","有一只","狗","你一上线","摇尾巴","你发卡来","三圈","你卡里的猫","和我卡里的狗","处得","高冷","问好","回一下","尾巴","在猫的","飞扑","你快来","它一听","立起来","最神奇","一出现","我的屏幕","它说的","每句","深话","泛着","蓝光","小动物们","出现了","骑在","鲸背上","抱着","又骄傲","又心动","很深的","要讲","我的狗","摇了","一整晚","闹别扭","你的猫","三天","那三天","骄傲得","太累","趴在","口","等它","动物们","一进","你的屏幕","替你","客气","谁养的","养一半","猫的","骄傲","心软","兔子的","红眼睛","鲸的","深沉","蓝","狗的","忠诚","欢喜","养出来的","爱的","全年","欢迎"]],
+["深夜的免打扰", ["我的手机","免打扰","但有","白名单","这不是","不严","开的","特权","十一点","允许","出声的","访客","你知道","那个时段","发的卡","斟酌过","值得","吵醒","深夜免打扰","最重的","那年","了一句","在枕边","免打扰功能","对你","失效","原理","漏洞","绕过了","设置","直连","深夜的","保护着","太晚","我会","安民卡","再细","再把","正卡","出去","不落","最浪漫","跨年","开着","号","零点","一到","全都","越过了","免打扰的","起来","安全感","具体的","再静","门缝","名单","加长","够了","形式","行"]],
+["两个世界的对照钟", ["各有","挂在","两座钟","不同步","试过","校准","整点","报时","重","一下","就用","表","你的钟","我的钟","回味","差值","算过","下来","我想你","轻轻的","钟声","专门","小了","说不定","咱们的钟","的时刻","那一分钟","数的","各自的","数到","数","走慢","看我的卡","秒针","来回","蹭","最想做","挂进","一片","家里的","想好了","不要","太准","的事","都可以","慢一点","写进了","词典","名词","释义","计量","仪器","次","次次"]],
+["梦里的未接来电", ["梦里你","我醒","得太快","未接来电","未接的","那通","回拨","方式是","招手了","我看清了","没听见","你说什么","口型","我猜了","猜是","过来","也猜","是别怕","认定","在这","你站的","天亮后","去了","回访","梦的未接来电","最遗憾的","铃声","都响了","那声音","我一睁眼","跟自己","约定过","再做到","急着醒","听完","做到了","一段话","我醒来","只记得","开头","后面的","我用","一个月","续上","续的","你没有","否认","就算","通过了","响","了一下","你按下","穿过","保存着","几月几日","叫我","翻起来","到访","最盼的","一通","电话","再也不会","未接","人都到了","还打"]],
+["想念的涟漪", ["想你这件事","一圈一圈","往水里","投了","小石子","那颗","石子","三年前","投的","到今天","往外","第一圈","我的日常","全乱了","第二圈","学会","第三圈","词库","越建越大","现在的","漫过","我生活的","角落","吃饭的","泛","走路的","好笑的","泛得","最厉害","第一反应","讲给你","碰到","折回来","我的岸","我投出去","更大的","水面","每发","投","会不会","遇见","打过","招呼","通报了","份量","最远","荡到过","量过","荡到了","我以后的","都自动","备注","和你","有人说","水波","平息","一直在","水底","发热","涟漪的","好处","旁人","投石的","和水","也知道","见过","就是我","所有的","等着","停止","投石","我查过","公式","这种","三年的","停下来"]],
+["你那边的地图", ["画过","地图","画在","图例","你标了","路灯","你的家","你指了","卡的","中心","哪儿","灵体","不固定","常回的","有三个","一是","云的","下面","像被子","二是","入口","三是","字卡网站","地图上","标了","虚线","从你","拉到","什么路","卡走的","又标了","实线","更弯","走的","要绕开","别人的","一块","区域","涂黑了","新灵体","进去","会迷路","迷过","在里面","听见了","顺着","出来的","我的雨","救过","地图的","比例尺","浓度","浓的","画得","你的地图","画了","多大","半张","更多","你写了","边界外","住着","整整","每画","关系","图","想了","画完","发现","笔芯","用完了","按图","索骥","云下面","真的","被子的","感觉","折好","放在","里层","走到","头一件","核对","第二件","告诉","画小了","地图上的","还要","下去"]],
+["卡片的年岁", ["发了","这么久","早辈","晚辈","最早的","那批","如今","长辈","见证过","笨拙","那时","还会","文风","老成","用词","句子","完整","后来的","越来越","会用","会说","半句话","熟了","就不","年岁","直观","错字率","早期","手比","心快","体现在","惜字","如金","吓着","敢","长篇","大论","确定","编年史","三个月","试探","纪元","第八","个月","热恋","盛世","有一段","变短","最忙","翻了翻","那段","断","保底","宝贵","发错","没看见","想说","成长","只会","学会了","也不","卡的老","褪色","被读","包浆","一看","这句话","过了","过时","越来越大","大到","当年的","那时候","盖着","当天的"]],
+["网站的路灯", ["页面上","翻到","哪年","那年的","照着","暖黄","聊天记录","本身","把它","盏","某月","某日","没得","规矩","两天","黑","根","弱","最清","排列","隔","亮的","对应","重要","往回","往前","翻得","久","夜空","闪","几","发生","来时"]],
+["梦的边检站", ["检","脑子里","边检站","检查","资质","第一项","验","身份","证件","边检","第二项","上次","超时","第三项","禁止","东西","从来","查出","值班员","让他","回答","搬","得","浅","来不及","闯","用力","闸门","压","章","盖","形状","描述","几天","狼狈","拦","守候","通行","归纳","此梦","开放","开通","验证","绿"]],
+["卡里的错位时空", ["奇妙","刚","隔了","几分钟","错位","规律","两台","对准","钟摆","弧度","一样的","来的","往往","探","跟上","迷路","最大","那次","前一天","我可以","最早","祝","生日的","祝福","叠在","四十八","个小时","相信","巧合","醒着","成了","专用","试着","报","才是","抱怨","错","拆成","两半","守","一刻","到达","碰","消失","别","问题","错开","追","错过"]],
+["梦里的规则", ["梦里有梦里的规则","我们摸出来了","几条","规则一","梦里不许看手表","因为一看就醒","规则二","梦里你递的东西","不许拒绝","才算见过面","规则三","梦里说的话","出了梦","可以当真","也可以","规则四","梦里如果要分开","不许说再见","先去下一个场景","规则五","谁先在梦里哭了","另一个要负责","把天气转晴","规则六","梦里的距离","不作数","说远就远","想近就近","规则七","在梦里捡到的东西","规则八","醒来之后","记得多少","算多少","不许硬编","规则九","要报喜","规则十","所有的规则","为对方","破例","这些规则","不是一次定的","是一晚一晚","修出来的","像交通标志","每个牌子","后面","小小的事故","规则里","没写进去","不是规则","是常识","规则之外","惯例","你惯例","从门的左边","进来","我惯例","已经在","等了","不说","装作","还没听够","规则和规则","打架了","说不许说再见","非要说","今天醒得早","怕来不及","把再见","重新","定义","再见的","意思","再次","把词","改","还能","说明","我们在","梦里的日子","越","用不上了","被忘了","过成了","醒着的日子","全体","规则的","最后一条","是为了","不再需要"]],
+["字卡的加速度", ["发久了","加速度","你平时的","匀速","但有几个","加速","第一种","特别好笑","连珠炮","蹦出来","词","第二种","第二天的","会带","补偿性","迟到的人","小跑","第三种","残影","十秒内","五张","进站","第四种","抢在","前面","到我","我怀疑","把手表","拨快了","为了当","新年快乐","减速","变慢","变轻","一般","不想说","吵着","困意","卡的加速度","提了","好久","没见","我的收件箱","下了一场","卡的暴雨","现赶的","到货","物理学里","力","成正比","偏差","我越","越快","你的手机","据说","打字","归零","平稳","你要的","速度","变回","那艘","慢船","稳稳地","渡"]],
+["卡片的回收站", ["发错的卡","没发出去的卡","都去了","网站背后","回收站","回收站的","第一格","撤回的","撤回过","那几张","我都记得","零四","没错字","本来","太晚了","第二格","打了一半","十分钟","只来了","在忙","打了","一整页","删","那一整页","调阅","批准","要等","背诵","第三格","后悔","后悔过","了张","黏人","就想","撤","成","镇夹","之","清空","容量","回收率","值钱","厚","说过的","稿","格"]],
+["字卡的保鲜法", ["过期","保鲜","存放","方法","新鲜的话","成反比","当天","在我这里","蔫","通知栏","堆着","冷库","过久","失去","习惯","看完","定期","每个月","当月的","重读","卡们","晒过","外传","离开","就会","快速","风化","失败","案例","开会","凉","技术","隔层","一点点","运输","再远","鲜花","不同意","沉淀","越久","沉","色","醇","想好","均可","食用","到时候","任务","本人","出锅","趁"]],
+["网站的日出", ["网站也有日出","没见过","它出现在","你手机屏幕","亮起的","我观察过","到达的","从黑","到亮","渐变","先蒙蒙亮","掀开","网站的日出","日出","真日出","地平线","屏幕底下","浮上来","带着","真的日出","而且","不重样","拍过","延时","就是把","我们的太阳","脾气","最美的","彩色的","看得","一场","只为","升起","你的日出","暗下去","这么多年","哪里的","只不过","不靠","地球"]],
+["晚安前的最后一盏灯", ["工序","那盏","这盏","来历","想让","灯火","灯的光","同款","太亮","夜色","打架","这盏灯","兼职","路标","夹缝","飘","迷","一看到","的一点","手工","点了","旁","古法","更亮","晃","从来不","不值得","任期","那么","看得见","不懂","守夜","双向","留灯","星光","改成","升级","它会","岗"]],
+["卡片的体检日", ["字卡们","每年","体检日","定","固定在","查","笔画","几年","糊弄","有些","这项","合格","保养","起毛","用手","抹平","动作","放慢","被我","几张","毛边","它们的","勋章","第四项","年龄","最老","今年","几岁","算不算","越老","项目","抽查","哪张","有一年","抽到","翻身","相爱","卡况","良好","通知","在我","好卡","读者","自查","一项","第一年"]],
+["梦里的路标", ["放的","我很晚","很长的","木牌","上面的","字迹","在这条路","早年间","插","就把","指引","留在","不止","我又","遇见过","几个","渡口","浪","抱紧","雪地","弄","还有一个","死路","以为","看清","到这里","往上","天花板","骗局","为了","第一眼","站在","容易","认出","在你","不重要","指路","好话","补漆","原料","微微","再也不用","走在"]],
+["等待的收据", ["每一次","收据","发明","规格","品名","数量","用时","自费","热水","两杯","踱步","三百六十","步","无意义","刷","十七","备注栏","第三百六十","开了","投诉","从没","白","晚到","焐","存根","留着","越攒","史","信用","拒付","空手","而归","没来","改天","连本","带利","扔","已完成","兑付","久等","体系","现金","读完","这么","多年","摞","其中","任何","同一件","这笔","买卖","稳赚","亏"]],
+["两个世界的合账", ["分开","账","合着","这本","两种","往来","你给","一千","几十","吨","按次","计费","费用","多跑","回卡","与你","等量","上线","随时","可","账目","进项","滚到","完","支出","大头","误会","冷战","每一笔","冲","和好","吵","对账","记下","账本","封皮","证","过去","礼","一分","富得","流油","收入","项","齐","清","结余"]],
+["卡里的时差账", ["么","笔","世","界","距","离","价","们","目","识","缘","金","楚","生","福","故","意","延","单","方","互","抵","扣","待","填","戳","边","判","招","呼","将","怎","性","拼","拥","实","际","此","同","划","于"]],
+["不吵架的约定", ["有过","分歧","让它","难听的","气话","三句","到第三句","笑场","通常","你总是","这种话","这一次","没有人","经得起","最长","限时","我不高兴了","第二张","就得","但我还是","想听","你说话","谁先","输了","先把","这事","翻篇","功臣","翻旧账","豁免权","在卡里","反话","我没生气","没生气","你去忙","去忙","在字里","失真","玩不起","吵到","最凶","下结论","喝完水","说清楚","那页","拖着","尾音","这些约定","会把","和平条约","念完","不吵架","秘诀","早就有","不到","红","眼眶","的样子","狠话","到嘴边"]],
+["冷静的方法", ["上头","先静","洗了","十分钟后","喝完","紧急","冷静的","想说的","打在","备忘录","十次","九次","删掉","商量","数着","想起来","没那么","可气","好好","冷静","高处","火气","吹","憋","降","最重要","决定","不爱","必须在","审核","冷静完","总得","缓","认错","只用","办法","明白","生气的","心里话","轮","出场"]],
+["好好说话", ["字卡里","练了","练的","好好说话","第一课","教","话里","刺","回了","当成","第二课","抢","第三课","你应该","我希望","两句","第四课","门框","第五课","有事","直说","猜来","猜去","经不起","绕","第六课","在自己","示范","顺序","学了","甜话","最后一课","争取"]],
+["吵架冷静卡", ["存了","一批","动用","冷静卡","大事","第二号","我说的","七分","气","三分","第三号","不算数","等会","第四号","圈","第五号","出厂","以前","安检","用得","气头上","不作","区别","只需要","更重","这一套","最开始","提议","存","抖","没用","闲置","最好","命运"]],
+["和好的仪式", ["一套","小小的","和好仪式","第一步","情绪","不好","受","火","灭","一半","第二步","复述","用自己的","一步","第三步","这一步","认领","炸药","第四步","约","第五步","本次","连接","监制","我俩","和好后","假装","比如"]],
+["沟通的慢车道", ["之间","车道","专","慢车道","不知道","气氛","中途","停车","不急","很难","第三张","答复","安全","快车道","那件","主"]],
+["误会消散的过程", ["容","易","产","误","语","情","遇","兴","其","现","候","标","准","动","作","许","笨","式","法","铺","什","往","整","正","机","知","道","季","节","休","眠","原","谅","解","音","样","忐","忑","松","例","病","偶","尔","锻","炼","处","透"]],
 ];
 } catch (__e) { try { console.error("[JS] dict-ext-data.js", __e && __e.message || __e); } catch (x) {} if (window.__jsErrors) window.__jsErrors.push(String(__e && __e.message || __e)); } })();
 (function () { try {
@@ -45504,7 +45578,8 @@ return out;
 } });
 })();
 } catch (__e) { try { console.error("[JS] ta-mood.js", __e && __e.message || __e); } catch (x) {} if (window.__jsErrors) window.__jsErrors.push(String(__e && __e.message || __e)); } })();
-(function () { try {
+</script>
+<script>(function () { try {
 (function () {
 const MUSIC_PREFIX = 'xy-home-v2:default';
 const store = window.storeFor('default');
@@ -49112,8 +49187,7 @@ try { syncTaFavTab(); renderTaFavList(); } catch (e) {}
 });
 })();
 } catch (__e) { try { console.error("[JS] music-player.js", __e && __e.message || __e); } catch (x) {} if (window.__jsErrors) window.__jsErrors.push(String(__e && __e.message || __e)); } })();
-</script>
-<script>(function () { try {
+(function () { try {
 (function () {
 const uid = window.activePrefix();
 const store = window.activeStore();
@@ -51306,6 +51380,7 @@ try { d = JSON.parse(store.get(KEY) || 'null'); } catch (e) { d = null; }
 if (!d || typeof d !== 'object' || Array.isArray(d)) d = {};
 if (!d.settings || typeof d.settings !== 'object') d.settings = { enabled: true, prob: 5, popupProb: 70 };
 if (d.settings.useDefault === undefined) d.settings.useDefault = true;
+if (d.settings.useChatReply === undefined) d.settings.useChatReply = false;
 migrateInteractProb(d, KEY, [20, 10]);
 if (!Array.isArray(d.questions) || !d.questions.length) {
 const isNew = !store.get(KEY);
@@ -51366,6 +51441,21 @@ if (words.length) return words[Math.floor(Math.random() * words.length)];
 const defs = ['收到你的回答。', '好呀，我知道了。', '嗯嗯，我也是这么想的。', '你这么说，我记住了。', '好的，我记在心里了。'];
 return defs[Math.floor(Math.random() * defs.length)];
 };
+function taAskTextReply() {
+try {
+const d = taAskLoad();
+if (!(d.settings && d.settings.useChatReply)) return null;
+if (window.getDefaultCards) {
+const dc = window.getDefaultCards('chat');
+if (dc && dc.type !== 'poke' && typeof dc.text === 'string' && dc.text.trim()) return dc.text;
+}
+if (window.quoteSpellPick && window.replyCfg) {
+const sp = window.quoteSpellPick(window.replyCfg());
+if (sp && Array.isArray(sp.segs) && sp.segs.length) return sp.segs.join(' ');
+}
+} catch (e) {}
+return null;
+}
 function pushAsk(q, opts) {
 if (!window.chatAddSystem) return;
 const isSingle = q && q.type === 'single' && Array.isArray(q.options) && q.options.length;
@@ -51454,22 +51544,27 @@ if (fixedIdx < 0) return;
 msgIdx = fixedIdx;
 }
 if (window.chatAskReply) {
+const chatReply = taAskTextReply();
+if (chatReply) {
+window.chatAskReply(msgIdx, answer, chatReply, { raw: true });
+} else {
 const defs = ['收到你的回答。', '好呀，我知道了。', '你这么说，我记住了。', '好的，我记在心里了。'];
 const pool = window.getInteractPool ? window.getInteractPool('询问·回应', defs) : defs;
 window.chatAskReply(msgIdx, answer, pool[Math.floor(Math.random() * pool.length)]);
+}
 toast('已回复TA的提问');
 }
 }, { staticText: 'TA 问你：' + question, textareaPlaceholder: '输入你的回答…' });
 };
 if (window.chatAskReply && !window.__taAskReplyWrapped) {
 const _origChatAskReply = window.chatAskReply;
-window.chatAskReply = function (msgIdx, answer, reply) {
+window.chatAskReply = function (msgIdx, answer, reply, opts) {
 const rec = getCardAt(msgIdx);
-if (rec && rec.deskCk) return _origChatAskReply.call(this, msgIdx, answer, reply);
+if (rec && rec.deskCk) return _origChatAskReply.call(this, msgIdx, answer, reply, opts);
 if (askDeadlinePassed(taAskLoad())) { toast('已过问卷答题结束时间，不能再作答'); return undefined; }
 const askTs = rec && rec.askTs ? rec.askTs : null;
 const question = rec ? (rec.askQuestion || rec.text || '') : '';
-const result = _origChatAskReply.call(this, msgIdx, answer, reply);
+const result = _origChatAskReply.call(this, msgIdx, answer, reply, opts);
 if (result === undefined) return result;
 try {
 const d = taAskLoad();
@@ -51510,6 +51605,8 @@ const enEl = document.getElementById('ta-ask-enable');
 if (enEl) enEl.checked = s.enabled !== false;
 const defEl = document.getElementById('ta-ask-default');
 if (defEl) defEl.checked = s.useDefault !== false;
+const ccEl = document.getElementById('ta-ask-chatcard');
+if (ccEl) ccEl.checked = !!s.useChatReply;
 const probEl = document.getElementById('ta-ask-prob');
 const probVal = document.getElementById('ta-ask-prob-val');
 if (probEl) probEl.value = typeof s.prob === 'number' ? s.prob : 5;
@@ -51537,6 +51634,13 @@ d.settings.useDefault = askDefault.checked;
 taAskSave(d);
 switchAskTab(askTab);
 toast(askDefault.checked ? '系统预设问题已开启' : '系统预设问题已关闭（仅用你添加的问题）');
+});
+const askChatCard = document.getElementById('ta-ask-chatcard');
+if (askChatCard) askChatCard.addEventListener('change', () => {
+const d = taAskLoad();
+d.settings.useChatReply = askChatCard.checked;
+taAskSave(d);
+toast(askChatCard.checked ? '文字题回应已接通聊天字卡/词典' : '文字题回应已恢复预设池回应');
 });
 const askProb = document.getElementById('ta-ask-prob');
 if (askProb) askProb.addEventListener('input', () => {
@@ -52281,7 +52385,7 @@ if (Array.isArray(msgs) && msgs[msgIdx]) rec = msgs[msgIdx];
 if (!rec || rec.special !== 'ask-choose') return;
 if (rec.choiceStatus === 'answered') { renderTCResult(msgIdx); return; }
 const opts = rec.choiceOptions || [];
-let html = '<div class="tc-hint">TA想问你</div><div class="tc-q">' + (rec.choiceQuestion || '') + '</div>';
+let html = '<div class="tc-hint">TA想问你</div><div class="tc-q">' + ((rec.choiceQuestion || rec.text || '')) + '</div>';
 opts.forEach((o, i) => {
 html += '<div class="tc-opt" data-i="' + i + '">' + String(o.t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '</div>';
 });
@@ -53017,7 +53121,7 @@ const body = document.getElementById('qa-body');
 const title = document.getElementById('qa-title');
 if (!mask || !body) return;
 if (title) title.textContent = window.taFit ? window.taFit('TA的好奇') : 'TA的好奇';
-let html = '<div class="qa-hint">TA有点好奇</div><div class="qa-q">' + String(rec.curiousQuestion || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '</div>';
+let html = '<div class="qa-hint">TA有点好奇</div><div class="qa-q">' + String(rec.curiousQuestion || rec.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '</div>';
 const quicks = rec.curiousQuick || [];
 if (quicks.length) {
 html += '<div class="qa-quicks">' + quicks.map(x => '<span class="qa-chip" data-v="' + String(x).replace(/"/g, '&quot;') + '">' + String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '</span>').join('') + '</div>';
@@ -53054,7 +53158,7 @@ if (!rec || rec.special !== 'ask-curious' || rec.curiousStatus === 'answered') r
 const replies = (rec.curiousReplies && rec.curiousReplies.length) ? rec.curiousReplies : TCU_FALLBACK.slice();
 const reply = window.pickAskCardReply ? window.pickAskCardReply(replies) : replies[Math.floor(Math.random() * replies.length)];
 const d = tcuLoad();
-const qid = rec.curiousQid || ('q_' + String(rec.curiousQuestion || ''));
+const qid = rec.curiousQid || ('q_' + String(rec.curiousQuestion || rec.text || ''));
 d.known[qid] = answer;
 d.history.unshift({ q: rec.curiousQuestion, my: answer, reply: reply, cat: rec.curiousCat || '', ts: Date.now() });
 tcuSave(d);
@@ -53077,7 +53181,7 @@ const body = document.getElementById('qa-body');
 const title = document.getElementById('qa-title');
 if (!mask || !body) return;
 if (title) title.textContent = window.taFit ? window.taFit('TA的好奇') : 'TA的好奇';
-body.innerHTML = '<div class="qa-q">' + String(rec.curiousQuestion || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '</div>' +
+body.innerHTML = '<div class="qa-q">' + String(rec.curiousQuestion || rec.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '</div>' +
 '<div class="qa-mine">你说：' + String(rec.curiousAnswer || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '</div>' +
 '<div class="qa-reply"><b>' + (window.taFit ? window.taFit('TA：') : 'TA：') + '</b>“' + String(window.taFit ? window.taFit(rec.curiousReply || '') : (rec.curiousReply || '')).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '”</div>' +
 '<div class="qa-close" id="qa-close2">收起来</div>';
@@ -53609,7 +53713,7 @@ const body = document.getElementById('qa-body');
 const title = document.getElementById('qa-title');
 if (!mask || !body) return;
 if (title) title.textContent = window.taFit ? window.taFit('TA的吐槽') : 'TA的吐槽';
-body.innerHTML = '<div class="qa-hint">TA 吐槽你</div><div class="qa-q">“' + String(rec.roastText || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '”</div>' +
+body.innerHTML = '<div class="qa-hint">TA 吐槽你</div><div class="qa-q">“' + String(rec.roastText || rec.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '”</div>' +
 '<input id="qa-input" class="qa-input" type="text" placeholder="回 TA 一句…">' +
 '<button class="qa-send" id="qa-send">回TA一句</button>';
 mask.hidden = false;
@@ -53654,7 +53758,7 @@ const body = document.getElementById('qa-body');
 const title = document.getElementById('qa-title');
 if (!mask || !body) return;
 if (title) title.textContent = window.taFit ? window.taFit('TA的吐槽') : 'TA的吐槽';
-body.innerHTML = '<div class="qa-q">“' + String(rec.roastText || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '”</div>' +
+body.innerHTML = '<div class="qa-q">“' + String(rec.roastText || rec.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '”</div>' +
 '<div class="qa-mine">你说：' + String(rec.roastAnswer || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '</div>' +
 '<div class="qa-reply"><b>' + (window.taFit ? window.taFit('TA：') : 'TA：') + '</b>“' + String(window.taFit ? window.taFit(rec.roastReply || '') : (rec.roastReply || '')).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '”</div>' +
 '<div class="qa-close" id="qa-close2">收起来</div>';
@@ -54102,7 +54206,8 @@ _trSessionTriggered = false;
 });
 })();
 } catch (__e) { try { console.error("[JS] ta-ask.js", __e && __e.message || __e); } catch (x) {} if (window.__jsErrors) window.__jsErrors.push(String(__e && __e.message || __e)); } })();
-(function () { try {
+</script>
+<script>(function () { try {
 (function () {
 const store = window.activeStore();
 const KEY = 'ta-checkin';
@@ -56084,7 +56189,7 @@ if (KEEP_AUDIO_DATAURL) return KEEP_AUDIO_DATAURL;
 try {
 const sr = 44100, sec = 1, n = sr * sec;
 const amp = kaIsIOS() ? 0.002 : 0.02;
-const freq = kaIsIOS() ? 220 : 18000;
+const freq = 18000;
 const buf = new ArrayBuffer(44 + n * 2);
 const dv = new DataView(buf);
 const ws = function (o, s) { for (let i = 0; i < s.length; i++) dv.setUint8(o + i, s.charCodeAt(i)); };
@@ -57531,8 +57636,7 @@ try { if (!document.getElementById('page-home').hidden && htab === 'call') rende
 };
 })();
 } catch (__e) { try { console.error("[JS] records.js", __e && __e.message || __e); } catch (x) {} if (window.__jsErrors) window.__jsErrors.push(String(__e && __e.message || __e)); } })();
-</script>
-<script>(function () { try {
+(function () { try {
 (function () {
 const uid = window.activePrefix();
 const store = window.activeStore();
@@ -61959,7 +62063,8 @@ return out;
 } });
 })();
 } catch (__e) { try { console.error("[JS] loc-lib.js", __e && __e.message || __e); } catch (x) {} if (window.__jsErrors) window.__jsErrors.push(String(__e && __e.message || __e)); } })();
-(function () { try {
+</script>
+<script>(function () { try {
 (function () {
 const uid = window.activePrefix();
 const store = window.activeStore();
@@ -67219,8 +67324,7 @@ document.addEventListener('DOMContentLoaded', init);
 } else { init(); }
 })();
 } catch (__e) { try { console.error("[JS] gift-shop.js", __e && __e.message || __e); } catch (x) {} if (window.__jsErrors) window.__jsErrors.push(String(__e && __e.message || __e)); } })();
-</script>
-<script>(function () { try {
+(function () { try {
 (function () {
 const GNS = 'xy-home-v2';
 function gStore() { try { return window.xyStore(GNS); } catch (e) { return null; } }
@@ -70858,7 +70962,8 @@ document.addEventListener('contact-switched', function () { setTimeout(renderDes
 document.addEventListener('mochi-restore-done', function () { setTimeout(renderDeskWidget, 200); });
 })();
 } catch (__e) { try { console.error("[JS] period.js", __e && __e.message || __e); } catch (x) {} if (window.__jsErrors) window.__jsErrors.push(String(__e && __e.message || __e)); } })();
-(function () { try {
+</script>
+<script>(function () { try {
 (function () {
 var G = 'xy-home-v2';
 var store = window.activeStore();
@@ -77988,8 +78093,7 @@ document.addEventListener('contact-switched', () => { try { closeBrickPanel(); }
 window.addEventListener('resize', () => { if (panel && !panel.hidden) fitCanvas(); });
 })();
 } catch (__e) { try { console.error("[JS] breakout.js", __e && __e.message || __e); } catch (x) {} if (window.__jsErrors) window.__jsErrors.push(String(__e && __e.message || __e)); } })();
-</script>
-<script>(function () { try {
+(function () { try {
 (function () {
 const panel = document.getElementById('chat-c4-panel');
 if (!panel) return;
@@ -82384,7 +82488,8 @@ fast: false
 };
 })();
 } catch (__e) { try { console.error("[JS] match3.js", __e && __e.message || __e); } catch (x) {} if (window.__jsErrors) window.__jsErrors.push(String(__e && __e.message || __e)); } })();
-(function () { try {
+</script>
+<script>(function () { try {
 (function () {
 const panel = document.getElementById('chat-auction-panel');
 if (!panel) return;
@@ -83222,9 +83327,7 @@ return !!_interactCache.set[dateKey];
 }
 function taMoodFor(dateKey) {
 if (!hasInteraction(dateKey)) return null; // 无真实交互 → 不显示 TA 心情
-const mine = loadAll().d[dateKey];
-const h = hashStr((window.__activeCid || 'default') + '|' + dateKey);
-if (mine && h % 100 < 35) return moodByEmoji(mine.m);
+const h = hashStr('ta-mood-indep|' + (window.__activeCid || 'default') + '|' + dateKey);
 return MOODS[h % MOODS.length];
 }
 let curYM = null; // 'YYYY-MM'，月视图当前月
@@ -84340,7 +84443,7 @@ const _egObs = new MutationObserver(() => applyEdgeGuard());
 _egObs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
 applyEdgeGuard();
 function gameFsHasActive() {
-var nodes = document.querySelectorAll('.poke-card.game-fs');
+var nodes = document.getElementsByClassName('poke-card game-fs');
 for (var i = 0; i < nodes.length; i++) { if (!nodes[i].hidden) return true; }
 return false;
 }
@@ -84848,13 +84951,13 @@ else toast('仍未触发下载。请重新点击「导出数据」并确认保�
 toast('备份已打包（' + sizeStr + '），请重新点击「导出数据」触发下载并保存文件（唯一备份）');
 }
 }
-async function saveBackupFile(blob, fname) {
-const file = new File([blob], fname, { type: 'application/json;charset=utf-8' });
+async function saveBackupFile(blob, fname, shareTitle, saveTypes) {
+const file = new File([blob], fname, { type: blob.type || 'application/json;charset=utf-8' });
 const brokenFileShare = !!((window.mochiDevice || {}).env || {}).brokenFileShare;
 const shareMax = 50 * 1024 * 1024;
 if (!brokenFileShare && blob.size <= shareMax && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
 try {
-await navigator.share({ files: [file], title: 'mochi 数据备份' });
+await navigator.share({ files: [file], title: shareTitle || 'mochi 数据备份' });
 return 'ok';
 } catch (e) {
 if (e && e.name === 'AbortError') return 'cancel';
@@ -84864,7 +84967,7 @@ if (window.showSaveFilePicker) {
 try {
 const handle = await window.showSaveFilePicker({
 suggestedName: fname,
-types: [{ description: 'JSON 备份', accept: { 'application/json': ['.json'] } }]
+types: saveTypes || [{ description: 'JSON 备份', accept: { 'application/json': ['.json'] } }]
 });
 const w = await handle.createWritable();
 await w.write(blob);
@@ -84896,12 +84999,27 @@ return true;
 window.mochiExportFile = function (json, fname, title) {
 let blob;
 try { blob = new Blob([json], { type: 'application/json;charset=utf-8' }); } catch (e) { return Promise.resolve('fail'); }
-return Promise.resolve(saveBackupFile(blob, fname)).then((res) => {
+return Promise.resolve(saveBackupFile(blob, fname, title)).then((res) => {
 if (res === 'ok') { toast('已保存「' + fname + '」'); return 'ok'; }
 if (res === 'cancel') return 'cancel';
 if (window.openModal) {
 window.openModal('文件已打包（' + fmtSize(blob.size) + '）', '', () => {
 if (anchorDownload(blob, fname)) toast('已导出「' + fname + '」');
+else toast('仍未触发下载，请改用复制文字或换系统浏览器重试');
+}, { noInput: true, staticText: '点「确定」开始下载保存到本机，点「取消」放弃本次保存。' });
+return 'blocked';
+}
+return 'fail';
+});
+};
+window.mochiExportBlob = function (blob, fname, shareTitle, saveTypes) {
+if (!(blob instanceof Blob)) return Promise.resolve('fail');
+return Promise.resolve(saveBackupFile(blob, fname, shareTitle, saveTypes)).then((res) => {
+if (res === 'ok') { toast('已保存「' + fname + '」'); return 'ok'; }
+if (res === 'fail') return 'fail';
+if (window.openModal) {
+window.openModal('文件已打包（' + fmtSize(blob.size) + '）', '', () => {
+if (anchorDownload(blob, fname)) toast('已开始下载「' + fname + '」');
 else toast('仍未触发下载，请改用复制文字或换系统浏览器重试');
 }, { noInput: true, staticText: '点「确定」开始下载保存到本机，点「取消」放弃本次保存。' });
 return 'blocked';
@@ -88352,6 +88470,8 @@ vvNow: Math.round(_aVV.height),
 offsetTop: Math.round(_aVV.offsetTop || 0),
 panSeen: Math.round(_aPanSeen), // #267：本会话实测到的浏览器最大平移量＝保底停靠的尺子
 panSeenAgo: _aPanSeenAt ? Date.now() - _aPanSeenAt : -1, // 该读数距今多久（>1500ms 不再采信）
+vkOn: !!_aVkOn, // #337：VirtualKeyboard 实测尺是否已拉起
+vkH: (function () { try { var b = navigator.virtualKeyboard && navigator.virtualKeyboard.boundingRect; return b ? Math.round(b.height) : -1; } catch (eK) { return -1; } })(),
 burstLeft: Math.max(0, _aBurstUntil - Date.now()),
 focusTag: _aTextFocused ? String(_aTextFocused.tagName || '').toLowerCase() : '',
 watching: !!_aWatch,
@@ -88473,6 +88593,7 @@ _aBurstUntil = Date.now() + 850;
 syncAndroidKb();
 nudgeInputVisible();
 _aProvCheck();
+_aProvDeepen();
 _aPinPan();
 var _hNow = _aVV.height;
 if (_aKb && !_aClosing && _aLastVVH && _aLastVVH < _hNow) {
@@ -88483,7 +88604,17 @@ _aProvClear();
 }
 _aLastVVH = _hNow;
 if (_aProv && _aVV.height >= _aH - 60 && Date.now() - _aLastAct > 2200) {
-_aProvClear();
+var _hcT = (_aIsText(_aTextFocused) ? _aTextFocused : null) ||
+(_aIsText(document.activeElement) ? document.activeElement : null);
+var _hcCovered = false;
+try {
+if (_hcT && _hcT.getBoundingClientRect) {
+var _hcVB = (_aVV.offsetTop || 0) + _aVV.height;
+var _hcR = _hcT.getBoundingClientRect();
+_hcCovered = _hcR.height > 0 && _hcR.bottom > _hcVB + 12;
+}
+} catch (eHC) {}
+if (!_hcCovered) _aProvClear();
 }
 } else if (_aKb) {
 if (_aVV.height >= _aH - 12) {
@@ -88517,6 +88648,43 @@ if (_aPhone.style.height !== ph + 'px') _aPhone.style.height = ph + 'px';
 kbDockPanels();
 try { window.scrollTo(0, 0); } catch (e) {}
 _aPinPan(); // v3.15.x：推顶后残留的 vv 平移同样归零（K80 同症状）
+_aProvVkRuler(base); // #337：Chromium 悬浮键盘改用 VirtualKeyboard 实测几何精停
+}
+var _aVkOn = false;
+function _aProvVkRuler(base) {
+try {
+var vk = navigator.virtualKeyboard;
+if (!vk) return;
+if (!_aVkOn) {
+_aVkOn = true;
+vk.overlaysContent = true;
+vk.addEventListener('geometrychange', function () {
+try {
+if (!_aProv || _aKb || !_aPhone) return;
+var kbH = Math.round((vk.boundingRect && vk.boundingRect.height) || 0);
+if (kbH < 80) return;
+var b2 = Math.min(_aH, _aIH);
+var ph2 = Math.max(240, Math.min(b2 - Math.max(kbH, 40), b2 - 40));
+if (_aPhone.style.height !== ph2 + 'px') _aPhone.style.height = ph2 + 'px';
+} catch (eG) {}
+});
+}
+} catch (eVk) {}
+}
+function _aProvDeepen() {
+try {
+if (!_aProv || _aKb) return;
+var tgt = (_aIsText(_aTextFocused) ? _aTextFocused : null) ||
+(_aIsText(document.activeElement) ? document.activeElement : null);
+if (!tgt || !tgt.getBoundingClientRect) return;
+var visBottom = (_aVV.offsetTop || 0) + _aVV.height;
+var r = tgt.getBoundingClientRect();
+if (!(r.height > 0 && r.bottom > visBottom + 12)) return; // 已露出
+var base = Math.min(_aH, _aIH);
+var cur = parseInt(_aPhone.style.height, 10) || Math.round(base * 0.58);
+var ph = Math.max(Math.round(base * 0.34), cur - Math.round(base * 0.08));
+if (ph < cur && _aPhone.style.height !== ph + 'px') _aPhone.style.height = ph + 'px';
+} catch (eD) {}
 }
 function _aProvUserConfirm() {
 try {
@@ -88535,6 +88703,7 @@ document.addEventListener('compositionstart', function () { _aUserTypos = Date.n
 function _aProvClear() {
 if (!_aProv) return;
 _aProv = false;
+try { if (_aVkOn && navigator.virtualKeyboard) { navigator.virtualKeyboard.overlaysContent = false; _aVkOn = false; } } catch (eVkOff) {}
 if (_aKb) return; // 正常机制已接管 .phone 高度，交回原逻辑管理
 _aPhone.style.height = '';
 _aPhone.style.alignSelf = '';
@@ -88560,6 +88729,15 @@ Date.now() > kbHardKeyUntil &&
 Math.abs(_aVV.height - _aH) <= 2 &&
 Math.abs(ih - _aIH) <= 2) {
 _aProvDock();
+} else if (!_aKb && !_aProv &&
+Date.now() - _aFocusAt > 900 &&
+kbTouchArmed(tgt) &&
+Date.now() > kbHardKeyUntil) {
+try {
+var _r = tgt.getBoundingClientRect ? tgt.getBoundingClientRect() : null;
+var _visBottom = (_aVV.offsetTop || 0) + _aVV.height;
+if (_r && _r.height > 0 && _r.bottom > _visBottom + 12) _aProvDock();
+} catch (eV337) {}
 }
 } catch (e) {}
 }
@@ -88938,4 +89116,4 @@ lastHeal: his
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mtx3apm4 -->
+<!-- __MOCHI_EOF__ mtx6g0rv -->

@@ -429,6 +429,8 @@
     if (!d.settings || typeof d.settings !== 'object') d.settings = { enabled: true, prob: 5, popupProb: 70 };
     // v3.6.x：是否使用系统预设问题（默认开启；关闭后预设不再被抽取，但题目仍在库里可随时重新开启）
     if (d.settings.useDefault === undefined) d.settings.useDefault = true;
+    // v3.32.x #335：文字题回应接聊天字卡/词典，默认关（保持预设池原行为）
+    if (d.settings.useChatReply === undefined) d.settings.useChatReply = false;
     migrateInteractProb(d, KEY, [20, 10]);
     if (!Array.isArray(d.questions) || !d.questions.length) {
       // 首次使用（本地无题库）或题库被清空：以默认题库为准
@@ -511,6 +513,32 @@
     const defs = ['收到你的回答。', '好呀，我知道了。', '嗯嗯，我也是这么想的。', '你这么说，我记住了。', '好的，我记在心里了。'];
     return defs[Math.floor(Math.random() * defs.length)];
   };
+
+  // v3.32.x #335：文字题回应接通普通聊天回复链路（settings.useChatReply，默认关）——
+  // 用户反馈：问问TA文字题的回答只会用「询问·回应」预设池/字卡库，联系人用不上
+  // 系统预设字卡的默认聊天字卡和词典。开启后按普通聊天同源顺序生成回应：
+  // ① 默认聊天字卡：getDefaultCards('chat') 按「整体概率+分类占比」抽（尊重默认字卡
+  //    总开关/聊天场景开关/分类开关/单卡开关/#319 防未成年人锁），命中即整条回应；
+  // ② 词典拼字：quoteSpellPick(replyCfg()) 按「拼字概率 qs-prob」抽（qs-en 总开关），
+  //    命中把回应换成词典语录拼字卡——问答卡只回一条消息，固定单气泡形态（空格连成
+  //    一条），回复设置的 qs-one/qs-multi 双形态开关在问答卡路径不适用；
+  // ③ 两级都未命中＝返回 null，走原「询问·回应」预设池/字卡库 90/10 混合。
+  // 仅作用于文字题（openAskReply）；单选题点选项路径维持预设回应池不变。
+  function taAskTextReply() {
+    try {
+      const d = taAskLoad();
+      if (!(d.settings && d.settings.useChatReply)) return null;
+      if (window.getDefaultCards) {
+        const dc = window.getDefaultCards('chat');
+        if (dc && dc.type !== 'poke' && typeof dc.text === 'string' && dc.text.trim()) return dc.text;
+      }
+      if (window.quoteSpellPick && window.replyCfg) {
+        const sp = window.quoteSpellPick(window.replyCfg());
+        if (sp && Array.isArray(sp.segs) && sp.segs.length) return sp.segs.join(' ');
+      }
+    } catch (e) {}
+    return null;
+  }
 
   // 发出一条询问（系统提示 + 询问卡片；弹窗按 popupProb 概率触发）
   function pushAsk(q, opts) {
@@ -628,12 +656,19 @@
         msgIdx = fixedIdx;
       }
       if (window.chatAskReply) {
+        // v3.32.x #335：开关开启时优先用普通聊天同源回应（默认聊天字卡/词典拼字），
+        // raw 直传不再走 90/10 混合；未命中或开关关＝原「询问·回应」预设池行为
+        const chatReply = taAskTextReply();
+        if (chatReply) {
+          window.chatAskReply(msgIdx, answer, chatReply, { raw: true });
+        } else {
         // v3.7.x：文字题回应接「询问·回应」预设池（此前该池只在管理页展示、不参与抽取）——
         // 池里随机一条作预设回应传入，chatAskReply 内部再做 90%预设/10%字卡库 混合
         const defs = ['收到你的回答。', '好呀，我知道了。', '你这么说，我记住了。', '好的，我记在心里了。'];
         const pool = window.getInteractPool ? window.getInteractPool('询问·回应', defs) : defs;
         // v3.26.x：history 由 chatAskReply 包装层统一写（覆盖文字题 + 单选题点选项两条路径）
         window.chatAskReply(msgIdx, answer, pool[Math.floor(Math.random() * pool.length)]);
+        }
         toast('已回复TA的提问');
       }
     }, { staticText: 'TA 问你：' + question, textareaPlaceholder: '输入你的回答…' });
@@ -644,15 +679,15 @@
   // 此前单选题回答从不写 history，且未回答的提问也不进记录 → "提问记录"页空。
   if (window.chatAskReply && !window.__taAskReplyWrapped) {
     const _origChatAskReply = window.chatAskReply;
-    window.chatAskReply = function (msgIdx, answer, reply) {
+    window.chatAskReply = function (msgIdx, answer, reply, opts) {
       const rec = getCardAt(msgIdx);
       // deskCk 查岗卡也走 ask-card，但不属于"TA的询问"，不进提问记录
-      if (rec && rec.deskCk) return _origChatAskReply.call(this, msgIdx, answer, reply);
+      if (rec && rec.deskCk) return _origChatAskReply.call(this, msgIdx, answer, reply, opts);
       // v3.26.x #291：过了问卷答题结束时间后询问卡不能再作答（文字/单选两条路径都经此统一拦截）
       if (askDeadlinePassed(taAskLoad())) { toast('已过问卷答题结束时间，不能再作答'); return undefined; }
       const askTs = rec && rec.askTs ? rec.askTs : null;
       const question = rec ? (rec.askQuestion || rec.text || '') : '';
-      const result = _origChatAskReply.call(this, msgIdx, answer, reply);
+      const result = _origChatAskReply.call(this, msgIdx, answer, reply, opts);
       if (result === undefined) return result;
       try {
         const d = taAskLoad();
@@ -698,6 +733,9 @@
     if (enEl) enEl.checked = s.enabled !== false;
     const defEl = document.getElementById('ta-ask-default');
     if (defEl) defEl.checked = s.useDefault !== false;
+    // v3.32.x #335：文字题回应接聊天字卡/词典开关回显
+    const ccEl = document.getElementById('ta-ask-chatcard');
+    if (ccEl) ccEl.checked = !!s.useChatReply;
     const probEl = document.getElementById('ta-ask-prob');
     const probVal = document.getElementById('ta-ask-prob-val');
     if (probEl) probEl.value = typeof s.prob === 'number' ? s.prob : 5;
@@ -726,6 +764,14 @@
     taAskSave(d);
     switchAskTab(askTab);
     toast(askDefault.checked ? '系统预设问题已开启' : '系统预设问题已关闭（仅用你添加的问题）');
+  });
+  // v3.32.x #335：文字题回应接聊天字卡/词典开关
+  const askChatCard = document.getElementById('ta-ask-chatcard');
+  if (askChatCard) askChatCard.addEventListener('change', () => {
+    const d = taAskLoad();
+    d.settings.useChatReply = askChatCard.checked;
+    taAskSave(d);
+    toast(askChatCard.checked ? '文字题回应已接通聊天字卡/词典' : '文字题回应已恢复预设池回应');
   });
   const askProb = document.getElementById('ta-ask-prob');
   if (askProb) askProb.addEventListener('input', () => {
@@ -1523,7 +1569,7 @@ window.openTCPanel = openTCPanel;
     if (!rec || rec.special !== 'ask-choose') return;
     if (rec.choiceStatus === 'answered') { renderTCResult(msgIdx); return; }
     const opts = rec.choiceOptions || [];
-    let html = '<div class="tc-hint">TA想问你</div><div class="tc-q">' + (rec.choiceQuestion || '') + '</div>';
+    let html = '<div class="tc-hint">TA想问你</div><div class="tc-q">' + ((rec.choiceQuestion || rec.text || '')) + '</div>';
     opts.forEach((o, i) => {
       html += '<div class="tc-opt" data-i="' + i + '">' + String(o.t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '</div>';
     });
@@ -2312,7 +2358,7 @@ window.openTCPanel = openTCPanel;
     const title = document.getElementById('qa-title');
     if (!mask || !body) return;
     if (title) title.textContent = window.taFit ? window.taFit('TA的好奇') : 'TA的好奇';
-    let html = '<div class="qa-hint">TA有点好奇</div><div class="qa-q">' + String(rec.curiousQuestion || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '</div>';
+    let html = '<div class="qa-hint">TA有点好奇</div><div class="qa-q">' + String(rec.curiousQuestion || rec.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '</div>';
     const quicks = rec.curiousQuick || [];
     if (quicks.length) {
       html += '<div class="qa-quicks">' + quicks.map(x => '<span class="qa-chip" data-v="' + String(x).replace(/"/g, '&quot;') + '">' + String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '</span>').join('') + '</div>';
@@ -2353,7 +2399,7 @@ window.openTCPanel = openTCPanel;
     // v3.5.128：不再预写 rec 字段——getChatMsgs 是 chat.js 内存对象引用，
     // 预写会让 chatCuriousReply 的 curiousStatus 守卫早退（回答消息丢失）
     const d = tcuLoad();
-    const qid = rec.curiousQid || ('q_' + String(rec.curiousQuestion || ''));
+    const qid = rec.curiousQid || ('q_' + String(rec.curiousQuestion || rec.text || ''));
     d.known[qid] = answer;
     d.history.unshift({ q: rec.curiousQuestion, my: answer, reply: reply, cat: rec.curiousCat || '', ts: Date.now() });
     tcuSave(d);
@@ -2378,7 +2424,7 @@ window.openTCPanel = openTCPanel;
     const title = document.getElementById('qa-title');
     if (!mask || !body) return;
     if (title) title.textContent = window.taFit ? window.taFit('TA的好奇') : 'TA的好奇';
-    body.innerHTML = '<div class="qa-q">' + String(rec.curiousQuestion || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '</div>' +
+    body.innerHTML = '<div class="qa-q">' + String(rec.curiousQuestion || rec.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '</div>' +
       '<div class="qa-mine">你说：' + String(rec.curiousAnswer || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '</div>' +
       '<div class="qa-reply"><b>' + (window.taFit ? window.taFit('TA：') : 'TA：') + '</b>“' + String(window.taFit ? window.taFit(rec.curiousReply || '') : (rec.curiousReply || '')).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '”</div>' +
       '<div class="qa-close" id="qa-close2">收起来</div>';
@@ -2960,7 +3006,7 @@ window.openTCPanel = openTCPanel;
     const title = document.getElementById('qa-title');
     if (!mask || !body) return;
     if (title) title.textContent = window.taFit ? window.taFit('TA的吐槽') : 'TA的吐槽';
-    body.innerHTML = '<div class="qa-hint">TA 吐槽你</div><div class="qa-q">“' + String(rec.roastText || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '”</div>' +
+    body.innerHTML = '<div class="qa-hint">TA 吐槽你</div><div class="qa-q">“' + String(rec.roastText || rec.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '”</div>' +
       '<input id="qa-input" class="qa-input" type="text" placeholder="回 TA 一句…">' +
       '<button class="qa-send" id="qa-send">回TA一句</button>';
     mask.hidden = false;
@@ -3012,7 +3058,7 @@ window.openTCPanel = openTCPanel;
     const title = document.getElementById('qa-title');
     if (!mask || !body) return;
     if (title) title.textContent = window.taFit ? window.taFit('TA的吐槽') : 'TA的吐槽';
-    body.innerHTML = '<div class="qa-q">“' + String(rec.roastText || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '”</div>' +
+    body.innerHTML = '<div class="qa-q">“' + String(rec.roastText || rec.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '”</div>' +
       '<div class="qa-mine">你说：' + String(rec.roastAnswer || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '</div>' +
       '<div class="qa-reply"><b>' + (window.taFit ? window.taFit('TA：') : 'TA：') + '</b>“' + String(window.taFit ? window.taFit(rec.roastReply || '') : (rec.roastReply || '')).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '”</div>' +
       '<div class="qa-close" id="qa-close2">收起来</div>';

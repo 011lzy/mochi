@@ -88,11 +88,19 @@ ok(dataOf['[Content_Types].xml'] && dataOf['[Content_Types].xml'].toString('utf8
 ok(dataOf['_rels/.rels'] && dataOf['_rels/.rels'].toString('utf8').includes('Target="word/document.xml"'), 'D9 .rels 指向 document.xml');
 
 // ---- 接线静态断言 ----
+const bakSrc = readFileSync(new URL('../src/js/data-backup.js', import.meta.url), 'utf8');
 ok((devSrc.match(/label: '导出docx'/g) || []).length === 2, 'E1 两处诊断弹窗都配「导出docx」按钮（信息诊断+屏幕适配诊断）');
-ok((devSrc.match(/exportDocx\(/g) || []).length === 3, 'E2 exportDocx=2 处调用+1 处定义');
+ok((devSrc.match(/exportDocx\(/g) || []).length === 2, 'E2 exportDocx=1 处 legacy 兜底调用+1 处定义（主链路已改三级降级）');
 ok(!/exportTxt/.test(devSrc), 'E3 旧 exportTxt 已清干净（不留死代码/旧锚）');
 ok(tplSrc.includes('id="modal-export" hidden>导出docx<'), 'E4 弹窗导出按钮默认文案=导出docx');
-ok(devSrc.includes("exportDocx(c ? c.text() : r.text, 'mochi-screen-diag-')"), 'E5 屏幕诊断导出用独立文件名前缀');
+// #336：两处按钮统一走 diagExportDocx（三级降级链：分享面板→保存框→确认下载）
+ok(devSrc.includes('diagExportDocx(c ? c.text() : cur)'), 'E5 信息诊断导出走 diagExportDocx 统一入口');
+ok(devSrc.includes("diagExportDocx(c ? c.text() : r.text, 'mochi-screen-diag-'"), 'E6 屏幕诊断导出走统一入口且带独立文件名前缀');
+ok(devSrc.includes('typeof window.mochiExportBlob !== \'function\'') && devSrc.includes('window.mochiExportBlob(blob, fname, \'mochi 诊断报告\''), 'E7 主链路=mochiExportBlob，缺失时回退 legacy');
+ok(/function diagExportDocx\(text, basePrefix, failToast\)/.test(devSrc) && devSrc.includes('buildDocxBlob(text)'), 'E8 diagExportDocx 定义齐全（仍用 buildDocxBlob 产物）');
+ok(bakSrc.includes('window.mochiExportBlob = function (blob, fname, shareTitle, saveTypes)'), 'E9 data-backup 暴露 Blob 版三级降级导出');
+ok(bakSrc.includes('async function saveBackupFile(blob, fname, shareTitle, saveTypes)') && bakSrc.includes("type: blob.type || 'application/json;charset=utf-8'"), 'E10 saveBackupFile 参数化分享标题/MIME（备份默认行为不变）');
+ok(bakSrc.includes("types: saveTypes || [{ description: 'JSON 备份', accept: { 'application/json': ['.json'] } }]"), 'E11 保存框类型参数化（docx 不会被强改 .json 后缀）；默认 JSON 不变');
 
 console.log(fail ? 'verify-docx-export：' + fail + ' 断言失败' : 'verify-docx-export：' + pass + '/' + (pass + fail) + ' 全过');
 process.exit(fail ? 1 : 0);

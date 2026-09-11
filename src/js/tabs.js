@@ -11,18 +11,31 @@
       sdLeaveSnap();
       tabs.forEach(t => t.classList.remove('active'));
       tab.classList.add('active');
-      pages.forEach(p => p.hidden = true);
+      pages.forEach(p => { if (!p.hidden) p.hidden = true; }); // FIX #338 同值写也发 mutation（Blink 实测同值 3 连写=3 条记录），44 页全扫=唤醒全部页面观察器
       document.getElementById(tab.dataset.page).hidden = false;
     });
   });
 
   // 独立全屏页：隐藏底部导航栏 + 状态栏（Mochi/时间），页面自身补偿内边距
   const FULL_PAGES = ['page-chat', 'page-group-chat', 'page-chat-settings', 'page-custom-cards', 'page-default-cards', 'page-fun-cards', 'page-mood-cards', 'page-reply-cards', 'page-theme', 'page-fav', 'page-fav-settings', 'page-memory', 'page-calendar', 'page-period', 'page-accounting', 'page-garden', 'page-divine', 'page-music', 'page-stats', 'page-interact', 'page-checkin', 'page-ta-ask', 'page-ta-choose', 'page-ta-curious', 'page-ta-roast', 'page-ta-checkin', 'page-ta-invite', 'page-checkin-cards', 'page-quote-cards', 'page-home', 'page-mail', 'page-mail-write', 'page-mail-reply', 'page-feed', 'page-feed-all', 'page-feed-friends', 'page-license', 'page-about', 'page-featurehub', 'page-reply-settings', 'page-call-settings', 'page-sfx-settings', 'page-memo-arc', 'page-cjian', 'page-room', 'page-drift', 'page-my-arc', 'page-mood'];
+  // FIX 2026-09-11 #338：静态锚点缓存（.phone/.tabbar）+ syncChrome 签名早退（见下方注释）
+  let _scPhone = null, _scTabbar = null, _scLastSig = null;
   function syncChrome() {
-    const phone = document.querySelector('.phone');
-    const tabbar = document.querySelector('.tabbar');
-    const visible = Array.from(document.querySelectorAll('.page')).find(p => !p.hidden);
+    // FIX 2026-09-11 #338 手机端卡顿成分（多机型「经常卡、按不动」同族）：syncChrome 挂在
+    // 44 个 .page 的 hidden 观察器上，切桌面/进出聊天一次会触发几十次回调，旧实现每次都
+    // querySelector('.phone') + querySelector('.tabbar') + querySelectorAll('.page') 全量扫描
+    // （4× CPU 降频实测：连切 4 次桌面仅此一处 ≈420ms 主线程）。页面/tabbar/phone 都是
+    // template.html 静态锚点（本文件顶部 pages 常量同款假设），缓存后按「可见页+全屏态」
+    // 签名早退：签名没变（没有发生真正的切页）就不重复写、不 blur；外部 rAF 舞步
+    // （p2-features/memo-app 自定义全屏页）依赖的恢复语义不变——它们开页时签名必然变化。
+    let visible = null;
+    for (let i = 0; i < pages.length; i++) { if (!pages[i].hidden) { visible = pages[i]; break; } }
     const isFull = visible ? FULL_PAGES.indexOf(visible.id) >= 0 : false;
+    const sig = (visible ? visible.id : '') + '|' + (isFull ? '1' : '0');
+    if (sig === _scLastSig) return;
+    _scLastSig = sig;
+    const phone = _scPhone || (_scPhone = document.querySelector('.phone'));
+    const tabbar = _scTabbar || (_scTabbar = document.querySelector('.tabbar'));
     if (tabbar) tabbar.hidden = isFull;
     if (phone) phone.classList.toggle('no-statusbar', isFull);
     if (visible) visible.classList.toggle('full', isFull);
@@ -48,14 +61,14 @@
   if (appearanceRow && themePage) {
     appearanceRow.addEventListener('click', () => {
       sdLeaveSnap();
-      pages.forEach(p => p.hidden = true);
+      pages.forEach(p => { if (!p.hidden) p.hidden = true; }); // FIX #338 同值写也发 mutation（Blink 实测同值 3 连写=3 条记录），44 页全扫=唤醒全部页面观察器
       themePage.hidden = false;
     });
   }
   if (themeBack) {
     themeBack.addEventListener('click', () => {
       sdLeaveSnap();
-      pages.forEach(p => p.hidden = true);
+      pages.forEach(p => { if (!p.hidden) p.hidden = true; }); // FIX #338 同值写也发 mutation（Blink 实测同值 3 连写=3 条记录），44 页全扫=唤醒全部页面观察器
       const setPage = document.getElementById('page-setting');
       if (setPage) setPage.hidden = false;
     });

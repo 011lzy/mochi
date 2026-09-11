@@ -774,7 +774,11 @@
   //   任一可见 .game-fs 生效时给 .phone 挂 game-fs-active 类，chat-pages.css 据此把
   //   所在 page 抬到 1000（>998），面板 z-9999 才真正置顶；退出后还原，提醒条照常显示。
   function gameFsHasActive() {
-    var nodes = document.querySelectorAll('.poke-card.game-fs');
+    // FIX 2026-09-11 #338 手机端卡顿成分：本检查挂在 document.body 整树观察器上，
+    // 每个 DOM 变动批都做一次类并集选择器全文档扫描（4× 降频实测：切桌面一个阶段
+    // 扫 74 次 ≈260ms 主线程）。改用 getElementsByClassName 活集合（C++ 直索引，
+    // 双类匹配语义与 '.poke-card.game-fs' 完全等价，无选择器引擎/无快照分配）。
+    var nodes = document.getElementsByClassName('poke-card game-fs');
     for (var i = 0; i < nodes.length; i++) { if (!nodes[i].hidden) return true; }
     return false;
   }
