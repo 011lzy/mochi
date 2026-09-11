@@ -530,12 +530,14 @@
     try {
       const n = document.getElementById('splash-notice');
       if (!n) return;
+      // #315b 免责声明卡（data-anti-scam="d"）固定最顶——回填重建的 1/2 都插它后面；它被删时退回最顶（旧行为）
+      const dis = n.querySelector('.splash-alert[data-anti-scam="d"]');
       if (!n.querySelector('.splash-alert[data-anti-scam="1"]')) {
-        n.insertBefore(mkWatchBar('1', '防骗提醒', W1), n.firstChild);
+        n.insertBefore(mkWatchBar('1', '防骗提醒', W1), dis ? dis.nextSibling : n.firstChild);
       }
       if (!n.querySelector('.splash-alert[data-anti-scam="2"]')) {
         const b1 = n.querySelector('.splash-alert[data-anti-scam="1"]');
-        n.insertBefore(mkWatchBar('2', '转载署名 · 严禁倒卖', W2), b1 ? b1.nextSibling : n.firstChild);
+        n.insertBefore(mkWatchBar('2', '转载署名 · 严禁倒卖', W2), b1 ? b1.nextSibling : (dis ? dis.nextSibling : n.firstChild));
       }
     } catch (e) { /* 静默：看门狗绝不能成为错误源 */ }
   }, 5000);

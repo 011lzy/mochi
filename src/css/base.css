@@ -171,6 +171,21 @@ html { margin:0; padding:0; }
 .splash-alert .splash-alert-t::before { content:"!"; display:inline-block; width:15px; height:15px; line-height:15px; text-align:center; margin-right:5px; border-radius:50%; background:var(--sp-ink); color:#fff; font-size:11px; font-weight:800; vertical-align:-2px; }
 .splash-alert p { font-size:12px; line-height:1.7; color:var(--soft-ink); }
 .splash-alert strong { color:var(--ink); font-weight:800; }
+/* v3.27.x #315b：免责声明——红色警示形态，比防骗/署名卡更醒目（未成年人禁止使用） */
+.splash-alert.splash-disclaimer {
+  padding:12px 14px 13px;
+  background:#fdecec; border:2px solid #d23430; border-radius:10px;
+  box-shadow:0 2px 8px rgba(210,52,48,.18);
+}
+.splash-alert.splash-disclaimer .splash-alert-t { color:#c22b27; font-size:13.5px; letter-spacing:1px; }
+.splash-alert.splash-disclaimer .splash-alert-t::before { background:#c22b27; }
+.splash-alert.splash-disclaimer p { color:#7a1d1a; font-size:13px; font-weight:700; line-height:1.75; }
+.splash-alert.splash-disclaimer strong { color:#c22b27; font-weight:900; }
+[data-theme="dark"] .splash-alert.splash-disclaimer { background:rgba(210,52,48,.16); border-color:#e05555; box-shadow:none; }
+[data-theme="dark"] .splash-alert.splash-disclaimer .splash-alert-t { color:#ff8080; }
+[data-theme="dark"] .splash-alert.splash-disclaimer .splash-alert-t::before { background:#ff8080; color:#3a0d0d; }
+[data-theme="dark"] .splash-alert.splash-disclaimer p { color:#f0c6c6; }
+[data-theme="dark"] .splash-alert.splash-disclaimer strong { color:#ff8080; }
 /* 章节容器：编号在章节内重新从 1 开始；章节间拉开间距；折叠章节样式 */
 .splash-sec-wrap { counter-reset: notice; }
 .splash-sec-wrap + .splash-sec-wrap { margin-top:12px; }

@@ -104,7 +104,10 @@
     }
   }
   function run() {
-    const b1 = ensureBar(BARS[0], null);
+    // #315b 免责声明卡（静态 DOM，data-anti-scam="d"）固定最顶——防骗/署名卡都插它后面；
+    // 它不在位（被删）时 dis 为 null，退回 firstChild，行为与旧版一致
+    const dis = document.querySelector('.splash-alert[data-anti-scam="d"]');
+    const b1 = ensureBar(BARS[0], dis ? dis.nextSibling : null);
     ensureBar(BARS[1], b1 ? b1.nextSibling : null);
     ensureSettings();
     ensureBulletin();
