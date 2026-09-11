@@ -3,6 +3,8 @@
 // 覆盖：锁定态闸门（分组/同源池/回复池全空）→ 开屏锁卡渲染与顺序 → 解锁弹窗交互
 //       （错密码 stay+hint、对密码写 open）→ 解锁后闸开 → 重锁回空。
 import { readFileSync, statSync } from 'node:fs';
+import { createServer } from 'node:http';
+import { spawn } from 'node:child_process';
 import { join, normalize, extname, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const root = normalize(dirname(fileURLToPath(import.meta.url)) + '/..');

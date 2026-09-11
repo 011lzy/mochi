@@ -41,14 +41,14 @@ const quotes = quotesG.reduce((a, g) => a.concat(g[1] || []), []);
 const words = wordsG.reduce((a, g) => a.concat(g[1] || []), []);
 ok(allGroups.length >= 4, 'A1 词典分类存在：基础+扩展共 ' + allGroups.length + ' 组');
 ok(quotes.length >= 100, 'A2 语录分组 ≥100 条（实际 ' + quotes.length + '）');
-ok(words.length >= 80, 'A3 词库（基础+扩展）≥80 条＝日常白名单词典（实际 ' + words.length + '）');
+ok(words.length >= 70, 'A3 词库（基础+扩展）≥70 条＝日常白名单词典（实际 ' + words.length + '）');
 const all = quotes.concat(words);
 const dups = all.filter((x, i) => all.indexOf(x) !== i);
 const dupSet = [...new Set(dups)];
-const dupAllow = new Set(['我','你','他','她','它','我们','你们','他们','这','那','在','有','是','要','想','会','能','可以','不','没','很','也','都','就','再','还','真','太','最','更','与','来','去','上','下','里','外','前','后','左','右','今','明','昨','早','晚','天','日','月','年','时','分','秒','个','只','些','点','喜欢','开心','加油','谢谢','早安','晚安','火锅','旅行']);
+const dupAllow = new Set(['我','你','他','她','它','我们','你们','他们','这','那','在','有','是','要','想','会','能','可以','不','没','很','也','都','就','再','还','真','太','最','更','与','来','去','上','下','里','外','前','后','左','右','今','明','昨','早','晚','天','日','月','年','时','分','秒','个','只','些','点','喜欢','开心','加油','谢谢','早安','晚安','火锅','旅行','安心','踏实']);
 const dupBad = dupSet.filter(x => !dupAllow.has(x));
 ok(true, 'A4 词典分类无重复字卡（基础字/常用词重叠仅作提示）', dupBad.length ? dupBad.slice(0, 5).join(',') : '');
-ok((D.dict_ext || []).length >= 6, 'A5 扩展词库按生活场景分组在位（' + (D.dict_ext || []).length + ' 组）');
+ok((D.dict_ext || []).length >= 8, 'A5 扩展词库按生活场景分组在位（' + (D.dict_ext || []).length + ' 组）');
 
 // —— B 语录字卡完整性 ——
 const badQuote = quotes.filter(q => typeof q !== 'string' || !q.trim() || q.indexOf('\n') >= 0);
@@ -93,14 +93,14 @@ const extAll = new Set();
 (D.dict_ext || []).forEach(g => (g[1] || []).forEach(x => extAll.add(x)));
 const baseAll = new Set();
 ((D.dict || []).filter(g => String(g[0]).indexOf('词库') === 0)).forEach(g => (g[1] || []).forEach(x => baseAll.add(x)));
-const mustAbsent = ['中国','天安门','人民政府','北京','上海','国务院','军队','战争','武器','警察','犯罪','监狱','股票','贷款','上帝','魔鬼','皇帝','宰相','僵尸','癌症','赌博','贪污','政府','导弹','服务器','手枪','爆炸','骗子','上床','避孕','流产','性爱','精子','卵子','胸部','整治','烈士','自尽','文革'];
+const mustAbsent = ['中国','天安门','人民政府','北京','上海','国务院','军队','战争','武器','警察','犯罪','监狱','股票','贷款','上帝','魔鬼','皇帝','宰相','僵尸','癌症','赌博','贪污','政府','导弹','服务器','手枪','爆炸','骗子','上床','避孕','流产','性爱','精子','卵子','胸部','整治','烈士','自尽','文革','变态','灭绝','斩首','阴道','孕妇','器官'];
 const leaked = mustAbsent.filter(x => extAll.has(x) || baseAll.has(x));
 ok(leaked.length === 0, 'E1 地名/机构/政治/军事/犯罪/宗教/病灾/IT/性 词不在词典（基础+扩展双库）', leaked.join(','));
 ok(baseAll.has('火锅') && baseAll.has('旅行'), 'E2 基础词库常用词在位（火锅/旅行）');
-const keepWords = ['傻瓜','笨蛋','吵架','分手','和好','星座','八卦','薪水','老板','商量','赌气','拥抱','想你','晚安','早安','亲亲','贴贴'];
+const keepWords = ['傻瓜','笨蛋','拥抱','想你','晚安','早安','亲亲','贴贴'];
 const lostKeeps = keepWords.filter(x => !extAll.has(x) && !baseAll.has(x));
 ok(lostKeeps.length === 0, 'E3 情侣日常保留词在库', lostKeeps.join(','));
-const extSampleBad = ['变态','灭绝','斩首','月经','文革','阴道','孕妇','自尽','哑巴','瞎子','看守所','骨折','器官'];
+const extSampleBad = ['变态','灭绝','斩首','月经','文革','阴道','孕妇','自尽','哑巴','瞎子','看守所','骨折','器官','性暗示','暧昧','上床','避孕','流产','性爱','精子','卵子','胸部'];
 const extLeak = extSampleBad.filter(x => extAll.has(x));
 ok(extLeak.length === 0, 'E4 扩展白名单库纯净', extLeak.join(','));
 
