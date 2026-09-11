@@ -355,7 +355,7 @@
     tab.addEventListener('click', () => {
       htab = tab.dataset.htab;
       document.querySelectorAll('#page-home .fav-tab').forEach(x => x.classList.toggle('sel', x === tab));
-      document.querySelectorAll('#page-home .cal-card').forEach(c => { c.hidden = c.dataset.hpanel !== htab; });
+      document.querySelectorAll('#page-home .cal-card').forEach(c => { c.hidden = c.dataset.hpanel !== htab && c.dataset.hpanel !== '*'; });
       render();
     });
   });

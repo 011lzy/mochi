@@ -186,6 +186,8 @@
   function refreshLibCount() {
     const el = document.getElementById('dc-lib-count');
     if (el) el.textContent = String(sumKeys(BASE_KEYS));
+    const del = document.getElementById('dc-dict-count');
+    if (del) del.textContent = String(sumKeys(['dict']));
     const fel = document.getElementById('fc-lib-count');
     if (fel) fel.textContent = String(sumKeys(FUNC_KEYS));
     const dkel = document.getElementById('dk-lib-count');
@@ -679,6 +681,8 @@
   }, BASE_KEYS, '暂无默认字卡', ALL_KEYS);
   // #301 词典 tab 自建词条行：仅词典 tab 显示；「存为语录/存为词」进词典分组与拼字引擎，
   // 「删自建」按原文精确删除（内置词条不可删，走单卡关闭）
+  // #317：UI 行已按用户要求移除（词典是梦角语言资源，不提供手动存词条入口）——
+  // dictCustomAdd/Remove API 与存储保留（历史自建词条仍在库中展示，可单卡关闭）
   (function () {
     const row = document.getElementById('dc-dict-add');
     if (!row || !dcView) return;
@@ -714,6 +718,53 @@
       }, { staticText: '输入要删除的自建语录或词的原文（精确匹配）。内置词条无法删除，但可以在列表里逐张关闭。' });
     });
   })();
+  // v3.35.x：词典独立分类——系统预设字卡里的单独入口（page-dict-cards），整页展示
+  // DEFAULT_CARD_DATA.dict（语录+词库+扩展常用词），与「词典拼字」抽句/切词共用同一份数据。
+  const dictView = mountCardView({
+    list: 'd2-dict-list', tabs: 'd2-dict-tabs', groupsBar: 'd2-dict-groups-bar', search: 'd2-dict-search', page: 'page-dict-cards'
+  }, ['dict'], '暂无词典字卡', ['dict']);
+  // 词典自建词条行（本页全为词典，常驻显示）：存为语录/词、删自建，复用 dictCustomAdd/Remove
+  // #317：UI 行已移除（用户要求），绑定代码随 getElementById(null) 自然空转，保留结构最小改动
+  (function () {
+    if (!dictView) return;
+    const inp = document.getElementById('d2-dict-input');
+    const commit = function (kind) {
+      const r = dictCustomAdd(kind, inp ? inp.value : '');
+      toast(r.msg);
+      if (r.ok) { if (inp) inp.value = ''; if (dictView.render) dictView.render(); }
+    };
+    const bq = document.getElementById('d2-dict-add-q');
+    const bw = document.getElementById('d2-dict-add-w');
+    if (bq) bq.addEventListener('click', () => commit('quote'));
+    if (bw) bw.addEventListener('click', () => commit('word'));
+    const bd = document.getElementById('d2-dict-del');
+    if (bd) bd.addEventListener('click', () => {
+      if (!window.openModal) { toast('弹窗组件不可用'); return; }
+      window.openModal('删除自建词典词条', '', function (v) {
+        if (v && dictCustomRemove(v)) {
+          toast('已删除：' + String(v).replace(/\s+/g, ''));
+          if (dictView.render) dictView.render();
+        } else toast('未找到这条自建词条（内置词条不可删，可在列表里逐张关闭）');
+      }, { staticText: '输入要删除的自建语录或词的原文（精确匹配）。内置词条无法删除，但可以在列表里逐张关闭。' });
+    });
+  })();
+  const liDict = document.getElementById('li-dict-cards');
+  if (liDict) {
+    liDict.addEventListener('click', () => {
+      document.querySelectorAll('.page').forEach(p => p.hidden = true);
+      const page = document.getElementById('page-dict-cards');
+      if (page) page.hidden = false;
+      if (dictView) dictView.ensureRendered();
+    });
+  }
+  const dictBack = document.getElementById('dict-back');
+  if (dictBack) {
+    dictBack.addEventListener('click', () => {
+      document.querySelectorAll('.page').forEach(p => p.hidden = true);
+      const home = document.getElementById('page-chatcard');
+      if (home) home.hidden = false;
+    });
+  }
   // 其他互动功能字卡页：仅功能分类（模板已预置全部功能 tab；搜索同样跨全库）
   const fcView = mountCardView({
     list: 'fc-list', tabs: 'fc-tabs', groupsBar: 'fc-groups-bar', search: 'fc-search-input', page: 'page-fun-cards'

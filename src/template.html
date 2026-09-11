@@ -55,6 +55,8 @@
           <div class="splash-source-line">github库为：<span class="splash-source-url">https://github.com/ling233330-star/mochi</span></div>
         </div>
       </div>
+      <!-- 开屏显示梦角（TA）今日心情（来自「心情日记」#303；仅当天有真实互动才显示，无记录/无互动时隐藏） -->
+      <div class="splash-mood" id="splash-mood" hidden></div>
       <!-- v3.5.112：开屏公告（发布说明） -->
       <!-- v3.6.x：公告内容可由 notice.json 远程覆盖（clock.js 拉取），此处写死内容为离线兜底 -->
       <!-- v3.8.x：开屏即公告1页——原「开屏公告 + 点进入后的报修确认层」两页合并为一页：
@@ -652,6 +654,12 @@
         <div class="av"><svg viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.7 5.5 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1L3.2 9.4l6.1-.9z"/></svg></div>
         <div class="ci"><div class="n">默认聊天字卡</div><div class="m">日常默认回复字卡（自搓）</div></div>
         <div class="t" id="dc-lib-count">0</div>
+      </div>
+      <!-- v3.35.x：词典独立分类——从默认聊天字卡里单独拎出一个入口，供词典拼字抽句/切词查看与开关 -->
+      <div class="chat-item glass" id="li-dict-cards">
+        <div class="av"><svg viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h13a3 3 0 013 3v13H7a3 3 0 01-3-3z"/><path d="M7 8.5h11M7 12.5h7"/></svg></div>
+        <div class="ci"><div class="n">聊天默认字卡·词典</div><div class="m">词典拼字 · 语录/词库/常用词</div></div>
+        <div class="t" id="dc-dict-count">0</div>
       </div>
       <div class="chat-item glass" id="li-fun-cards">
         <div class="av"><svg viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.7 5.5 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1L3.2 9.4l6.1-.9z"/></svg></div>
@@ -1256,6 +1264,8 @@
         <button class="cc-tab" data-type="drift">漂流瓶</button>
         <button class="cc-tab" data-type="interact">互动回应</button>
         <button class="cc-tab" data-type="music">音乐</button>
+        <!-- #317 梦角自由造句：程序生成（梦角说话截字重造句自动入库），这里可查看/删除 -->
+        <button class="cc-tab" data-type="mjfree">梦角自由造句</button>
       </div>
       <div class="cc-toolbar">
         <button class="cc-tool" id="cc-new-group"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8a4 4 0 100 8 4 4 0 000-8z"/><path d="M19 12a7 7 0 00-.1-1.2l2-1.6-2-3.4-2.3 1a7 7 0 00-2-1.2L14.2 3h-4l-.4 2.6a7 7 0 00-2 1.2l-2.3-1-2 3.4 2 1.6A7 7 0 005 12c0 .4 0 .8.1 1.2l-2 1.6 2 3.4 2.3-1a7 7 0 002 1.2l.4 2.6h4l.4-2.6a7 7 0 002-1.2l2.3 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z"/></svg>管理分组</button>
@@ -1803,7 +1813,7 @@
           <div class="lic-li">小游戏类——猜拳、Pong、贪吃蛇、打砖块、钓鱼、四子棋、扫雷、记忆翻牌、五子棋、连连看、消消乐、拍卖会；工具类——帮我决定、多人决定、问问TA、搜索记录、占卜、寻踪、此间、房间、心情日记</div>
           <div class="lic-li">朋友圈贴纸回复：配图动态下点「贴纸」，选表情包贴到照片上（每张照片最多 5 张，自己贴的可点撤回），TA 会按评论概率回贴一张并进朋友圈通知</div>
           <div class="lic-li">回忆闪回：打开朋友圈时，「那年今天」的旧动态会以记忆卡置顶，点击定位到原动态并高亮，✕ 当天不再显示</div>
-          <div class="lic-li">心情日记：聊天更多功能 → 工具 →「心情日记」，每天选一个心情表情+一句话，TA 的心情按天生成；月视图两人心情曲线对照、心情日历格与连续记录统计（#303）</div>
+          <div class="lic-li">心情日记：桌面「日历」→ 顶部心情日记卡，每天选一个心情表情+一句话，TA 的心情按天生成；月视图两人心情曲线对照、心情日历格与连续记录统计（#303）</div>
           <div class="lic-li">「TA 的提问」面板：让 TA 现在问一次（询问 / 小问题 / 好奇 / 吐槽 / 邀请）</div>
           <div class="lic-li">贴贴邀请：TA 会主动发来贴贴 / 抱抱 / 牵手 / 靠着的邀请，同意有轻震回应，婉拒也有专属台阶文案</div>
           <div class="lic-li">TA 的查岗：温柔关心式查岗问题卡（单选 / 文字作答 / 互动动作），作答后 TA 会回应</div>
@@ -2285,6 +2295,12 @@
             <div class="gs-row"><span>单气泡拼字</span><label class="toggle"><input type="checkbox" id="qs-one"><span class="tk"></span></label></div>
             <div class="gs-sub">开启后联系人回复按「拼字概率」随机变成拼字：从词典语录（系统预设字卡→词典，可逐张关闭）抽语录字卡整卡用空格连成一张卡发进同一个气泡，条数跟随上方「每条消息使用多字卡回复」的最少/最多条数（默认 2~5）（如「今天也要好好爱自己 晚安」，正常句子整卡出现不被切词），气泡下带「词典拼字」小标签；关闭「单气泡拼字」则走旧式切词逐条连发（每条小气泡带标签）；开启「混用自定义字卡」时你的字卡库文本也会进抽句池（可能把你的普通字卡抽去拼字，默认关），关闭则只用词典语录。概率 0 = 不触发</div>
           </div>
+          <div class="gs-title">梦角自由造句（截字重造句）</div>
+          <div class="set-group glass">
+            <div class="gs-row"><span>梦角自由造句</span><label class="toggle"><input type="checkbox" id="mjf-en"><span class="tk"></span></label></div>
+            <div class="gs-row"><span>触发概率</span><div class="stepper" data-k="mjf-prob" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="mjf-prob-val" readonly><button class="stp-max">+</button></div></div>
+            <div class="gs-sub">自由选择开关（默认关）：开启后梦角（联系人）说话按「触发概率」随机截断自己某句的几个字、补个语气词重新造句（如「今天也要好好爱自己」→「今天也要好好想你了」），气泡下带「梦角自由造句」小标签；造出的新句自动存进 字卡库→自定义聊天字卡→梦角自由造句 分类，可在那里查看/删除，也会作为语料被再次抽用。语料来自你自建的聊天字卡（至少 4 个汉字的文本卡）。概率 0 = 不触发</div>
+          </div>
           <div class="gs-title">主动发送（联系人找你）</div>
           <div class="set-group glass">
             <div class="gs-row"><span>主动发送</span><label class="toggle"><input type="checkbox" id="as-en"><span class="tk"></span></label></div>
@@ -2596,19 +2612,35 @@
         <button class="cc-tab" data-type="touch">拍一拍</button>
       </div>
       <div class="cc-groups-bar" id="dc-groups-bar"></div>
-      <!-- #301 词典自建词条：词典 tab 内自由新增/删除（语录进拼字抽句池，词进切词词典；全局命名空间不随桌面隔离） -->
-      <div class="card-search glass" id="dc-dict-add" hidden>
-        <input class="card-search-input" id="dc-dict-input" placeholder="输入内容，存为语录或词" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-        <button class="cc-tab" id="dc-dict-add-q" style="flex:none;margin-left:8px;padding:0 10px">存为语录</button>
-        <button class="cc-tab" id="dc-dict-add-w" style="flex:none;margin-left:6px;padding:0 10px">存为词</button>
-        <button class="cc-tab" id="dc-dict-del" style="flex:none;margin-left:6px;padding:0 10px">删自建</button>
-      </div>
+      <!-- #317：词典自建词条行已移除（用户：词典是梦角用的语言资源，不该在预设字卡里手动存词条）——
+           系统词典供「词典拼字」抽句与切词，按分组展示、可逐张开启/关闭即可 -->
       <div class="card-search glass">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
         <input class="card-search-input" id="dc-search-input" placeholder="搜索默认字卡" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
       </div>
       <div class="card-list" id="dc-list">
         <!-- 默认字卡由 JS 按分类/分组渲染 -->
+      </div>
+    </div>
+
+    <!-- 词典（独立分类，供词典拼字抽句/切词；内容=语录+词库+扩展常用词，可逐张开关、可新增自建） -->
+    <div class="page" id="page-dict-cards" hidden>
+      <div class="chat-head">
+        <span class="ch-back" id="dict-back">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </span>
+        <span class="ch-name">聊天默认字卡·词典</span>
+      </div>
+      <div class="sm-set-hint" style="padding:8px 16px 0">说明：系统词典供「词典拼字」抽句与切词，按分组展示，可逐张开启或关闭；语录进拼字抽句池，词进切词词典。</div>
+      <!-- #317：词典自建词条行已移除（用户：词典是梦角用的语言资源，不该在这里手动存词条） -->
+      <div class="cc-groups-bar" id="d2-dict-groups-bar"></div>
+      <div class="card-tabs" id="d2-dict-tabs" style="display:none"></div>
+      <div class="card-search glass">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input class="card-search-input" id="d2-dict-search" placeholder="搜索词典字卡" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+      </div>
+      <div class="card-list" id="d2-dict-list">
+        <!-- 系统词典由 JS 按分组渲染 -->
       </div>
     </div>
 
@@ -2837,6 +2869,16 @@
             </button>
           </div>
           <div class="cal-grid" id="cal-grid"></div>
+        </div>
+
+        <!-- 心情日记入口（#303：v3.27.x 由「聊天更多功能→工具」迁入桌面日历；点卡片直接进心情日记页，下方实时预览我/梦角今日心情） -->
+        <div class="cal-card glass mood-entry-card" id="cal-mood-entry">
+          <div class="mood-entry-head">
+            <span class="cal-sec-title">心情日记 <span class="mood-entry-sub">每日心情 · 月度曲线</span></span>
+            <span class="mood-entry-go">进入 ›</span>
+          </div>
+          <div class="mood-entry-row"><span class="mood-entry-k">我的心情</span><span class="mood-entry-v" id="mood-entry-mine">今天还没记心情</span></div>
+          <div class="mood-entry-row"><span class="mood-entry-k" id="mood-entry-ta-label">梦角（心情日记）</span><span class="mood-entry-v" id="mood-entry-ta">今天还没有互动</span></div>
         </div>
 
         <!-- TA 今天（合并：心情 + 正在 + 留言 + 情话） -->
@@ -3328,6 +3370,14 @@
         <button class="fav-tab" data-htab="divine">占卜记录</button>
       </div>
       <div class="cal-scroll">
+        <!-- v3.26.x：游乐室入口卡（小游戏战绩/徽章/幸运游戏/摆件图鉴，点击进独立全屏页；src/js/arcade.js）；data-hpanel="*"＝所有主页 tab 常显，records.js 切 tab 只按该通配保留 -->
+        <div class="cal-card glass arc-home-entry" id="home-arcade-entry" data-hpanel="*">
+          <div class="arc-home-entry-top">
+            <span class="arc-home-entry-name">🎮 游乐室</span>
+            <span class="arc-home-entry-go">进入 ›</span>
+          </div>
+          <div class="arc-home-entry-sub">小游戏战绩 · 徽章 · 每日幸运游戏 · 限定摆件图鉴</div>
+        </div>
         <div class="cal-card glass" data-hpanel="av">
           <div class="cal-card-title">换头像记录</div>
           <div id="home-av"></div>
@@ -3371,6 +3421,22 @@
         <div class="cal-card glass" data-hpanel="divine" hidden>
           <div class="cal-card-title">占卜记录</div>
           <div id="home-divine"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 游乐室全屏页（主页页入口卡进入，返回回主页页；src/js/arcade.js） -->
+    <div class="page" id="page-arcade" hidden>
+      <div class="chat-head">
+        <span class="ch-back" id="arcade-back">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </span>
+        <span class="ch-name">游乐室 · 和 <b id="arcade-lg-partner">TA</b> 的战绩</span>
+      </div>
+      <div class="cal-scroll">
+        <div class="arc-wrap">
+          <div id="arcade-body"></div>
+          <div class="pong-foot">幸运游戏当日奖励 ×2 · 胜利有概率掉落限定摆件 · 战绩按联系人桌面分开记</div>
         </div>
       </div>
     </div>
@@ -4350,6 +4416,7 @@
         <div class="poke-card-head">
           <span>心意币拍卖会 · <b id="au-partner-name">TA</b></span>
           <div class="snake-head-actions">
+            <button class="snake-icon-btn" id="au-help-btn" title="怎么玩（玩法说明）">❓</button>
             <button class="snake-icon-btn" id="au-bag" title="拍品收藏">🎒</button>
             <button class="snake-icon-btn" id="au-sound" title="音效开关">🔊</button>
             <button class="snake-icon-btn" id="au-fs" title="全屏">⛶</button>            <button class="poke-card-close" id="au-close">✕</button>
@@ -4368,12 +4435,29 @@
                   <button class="pong-overlay-btn pong-overlay-btn2" id="au-btn-end" type="button" hidden>收摊</button>
                 </div>
               </div>
+              <div class="pong-overlay au-overlay" id="au-help" hidden>
+                <div class="pong-overlay-title">怎么玩 · 拍卖会</div>
+                <div class="au-help-body">
+                  <b>①&nbsp;看拍品</b>：每件都有起拍价，先看它值多少。<br>
+                  <b>②&nbsp;出价</b>：点一个“出 ¥X”档位＝在当前价上加一档，压上你的价（按钮会直接显示你要出的钱）。<br>
+                  <b>③&nbsp;轮替</b>：你出价后 TA 会掂量掂量——跟价或放弃，轮到你时按钮才亮起。<br>
+                  <b>④&nbsp;成交</b>：谁最后是最高价，这件就归谁。<br>
+                  <b>·</b> 你是最高价 → 点<b>「落槌」</b>＝按现价买下（真扣心意币，收进 🎒）。<br>
+                  <b>·</b> TA 最高价 → 点<b>「放弃这件」</b>＝这件归 TA，不扣你的钱。<br>
+                  <b>·</b> 双方都不要 → <b>流拍</b>，收回仓库。<br>
+                  <b>⑤&nbsp;彩蛋</b>：TA 拍走的拍品过几天会寄回给你。<br>
+                  <b>⑥&nbsp;暗价</b>：TA 每件的心理价位是暗的（志在必得/常规/抠门/虚张声势），猜不准才好玩。
+                </div>
+                <div class="pong-overlay-btns">
+                  <button class="pong-overlay-btn" id="au-help-close" type="button">知道啦</button>
+                </div>
+              </div>
             </div>
             <div class="au-bids">
-              <button class="pong-overlay-btn" id="au-bid1" type="button">＋¥1</button>
-              <button class="pong-overlay-btn" id="au-bid5" type="button">＋¥5</button>
-              <button class="pong-overlay-btn" id="au-bid13" type="button">＋¥13.14</button>
-              <button class="pong-overlay-btn pong-overlay-btn2" id="au-pass" type="button">不拍了</button>
+              <button class="pong-overlay-btn" id="au-bid1" type="button">出 ¥</button>
+              <button class="pong-overlay-btn" id="au-bid5" type="button">出 ¥</button>
+              <button class="pong-overlay-btn" id="au-bid13" type="button">出 ¥</button>
+              <button class="pong-overlay-btn pong-overlay-btn2" id="au-pass" type="button">放弃这件</button>
             </div>
             <div class="au-status" id="au-status">点击「开场拍卖」</div>
             <div class="pong-foot">落槌价从心意币里真扣 · TA 的心理价位是暗的 · 拍到的收进 🎒</div>
@@ -5031,10 +5115,6 @@
           <button class="more-item" id="more-room" data-mcat="tool" title="房间（双人小屋）">
             <span class="mi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 11L12 4l8.5 7"/><path d="M5.8 9.6V20h12.4V9.6"/><path d="M10 20v-5.4h4V20"/></svg></span>
             <span>房间</span>
-          </button>
-          <button class="more-item" id="more-mood" data-mcat="tool" title="心情日记（每天记心情，月度曲线对照）">
-            <span class="mi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5a4.5 4.5 0 007 0"/><circle cx="9" cy="9.5" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="9.5" r="1" fill="currentColor" stroke="none"/></svg></span>
-            <span>心情日记</span>
           </button>
         </div>
         <div class="more-grid" id="more-grid-ask" hidden>

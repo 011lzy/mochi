@@ -358,6 +358,23 @@
   document.addEventListener('mochi-restore-done', updateEnterState);
   // idbRestore 12 秒保险丝触发 → 标记较慢，显示「仍要进入」逃生口（不自动进入）
   document.addEventListener('mochi-restore-slow', function () { slow = true; updateEnterState(); });
+  // 开屏显示梦角（TA）「心情日记」里的今日心情（#303；当天有真实交互才显示，无记录/无互动隐藏）
+  function fillSplashMood() {
+    const el = document.getElementById('splash-mood');
+    if (!el) return;
+    if (!window.moodDiaryToday) return; // mood-diary.js（业务文件）通常已先加载，未加载下轮事件再填
+    let md = null;
+    try { md = window.moodDiaryToday(); } catch (e) { md = null; }
+    if (md && md.ta) {
+      el.hidden = false;
+      el.textContent = '梦角的心情：' + md.ta.e + ' ' + md.ta.n;
+    } else {
+      el.hidden = true;
+    }
+  }
+  document.addEventListener('mochi-restore-done', fillSplashMood);
+  document.addEventListener('contact-switched', fillSplashMood);
+  fillSplashMood();
   // 公告由 notice.json 异步渲染完成 → 重新判定是否已滑到底
   document.addEventListener('mochi-notice-rendered', checkScrolled);
   // 轮询：数据就绪 + 已到底后停止；期间持续校正滚动/高度变化

@@ -3735,6 +3735,17 @@ else if (Array.isArray(_sp)) { spellSegs = _sp; }
 if (spellSegs && spellSegs.length > 1) {
 rep = { text: spellSegs.join(''), type: 'text', spell: spellSegs, spellOne: spellOne, parts: rep.parts || null };
 }
+// #317 梦角自由造句：开关开启时按「触发概率」把本条回复换成「梦角语料抽卡→截断几字重造句」，
+// 新句异步入库（自定义聊天字卡「梦角自由造句」分类，下次可再被抽用）；气泡下挂
+// 「梦角自由造句」tag（与情绪 chip 同链路持久化）；词典拼字命中时让位（同一回复不叠加两种玩法）
+let mjf = null;
+if (!spellSegs) {
+try { mjf = (window.dreamFreePick && window.dreamFreePick(c)) || null; } catch (e) { mjf = null; }
+if (mjf && mjf.text) {
+rep = { text: mjf.text, type: 'text', mjFree: true, parts: rep.parts || null };
+setTimeout(() => { try { if (window.dreamFreeSave && mjf.text) window.dreamFreeSave(mjf.text); } catch (e) {} }, 800);
+}
+}
 let m = null;
 if (rep.spell && rep.spellOne) {
 m = addIn(rep.spell.join(' '), {
@@ -3768,6 +3779,18 @@ tag: '词典拼字',
 tagNoDup: true
 });
 }
+} else if (rep.mjFree) {
+// #317 梦角自由造句：单气泡发送，来源 tag「梦角自由造句」（chip 持久化，重进聊天仍在）
+m = addIn(rep.text, {
+quote: quote,
+qside: 'out',
+qidx: quote ? quoteIdx : undefined,
+type: 'text',
+parts: rep.parts,
+silent: silent,
+tag: '梦角自由造句',
+tagNoDup: true
+});
 } else {
 m = addIn(rep.text, { quote: quote, qside: 'out', qidx: quote ? quoteIdx : undefined, type: rep.type, parts: rep.parts, silent: silent });
 }

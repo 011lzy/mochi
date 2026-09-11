@@ -31,6 +31,14 @@
   const soundBtn = document.getElementById('au-sound');
   const closeBtn = document.getElementById('au-close');
   const fsBtn = document.getElementById('au-fs');
+  // #321 玩法说明：❓ 头部按钮 + 详细规则弹窗
+  const helpBtn = document.getElementById('au-help-btn');
+  const helpOverlay = document.getElementById('au-help');
+  const helpClose = document.getElementById('au-help-close');
+  function showHelp() { if (helpOverlay) helpOverlay.hidden = false; }
+  function hideHelp() { if (helpOverlay) helpOverlay.hidden = true; }
+  if (helpBtn) helpBtn.addEventListener('click', (e) => { e.stopPropagation(); showHelp(); });
+  if (helpClose) helpClose.addEventListener('click', (e) => { e.stopPropagation(); hideHelp(); });
 
   // ---- #306 全屏：面板 fixed 满屏（共享 .game-fs 类，同 pong-fs 机制）。 ----
   // 重开面板无论上次怎么关的（含兄弟互斥直接 hidden）都先退出，防全屏残留 ----
@@ -77,6 +85,7 @@
   function pick(arr) { return arr && arr.length ? arr[Math.floor(Math.random() * arr.length)] : null; }
   function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
   function yuan(fen) { return '¥' + (fen / 100).toFixed(2); }
+  function yuanC(fen) { const v = fen / 100; return Number.isInteger(v) ? '¥' + v : '¥' + v.toFixed(2); } // #321 整数省略 .00，按钮直白些
 
   // ---- 音效 ----
   let audioCtx = null, soundOn = true;
@@ -197,14 +206,23 @@
   }
   function lotActive() { return st && st.started && !st.over && st.phase === 'bidding'; }
   function updateBidBtns() {
-    // TA 正在掂量我的出价时（leader=you 且思考定时器还挂着）锁全键盘，防连出价/抢跑放弃
+    // #321 档位按钮直白化：直接显示「出 ¥X」（当前价 + 该档），一眼看懂这一次会出多少钱
+    const STEPSa = [STEP1, STEP5, STEP13];
+    const bidBtns = [bid1Btn, bid5Btn, bid13Btn];
+    const cur = (st && typeof st.cur === 'number') ? st.cur : 0;
+    bidBtns.forEach((b, i) => { if (b && st) { b.textContent = '出 ' + yuanC(cur + STEPSa[i]); } });
+    // TA 正在掂量我的出价时（leader=you 且思考定时器还挂着）锁全键盘，防连出价/抢跑
     const waiting = lotActive() && st.leader === 'you' && !!thinkT;
     const on = lotActive() && !waiting && walletOk() && myBalance() >= st.cur + STEP1;
-    [bid1Btn, bid5Btn, bid13Btn].forEach((b) => { if (b) b.disabled = !on; });
-    if (passBtn) passBtn.disabled = !lotActive() || waiting;
-    [bid1Btn, bid5Btn, bid13Btn].forEach((b, i) => {
+    bidBtns.forEach((b) => { if (b) b.disabled = !on; });
+    if (passBtn) {
+      passBtn.disabled = !lotActive() || waiting;
+      // #321 「不拍了」按语境换词：你是最高价=落槌成交；否则=放弃这件
+      passBtn.textContent = (lotActive() && st.leader === 'you') ? ('落槌 · ' + yuanC(st.cur)) : '放弃这件';
+    }
+    bidBtns.forEach((b, i) => {
       if (b && on) {
-        const step = [STEP1, STEP5, STEP13][i];
+        const step = STEPSa[i];
         b.disabled = myBalance() < st.cur + step;
       }
     });
@@ -230,6 +248,7 @@
     st = newState();
     st.started = true;
     hideOverlay();
+    hideHelp();   // #321 开场时收起玩法说明，别挡着拍品
     openLot();
   }
   function openLot() {
@@ -473,12 +492,23 @@
   function showStartOverlay() {
     const s = loadStats();
     showOverlay('心意币拍卖会',
-      '<div class="c4-start-tip">每场 3 件拍品，和 ' + T('TA') + ' 轮番举牌<br>落槌价从心意币里真扣，拍到的收进 🎒</div>' +
-      '<div class="c4-start-note">🎲 ' + T('TA') + '每件的心理价位是暗的——志在必得/常规/抠门/虚张声势</div>' +
-      (s.sessions > 0 ? '<div class="pong-end-stat">累计 ' + s.sessions + ' 场 · 你拍得 ' + s.myWins + ' 件 · 花了 ' + yuan(s.spentFen || 0) + '</div>' : '') +
-      '<div class="pong-end-stat">当前心意币 ' + (walletOk() ? yuan(myBalance()) : '—') + '</div>',
+      '<div class="c4-start-tip">每场 3 件拍品，和 ' + T('TA') + ' 轮番举牌抢宝贝</div>' +
+      '<div class="pong-end-stat au-how-step">① 看拍品起拍价，比如 ¥9</div>' +
+      '<div class="pong-end-stat au-how-step">② 点档位＝往上加价，按钮直接显示你要出的钱</div>' +
+      '<div class="pong-end-stat au-how-step">③ ' + T('TA') + ' 跟价或放弃，轮到你按钮才亮</div>' +
+      '<div class="pong-end-stat au-how-step">④ 你最高价点「落槌」＝按现价买下（真扣心意币进 🎒）</div>' +
+      '<div class="pong-end-stat au-how-step">⑤ 没人要就流拍；' + T('TA') + ' 拍走的过几天寄回给你</div>' +
+      (s.sessions > 0 ? '<div class="pong-end-stat au-how-step" style="margin-top:6px">累计 ' + s.sessions + ' 场 · 你拍得 ' + s.myWins + ' 件 · 花了 ' + yuan(s.spentFen || 0) + '</div>' : '') +
+      '<div class="pong-end-stat au-how-step">当前心意币 ' + (walletOk() ? yuan(myBalance()) : '—') + '</div>' +
+      '<button class="pong-overlay-btn pong-overlay-btn2 au-start-help" id="au-start-help" type="button">❓ 还想看更详细的怎么玩</button>',
       s.sessions > 0 ? '再来一场' : '开场拍卖');
     if (endBtn) endBtn.hidden = true;
+    // #321 开场附加的「详细怎么玩」入口（每次重开都要重新挂，覆盖层 body 是动态渲染的）
+    setStatus('点击「开场拍卖」开始，或点 ❓ 先看玩法');
+    setTimeout(function () {
+      const h = document.getElementById('au-start-help');
+      if (h) h.onclick = function (ev) { ev.stopPropagation(); showHelp(); };
+    }, 0);
   }
   function hideOverlay() { if (overlayEl) overlayEl.hidden = true; }
 
@@ -526,6 +556,7 @@
   window.openAuctionPanel = function () {
     try { if (isFs) toggleFs(); } catch (e) {}
     panel.hidden = false;
+    hideHelp();                                              // #321 重开默认收起玩法说明
     try { setNames(); } catch (e) {}
     try { checkGifts(); } catch (e) {}   // #301 到期回寄投递
     // 有进行中的场次 → 接着拍（关面板期间 TA 思考的补调度）
@@ -534,11 +565,12 @@
       return;
     }
     showStartOverlay();
-    setStatus('点击「开场拍卖」');
+    setStatus('点击「开场拍卖」开始，点 ❓ 可先看详细玩法');
   };
   function closePanel() {
     clearTimeout(thinkT); thinkT = null;
     clearInterval(giftTimer); giftTimer = null;
+    hideHelp();
     if (panel) panel.hidden = true;
   }
   window.closeAuctionPanel = closePanel;

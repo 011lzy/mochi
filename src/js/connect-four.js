@@ -75,18 +75,29 @@
 
   // ---- 音效（Web Audio 短促合成，v3.15 起全站音量标准 ~0.16） ----
   let audioCtx = null, soundOn = true;
+  // v3.26.x：全站音量标准 ~0.16；suspended 时先 resume 再播——
+  // TA 先手时第一次 beep 由 taMove 的 setTimeout（非用户手势）触发，
+  // 此时 new AudioContext() 创建即 suspended，不 resume 则整局无声。
   function beep(freq, dur, vol) {
     if (!soundOn) return;
     try {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-      o.frequency.value = freq; o.type = 'sine';
-      g.gain.value = vol || 0.16;
-      o.connect(g); g.connect(audioCtx.destination);
-      const t = audioCtx.currentTime;
-      g.gain.setValueAtTime(g.gain.value, t);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-      o.start(t); o.stop(t + dur);
+      const play = () => {
+        try {
+          const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+          o.frequency.value = freq; o.type = 'sine';
+          g.gain.value = vol || 0.16;
+          o.connect(g); g.connect(audioCtx.destination);
+          const t = audioCtx.currentTime;
+          g.gain.setValueAtTime(g.gain.value, t);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+          o.start(t); o.stop(t + dur);
+        } catch (e) {}
+      };
+      if (audioCtx.state === 'running') { play(); return; }
+      const r = audioCtx.resume();
+      if (r && r.then) r.then(play).catch(() => play());
+      else play();
     } catch (e) {}
   }
   const sfxDropYou = () => beep(340, 0.09, 0.18);

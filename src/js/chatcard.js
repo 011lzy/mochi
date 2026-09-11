@@ -104,7 +104,8 @@
   // 管理页（page-custom-cards）功能分类 tab 可查看/编辑/删除，各功能经 default-cards.js
   // getLibPool 并入对应功能池抽取；CC_FUNC_KEYS 不进聊天通用回复池（getCustomCards*
   // 遍历全部分类时排除，防止功能字卡被聊天自动回复误抽）。
-  const CC_FUNC_KEYS = ['fish', 'eat', 'period', 'water', 'garden', 'sync', 'reach', 'cjian', 'room', 'piggy', 'drift', 'interact', 'music'];
+  const CC_FUNC_KEYS = ['fish', 'eat', 'period', 'water', 'garden', 'sync', 'reach', 'cjian', 'room', 'piggy', 'drift', 'interact', 'music',
+    'mjfree']; // #317 梦角自由造句：程序生成的重造句卡（dream-free.js），管理页可查看/删除，不进聊天通用池
   const CC_ALL_TYPES = CC_TYPES.concat(CC_FUNC_KEYS);
   // v3.26.x #139：GIF 动图上传大小上限（base64 长度）——GIF canvas 压缩会丢
   // 动画只能直存原图，此前无上限，几 MB~几十 MB 的动图整份进库是字卡库膨胀大头之一。
@@ -3102,6 +3103,28 @@
       return arr.map(g => [g[0], (g[1] || []).filter(isMediaImg)]);
     }
     return arr;
+  };
+
+  // #317 梦角自由造句：程序化追加字卡进当前联系人专属库的指定分类/分组
+  //（dream-free.js 造句入库用）。写守卫（ccAuthSeen/rescueCcOverwrite）、分组去重、
+  // 延迟持久化（scheduleSave）与手动添加完全同路；当前页若开着同分类列表则局部刷新。
+  window.ccAppendCards = function (type, group, cards) {
+    try {
+      if (CC_ALL_TYPES.indexOf(type) < 0 || type === 'sticker' || type === 'image' || type === 'voice') return false;
+      const arr = (Array.isArray(cards) ? cards : [cards]).filter(c => typeof c === 'string' && c && c.indexOf('data:') !== 0 && c.indexOf('|||') < 0);
+      if (!arr.length || !group) return false;
+      if (!groups[type]) groups[type] = [];
+      let g = groups[type].find(p => p[0] === group);
+      if (!g) { g = [group, []]; groups[type].push(g); }
+      let added = 0;
+      arr.forEach(c => { if (g[1].indexOf(c) < 0) { g[1].push(c); added++; } });
+      if (added) {
+        scheduleSave();
+        renderGroupsBar();
+        if (cur === type && !document.getElementById('page-custom-cards').hidden) { try { render(); } catch (e) {} }
+      }
+      return added > 0;
+    } catch (e) { return false; }
   };
 
   // ---- 多桌面：按指定联系人(cid)读取字卡（供朋友圈 TA 取各自桌面字卡）----

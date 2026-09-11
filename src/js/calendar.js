@@ -442,8 +442,24 @@
     }
   }
 
+  // 心情日记入口卡（#303）：实时预览「我」与「梦角」今日心情，来自 mood-diary.js 的 moodDiaryToday()
+  function renderMoodEntry() {
+    const entry = document.getElementById('cal-mood-entry');
+    if (!entry) return;
+    const mineEl = document.getElementById('mood-entry-mine');
+    const taEl = document.getElementById('mood-entry-ta');
+    const taLabel = document.getElementById('mood-entry-ta-label');
+    let md = null;
+    try { md = window.moodDiaryToday ? window.moodDiaryToday() : null; } catch (e) { md = null; }
+    const nm = store.get('lbl-partner') || 'TA';
+    if (taLabel) taLabel.textContent = nm + '（心情日记）';
+    if (mineEl) mineEl.textContent = (md && md.mine) ? (md.mine.e + ' ' + md.mine.n) : '今天还没记心情';
+    if (taEl) taEl.textContent = (md && md.ta) ? (md.ta.e + ' ' + md.ta.n) : '今天还没有互动';
+  }
+
   function render() {
     try { ensureFishHeat(); } catch (e) {} // 摸鱼/工作「当日统计」随 selDate 切换刷新
+    try { renderMoodEntry(); } catch (e) {}
     const parts = selDate.split('-');
     const dd = new Date(+parts[0], +parts[1] - 1, +parts[2]);
     const n2 = new Date();
@@ -668,9 +684,14 @@
         document.body.appendChild(el);
       }
       el._t.textContent = name + ' 的今日留言';
-      el._b.textContent = window.taFit
-        ? window.taFit('今日心情：' + e2.mood + '（' + e2.cat + '）\nTA 正在：' + e2.activity + '\n\nTA 留言：\n' + e2.message)
-        : ('今日心情：' + e2.mood + '（' + e2.cat + '）\nTA 正在：' + e2.activity + '\n\nTA 留言：\n' + e2.message);
+      // v3.27.x：追加梦角（TA）「心情日记」里今天的情绪（仅当天有交互才有；无则不加行）
+      let mdLine = '';
+      try {
+        const md = window.moodDiaryToday ? window.moodDiaryToday() : null;
+        if (md && md.ta) mdLine = '\n梦角（心情日记）：' + md.ta.e + ' ' + md.ta.n;
+      } catch (e) { mdLine = ''; }
+      const gbody = '今日心情：' + e2.mood + '（' + e2.cat + '）\nTA 正在：' + e2.activity + '\n\nTA 留言：\n' + e2.message + mdLine;
+      el._b.textContent = window.taFit ? window.taFit(gbody) : gbody;
       el.hidden = false;
       el.style.transition = 'none';
       el.style.opacity = '0';

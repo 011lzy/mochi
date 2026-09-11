@@ -230,13 +230,11 @@
       back.dataset.bound = '1';
       back.addEventListener('click', () => {
         document.querySelectorAll('.page').forEach(p => p.hidden = true);
-        if (window.__moodFrom === 'chat') {
-          const c = document.getElementById('page-chat');
-          if (c) c.hidden = false;
-        } else {
-          const home = document.getElementById('page-phone');
-          if (home) home.hidden = false;
-        }
+        // 返回目标：聊天更入口 → 聊天页；日历入口 → 日历页；其它 → 桌面
+        const backTarget = window.__moodFrom === 'chat' ? 'page-chat'
+                          : (window.__moodFrom === 'calendar' ? 'page-calendar' : 'page-phone');
+        const node = document.getElementById(backTarget);
+        if (node) node.hidden = false;
         window.__moodFrom = '';
       });
     }
@@ -252,15 +250,12 @@
     };
     if (prev && !prev.dataset.bound) { prev.dataset.bound = '1'; prev.addEventListener('click', () => shift(-1)); }
     if (next && !next.dataset.bound) { next.dataset.bound = '1'; next.addEventListener('click', () => shift(1)); }
-    // 入口：聊天更多功能 → 工具（游戏批同款自绑定，不改 chat.js）
-    const btn = document.getElementById('more-mood');
-    if (btn && !btn.dataset.bound) {
-      btn.dataset.bound = '1';
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const mp = document.getElementById('chat-more-panel');
-        if (mp) mp.hidden = true;
-        window.__moodFrom = 'chat';
+    // 入口：桌面「日历」页顶部「心情日记」卡（v3.27.x 由更多功能 → 工具迁入日历）
+    const entry = document.getElementById('cal-mood-entry');
+    if (entry && !entry.dataset.bound) {
+      entry.dataset.bound = '1';
+      entry.addEventListener('click', () => {
+        window.__moodFrom = 'calendar';
         openMoodDiary();
       });
     }
@@ -275,4 +270,17 @@
   else init();
 
   window.openMoodDiary = openMoodDiary;
+  // 日历/开屏横幅复用：返回今天的心情日记摘要
+  // { mine:{e,n,note}|null, ta:{e,n}|null }——ta 仅当当天有真实交互才生成，否则 null
+  window.moodDiaryToday = function () {
+    try {
+      const k = dkey(new Date());
+      const data = loadAll();
+      const rec = data.d[k];
+      const mine = rec ? { e: rec.m, n: (moodByEmoji(rec.m) || {}).n || '', note: rec.n || '' } : null;
+      _interactCache.built = false; // 重建「有交互日期」集合，确保读到最新聊天
+      const tm = taMoodFor(k);
+      return { mine: mine, ta: tm ? { e: tm.e, n: tm.n } : null };
+    } catch (e) { return { mine: null, ta: null }; }
+  };
 })();

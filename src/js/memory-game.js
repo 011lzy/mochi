@@ -9,6 +9,7 @@
   if (!panel) return;
 
   const boardEl = document.getElementById('memory-board');
+  const stageEl = document.querySelector('#chat-memory-panel .mgm-stage');
   const overlayEl = document.getElementById('memory-overlay');
   const overlayTitleEl = document.getElementById('memory-overlay-title');
   const overlayBodyEl = document.getElementById('memory-overlay-body');
@@ -176,6 +177,24 @@
     boardEl.style.gridTemplateColumns = 'repeat(' + d.cols + ', 1fr)';
     boardEl.style.setProperty('--mgm-fs', d.cols <= 3 ? '32px' : d.cols === 4 ? '27px' : '23px');
   }
+  // #306 真全屏：棋盘 grid 用 1fr 自适应，只需按可用宽/高把棋盘撑到恰好放下并缩放卡面字号。
+  // 卡高 = 卡宽×136%（.mgm-card::before 撑起），宽、高两个方向都约束再取小者，避免竖向溢出。
+  function fitBoard() {
+    if (!boardEl || !panel || panel.hidden || !stageEl) return;
+    const d = game ? game.params : curDiff();
+    const COLS = d.cols, ROWS = d.rows, GAP = 7;
+    const sw = stageEl.clientWidth;
+    if (isFs && sw > 0) {
+      let cell = Math.floor((sw - (COLS - 1) * GAP) / COLS);
+      const sh = stageEl.clientHeight;
+      if (sh > 0) cell = Math.max(24, Math.min(cell, Math.floor((sh - (ROWS - 1) * GAP) / (ROWS * 1.36))));
+      boardEl.style.width = (COLS * cell + (COLS - 1) * GAP) + 'px';
+      boardEl.style.setProperty('--mgm-fs', Math.round(cell * 0.5) + 'px');
+    } else {
+      boardEl.style.width = '';
+      applyBoardLayout(d);
+    }
+  }
   function makeCardEl(face, idx, withClick) {
     const b = document.createElement('button');
     b.type = 'button';
@@ -191,6 +210,7 @@
     applyBoardLayout(g.params);
     boardEl.innerHTML = '';
     g.cards.forEach((card, idx) => boardEl.appendChild(makeCardEl(card.face, idx, true)));
+    fitBoard();
   }
   // 开始前的背面牌墙预览：撑起舞台高度，覆盖层浮在其上（未开始点击无效）
   function buildPreview() {
@@ -201,6 +221,7 @@
     applyBoardLayout(d);
     boardEl.innerHTML = '';
     cards.forEach((face, idx) => boardEl.appendChild(makeCardEl(face, idx, false)));
+    fitBoard();
   }
   function syncCard(idx) {
     const g = game;

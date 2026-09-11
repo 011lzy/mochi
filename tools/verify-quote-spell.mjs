@@ -81,7 +81,8 @@ const tpl = readFileSync(join(root, 'src/template.html'), 'utf8');
 const bm = readFileSync(join(root, 'build.mjs'), 'utf8');
 ok(chat.includes('(window.quoteSpellPick && window.quoteSpellPick(c))'), 'D1 chat.js replyOnce 已接抽句门');
 ok(rs.includes("'qs-en': 1, 'qs-prob': 25, 'qs-cc': 0, 'qs-one': 1,"), 'D2 reply-settings.js DEFAULTS 注册 qs 四键');
-ok((rs.match(/'fd-post-en', 'qs-en', 'qs-cc', 'qs-one'\]/g) || []).length === 3, 'D3 三处开关清单都含 qs-en/qs-cc/qs-one');
+// 并行批会往开关清单尾部追加新键（如 mjf-en），断言只要求三处都含 qs 三键、不锁尾部
+ok((rs.match(/'qs-en', 'qs-cc', 'qs-one'/g) || []).length === 3, 'D3 三处开关清单都含 qs-en/qs-cc/qs-one');
 ok(rs.includes('migrateQsCcOld()') && rs.includes("s.set('reply-qs-cc', '0')") && rs.includes("'reply-qs-cc-migrated'"), 'D3b qs-cc 旧默认 1→0 一次性迁移在位');
 ok(tpl.includes('id="qs-en"') && tpl.includes('data-k="qs-prob"') && tpl.includes('id="qs-cc"') && tpl.includes('id="qs-one"'), 'D4 template.html 回复设置「词典拼字」组四控件');
 ok(chat.includes("tag: '词典拼字'") && chat.includes('rep.spell.join(\' \')'), 'D5 chat.js 单气泡形态：空格连卡+「词典拼字」tag');
@@ -97,12 +98,15 @@ const mustAbsent = ['中国','天安门','人民政府','北京','上海','国�
 const leaked = mustAbsent.filter(x => extAll.has(x) || baseAll.has(x));
 ok(leaked.length === 0, 'E1 地名/机构/政治/军事/犯罪/宗教/病灾/IT/性 词不在词典（基础+扩展双库）', leaked.join(','));
 ok(baseAll.has('火锅') && baseAll.has('旅行'), 'E2 基础词库常用词在位（火锅/旅行）');
-const keepWords = ['傻瓜','笨蛋','拥抱','想你','晚安','早安','亲亲','贴贴'];
+const keepWords = ['陪你','陪我','一起','喜欢','安心','踏实','舒服','开心'];
 const lostKeeps = keepWords.filter(x => !extAll.has(x) && !baseAll.has(x));
 ok(lostKeeps.length === 0, 'E3 情侣日常保留词在库', lostKeeps.join(','));
 const extSampleBad = ['变态','灭绝','斩首','月经','文革','阴道','孕妇','自尽','哑巴','瞎子','看守所','骨折','器官','性暗示','暧昧','上床','避孕','流产','性爱','精子','卵子','胸部'];
 const extLeak = extSampleBad.filter(x => extAll.has(x));
 ok(extLeak.length === 0, 'E4 扩展白名单库纯净', extLeak.join(','));
+const everydayChar = ['我','你','说','听','吃','喝','睡','走','看','想','好','大','水','饭','家','风','雨','一','八','吗','呢','吧','啊','了','又','和','跟'];
+const lostChar = everydayChar.filter(x => !extAll.has(x) && !baseAll.has(x));
+ok(lostChar.length === 0, 'E5 基础汉字含日常对话常用字', lostChar.join(','));
 
 console.log('\n== verify-quote-spell: ' + pass + ' 通过 / ' + fail + ' 失败 ==');
 process.exit(fail ? 1 : 0);

@@ -17,6 +17,10 @@
   const bodyEl = document.getElementById('arc-body');
   const closeBtn = document.getElementById('arc-close');
   const partnerNameEl = document.getElementById('arc-partner-name');
+  // v3.26.x：独立全屏游乐室页（主页页入口卡进入，返回回主页页；渲染复用下方 renderAt）
+  const pageEl = document.getElementById('page-arcade');
+  const pageBodyEl = document.getElementById('arcade-body');
+  const lgPartnerNameEl = document.getElementById('arcade-lg-partner');
 
   const T = window.taFit || function (x) { return x; };
   function prefix() { return (window.activePrefix && window.activePrefix()) || 'xy-home-v2'; }
@@ -135,8 +139,8 @@
   }
 
   // ---- 渲染 ----
-  function render() {
-    if (!bodyEl) return;
+  function renderAt(elm) {
+    if (!elm) return;
     const rows = statsRows();
     const bds = badges();
     const drops = loadDrops();
@@ -162,8 +166,9 @@
       html += '<div class="arc-sec">🧾 最近掉落</div>';
       html += drops.slice(-4).reverse().map((d) => '<div class="arc-row"><span class="arc-ico">' + d.ico + '</span><span class="arc-name">' + d.name + '</span><span class="arc-line">' + (d.src || '') + '</span></div>').join('');
     }
-    bodyEl.innerHTML = html;
+    elm.innerHTML = html;
   }
+  function render() { renderAt(bodyEl); }
 
   function setNames() {
     let name = T('TA');
@@ -172,6 +177,7 @@
       name = (s && (s.get('cs-lbl-partner') || s.get('lbl-partner'))) || name;
     } catch (e) {}
     if (partnerNameEl) partnerNameEl.textContent = name;
+    if (lgPartnerNameEl) lgPartnerNameEl.textContent = name;
   }
   window.openArcadePanel = function () {
     panel.hidden = false;
@@ -183,6 +189,23 @@
   if (closeBtn) closeBtn.addEventListener('click', (e) => { e.stopPropagation(); closePanel(); });
   window.closeArcadePanel = closePanel;
   document.addEventListener('contact-switched', () => { try { closePanel(); } catch (e) {} });
+
+  // ---- v3.26.x：独立全屏游乐室打开/关闭（主页页入口卡进入，返回回主页页） ----
+  function openArcadePage() {
+    if (!pageEl) return;
+    // 隐藏所有页，打开游乐室页
+    document.querySelectorAll('.page').forEach(p => p.hidden = true);
+    pageEl.hidden = false;
+    try { setNames(); } catch (e) {}
+    try { renderAt(pageBodyEl); } catch (e) {}
+  }
+  function closeArcadePage() {
+    if (!pageEl) return;
+    pageEl.hidden = true;
+    document.querySelectorAll('.page').forEach(p => p.hidden = true);
+    const homePage = document.getElementById('page-home');
+    if (homePage) homePage.hidden = false;
+  }
 
   // ---- 入口：聊天更多功能 → 小游戏 → 游乐室（自绑定，chat.js 不改） ----
   (function bindEntry() {
@@ -213,6 +236,23 @@
       }
     } catch (e) {}
   })();
+
+  // ---- v3.26.x：主页页入口卡 → 打开全屏游乐室；全屏返回键 → 回主页页 ----
+  (function bindHomeEntry() {
+    const entry = document.getElementById('home-arcade-entry');
+    if (entry) entry.addEventListener('click', (e) => {
+      // 主页页是 tab 统计页，页内只有这一处入口，无需防冒泡请假；stopPropagation 仅防止误触页面级委托
+      e.stopPropagation();
+      openArcadePage();
+    });
+    const back = document.getElementById('arcade-back');
+    if (back) back.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeArcadePage();
+    });
+  })();
+  window.openArcadePage = openArcadePage;
+  window.closeArcadePage = closeArcadePage;
 
   // 只读调试口（verify 用：强制掉落）
   window.__arcDebug = { forceDrop: false, luckyKey: luckyKey, loadDrops: loadDrops };
