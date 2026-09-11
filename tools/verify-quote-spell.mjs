@@ -66,9 +66,22 @@ ok(pick({ 'qs-en': 1, 'qs-prob': 0 }) === null, 'C2 qs-prob=0 → 不拼字');
 ok(pick(null) === null, 'C3 cfg 缺失 → 不拼字（原样回复）');
 let got = null;
 for (let i = 0; i < 50 && !got; i++) got = pick({ 'qs-en': 1, 'qs-prob': 100, 'qs-cc': 0 });
-ok(got && Array.isArray(got.segs) && got.one === false, 'C4 概率 100% 必中且返回 {segs, one:false} 整卡形态', JSON.stringify(got));
+ok(got && Array.isArray(got.segs) && typeof got.one === 'boolean', 'C4 概率 100% 必中且返回 {segs, one:boolean} 形态', JSON.stringify(got));
 ok(got && got.segs.length >= 2 && got.segs.length <= 5, 'C5 抽卡条数 2~5 张（复用 py-min/py-max）', got ? got.segs.length : 'null');
 ok(got && got.segs.every(sg => POOLSET.has(sg)), 'C6 每张卡都是完整语录字卡（不拆分）', got ? JSON.stringify(got.segs) : 'null');
+// #323 双形态选择：只开单气泡=全 one:true；只开多回复=全 one:false；双开≈50/50
+let oneCnt = 0;
+for (let i = 0; i < 60; i++) { const r = pick({ 'qs-en': 1, 'qs-prob': 100, 'qs-cc': 0, 'qs-one': 1, 'qs-multi': 0 }); if (r && r.one === true) oneCnt++; }
+ok(oneCnt === 60, 'C9 qs-one=1&qs-multi=0 全部单气泡形态（60/60）', String(oneCnt));
+let multiCnt = 0;
+for (let i = 0; i < 60; i++) { const r = pick({ 'qs-en': 1, 'qs-prob': 100, 'qs-cc': 0, 'qs-one': 0, 'qs-multi': 1 }); if (r && r.one === false) multiCnt++; }
+ok(multiCnt === 60, 'C10 qs-multi=1&qs-one=0 全部逐卡多回复形态（60/60）', String(multiCnt));
+let mix = 0;
+for (let i = 0; i < 120; i++) { const r = pick({ 'qs-en': 1, 'qs-prob': 100, 'qs-cc': 0, 'qs-one': 1, 'qs-multi': 1 }); if (r) mix += (r.one === true ? 1 : 2); }
+ok(mix > 120 && mix < 360, 'C11 双开混合 50/50（单气泡+逐卡都出现）', 'mix=' + mix);
+let fb = 0;
+for (let i = 0; i < 30; i++) { const r = pick({ 'qs-en': 1, 'qs-prob': 100, 'qs-cc': 0, 'qs-one': 0, 'qs-multi': 0 }); if (r && r.one === false) fb++; }
+ok(fb === 30, 'C12 双关兜底逐卡形态（30/30）', String(fb));
 got = null;
 for (let i = 0; i < 50 && !got; i++) got = pick({ 'qs-en': 1, 'qs-prob': 100, 'qs-cc': 1 });
 ok(got && Array.isArray(got.segs) && got.segs.length >= 2, 'C7 qs-cc=1 混用自定义字卡池同样可抽中');

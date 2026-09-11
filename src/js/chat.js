@@ -3720,11 +3720,12 @@ let rep = genOneReply(c);
 if (rep && rep.type === 'text' && typeof rep.text === 'string' && window.periodWarmText) {
 try { const _w = window.periodWarmText(rep.text); if (_w) rep.text = _w; } catch (e) {}
 }
-// #298 词典拼字：开关开启时按「拼字概率」把本条回复换成「语录/字卡池抽句→词典切词→逐词连发」；
-// 未命中或切不出 2~7 段时照常单条回复，下游（收藏/心情分享/情绪链/撤回/统计）全链路复用
-// #310 单气泡拼字：quoteSpellPick 返回 {segs, one:true} 时改为「词间空格连成一张字卡、
-// 发进同一个聊天气泡」，气泡下挂「词典拼字」来源 tag（复用情绪 chip 链路，tagNoDup 不重复正文）；
-// 两种形态共用同一拼字概率混合触发（旧版返回纯数组仍走逐词连发）
+// #298 词典拼字：开关开启时按「拼字概率」把本条回复换成「语录字卡抽卡拼字」；
+// #323 双形态混合（共用同一拼字概率，各自可开关，双开 50/50 掷币）：
+//   one:true  = 单气泡形态——几张字卡空格连成一条消息发进同一个聊天气泡；
+//   one:false = 多回复形态——每张字卡单独一条气泡逐条连发（不受「回复条数」限制，
+//   py-en 关没触发多字卡回复时也会触发，一条气泡带「词典拼字」tag）。
+// 旧版返回纯数组仍兼容为逐卡连发。
 let spellSegs = null;
 let spellOne = false;
 try {

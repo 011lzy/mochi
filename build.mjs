@@ -933,7 +933,7 @@ const FIX_SENTINELS = [
   { name: '#298 词典拼字接线·replyOnce 抽句门+逐词连发（删则开关存在但永不生效）', file: 'js/chat.js', needle: '(window.quoteSpellPick && window.quoteSpellPick(c))' },
   // ==== 2026-09-11 #310 词典拼字单气泡形态 + 普通字卡截断修复（qs-one 50% 混合单气泡/逐词；qs-cc 默认关防普通字卡被抽去拼字）====
   { name: '#310 单气泡拼字形态·chat.js 空格连卡+「词典拼字」tag（删则 qs-one 开了也只有逐词连发、无单气泡形态）', file: 'js/chat.js', needle: "if (rep.spell && rep.spellOne) {\nm = addIn(rep.spell.join(' '), {" },
-  { name: '#315/v27 拼字卡=整张语录字卡连发·抽卡门返回 {segs:完整语录数组, one:false}（删则拼字变成拆字/拼词＝语录字卡被破坏）', file: 'js/quote-spell.js', needle: 'return { segs: cards, one: false };' },
+  { name: '#323 词典拼字双形态选择·qs-one 单气泡/qs-multi 逐卡混合掷币（删则退回单一形态＝可开关混合失效；双关兜底逐卡 else one=false）', file: 'js/quote-spell.js', needle: "if (oneOn && multiOn) one = Math.random() < 0.5;" },
   { name: '#310 qs-cc 旧默认 1→0 迁移（删则存量桌面普通字卡继续被抽去拼字截断＝用户报障回流）', file: 'js/reply-settings.js', needle: "s.set('reply-qs-cc', '0'); changed = true; }" },
   { name: '#310b 逐词连发每条气泡挂「词典拼字」tag（删则断续多气泡无来源标注＝用户分不清哪串是拼字）', file: 'js/chat.js', needle: "silent: si > 0 ? true : silent,\ntag: '词典拼字'," },
   // ==== 2026-09-11 #317 梦角自由造句（梦角语料抽卡→截断几字重造句→入库自定义字卡「梦角自由造句」分类）====

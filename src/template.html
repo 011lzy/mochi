@@ -2285,13 +2285,14 @@
             <div class="gs-row"><span>最多条数</span><div class="stepper" data-k="py-max" data-min="2" data-max="10" data-step="1"><button class="stp-min">−</button><input class="stp-val" id="py-max-val" readonly><button class="stp-max">+</button></div></div>
             <div class="gs-sub">多条字卡回复总开关：关闭后每条消息只回一条、每条只用一张字卡；开启后回复拆成几条由上方「回复条数」控制、每条拼几张由下方「最少/最多条数」控制</div>
           </div>
-          <div class="gs-title">词典拼字（抽句逐词连发）</div>
+          <div class="gs-title">词典拼字（语录字卡拼字）</div>
           <div class="set-group glass">
             <div class="gs-row"><span>词典拼字</span><label class="toggle"><input type="checkbox" id="qs-en"><span class="tk"></span></label></div>
             <div class="gs-row"><span>拼字概率</span><div class="stepper" data-k="qs-prob" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="qs-prob-val" readonly><button class="stp-max">+</button></div></div>
             <div class="gs-row"><span>混用自定义字卡</span><label class="toggle"><input type="checkbox" id="qs-cc"><span class="tk"></span></label></div>
             <div class="gs-row"><span>单气泡拼字</span><label class="toggle"><input type="checkbox" id="qs-one"><span class="tk"></span></label></div>
-            <div class="gs-sub">开启后联系人回复按「拼字概率」随机变成拼字：从词典语录（系统预设字卡→词典，可逐张关闭）抽语录字卡整卡用空格连成一张卡发进同一个气泡，条数跟随上方「每条消息使用多字卡回复」的最少/最多条数（默认 2~5）（如「今天也要好好爱自己 晚安」，正常句子整卡出现不被切词），气泡下带「词典拼字」小标签；关闭「单气泡拼字」则走旧式切词逐条连发（每条小气泡带标签）；开启「混用自定义字卡」时你的字卡库文本也会进抽句池（可能把你的普通字卡抽去拼字，默认关），关闭则只用词典语录。概率 0 = 不触发</div>
+            <div class="gs-row"><span>多回复逐卡连发</span><label class="toggle"><input type="checkbox" id="qs-multi"><span class="tk"></span></label></div>
+            <div class="gs-sub">开启后联系人回复按「拼字概率」随机变成拼字：从词典语录（系统预设字卡→词典，可逐张关闭）抽语录字卡整卡，两种发送形态共用同一概率混合触发、各自可开关，条数跟随上方「每条消息使用多字卡回复」的最少/最多条数（默认 2~5）：<br>· 「单气泡拼字」＝几张字卡各中间空一格拼成一条消息发进同一个气泡（如「今天也要好好爱自己 晚安」）；<br>· 「多回复逐卡连发」＝每张字卡单独一条气泡逐条连发（一两个字的短字卡也适合），不依赖也不受「多字卡回复/回复条数」限制，即使没触发多字卡回复也能触发；<br>· 两个都开＝每次命中各一半概率选形态，两个都关＝兜底逐卡连发。<br>每条气泡都带「词典拼字」小标签。开启「混用自定义字卡」时你的字卡库文本也会进抽卡池（可能把你的普通字卡抽去拼字，默认关），关闭则只用词典语录。概率 0 = 不触发</div>
           </div>
           <div class="gs-title">梦角自由造句（截字重造句）</div>
           <div class="set-group glass">
