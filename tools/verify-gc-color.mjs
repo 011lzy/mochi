@@ -27,11 +27,9 @@ const src = readFileSync(join(root, 'src/js/group-chat.js'), 'utf8');
 const p2 = readFileSync(join(root, 'src/js/p2-features.js'), 'utf8');
 check('S1 pickGcColor 不再回滚选色（删 gcBeautySet(key, prev) 回滚分支）', !src.includes('gcBeautySet(key, prev)'));
 check('S2 pickGcColor 不再弹「已恢复」提示', !src.includes('该颜色与气泡太接近'));
-check('S3 gcEnsureContrast 自愈函数在位', src.includes('function gcEnsureContrast()'));
-check('S4 自愈接入 applyGcBeauty 尾部（applyGcCss 后调用）', /applyGcCss\(\);\s*\n\s*gcEnsureContrast\(\);/.test(src));
-check('S5 自愈规则逻辑锚（作用域前缀+双类气泡选择器+黑/白按亮度）',
-  src.includes("'#page-group-chat .msg-' + p[0] + ' .msg-bubble.msg-bubble{color:'") &&
-  src.includes("lum >= 0.5 ? '#111111' : '#ffffff'"));
+check('S3 对比度自愈已按用户要求移除（2026-09-11：不强制换色）', !src.includes('function gcEnsureContrast()'));
+check('S4 applyGcBeauty 不再接入自愈', !/applyGcCss\(\);\s*\n\s*gcEnsureContrast\(\);/.test(src));
+check('S5 对比度警告/计算残留清零', !src.includes('gcColorPairBad') && !src.includes('gcColorWarnText') && !src.includes('gc-contrast-fix'));
 check('S6 #224 chk 助手 dcfPFish 在位且不再跨 IIFE 引用 dcfP', p2.includes('function dcfPFish(def)') && !p2.includes("dcfP('fish'"));
 
 // ---- 运行时（无头 Chrome 端到端） ----
@@ -123,11 +121,11 @@ await evalJs("(function(){var sw=document.getElementById('modal-swatches').child
 await sleep(150);
 await evalJs("(function(){document.getElementById('modal-ok').click();return 1;})()");
 await sleep(500);
-const afterPick = await evalJs("(function(){var p=document.getElementById('page-group-chat');var fix=document.getElementById('gc-contrast-fix');var saved='';try{saved=JSON.parse(window.xyStore('xy-home-v2').get('gc-beauty')||'{}')['out-bg']||'';}catch(e){}return JSON.stringify({v:p.style.getPropertyValue('--msg-out-bg').trim(),saved:saved,fix:!!fix,fixOut:fix?fix.textContent.indexOf('.msg-out')>=0:false,fixInk:fix?fix.textContent.indexOf('#111111')>=0:false});})()");
+const afterPick = await evalJs("(function(){var p=document.getElementById('page-group-chat');var fix=document.getElementById('gc-contrast-fix');var saved='';try{saved=JSON.parse(window.xyStore('xy-home-v2').get('gc-beauty')||'{}')['out-bg']||'';}catch(e){}return JSON.stringify({v:p.style.getPropertyValue('--msg-out-bg').trim(),saved:saved,fix:!!fix});})()");
 let ap = {}; try { ap = JSON.parse(afterPick); } catch (e) {}
 check('R2 选樱花粉后颜色生效（--msg-out-bg=#ffd6e0）——不再一改就恢复', ap.v === '#ffd6e0', afterPick);
 check('R3 所选颜色已持久化（gc-beauty out-bg=#ffd6e0，未回滚）', ap.saved === '#ffd6e0', '');
-check('R4 粉气泡+默认白字对比过低 → 自愈样式注入且强制黑字可读', ap.fix === true && ap.fixOut === true && ap.fixInk === true, '');
+check('R4 低对比组合不再被强制覆盖（无 gc-contrast-fix 注入）', ap.fix === false, '');
 
 // 接着把「我的消息文字颜色」选黑色：粉底黑字对比充足 → 自愈样式应自动移除
 await clickRow('我的消息文字颜色');
@@ -138,20 +136,20 @@ await evalJs("(function(){document.getElementById('modal-ok').click();return 1;}
 await sleep(500);
 const afterInk = await evalJs("(function(){var p=document.getElementById('page-group-chat');var fix=document.getElementById('gc-contrast-fix');return JSON.stringify({ink:p.style.getPropertyValue('--msg-out-ink').trim(),fix:!!fix});})()");
 let ai = {}; try { ai = JSON.parse(afterInk); } catch (e) {}
-check('R5 文字改黑色后组合可读 → 自愈样式自动移除', ai.ink === '#111111' && ai.fix === false, afterInk);
+check('R5 文字改黑色后正常生效且无覆盖样式', ai.ink === '#111111' && ai.fix === false, afterInk);
 
-// 黑底黑字经方案导入路径（applyGcBeautyData 不设防）也必须被自愈兜底
+// 黑底黑字经方案导入路径（applyGcBeautyData）也不再被强制改色——用户选什么就是什么
 await evalJs("(function(){window.applyGcBeautyData({'in-bg':'#111111','in-ink':'#111111'});return 1;})()");
 await sleep(400);
-const blackOnBlack = await evalJs("(function(){var p=document.getElementById('page-group-chat');var fix=document.getElementById('gc-contrast-fix');return JSON.stringify({inbg:p.style.getPropertyValue('--msg-in-bg').trim(),fix:!!fix,fixIn:fix?fix.textContent.indexOf('.msg-in')>=0:false,fixWhite:fix?fix.textContent.indexOf('#ffffff')>=0:false});})()");
+const blackOnBlack = await evalJs("(function(){var p=document.getElementById('page-group-chat');var fix=document.getElementById('gc-contrast-fix');return JSON.stringify({inbg:p.style.getPropertyValue('--msg-in-bg').trim(),inink:p.style.getPropertyValue('--msg-in-ink').trim(),fix:!!fix});})()");
 let bb = {}; try { bb = JSON.parse(blackOnBlack); } catch (e) {}
-check('R6 导入黑底黑字 → 自愈注入 .msg-in 白字（可读性兜底覆盖导入路径）', bb.inbg === '#111111' && bb.fix === true && bb.fixIn === true && bb.fixWhite === true, blackOnBlack);
+check('R6 导入黑底黑字原样生效（无自愈覆盖）', bb.inbg === '#111111' && bb.inink === '#111111' && bb.fix === false, blackOnBlack);
 
-// 恢复默认组合 → 自愈样式移除
+// 恢复可读组合 → 依旧无覆盖样式
 await evalJs("(function(){window.applyGcBeautyData({'in-bg':'#ffffff','in-ink':'#111111'});return 1;})()");
 await sleep(400);
 const restored = await evalJs("(function(){return JSON.stringify({fix:!!document.getElementById('gc-contrast-fix')});})()");
-check('R7 恢复可读组合 → 自愈样式自动移除', restored === '{"fix":false}', restored);
+check('R7 恢复默认组合 → 无 gc-contrast-fix', restored === '{"fix":false}', restored);
 
 // 全程无未捕获错误（含历史版本每分钟必抛的 dcfP is not defined）
 const errs = await evalJs("(function(){var a=Array.isArray(window.__jsErrors)?window.__jsErrors:[];return JSON.stringify(a.map(function(e){return String(e.message||e).slice(0,80);}));})()");
