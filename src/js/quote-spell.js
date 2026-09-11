@@ -126,9 +126,8 @@
   }
   // 暴露切词器（verify 脚本与排查用）
   window.quoteSpellSplit = splitWords;
-  // 抽句门：c = replyCfg()。命中返回切段数组（2~7 段）；关闭/未命中/切不出返回 null（走原回复）。
-  // #310：qs-one 开时命中后 50% 掷成单气泡形态，返回 { segs, one: true }（one 缺省=false
-  // 即逐词连发；chat.js 两种返回形态都兼容），两种形态共用同一拼字概率混合触发。
+  // 抽句门：c = replyCfg()。qs-one 开（默认）＝返回 { segs: 语录字卡数组, one: true }——
+  // 整卡空格拼接；qs-one 关＝返回切词段数组（旧式逐条连发）。关闭/未命中返回 null（走原回复）。
   window.quoteSpellPick = function (c) {
     try {
       if (!c || c['qs-en'] !== 1) return null;
@@ -149,15 +148,24 @@
         } catch (e) {}
       }
       if (!pool.length) return null;
+      // #315 单气泡拼字＝词典语录字卡整卡拼接（用户规格：拼词典=把词典里的字卡拼起来，
+      // 每个字卡空一格）——抽 2~3 张不同语录，空格连成一张卡，「今天也要好好爱自己」这类
+      // 正常句子整卡出现不再切词；qs-one 关 = 旧式切词逐条连发（可选回退）
+      if (c['qs-one'] === 1) {
+        const cards = [pool[Math.floor(Math.random() * pool.length)]];
+        for (let k = 0; k < 10 && cards.length < 3; k++) {
+          const s2 = pool[Math.floor(Math.random() * pool.length)];
+          if (cards.indexOf(s2) < 0) cards.push(s2);
+        }
+        while (cards.length > 2 && cards.join(' ').length > 36) cards.pop();
+        lastQuote = cards[0];
+        return { segs: cards, one: true };
+      }
       for (let t = 0; t < 4; t++) {
         const s = pool[Math.floor(Math.random() * pool.length)];
         if (s === lastQuote) continue;
         const segs = splitWords(s);
-        if (segs.length >= MIN_SEGS && segs.length <= MAX_SEGS) {
-          lastQuote = s;
-          if (c['qs-one'] === 1 && Math.random() < 0.5) return { segs: segs, one: true };
-          return segs;
-        }
+        if (segs.length >= MIN_SEGS && segs.length <= MAX_SEGS) { lastQuote = s; return segs; }
       }
       return null;
     } catch (e) { return null; }

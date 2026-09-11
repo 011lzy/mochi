@@ -933,7 +933,7 @@ const FIX_SENTINELS = [
   { name: '#298 词典拼字接线·replyOnce 抽句门+逐词连发（删则开关存在但永不生效）', file: 'js/chat.js', needle: '(window.quoteSpellPick && window.quoteSpellPick(c))' },
   // ==== 2026-09-11 #310 词典拼字单气泡形态 + 普通字卡截断修复（qs-one 50% 混合单气泡/逐词；qs-cc 默认关防普通字卡被抽去拼字）====
   { name: '#310 单气泡拼字形态·chat.js 空格连卡+「词典拼字」tag（删则 qs-one 开了也只有逐词连发、无单气泡形态）', file: 'js/chat.js', needle: "if (rep.spell && rep.spellOne) {\nm = addIn(rep.spell.join(' '), {" },
-  { name: '#310 单气泡拼字掷币·quoteSpellPick 返回 {segs,one}（删则永远纯数组＝单气泡永不出现）', file: 'js/quote-spell.js', needle: "if (c['qs-one'] === 1 && Math.random() < 0.5) return { segs: segs, one: true };" },
+  { name: '#315 单气泡拼字·整卡拼接返回 {segs:语录字卡数组, one:true}（删则退回切词＝「今天也要好好爱自己」类正常语录被切碎）', file: 'js/quote-spell.js', needle: "return { segs: cards, one: true };" },
   { name: '#310 qs-cc 旧默认 1→0 迁移（删则存量桌面普通字卡继续被抽去拼字截断＝用户报障回流）', file: 'js/reply-settings.js', needle: "s.set('reply-qs-cc', '0'); changed = true; }" },
   { name: '#310b 逐词连发每条气泡挂「词典拼字」tag（删则断续多气泡无来源标注＝用户分不清哪串是拼字）', file: 'js/chat.js', needle: "silent: si > 0 ? true : silent,\ntag: '词典拼字'," },
   { name: '#301 词典自建词条并入词典分类（删则自建语录/词不再进词典 tab 与拼字引擎）', file: 'js/default-cards.js', needle: "const gw = base.find(g => g[0].indexOf('词库') === 0)" },

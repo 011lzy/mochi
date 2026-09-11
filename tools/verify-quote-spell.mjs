@@ -93,29 +93,27 @@ for (let i = 0; i < 60 && !h1Array && !sawObj; i++) {
   else h1Array = r;
 }
 ok(!sawObj && Array.isArray(h1Array) && h1Array.length >= 2 && h1Array.length <= 7, 'H1 qs-one=0 只返回纯数组（逐词连发）', JSON.stringify(sawObj ? '出现对象形态' : h1Array));
-// qs-one=1 + 概率 100%：反复掷应同时出现两种形态（50/50 混合，120 次全单形态概率 ~2^-120 可忽略）
-let oneCount = 0, multiCount = 0, allSegs = true;
+// #315：qs-one=1（默认）＝全部返回整卡拼接形态 {segs, one:true}，segs=2~3 张完整语录字卡（不切词）
+const POOLSET = new Set(quotes.filter(q => typeof q === 'string' && q.length >= 3 && q.length <= 26
+  && q.indexOf('data:') !== 0 && q.indexOf('|||') < 0 && !/[\uD800-\uDBFF]/.test(q)
+  && (q.match(/[\u4e00-\u9fff]/g) || []).length >= 2));
+let oneCount = 0, allOk = true, badCard = null;
 for (let i = 0; i < 120; i++) {
   const r = pick({ 'qs-en': 1, 'qs-prob': 100, 'qs-cc': 0, 'qs-one': 1 });
   if (!r) continue;
-  if (Array.isArray(r.segs)) {
-    oneCount++;
-    const segs = r.segs;
-    if (segs.length < 2 || segs.length > 7 || segs.join('').length < 3) allSegs = false;
-    if (r.one !== true) allSegs = false;
-  } else if (Array.isArray(r)) {
-    multiCount++;
-    if (r.length < 2 || r.length > 7) allSegs = false;
-  } else allSegs = false;
+  if (!Array.isArray(r.segs) || r.one !== true) { allOk = false; break; }
+  oneCount++;
+  if (r.segs.length < 2 || r.segs.length > 3) allOk = false;
+  r.segs.forEach(sg => { if (!POOLSET.has(sg)) { allOk = false; badCard = badCard || sg; } });
 }
-ok(allSegs && oneCount > 0 && multiCount > 0, 'H2 qs-one=1 两种形态混合出现（单气泡 ' + oneCount + ' / 逐词 ' + multiCount + '）');
-// 单气泡形态内容语义：segs 可空格连卡、内容非空且含 ≥2 个汉字
+ok(allOk && oneCount >= 100, 'H2 #315 qs-one=1 全部为整卡拼接形态且 2~3 张完整语录（120 掷单气泡 ' + oneCount + '）');
+ok(!badCard, 'H3 整卡拼接的每段都是完整语录字卡（不切词）', badCard);
 let oneSegs = null;
 for (let i = 0; i < 60 && !oneSegs; i++) {
   const r = pick({ 'qs-en': 1, 'qs-prob': 100, 'qs-cc': 0, 'qs-one': 1 });
   if (r && Array.isArray(r.segs) && r.one === true) oneSegs = r.segs;
 }
-ok(oneSegs && oneSegs.join(' ').length >= 3 && (oneSegs.join('').match(/[\u4e00-\u9fff]/g) || []).length >= 2, 'H3 单气泡形态 segs 可空格连卡且内容非空', JSON.stringify(oneSegs));
+ok(oneSegs && oneSegs.join(' ').length >= 3 && oneSegs.every(sg => POOLSET.has(sg)), 'H4 拼接结果=语录字卡空格连卡（如「今天也要好好爱自己 晚安」整卡出现）', JSON.stringify(oneSegs));
 
 // —— D 接线（源码级）——
 const chat = readFileSync(join(root, 'src/js/chat.js'), 'utf8');
@@ -162,12 +160,15 @@ const baseAll = new Set();
 ((D.dict || []).filter(g => String(g[0]).indexOf('词库') === 0)).forEach(g => (g[1] || []).forEach(x => baseAll.add(x)));
 const placeWords = ['中国', '北京', '上海', '天安门', '人民政府', '国务院', '鄂州', '鄂州市', '广东', '深圳', '解放军', '共产党',
   // #301 v5 情侣日常过滤：政治/军事/犯罪/金融/宗教/帝制/病灾/IT 样例
-  '军队', '战争', '武器', '警察', '犯罪', '监狱', '股票', '贷款', '上帝', '魔鬼', '皇帝', '宰相', '僵尸', '癌症', '赌博', '贪污', '政府', '导弹', '服务器', '手枪', '爆炸', '骗子', '俘虏', '虐待', '暴力', '神仙', '甲方', '签约', '牢房', '知府', '江湖', '掌门', '畜生', '混蛋', '婊子', '贱人', '算卦', '地震', '火山', '手术', '化疗', '崩溃', '绝望', '背叛', '寂寞', '孤独', '离别', '迷茫', '无助', '虚伪', '冷漠', '嫉妒', '判决', '通缉', '宇宙', '光年', '疫苗', '合同', '谈判', '手铐', '理论', '逻辑', '痛苦', '折磨', '悲伤', '哭泣', '冲突', '危机', '危险', '上床', '避孕', '流产', '打针', '输液', '住院', '怀孕', '浴室', '同居', '左派', '右派', '卫队', '乳房', '性爱', '精子', '卵子', '太监', '尚书', '央行', '激素', '耳光', '打架', '斗殴', '肝病', '体罚', '内伤', '报社', '地质', '联赛', '裁判', '档案', '公文', '博弈', '参议员', '公务员', '病理', '诊断', '炎症', '悲惨', '悲痛', '沮丧', '狮子', '鲨鱼', '鳄鱼', '蝎子', '考核', '报销', '证据', '被告', '原告', '硅谷', '破产', '赤字', '部队', '公社', '知青', '骰子', '酗酒', '肝炎', '肺炎', '精神病', '神经病', '乞丐', '秃头', '看守所', '喝酒', '吸烟', '谣言', '出卖', '算计', '衰老', '俘虏', '虐待', '暴力', '神仙', '甲方', '签约', '牢房', '知府', '马克思主义', '民主集中制', '毛主席纪念堂', '万平方公里', '发展中国家', '本行政区域', '自然保护区', '人民日报', '国家主席', '纪念堂', '阶级', '宪法', '司令', '安定团结', '国共合作', '商品经济'];
+  '军队', '战争', '武器', '警察', '犯罪', '监狱', '股票', '贷款', '上帝', '魔鬼', '皇帝', '宰相', '僵尸', '癌症', '赌博', '贪污', '政府', '导弹', '服务器', '手枪', '爆炸', '骗子', '俘虏', '虐待', '暴力', '神仙', '甲方', '签约', '牢房', '知府', '江湖', '掌门', '畜生', '混蛋', '婊子', '贱人', '算卦', '地震', '火山', '手术', '化疗', '崩溃', '绝望', '背叛', '寂寞', '孤独', '离别', '迷茫', '无助', '虚伪', '冷漠', '嫉妒', '判决', '通缉', '疫苗', '合同', '谈判', '手铐', '理论', '逻辑', '痛苦', '折磨', '悲伤', '哭泣', '冲突', '危机', '危险', '上床', '避孕', '流产', '打针', '输液', '住院', '怀孕', '浴室', '同居', '左派', '右派', '卫队', '乳房', '性爱', '精子', '卵子', '太监', '尚书', '央行', '激素', '耳光', '打架', '斗殴', '肝病', '体罚', '内伤', '报社', '地质', '联赛', '裁判', '档案', '公文', '博弈', '参议员', '公务员', '病理', '诊断', '炎症', '悲惨', '悲痛', '沮丧', '狮子', '鲨鱼', '鳄鱼', '蝎子', '考核', '报销', '证据', '被告', '原告', '硅谷', '破产', '赤字', '部队', '公社', '知青', '骰子', '酗酒', '肝炎', '肺炎', '精神病', '神经病', '乞丐', '秃头', '看守所', '喝酒', '吸烟', '谣言', '出卖', '算计', '衰老', '俘虏', '虐待', '暴力', '神仙', '甲方', '签约', '牢房', '知府', '马克思主义', '民主集中制', '毛主席纪念堂', '万平方公里', '发展中国家', '本行政区域', '自然保护区', '人民日报', '国家主席', '纪念堂', '阶级', '宪法', '司令', '安定团结', '国共合作', '商品经济'];
 const leaked = placeWords.filter(x => extAll.has(x) || baseAll.has(x));
 ok(leaked.length === 0, 'G1 地名/机构/政治/军事/犯罪/宗教/病灾/IT 词不在词典（基础+扩展）', leaked.join(','));
 ok(extAll.has('天气') && baseAll.has('火锅') && baseAll.has('旅行'), 'G2 剔除专名后普通常用词仍在（天气/火锅/旅行，基础或扩展任一）');
 const keepWords = ['傻瓜', '笨蛋', '傻笑', '吵架', '分手', '和好', '星座', '八卦', '薪水', '老板', '商量', '赌气', '拥抱'];
 const lostKeeps = keepWords.filter(x => !extAll.has(x) && !baseAll.has(x));
+const astroWords = ['宇宙', '星系', '行星', '光年', '银河', '陨石', '彗星', '太阳系'];
+const lostAstro = astroWords.filter(x => !extAll.has(x) && !baseAll.has(x));
+ok(lostAstro.length === 0, 'G4 天文浪漫意象词在库（宇宙/星系/行星/光年/银河/陨石/彗星/太阳系）', lostAstro.join(','));
 ok(lostKeeps.length === 0, 'G3 情侣日常保留词在库（傻瓜/笨蛋/傻笑/打针/吵架/分手/星座/八卦等）', lostKeeps.join(','));
 
 console.log('\n== verify-quote-spell: ' + pass + ' 通过 / ' + fail + ' 失败 ==');
