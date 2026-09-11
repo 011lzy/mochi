@@ -66,16 +66,6 @@
         } catch (e) {}
       }
       if (!pool.length) return null;
-      // 抽卡条数：复用「多字卡回复」设置 py-min/py-max（默认 2~5 张）
-      const pmin = Math.max(1, Math.min(10, Number(c['py-min']) || 2));
-      const pmax = Math.max(pmin, Math.min(10, Number(c['py-max']) || 5));
-      const want = pmin + Math.floor(Math.random() * (pmax - pmin + 1));
-      const cards = [pool[Math.floor(Math.random() * pool.length)]];
-      for (let k = 0; k < 30 && cards.length < want; k++) {
-        const s2 = pool[Math.floor(Math.random() * pool.length)];
-        if (cards.indexOf(s2) < 0) cards.push(s2);
-      }
-      lastQuote = cards[0];
       // #323 形态选择：qs-one 单气泡 / qs-multi 多回复逐卡，双开各 50% 掷币；
       // 只开其一会中该形态；双关（qs-en 开但两个形态开关都关）= 兜底逐卡形态，避免拼字开关空转
       const oneOn = c['qs-one'] === 1;
@@ -85,6 +75,24 @@
       else if (oneOn) one = true;
       else if (multiOn) one = false;
       else one = false;
+      // 抽卡条数：复用「多字卡回复」设置 py-min/py-max（默认 2~5 张）；
+      // 抽卡条数：复用「多字卡回复」设置 py-min/py-max（默认 2~5 张）
+      const pmin = Math.max(1, Math.min(10, Number(c['py-min']) || 2));
+      const pmax = Math.max(pmin, Math.min(10, Number(c['py-max']) || 5));
+      // #330 逐卡连发形态（完整整条字卡一条一条发）受「回复条数最多」reply-max 上限约束——
+      // 完整字卡连发多条＝一次普通多回复，不该超过联系人「回复条数最多」；单气泡形态
+      // 只发一条消息不受此限（条数=拼进同一气泡的卡数，仍按 py-min/py-max）
+      let want = pmin + Math.floor(Math.random() * (pmax - pmin + 1));
+      if (!one) {
+        const rmax = Math.max(pmin, Math.min(20, Number(c['reply-max']) || 2));
+        if (want > rmax) want = rmax;
+      }
+      const cards = [pool[Math.floor(Math.random() * pool.length)]];
+      for (let k = 0; k < 30 && cards.length < want; k++) {
+        const s2 = pool[Math.floor(Math.random() * pool.length)];
+        if (cards.indexOf(s2) < 0) cards.push(s2);
+      }
+      lastQuote = cards[0];
       return { segs: cards, one: one };
     } catch (e) { return null; }
   };

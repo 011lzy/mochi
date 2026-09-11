@@ -86,6 +86,16 @@ got = null;
 for (let i = 0; i < 50 && !got; i++) got = pick({ 'qs-en': 1, 'qs-prob': 100, 'qs-cc': 1 });
 ok(got && Array.isArray(got.segs) && got.segs.length >= 2, 'C7 qs-cc=1 混用自定义字卡池同样可抽中');
 ok(got && got.segs.every(sg => typeof sg === 'string' && sg.trim()), 'C8 混池抽中的每张卡也是完整内容（不拆分）');
+// #330 逐卡连发受「回复条数最多」上限：reply-max=2、py 2~5 → 逐卡形态恒 ≤2；单气泡仍 2~5
+let maxMulti = 0, maxOne2 = 0;
+for (let i = 0; i < 100; i++) {
+  const rm = pick({ 'qs-en': 1, 'qs-prob': 100, 'qs-cc': 0, 'py-min': 2, 'py-max': 5, 'reply-max': 2, 'qs-one': 0, 'qs-multi': 1 });
+  if (rm && rm.one === false) maxMulti = Math.max(maxMulti, rm.segs.length);
+  const ro = pick({ 'qs-en': 1, 'qs-prob': 100, 'qs-cc': 0, 'py-min': 2, 'py-max': 5, 'reply-max': 2, 'qs-one': 1, 'qs-multi': 0 });
+  if (ro && ro.one === true) maxOne2 = Math.max(maxOne2, ro.segs.length);
+}
+ok(maxMulti <= 2 && maxMulti >= 2, 'C9 #330 逐卡连发受回复条数最多上限（reply-max=2 → 恒 2，实测 ' + maxMulti + '）');
+ok(maxOne2 === 5, 'C10 #330 单气泡形态不受 reply-max 限（仍拼满 2~5，实测最大 ' + maxOne2 + '）');
 
 // —— D 接线（源码级）——
 const chat = readFileSync(join(root, 'src/js/chat.js'), 'utf8');
