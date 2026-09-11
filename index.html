@@ -6227,6 +6227,19 @@ padding-bottom:max(var(--mochi-safe-bottom, env(safe-area-inset-bottom, 0px)), 8
 .au-how-step { text-align:left; }
 #au-chat-auction-panel .au-start-help, .au-how-link { margin-top:8px; font-size:12px; padding:7px 16px; }
 [data-theme="dark"] .au-how-step { color:rgba(255,255,255,.75); }
+#au-intro, #au-help {
+position:fixed; inset:0; border-radius:0; z-index:1320;
+display:flex; flex-direction:column; align-items:center; justify-content:center;
+gap:12px; padding:22px 18px; background:rgba(12,16,26,.92);
+}
+#au-help { z-index:1330; }
+.au-intro-title { font-size:19px; font-weight:800; color:#fff; letter-spacing:.5px; }
+.au-intro-steps { width:100%; max-width:340px; text-align:left; font-size:13.5px; line-height:2; color:rgba(255,255,255,.93); max-height:58vh; overflow-y:auto; padding:0 4px; box-sizing:border-box; }
+.au-intro-steps b { color:#ffd479; }
+.au-intro-stat { font-size:12.5px; color:rgba(255,255,255,.82); }
+#au-intro .pong-overlay-btn, #au-help .pong-overlay-btn { min-width:210px; }
+#chat-auction-panel { height:auto; min-height:min(68%, 560px); max-height:68%; }
+#chat-auction-panel .poke-card-scroll { min-height:0; max-height:none; }
 .feed-imgs { position: relative; }
 .feed-sticker { position: absolute; width: 44px; height: 44px; transform: translate(-50%, -50%); cursor: pointer; z-index: 2; filter: drop-shadow(0 2px 4px rgba(0,0,0,.25)); }
 .feed-sticker img { width: 100%; height: 100%; object-fit: contain; }
@@ -9145,9 +9158,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1789126578443">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.580</b></span>
-        <span class="sv-deploy">部署于 2026-09-11 19:36<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1789127272382">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.581</b></span>
+        <span class="sv-deploy">部署于 2026-09-11 19:47<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -10335,7 +10348,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.580</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.581</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10630,7 +10643,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.580</span>
+              <span class="lic-ver">v3.26.581</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -11185,7 +11198,7 @@ transition-duration: .01ms !important;
           <div class="set-group glass">
             <div class="gs-row"><span>梦角自由造句</span><label class="toggle"><input type="checkbox" id="mjf-en"><span class="tk"></span></label></div>
             <div class="gs-row"><span>触发概率</span><div class="stepper" data-k="mjf-prob" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="mjf-prob-val" readonly><button class="stp-max">+</button></div></div>
-            <div class="gs-sub">自由选择开关（默认关）：开启后梦角（联系人）说话按「触发概率」随机重造句，五种手法随机：截词补语气词（「今天也要好好爱自己」→「今天也要好好想你了」）、词间加逗号（「今天也要，好好爱自己」）、词间加空格、句尾加语气后缀、删句尾字——截断只落在词典词边界上不产生病句，气泡下带「梦角自由造句」小标签；造出的新句自动存进 字卡库→自定义聊天字卡→梦角自由造句 分类，可在那里查看/删除，也会作为语料被再次抽用。语料来自你自建的聊天字卡（至少 4 个汉字的文本卡）。概率 0 = 不触发</div>
+            <div class="gs-sub">自由选择开关（默认关）：开启后梦角（联系人）说话按「触发概率」随机重造句：像撤回消息一样把一句话的尾巴按词典词边界截掉，留下的前缀就是新句子（如「今天也要好好爱自己，晚安哦」→「今天也要好好爱自己」）；也有小概率变成词间加逗号/空格的温和变形。气泡下带「梦角自由造句」小标签；造出的新句自动存进 字卡库→自定义聊天字卡→梦角自由造句 分类，可在那里查看/删除，也会作为语料被再次抽用。语料来自你自建的聊天字卡（至少 4 个汉字的文本卡）。概率 0 = 不触发</div>
           </div>
           <div class="gs-title">主动发送（联系人找你）</div>
           <div class="set-group glass">
@@ -13337,6 +13350,15 @@ transition-duration: .01ms !important;
                   <button class="pong-overlay-btn" id="au-help-close" type="button">知道啦</button>
                 </div>
               </div>
+              <div class="au-fs-overlay" id="au-intro" hidden>
+                <div class="au-intro-title">💎 心意币拍卖会</div>
+                <div class="au-intro-steps" id="au-intro-steps"></div>
+                <div class="au-intro-stat" id="au-intro-stat"></div>
+                <div class="pong-overlay-btns">
+                  <button class="pong-overlay-btn" id="au-intro-start" type="button">开始拍卖</button>
+                  <button class="pong-overlay-btn pong-overlay-btn2" id="au-intro-help" type="button">详细玩法</button>
+                </div>
+              </div>
             </div>
             <div class="au-bids">
               <button class="pong-overlay-btn" id="au-bid1" type="button">出 ¥</button>
@@ -13908,10 +13930,6 @@ transition-duration: .01ms !important;
           <button class="more-item" id="more-poke" data-mcat="chat" title="打开拍一拍页面">
             <span class="mi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 14.5V7.2a1.5 1.5 0 0 1 3 0v7.3"/><path d="M11 14.5V6.5a1.5 1.5 0 0 1 3 0v8"/><path d="M14 14.5V7.8a1.5 1.5 0 0 1 3 0v6.7"/><path d="M6.5 14.5h12c0 3.5-2.7 6-6 6s-6-2.5-6-6"/><path d="M6 5a8.5 8.5 0 0 1 12 0"/></svg></span>
             <span>拍一拍</span>
-          </button>
-          <button class="more-item" id="more-arcade" data-mcat="game" title="游乐室（战绩·徽章·摆件图鉴）">
-            <span class="mi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="5.2"/><path d="M9.5 8.5h.01M14.5 8.5h.01"/><path d="M10 13.6c1.3.8 2.7.8 4 0"/><path d="M7.2 13.8L5 20l3.4-1.4L10 21l2-4.2L14 21l1.6-2.4L19 20l-2.2-6.2"/></svg></span>
-            <span>游乐室</span>
           </button>
           <button class="more-item" id="more-rps" data-mcat="game" title="猜拳">
             <span class="mi-ico"><svg viewBox="0 0 256 256"><path fill="currentColor" d="M200 80h-16V64a32 32 0 0 0-56-21.13a32 32 0 0 0-55.79 17.55A32 32 0 0 0 24 88v40a104 104 0 0 0 208 0v-16a32 32 0 0 0-32-32m-48-32a16 16 0 0 1 16 16v16h-32V64a16 16 0 0 1 16-16M88 64a16 16 0 0 1 32 0v40a16 16 0 0 1-32 0ZM40 88a16 16 0 0 1 32 0v16a16 16 0 0 1-32 0Zm176 40a88 88 0 0 1-175.92 3.75A31.93 31.93 0 0 0 80 125.13a31.93 31.93 0 0 0 44.58 3.35a32.2 32.2 0 0 0 11.8 11.44A47.88 47.88 0 0 0 120 176a8 8 0 0 0 16 0a32 32 0 0 1 32-32a8 8 0 0 0 0-16h-16a16 16 0 0 1-16-16V96h64a16 16 0 0 1 16 16Z"/></svg></span>
@@ -17628,7 +17646,8 @@ const EXCLUDE = ['contacts', 'active-contact', 'feed-posts', 'migrated-v1', 'js-
 'full-beauty-schemes', 'beauty-undo-stack', 'ver-update-ack-ts', 'ver-update-notify',
 'call-active',
 'applock-en', 'applock-pin', 'applock-qa',
-'applock-qa-en', 'applock-qalist', 'applock-qaskip'];
+'applock-qa-en', 'applock-qalist', 'applock-qaskip',
+'cardlock-state'];
 function isExcluded(k) {
 const r = k.slice(G.length + 1);
 if (r.indexOf('__') === 0) return true;
@@ -18892,6 +18911,13 @@ return String(h >>> 0);
 function isOpen() {
 try { return localStorage.getItem(LS_KEY) === 'open'; } catch (e) { return false; }
 }
+(function healMigrated() {
+try {
+if (localStorage.getItem(LS_KEY)) return;
+const moved = localStorage.getItem('xy-home-v2:default:cardlock-state');
+if (moved === 'open') localStorage.setItem(LS_KEY, 'open');
+} catch (e) {}
+})();
 window.cardLockOpen = isOpen;
 let fails = 0, failUntil = 0;
 window.cardLockTryUnlock = function (pw) {
@@ -44341,9 +44367,6 @@ return { segs: cards, one: one };
 } catch (__e) { try { console.error("[JS] quote-spell.js", __e && __e.message || __e); } catch (x) {} if (window.__jsErrors) window.__jsErrors.push(String(__e && __e.message || __e)); } })();
 (function () { try {
 (function () {
-const FILL_WORDS = ['想你', '抱抱', '亲亲', '嘿嘿', '哦', '呀', '啦', '嘛', '呢', '哼',
-'想你了', '最喜欢你', '晚安', '早安', '嘿嘿嘿', '哼哼', '呜呜', '嘻嘻', '好耶', '喵'];
-const SUFFIXES = ['呀', '啦', '哦', '呢', '嘛', '哟', '哈', '嘿嘿'];
 let lastSrc = '';     // 连续防复读：上一条造句的源卡不立刻重抽
 let segDict = null;   // 切词词典缓存（词库* 分组构建一次）
 let segMax = 4;       // 正向最大匹配窗口（随词典最长词增长，上限 8）
@@ -44399,10 +44422,27 @@ if (/[\uD800-\uDBFF]/.test(s)) return false;
 return (s.match(/[\u4e00-\u9fff]/g) || []).length >= 4;
 });
 }
-const MODES = ['cutfill', 'comma', 'space', 'suffix', 'tailcut'];
+function recallCut(s) {
+const str = String(s == null ? '' : s);
+const toks = segment(str);
+if (toks.length < 3) return null;
+const gaps = [];
+for (let i = 2; i < toks.length; i++) {
+const keep = toks.slice(0, i).join('');
+if ((keep.match(/[\u4e00-\u9fff]/g) || []).length >= 4) gaps.push(i);
+}
+if (!gaps.length) return null;
+let total = 0, acc = [];
+gaps.forEach(gi => { total += gi; acc.push(total); });
+const r = Math.random() * total;
+let gi = gaps[gaps.length - 1];
+for (let k = 0; k < gaps.length; k++) { if (r < acc[k]) { gi = gaps[k]; break; } }
+const out = toks.slice(0, gi).join('').replace(/[，、,\s]+$/, '');
+return (out !== str && out.length >= 4) ? out : null;
+}
 function rebuild(s, mode) {
 const str = String(s == null ? '' : s);
-if (mode === 'comma' || mode === 'space') {
+if (mode === 'recall') return recallCut(str);
 const toks = segment(str);
 if (toks.length < 3) return null;
 const gaps = [];
@@ -44415,27 +44455,6 @@ const sep = mode === 'comma' ? '，' : ' ';
 const out = toks.slice(0, gi).join('') + sep + toks.slice(gi).join('');
 return out !== str ? out : null;
 }
-if (mode === 'suffix') {
-const base = str.replace(/[，。！？、…～\s]+$/, '');
-if (base.length < 3) return null;
-const out = base + SUFFIXES[Math.floor(Math.random() * SUFFIXES.length)];
-return out !== str ? out : null;
-}
-if (mode === 'tailcut') {
-const base = str.replace(/[，。！？、…～\s]+$/, '');
-if (base.length < 4) return null;
-const cut = 1 + Math.floor(Math.random() * Math.min(2, base.length - 2));
-return base.slice(0, base.length - cut);
-}
-const toks = segment(str);
-const idxs = [];
-toks.forEach((t, idx) => { if (t.length >= 2 && isWordTok(t)) idxs.push(idx); });
-if (!idxs.length) return null;
-const wi = idxs[Math.floor(Math.random() * idxs.length)];
-const fill = FILL_WORDS[Math.floor(Math.random() * FILL_WORDS.length)];
-const out = toks.slice(0, wi).join('') + fill + toks.slice(wi + 1).join('');
-return out !== str ? out : null;
-}
 window.dreamFreePick = function (c) {
 try {
 if (!c || c['mjf-en'] !== 1) return null;
@@ -44446,7 +44465,8 @@ if (!pool.length) return null;
 for (let t = 0; t < 8; t++) {
 const s = pool[Math.floor(Math.random() * pool.length)];
 if (s === lastSrc) continue;
-const mode = MODES[Math.floor(Math.random() * MODES.length)];
+const r = Math.random();
+const mode = r < 0.5 ? 'recall' : (r < 0.75 ? 'comma' : 'space');
 const txt = rebuild(s, mode);
 if (txt && txt !== s) { lastSrc = s; return { text: txt, src: s }; }
 }
@@ -82203,10 +82223,19 @@ const fsBtn = document.getElementById('au-fs');
 const helpBtn = document.getElementById('au-help-btn');
 const helpOverlay = document.getElementById('au-help');
 const helpClose = document.getElementById('au-help-close');
+const introEl = document.getElementById('au-intro');
+const introStepsEl = document.getElementById('au-intro-steps');
+const introStatEl = document.getElementById('au-intro-stat');
+const introStart = document.getElementById('au-intro-start');
+const introHelp = document.getElementById('au-intro-help');
 function showHelp() { if (helpOverlay) helpOverlay.hidden = false; }
 function hideHelp() { if (helpOverlay) helpOverlay.hidden = true; }
+function showIntro() { if (introEl) introEl.hidden = false; }
+function hideIntro() { if (introEl) introEl.hidden = true; }
 if (helpBtn) helpBtn.addEventListener('click', (e) => { e.stopPropagation(); showHelp(); });
 if (helpClose) helpClose.addEventListener('click', (e) => { e.stopPropagation(); hideHelp(); });
+if (introStart) introStart.addEventListener('click', (e) => { e.stopPropagation(); newSession(); });
+if (introHelp) introHelp.addEventListener('click', (e) => { e.stopPropagation(); showHelp(); });
 let isFs = false;
 function toggleFs() {
 isFs = !isFs;
@@ -82389,7 +82418,8 @@ clearTimeout(thinkT); thinkT = null;
 st = newState();
 st.started = true;
 hideOverlay();
-hideHelp();   // #321 开场时收起玩法说明，别挡着拍品
+hideIntro();   // #321 收掉开场全屏教学，别挡着拍品
+hideHelp();   // #321 收掉详细玩法
 openLot();
 }
 function openLot() {
@@ -82619,23 +82649,22 @@ updateBidBtns();
 }
 function showStartOverlay() {
 const s = loadStats();
-showOverlay('心意币拍卖会',
-'<div class="c4-start-tip">每场 3 件拍品，和 ' + T('TA') + ' 轮番举牌抢宝贝</div>' +
-'<div class="pong-end-stat au-how-step">① 看拍品起拍价，比如 ¥9</div>' +
-'<div class="pong-end-stat au-how-step">② 点档位＝往上加价，按钮直接显示你要出的钱</div>' +
-'<div class="pong-end-stat au-how-step">③ ' + T('TA') + ' 跟价或放弃，轮到你按钮才亮</div>' +
-'<div class="pong-end-stat au-how-step">④ 你最高价点「落槌」＝按现价买下（真扣心意币进 🎒）</div>' +
-'<div class="pong-end-stat au-how-step">⑤ 没人要就流拍；' + T('TA') + ' 拍走的过几天寄回给你</div>' +
-(s.sessions > 0 ? '<div class="pong-end-stat au-how-step" style="margin-top:6px">累计 ' + s.sessions + ' 场 · 你拍得 ' + s.myWins + ' 件 · 花了 ' + yuan(s.spentFen || 0) + '</div>' : '') +
-'<div class="pong-end-stat au-how-step">当前心意币 ' + (walletOk() ? yuan(myBalance()) : '—') + '</div>' +
-'<button class="pong-overlay-btn pong-overlay-btn2 au-start-help" id="au-start-help" type="button">❓ 还想看更详细的怎么玩</button>',
-s.sessions > 0 ? '再来一场' : '开场拍卖');
-if (endBtn) endBtn.hidden = true;
-setStatus('点击「开场拍卖」开始，或点 ❓ 先看玩法');
-setTimeout(function () {
-const h = document.getElementById('au-start-help');
-if (h) h.onclick = function (ev) { ev.stopPropagation(); showHelp(); };
-}, 0);
+if (introStepsEl) {
+introStepsEl.innerHTML =
+'<b>怎么玩</b>：和 ' + T('TA') + ' 轮番举牌，抢 3 件宝贝，价高者得。<br>' +
+'<b>① 看拍品</b>　每件有起拍价，先掂量值不值。<br>' +
+'<b>② 出价</b>　点档位「出 ¥X」就是在当前价上加价、压上你的价。<br>' +
+'<b>③ 轮替</b>　你出价后 ' + T('TA') + ' 掂量掂量，轮到你时按钮才亮。<br>' +
+'<b>④ 成交</b>　你最高价点「落槌」→按现价买下（真扣心意币、进 🎒）；' + T('TA') + ' 最高价→放弃这件；都不要→流拍。<br>' +
+'<b>⑤ 彩蛋</b>　' + T('TA') + ' 拍走的过几天寄回给你。';
+}
+const statsHtml =
+(s.sessions > 0 ? '累计 ' + s.sessions + ' 场 · 你拍得 ' + s.myWins + ' 件 · 花了 ' + yuan(s.spentFen || 0) + '　' : '') +
+'当前心意币 ' + (walletOk() ? yuan(myBalance()) : '—');
+if (introStatEl) introStatEl.textContent = statsHtml;
+showIntro();
+hideOverlay(); // 半框覆盖层平时不显示（开场/成交才由流程显示）
+setStatus('全屏读玩法：点下方「开始拍卖」，或「详细玩法」');
 }
 function hideOverlay() { if (overlayEl) overlayEl.hidden = true; }
 if (startBtn) startBtn.addEventListener('click', (e) => {
@@ -82685,12 +82714,12 @@ if (st.phase === 'bidding') { renderLot(); if (!thinkT && st.leader === 'you') s
 return;
 }
 showStartOverlay();
-setStatus('点击「开场拍卖」开始，点 ❓ 可先看详细玩法');
+setStatus('全屏读玩法：点「开始拍卖」或「详细玩法」');
 };
 function closePanel() {
 clearTimeout(thinkT); thinkT = null;
 clearInterval(giftTimer); giftTimer = null;
-hideHelp();
+hideIntro(); hideHelp();
 if (panel) panel.hidden = true;
 }
 window.closeAuctionPanel = closePanel;
@@ -82920,34 +82949,6 @@ document.querySelectorAll('.page').forEach(p => p.hidden = true);
 const homePage = document.getElementById('page-home');
 if (homePage) homePage.hidden = false;
 }
-(function bindEntry() {
-const btn = document.getElementById('more-arcade');
-if (!btn) return;
-btn.addEventListener('click', (e) => {
-e.stopPropagation();
-const mp = document.getElementById('chat-more-panel');
-if (mp) mp.hidden = true;
-['poke-card', 'emoji-panel', 'chat-search', 'chat-ask-panel', 'chat-divine-panel', 'chat-decision-panel', 'chat-gdecision-panel', 'chat-rps-panel', 'chat-rp-panel', 'chat-call-panel', 'chat-pong-panel', 'chat-snake-panel', 'chat-brick-panel', 'chat-c4-panel', 'chat-ms-panel', 'chat-fish-panel', 'chat-memory-panel', 'chat-gift-panel', 'chat-gomoku-panel', 'chat-linkup-panel', 'chat-match3-panel', 'chat-auction-panel', 'chat-more-panel'].forEach((id) => { const el = document.getElementById(id); if (el) el.hidden = true; });
-try { if (window.closeAvlib) window.closeAvlib(); } catch (err) {}
-try { openArcadePanel(); } catch (err) {
-try { panel.hidden = false; render(); } catch (e2) {}
-try { console.error('[arcade] open failed', err); } catch (e2) {}
-}
-});
-try {
-if (window.MutationObserver) {
-const SIBLING_IDS = ['poke-card', 'emoji-panel', 'chat-search', 'chat-ask-panel', 'chat-divine-panel', 'chat-decision-panel', 'chat-gdecision-panel', 'chat-rps-panel', 'chat-rp-panel', 'chat-call-panel', 'chat-pong-panel', 'chat-snake-panel', 'chat-brick-panel', 'chat-c4-panel', 'chat-ms-panel', 'chat-fish-panel', 'chat-memory-panel', 'chat-gift-panel', 'chat-gomoku-panel', 'chat-linkup-panel', 'chat-match3-panel', 'chat-auction-panel', 'chat-more-panel'];
-const mo = new MutationObserver(() => {
-if (panel.hidden) return;
-for (let i = 0; i < SIBLING_IDS.length; i++) {
-const el = document.getElementById(SIBLING_IDS[i]);
-if (el && !el.hidden) { closePanel(); break; }
-}
-});
-SIBLING_IDS.forEach((id) => { const el = document.getElementById(id); if (el) mo.observe(el, { attributes: true, attributeFilter: ['hidden'] }); });
-}
-} catch (e) {}
-})();
 (function bindHomeEntry() {
 const entry = document.getElementById('home-arcade-entry');
 if (entry) entry.addEventListener('click', (e) => {
@@ -87051,7 +87052,7 @@ const HUB = [
 { n: '连连看', d: '合作消除同款图案，连线不超两个弯', k: '连连看 游戏', go: ['.app[data-app="chat"]', '#more-linkup'] },
 { n: '消消乐', d: '轮流交换凑三连，连锁连消冲目标分', k: '消消乐 三消 游戏', go: ['.app[data-app="chat"]', '#more-match3'] },
 { n: '心意币拍卖会', d: '与 TA 轮番举牌，落槌价真实扣款', k: '拍卖 拍卖会 心意币', go: ['.app[data-app="chat"]', '#more-auction'] },
-{ n: '游乐室', d: '小游戏战绩、徽章、摆件图鉴一览', k: '游乐室 战绩 徽章 摆件 图鉴', go: ['.app[data-app="chat"]', '#more-arcade'] }
+{ n: '游乐室', d: '小游戏战绩、徽章、摆件图鉴一览', k: '游乐室 战绩 徽章 摆件 图鉴', go: ['.app[data-app="home"]', '#home-arcade-entry'] }
 ] },
 { g: '手机桌面与工具', items: [
 { n: '桌面装修模式', d: '编辑布局/添加卡片/换图标/拖拽跨页', k: '装修 编辑 布局 图标 桌面', go: ['#row-custom-icon'] },
@@ -88751,4 +88752,4 @@ lastHeal: his
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mtwvrr4b -->
+<!-- __MOCHI_EOF__ mtww6mke -->

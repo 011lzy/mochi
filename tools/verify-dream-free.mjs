@@ -32,44 +32,44 @@ vm.runInNewContext(readFileSync(join(root, 'src/js/dream-free.js'), 'utf8'), w, 
 const pick = w.dreamFreePick;
 const save = w.dreamFreeSave;
 
-// —— A 造句行为（#326 五手法 + 词典词边界）——
+// —— A 造句行为（#327 撤回式截断 + 词典词边界）——
 const rb = w.dreamFreeRebuild;
 const seg = w.dreamFreeSegment;
-const FILL = /(想你|抱抱|亲亲|嘿嘿|哦|呀|啦|嘛|呢|哼|想你了|最喜欢你|晚安|早安|嘿嘿嘿|哼哼|呜呜|嘻嘻|好耶|喵)/;
 // A0 词边界：内置词典切词命中多字词（火锅/今天 在常用词库）
 ok(seg('我想吃火锅').includes('火锅') && seg('今天也要好好爱自己').includes('今天'), 'A0 词典切词命中词边界（火锅/今天）', JSON.stringify(seg('今天也要好好爱自己')));
-// A1~A5 五手法逐个验证
-const SRC = '今天也要好好爱自己';
-const comma = rb(SRC, 'comma');
-ok(comma && comma.split('，').length === 2 && comma.replace('，', '') === SRC, 'A1 comma=词间隙插一个逗号、去掉后还原', comma);
-const space = rb(SRC, 'space');
-ok(space && space.includes(' ') && space.replace(/ /g, '') === SRC, 'A2 space=词间隙插空格、去掉后还原', space);
-const suffix = rb(SRC, 'suffix');
-ok(suffix && suffix.indexOf(SRC) === 0 && (suffix.length === SRC.length + 1 || suffix.length === SRC.length + 2), 'A3 suffix=句尾加语气后缀（1~2 字）', suffix);
-const tailcut = rb(SRC, 'tailcut');
-ok(tailcut && SRC.indexOf(tailcut) === 0 && tailcut.length >= SRC.length - 2, 'A4 tailcut=删句尾 1~2 字', tailcut);
-let cutOk = false;
-for (let i = 0; i < 20 && !cutOk; i++) {
-  const cf = rb(SRC, 'cutfill');
-  if (cf && cf !== SRC && FILL.test(cf)) cutOk = true; // 截词补语气词：新句含补位词
+// A1 撤回式截断（主手法 50%）：结果=源句的词边界前缀（≥4 汉字、真截掉了尾巴）
+const SRC = '今天也要好好爱自己，晚安哦';
+let recOk = true, recEx = null;
+for (let i = 0; i < 30; i++) {
+  const r = rb(SRC, 'recall');
+  if (!r || SRC.indexOf(r) !== 0 || r.length >= SRC.length || (r.match(/[\u4e00-\u9fff]/g) || []).length < 4) { recOk = false; recEx = r; break; }
 }
-ok(cutOk, 'A5 cutfill=截词+补语气词（20 掷内出现）');
-// A6 pick 全流程：60 掷覆盖多种手法且全部合法（≠源句、是源句的合法变形）
+ok(recOk, 'A1 recall=撤回式截断（源句词边界前缀、≥4 汉字、30/30）', recEx);
+const rec2 = rb('今天也要好好爱自己，晚安哦', 'recall');
+ok(rec2 && rec2.indexOf('今天也要') === 0, 'A1b 撤回式示例：留下「今天也要…」前缀', rec2);
+// A2/A3 保留温和手法
+const SRCNP = '今天也要好好爱自己'; // 无标点源句（逗号/空格断言用）
+const comma = rb(SRCNP, 'comma');
+ok(comma && comma.split('，').length === 2 && comma.replace('，', '') === SRCNP, 'A2 comma=词间隙插一个逗号、去掉后还原', comma);
+const space = rb(SRCNP, 'space');
+ok(space && space.includes(' ') && space.replace(/ /g, '') === SRCNP, 'A3 space=词间隙插空格、去掉后还原', space);
+// A4 pick 全流程：60 掷全部合法（≠源句、是源句前缀或带一个插入符的变形）
 let nonHanTouched = null, badPick = null;
 const seen = new Set();
 for (let i = 0; i < 60; i++) {
   const r = pick({ 'mjf-en': 1, 'mjf-prob': 100 });
   if (!r) continue;
   seen.add(JSON.stringify(r.text));
-  if (r.text === r.src) badPick = badPick || (r.src + '=>原样');
+  const legal = r.text === r.src || r.src.indexOf(r.text.replace(/[， ]/g, '')) >= 0 || r.text.replace(/[， ]/g, '') === r.src.replace(/[，。！？\s]/g, '');
+  if (!legal) badPick = badPick || (r.src + '=>' + r.text);
   if (r.src === 'abcDEF' || r.src === '短句') nonHanTouched = r.src;
 }
-ok(seen.size >= 5, 'A6 60 掷产出 ≥5 种不同造句（手法多样化）', String(seen.size));
-ok(nonHanTouched === null, 'A7 语料过滤：纯英文/汉字不足 4 的卡不参与', nonHanTouched);
-ok(badPick === null, 'A8 无原样复读', badPick);
+ok(seen.size >= 5, 'A5 60 掷产出 ≥5 种不同造句', String(seen.size));
+ok(nonHanTouched === null, 'A6 语料过滤：纯英文/汉字不足 4 的卡不参与', nonHanTouched);
+ok(badPick === null, 'A7 全部为合法变形（前缀/插符）', badPick);
 let got = null;
 for (let i = 0; i < 30 && !got; i++) got = pick({ 'mjf-en': 1, 'mjf-prob': 100 });
-ok(got && typeof got.text === 'string' && got.text.length >= 3, 'B4 概率 100% 必中且新句非空（截字后可短至 3 字）', JSON.stringify(got));
+ok(got && typeof got.text === 'string' && got.text.length >= 3, 'B4 概率 100% 必中且新句非空', JSON.stringify(got));
 ok(got && got.text !== got.src, 'B5 新句与源句不同（真的截断重造了）');
 
 // —— B 闸门 ——

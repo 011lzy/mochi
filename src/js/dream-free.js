@@ -1,27 +1,18 @@
-// ===== 功能：梦角自由造句（#317 / #326 手法多样化+词典词边界）=====
-// 需求（用户 2026-09-11）：可自由选择开关——梦角（联系人/TA）使用某些词语和句子时，
-// 按概率触发「截断某几个字，重新造句」，与词典拼字同族的文字玩法；重造出的句子
-// 自动存入【自定义聊天字卡】大分类「梦角自由造句」（可在字卡库查看/删除，且会作为
-// 语料被再次抽用，滚雪球生长）。
-// #326（用户 2026-09-11）：手法多样化——不再只有「截字+补词」，每次造句随机选一种：
-//   ① cutfill  截字补词：抽掉句中一个词、原位补一个语气词（如「今天也要好好爱自己」→
-//              「今天也要好好想你了」）；
-//   ② comma    词边界加逗号：在词与词的间隙插入「，」（如「今天也要，好好爱自己」）；
-//   ③ space    词边界加空格：在词间隙插入空格（与词典拼字单气泡同味道，如「今天 也要 好好爱自己」）；
-//   ④ suffix   句尾加语气后缀（如「今天也要好好爱自己呀」）；
-//   ⑤ tailcut  删句尾字（如「今天也要好好爱自」）。
-// 词边界来自内置词典（DEFAULT_CARD_DATA.dict「词库*」分组，正向最大匹配切词）——
-// 插入/截断只落在词与词的间隙，不截在词中间，避免病句。
+// ===== 功能：梦角自由造句（#317 / #326 多手法 / #327 撤回式截断定稿）=====
+// 需求（用户 2026-09-11 #327 定稿）：截断要像「联系人撤回消息」——撤回的尾巴不要了，
+// **留下的前缀就是新的梦角造句**（如「今天也要好好爱自己，晚安哦」撤回「，晚安哦」→
+// 「今天也要好好爱自己」）。v27 五手法里的截词补语气词/句尾后缀/删尾字被用户判「太离奇」，
+// 全部移除；保留词间隙加逗号/加空格两种温和手法。
+// 三手法随机（每次造句掷一次）：
+//   recall 50%  撤回式截断：按词典切词后在词间隙切尾，前缀（≥4 汉字）成为新句；
+//   comma  25%  词间隙加逗号（如「今天也要，好好爱自己」）；
+//   space  25%  词间隙加空格（与词典拼字单气泡同味道）。
+// 词边界来自内置词典（DEFAULT_CARD_DATA.dict「词库*」分组，正向最大匹配切词）。
 // 入库规则（#324）：多联系人 80% 进公用库 / 20% 进专属库；单联系人 100% 专属库。
 // 设置项（回复设置 → 聊天 tab「梦角自由造句」组）：mjf-en（默认关）、mjf-prob（默认 20%）。
 // 接线：build.mjs jsFiles；chat.js replyOnce 消费 window.dreamFreePick（气泡带「梦角自由造句」tag）。
 // 纯本地，无网络请求。
 (function () {
-  // 补位词池：截词处替换用的语气/可爱系词，保证截断后的句子仍读得通、有 TA 的语气
-  const FILL_WORDS = ['想你', '抱抱', '亲亲', '嘿嘿', '哦', '呀', '啦', '嘛', '呢', '哼',
-    '想你了', '最喜欢你', '晚安', '早安', '嘿嘿嘿', '哼哼', '呜呜', '嘻嘻', '好耶', '喵'];
-  // 句尾后缀池（suffix 手法用）
-  const SUFFIXES = ['呀', '啦', '哦', '呢', '嘛', '哟', '哈', '嘿嘿'];
   let lastSrc = '';     // 连续防复读：上一条造句的源卡不立刻重抽
   let segDict = null;   // 切词词典缓存（词库* 分组构建一次）
   let segMax = 4;       // 正向最大匹配窗口（随词典最长词增长，上限 8）
@@ -79,43 +70,41 @@
       return (s.match(/[\u4e00-\u9fff]/g) || []).length >= 4;
     });
   }
-  const MODES = ['cutfill', 'comma', 'space', 'suffix', 'tailcut'];
+  // 撤回式截断（#327 主手法）：词间隙随机选切点，切点之后的尾巴「撤回不要」，
+  // 前缀成为新句。前缀至少保留 4 个汉字、至少 2 个词 token，且必须真的截掉了内容。
+  function recallCut(s) {
+    const str = String(s == null ? '' : s);
+    const toks = segment(str);
+    if (toks.length < 3) return null;
+    const gaps = [];
+    for (let i = 2; i < toks.length; i++) {
+      const keep = toks.slice(0, i).join('');
+      if ((keep.match(/[\u4e00-\u9fff]/g) || []).length >= 4) gaps.push(i);
+    }
+    if (!gaps.length) return null;
+    // 偏好靠后切：越靠后保留越多、越像「说到一半撤回」，权重线性递增
+    let total = 0, acc = [];
+    gaps.forEach(gi => { total += gi; acc.push(total); });
+    const r = Math.random() * total;
+    let gi = gaps[gaps.length - 1];
+    for (let k = 0; k < gaps.length; k++) { if (r < acc[k]) { gi = gaps[k]; break; } }
+    const out = toks.slice(0, gi).join('').replace(/[，、,\s]+$/, '');
+    return (out !== str && out.length >= 4) ? out : null;
+  }
   // 重造句：s = 源句，mode = 手法。造不出（句太短/无可插边界）返回 null。
   function rebuild(s, mode) {
     const str = String(s == null ? '' : s);
-    if (mode === 'comma' || mode === 'space') {
-      const toks = segment(str);
-      if (toks.length < 3) return null;
-      const gaps = [];
-      for (let i = 1; i < toks.length; i++) {
-        if (isWordTok(toks[i - 1]) && isWordTok(toks[i])) gaps.push(i); // 只落在词与词的间隙
-      }
-      if (!gaps.length) return null;
-      const gi = gaps[Math.floor(Math.random() * gaps.length)];
-      const sep = mode === 'comma' ? '，' : ' ';
-      const out = toks.slice(0, gi).join('') + sep + toks.slice(gi).join('');
-      return out !== str ? out : null;
-    }
-    if (mode === 'suffix') {
-      const base = str.replace(/[，。！？、…～\s]+$/, '');
-      if (base.length < 3) return null;
-      const out = base + SUFFIXES[Math.floor(Math.random() * SUFFIXES.length)];
-      return out !== str ? out : null;
-    }
-    if (mode === 'tailcut') {
-      const base = str.replace(/[，。！？、…～\s]+$/, '');
-      if (base.length < 4) return null;
-      const cut = 1 + Math.floor(Math.random() * Math.min(2, base.length - 2));
-      return base.slice(0, base.length - cut);
-    }
-    // cutfill（默认）：按词典切词后，抽掉一个 ≥2 字的词、原位补语气词——不截在词中间
+    if (mode === 'recall') return recallCut(str);
     const toks = segment(str);
-    const idxs = [];
-    toks.forEach((t, idx) => { if (t.length >= 2 && isWordTok(t)) idxs.push(idx); });
-    if (!idxs.length) return null;
-    const wi = idxs[Math.floor(Math.random() * idxs.length)];
-    const fill = FILL_WORDS[Math.floor(Math.random() * FILL_WORDS.length)];
-    const out = toks.slice(0, wi).join('') + fill + toks.slice(wi + 1).join('');
+    if (toks.length < 3) return null;
+    const gaps = [];
+    for (let i = 1; i < toks.length; i++) {
+      if (isWordTok(toks[i - 1]) && isWordTok(toks[i])) gaps.push(i); // 只落在词与词的间隙
+    }
+    if (!gaps.length) return null;
+    const gi = gaps[Math.floor(Math.random() * gaps.length)];
+    const sep = mode === 'comma' ? '，' : ' ';
+    const out = toks.slice(0, gi).join('') + sep + toks.slice(gi).join('');
     return out !== str ? out : null;
   }
   // 抽句门：c = replyCfg()。命中返回 { text: 新句, src: 源卡 }；关闭/未命中/造不出返回 null。
@@ -129,7 +118,8 @@
       for (let t = 0; t < 8; t++) {
         const s = pool[Math.floor(Math.random() * pool.length)];
         if (s === lastSrc) continue;
-        const mode = MODES[Math.floor(Math.random() * MODES.length)];
+        const r = Math.random();
+        const mode = r < 0.5 ? 'recall' : (r < 0.75 ? 'comma' : 'space');
         const txt = rebuild(s, mode);
         if (txt && txt !== s) { lastSrc = s; return { text: txt, src: s }; }
       }

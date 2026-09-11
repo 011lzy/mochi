@@ -944,7 +944,7 @@ const FIX_SENTINELS = [
   { name: '#310b/325 逐卡连发每条气泡挂「词典」tag（删则多气泡无来源标注；#325 用户要求 tag 统一改为「词典」）', file: 'js/chat.js', needle: "silent: si > 0 ? true : silent,\ntag: '词典'," },
   // ==== 2026-09-11 #317 梦角自由造句（梦角语料抽卡→截断几字重造句→入库自定义字卡「梦角自由造句」分类）====
   { name: '#317 梦角自由造句抽句门·mjf-en/mjf-prob 生效（删则开关概率失效，梦角永不造句）', file: 'js/dream-free.js', needle: "if (!c || c['mjf-en'] !== 1) return null;" },
-  { name: '#326 造句五手法·切词后词边界截词补语气词/加逗号/加空格（删则只剩截字补词单一手法＝用户点名的逗号空格手法丢失）', file: 'js/dream-free.js', needle: "const out = toks.slice(0, wi).join('') + fill + toks.slice(wi + 1).join('');" },
+  { name: '#327 撤回式截断·词间隙切尾前缀成新句（删则造句变回随机截补＝句子离奇，用户明确否决）', file: 'js/dream-free.js', needle: "const out = toks.slice(0, gi).join('').replace(/[，、,\\s]+$/, '');" },
   { name: '#326 词边界来源·内置词典正向最大匹配切词（删则插入点随机＝可能截在词中间出病句）', file: 'js/dream-free.js', needle: 'if (dict.has(str.slice(i, i + L))) { len = L; break; }' },
   { name: '#317/324 造句入库·ccAppendCards 双作用域写 mjfree 分类（删则新句不进「梦角自由造句」字卡分类；#324 加 scope 分库参数）', file: 'js/chatcard.js', needle: "window.ccAppendCards = function (type, group, cards, scope) {" },
   { name: '#324 造句分库·dreamFreeSave 80% 公用/20% 专属、单联系人 100% 专属（删则全部写专属＝多桌面公用库不再积累梦角语料）', file: 'js/dream-free.js', needle: "const usePublic = cids > 1 && Math.random() < 0.8;" },
