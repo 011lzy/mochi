@@ -9093,9 +9093,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1789103791726">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.564</b></span>
-        <span class="sv-deploy">部署于 2026-09-11 13:16<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1789104009831">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.565</b></span>
+        <span class="sv-deploy">部署于 2026-09-11 13:20<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -10275,7 +10275,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.564</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.565</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10570,7 +10570,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.564</span>
+              <span class="lic-ver">v3.26.565</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -11118,7 +11118,7 @@ transition-duration: .01ms !important;
             <div class="gs-row"><span>拼字概率</span><div class="stepper" data-k="qs-prob" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="qs-prob-val" readonly><button class="stp-max">+</button></div></div>
             <div class="gs-row"><span>混用自定义字卡</span><label class="toggle"><input type="checkbox" id="qs-cc"><span class="tk"></span></label></div>
             <div class="gs-row"><span>单气泡拼字</span><label class="toggle"><input type="checkbox" id="qs-one"><span class="tk"></span></label></div>
-            <div class="gs-sub">开启后联系人回复按「拼字概率」随机变成拼字：从词典语录（系统预设字卡→词典，可逐张关闭）抽 2~3 张语录字卡，整卡用空格连成一张卡发进同一个气泡（如「今天也要好好爱自己 晚安」，正常句子整卡出现不被切词），气泡下带「词典拼字」小标签；关闭「单气泡拼字」则走旧式切词逐条连发（每条小气泡带标签）；开启「混用自定义字卡」时你的字卡库文本也会进抽句池（可能把你的普通字卡抽去拼字，默认关），关闭则只用词典语录。概率 0 = 不触发</div>
+            <div class="gs-sub">开启后联系人回复按「拼字概率」随机变成拼字：从词典语录（系统预设字卡→词典，可逐张关闭）抽语录字卡整卡用空格连成一张卡发进同一个气泡，条数跟随上方「每条消息使用多字卡回复」的最少/最多条数（默认 2~5）（如「今天也要好好爱自己 晚安」，正常句子整卡出现不被切词），气泡下带「词典拼字」小标签；关闭「单气泡拼字」则走旧式切词逐条连发（每条小气泡带标签）；开启「混用自定义字卡」时你的字卡库文本也会进抽句池（可能把你的普通字卡抽去拼字，默认关），关闭则只用词典语录。概率 0 = 不触发</div>
           </div>
           <div class="gs-title">主动发送（联系人找你）</div>
           <div class="set-group glass">
@@ -44022,12 +44022,14 @@ return (s.match(/[\u4e00-\u9fff]/g) || []).length >= 2;
 }
 if (!pool.length) return null;
 if (c['qs-one'] === 1) {
+const pmin = Math.max(1, Math.min(10, Number(c['py-min']) || 2));
+const pmax = Math.max(pmin, Math.min(10, Number(c['py-max']) || 5));
+const want = pmin + Math.floor(Math.random() * (pmax - pmin + 1));
 const cards = [pool[Math.floor(Math.random() * pool.length)]];
-for (let k = 0; k < 10 && cards.length < 3; k++) {
+for (let k = 0; k < 30 && cards.length < want; k++) {
 const s2 = pool[Math.floor(Math.random() * pool.length)];
 if (cards.indexOf(s2) < 0) cards.push(s2);
 }
-while (cards.length > 2 && cards.join(' ').length > 36) cards.pop();
 lastQuote = cards[0];
 return { segs: cards, one: true };
 }
@@ -88157,4 +88159,4 @@ lastHeal: his
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mtwi7cry -->
+<!-- __MOCHI_EOF__ mtwic12f -->

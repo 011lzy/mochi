@@ -103,10 +103,10 @@ for (let i = 0; i < 120; i++) {
   if (!r) continue;
   if (!Array.isArray(r.segs) || r.one !== true) { allOk = false; break; }
   oneCount++;
-  if (r.segs.length < 2 || r.segs.length > 3) allOk = false;
+  if (r.segs.length < 2 || r.segs.length > 5) allOk = false;
   r.segs.forEach(sg => { if (!POOLSET.has(sg)) { allOk = false; badCard = badCard || sg; } });
 }
-ok(allOk && oneCount >= 100, 'H2 #315 qs-one=1 全部为整卡拼接形态且 2~3 张完整语录（120 掷单气泡 ' + oneCount + '）');
+ok(allOk && oneCount >= 100, 'H2 #316 qs-one=1 全部为整卡拼接形态且条数随多字卡设置 2~5（120 掷单气泡 ' + oneCount + '）');
 ok(!badCard, 'H3 整卡拼接的每段都是完整语录字卡（不切词）', badCard);
 let oneSegs = null;
 for (let i = 0; i < 60 && !oneSegs; i++) {

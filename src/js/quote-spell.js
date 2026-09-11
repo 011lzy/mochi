@@ -149,15 +149,18 @@
       }
       if (!pool.length) return null;
       // #315 单气泡拼字＝词典语录字卡整卡拼接（用户规格：拼词典=把词典里的字卡拼起来，
-      // 每个字卡空一格）——抽 2~3 张不同语录，空格连成一张卡，「今天也要好好爱自己」这类
-      // 正常句子整卡出现不再切词；qs-one 关 = 旧式切词逐条连发（可选回退）
+      // 每个字卡空一格）——「今天也要好好爱自己」这类正常句子整卡出现不再切词；
+      // #316 拼接条数与「多字卡回复」共用同一设置（py-min/py-max，默认 2~5），一起的；
+      // qs-one 关 = 旧式切词逐条连发（可选回退）
       if (c['qs-one'] === 1) {
+        const pmin = Math.max(1, Math.min(10, Number(c['py-min']) || 2));
+        const pmax = Math.max(pmin, Math.min(10, Number(c['py-max']) || 5));
+        const want = pmin + Math.floor(Math.random() * (pmax - pmin + 1));
         const cards = [pool[Math.floor(Math.random() * pool.length)]];
-        for (let k = 0; k < 10 && cards.length < 3; k++) {
+        for (let k = 0; k < 30 && cards.length < want; k++) {
           const s2 = pool[Math.floor(Math.random() * pool.length)];
           if (cards.indexOf(s2) < 0) cards.push(s2);
         }
-        while (cards.length > 2 && cards.join(' ').length > 36) cards.pop();
         lastQuote = cards[0];
         return { segs: cards, one: true };
       }
