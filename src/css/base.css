@@ -852,6 +852,11 @@ html.mochi-cover-top .phone .statusbar {
    （荣耀50se+雨见：删消息/对方回消息屏幕往上移）——聊天页滚动权已完全由
    JS 显式管理，关掉浏览器自动锚定（跨内核安全：Chromium 同属性可解析）。 */
 .chat-body { overflow-anchor: none; }
+/* v3.31.x #316（跨域改动，AI-A 会话；理由见 WORKLOG）：#199 的 none 同时关掉了
+   Chromium 原生滚动锚定——浏览图片较多的历史时，视口上方图片异步解码撑高无人补偿
+   =「聊天记录一直跳、一直闪」（红米 K80 Chrome 等多机型）。chat.js 解钉（用户手动
+   滚动）时挂本类开回锚定、回钉贴底时摘除——#199 防对打只涉及钉住态，语义不变。 */
+.chat-body.scroll-anchor-auto { overflow-anchor: auto; }
 .statusbar .brand { font-weight:800; letter-spacing:.5px; }
 .statusbar .sb-right { display:flex; align-items:center; gap:8px; }
 .statusbar .icons { display:flex; gap:6px; align-items:center; }

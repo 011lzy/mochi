@@ -1238,7 +1238,18 @@ chatLoadingEl.hidden = !(chatVisible() && !chatDbReady && !msgs.length);
 let chatPinnedBottom = true;
 function scrollChatBottom() {
 const cb = document.getElementById('chat-body');
-if (cb) { chatPinnedBottom = true; cb.scrollTop = cb.scrollHeight; }
+// FIX #316：回钉贴底时同步关回浏览器滚动锚定（与 #199 overflow-anchor:none 同口径）
+if (cb) { chatPinnedBottom = true; cb.classList.remove('scroll-anchor-auto'); cb.scrollTop = cb.scrollHeight; }
+}
+// FIX #316（红米 K80 Chrome 等多机型报「聊天记录一直跳、一直闪」）：#199 为治 Gecko 锚定
+// 与 #162 贴底钉住对打，给 .chat-body 无差别加了 overflow-anchor:none——Chromium 原生
+// 滚动锚定被一并关掉。此后浏览历史时，视口上方消息里的图片异步解码撑高（.msg-img 最高
+// 260px/张）再无任何补偿，看的内容一次次被推走＝「聊天记录一直跳」。修法：解钉（用户
+// 手动触摸/滚轮滚动）时动态开回锚定，由内核原生保持视口稳定；回钉贴底时关回（#199
+// 防对打语义不变——对打只发生在钉住态，解钉期 #162 不写 scrollTop，无架可打）。
+function unpinChatAndAnchor() {
+chatPinnedBottom = false;
+body.classList.add('scroll-anchor-auto');
 }
 function chatNearBottom() {
 const cb = document.getElementById('chat-body');
@@ -2234,8 +2245,9 @@ loadNewerIncremental();
 }, 100);
 }, { passive: true });
 // FIX #162：用户手动触摸/滚轮滚动＝解除贴底钉住，之后的自动复写不再抢滚动权
-body.addEventListener('touchstart', () => { chatPinnedBottom = false; }, { passive: true, capture: true });
-body.addEventListener('wheel', () => { chatPinnedBottom = false; }, { passive: true });
+// FIX #316：解钉同时开回浏览器滚动锚定（见上方 unpinChatAndAnchor 注释）
+body.addEventListener('touchstart', unpinChatAndAnchor, { passive: true, capture: true });
+body.addEventListener('wheel', unpinChatAndAnchor, { passive: true });
 // FIX #162：消息图片是 loading=lazy，加载完成晚于滚底，加载后内容长高会把视图从底部顶开
 //（iPadOS 26 Safari 尤其明显＝「回一条滑一次」）——钉住期间任何消息图片 onload 后回到底部
 body.addEventListener('load', (e) => {
