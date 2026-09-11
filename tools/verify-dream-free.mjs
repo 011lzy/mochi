@@ -82,7 +82,7 @@ const cc = readFileSync(join(root, 'src/js/chatcard.js'), 'utf8');
 ok(bm.includes("'quote-spell.js', 'dream-free.js',"), 'D1 build.mjs jsFiles 已登记 dream-free.js');
 ok(cc.includes("const CC_FUNC_KEYS = ['fish', 'eat', 'period', 'water', 'garden', 'sync', 'reach', 'cjian', 'room', 'piggy', 'drift', 'interact', 'music',\n    'mjfree'];"), 'D2 chatcard.js CC_FUNC_KEYS 含 mjfree（进管理页/不进聊天池）');
 ok(chat.includes("tag: '梦角自由造句'") && chat.includes('window.dreamFreePick && window.dreamFreePick(c)'), 'D3 chat.js replyOnce 接入+tag');
-ok(rs.includes("'mjf-en': 0, 'mjf-prob': 20,") && (rs.match(/'qs-one', 'mjf-en'\]/g) || []).length === 3, 'D4 reply-settings DEFAULTS+三处清单');
+ok(rs.includes("'mjf-en': 0, 'mjf-prob': 20,") && (rs.match(/'qs-multi', 'mjf-en'\]/g) || []).length === 3, 'D4 reply-settings DEFAULTS+三处清单（#323 后清单含 qs-multi）');
 ok(tpl.includes('id="mjf-en"') && tpl.includes('data-k="mjf-prob"'), 'D5 template 回复设置「梦角自由造句」组');
 ok(tpl.includes('data-type="mjfree"'), 'D6 template 字卡库「梦角自由造句」tab');
 
