@@ -1,0 +1,755 @@
+// ===== 功能：消消乐（聊天页更多功能 → 小游戏） =====
+// 和 TA 轮流交换的经典三消：点一格再点相邻一格，交换后凑成同款三连即消除，
+// 上方补落、连锁连消；两人共用一张棋盘、共同冲目标分，不计输赢、记「默契分」。
+// #301 特殊棋子：四连→💣炸弹（在该格生成💥，被消除时炸掉周围 3×3，可连锁引爆）；
+//       五连及以上→🌈彩虹（与任意色交换=消掉全该色；彩虹互换=随机清两色）。
+//       彩虹不参与连线匹配；TA 出步枚举不使用彩虹（人式"不会用大招"）。
+// TA 由代码控制（无真 AI）：每回合枚举全部可消交换步并打分，再抽行为状态——
+//   serious 走最优步 / normal 前五随机（人式不精确）/ sandbag 故意走最差的可消步 /
+//   blunder 先点一次无效交换（抖一下「点错了」）再随便走一步。
+// 死锁自动洗牌；目标达成通关结算：写聊天记录（special:'match3'）+ 字卡库 TA 回应 +
+// 默契分 + 心意币奖励（日封顶，#301 幸运游戏日 ×2）+ 8% 掉落限定摆件（arcade.js）。
+// 难度（头部下拉）：休闲 300 / 普通 600 / 挑战 1000 分。
+// 入口绑定在本文件内完成（不改 chat.js），半框容器复用 .poke-card 与 .pong-overlay 组件。
+(function () {
+  const panel = document.getElementById('chat-match3-panel');
+  if (!panel) return;
+  const boardEl = document.getElementById('m3-board');
+  const stageEl = document.getElementById('m3-stage');
+  const statusEl = document.getElementById('m3-status');
+  const infoEl = document.getElementById('m3-info');
+  const overlayEl = document.getElementById('m3-overlay');
+  const ovTitleEl = document.getElementById('m3-ov-title');
+  const ovBodyEl = document.getElementById('m3-ov-body');
+  const startBtn = document.getElementById('m3-btn-start');
+  const endBtn = document.getElementById('m3-btn-end');
+  const hintBtn = document.getElementById('m3-hint');
+  const soundBtn = document.getElementById('m3-sound');
+  const closeBtn = document.getElementById('m3-close');
+  const fsBtn = document.getElementById('m3-fs');
+
+  // ---- #306 全屏：面板 fixed 满屏（共享 .game-fs 类，同 pong-fs 机制）。 ----
+  // 重开面板无论上次怎么关的（含兄弟互斥直接 hidden）都先退出，防全屏残留 ----
+  let isFs = false;
+  function toggleFs() {
+    isFs = !isFs;
+    panel.classList.toggle('game-fs', isFs);
+    if (fsBtn) fsBtn.textContent = isFs ? '⤢' : '⛶';
+    setTimeout(() => { try { if (typeof fitBoard === 'function') fitBoard(); } catch (e) {} }, 60);
+  }
+  if (fsBtn) fsBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleFs(); });
+  const diffSel = document.getElementById('m3-diff');
+  const partnerNameEl = document.getElementById('m3-partner-name');
+
+  const N = 8, KIND_N = 6;
+  const KINDS = ['🍓', '🍋', '🍇', '🔔', '⭐', '🎈'];
+  const BOMB_BASE = 10;    // 10+c = 该色炸弹（💥）
+  const RAINBOW = 20;      // 彩虹（🌈）
+  const DIFFS = {
+    casual: { target: 300, coin: 520, label: '🌱 休闲 · 300 分' },
+    normal: { target: 600, coin: 1314, label: '🌙 普通 · 600 分' },
+    hard:   { target: 1000, coin: 5200, label: '⭐ 挑战 · 1000 分' }
+  };
+  const THINK_LINES = ['TA正在找能消的……', 'TA扫视着棋盘', 'TA歪头想了想'];
+  const TURN_MIN = 900, TURN_VAR = 800;
+
+  const T = window.taFit || function (x) { return x; };
+  function prefix() { return (window.activePrefix && window.activePrefix()) || 'xy-home-v2'; }
+  function fastMul() { return (window.__m3Debug && window.__m3Debug.fast) ? 0.05 : 1; }
+  function pick(arr) { return arr && arr.length ? arr[Math.floor(Math.random() * arr.length)] : null; }
+  function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+  function inBoard(r, c) { return r >= 0 && r < N && c >= 0 && c < N; }
+  // 彩虹没有颜色（不参与连线），炸弹按所携带颜色参与匹配
+  function colorOf(v) { return v >= BOMB_BASE && v < RAINBOW ? v - BOMB_BASE : (v >= RAINBOW ? -1 : v); }
+
+  // ---- 音效 ----
+  let audioCtx = null, soundOn = true;
+  function beep(freq, dur, vol) {
+    if (!soundOn) return;
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.frequency.value = freq; o.type = 'sine';
+      g.gain.value = vol || 0.16;
+      o.connect(g); g.connect(audioCtx.destination);
+      const t = audioCtx.currentTime;
+      g.gain.setValueAtTime(g.gain.value, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.start(t); o.stop(t + dur);
+    } catch (e) {}
+  }
+  const sfxPick = () => beep(500, 0.06, 0.14);
+  const sfxSwap = () => beep(380, 0.07, 0.14);
+  const sfxClear = (n) => { beep(560 + Math.min(5, n) * 60, 0.09, 0.16); };
+  const sfxBoom = () => { beep(120, 0.16, 0.2); setTimeout(() => beep(90, 0.14, 0.16), 60); };
+  const sfxBad = () => beep(180, 0.07, 0.12);
+  const sfxWin = () => { beep(660, 0.14, 0.2); setTimeout(() => beep(880, 0.2, 0.2), 130); };
+
+  // ---- 对局状态 ----
+  let st = null;
+  let thinkT = null;
+
+  function newState(diff) {
+    return {
+      diff: diff,
+      target: DIFFS[diff].target,
+      grid: [],                // grid[r][c]：0..5 颜色 / 10+c 炸弹 / 20 彩虹
+      turn: 1,
+      over: false,
+      started: false,
+      lock: false,
+      sel: null,
+      score: 0, myScore: 0, taScore: 0,
+      misPicks: 0
+    };
+  }
+
+  // ---- 战绩（每联系人独立） ----
+  function statsKey() { return prefix() + ':match3-stats'; }
+  function loadStats() {
+    const d = { clears: 0, bestChem: 0, lastDiff: 'normal' };
+    try {
+      const raw = localStorage.getItem(statsKey());
+      if (raw) { const v = JSON.parse(raw); if (v && typeof v === 'object') return Object.assign(d, v); }
+    } catch (e) {}
+    return d;
+  }
+  function saveStats(s) { try { localStorage.setItem(statsKey(), JSON.stringify(s)); } catch (e) {} }
+
+  // ---- 三消规则（纯函数，__m3Debug 复用） ----
+  // 找出全部 ≥3 同色直线（行/列，彩虹不参与），返回 run 列表
+  function findRuns(grid) {
+    const runs = [];
+    for (let r = 0; r < N; r++) {
+      let run = 1;
+      for (let c = 1; c <= N; c++) {
+        const same = c < N && colorOf(grid[r][c]) >= 0 && colorOf(grid[r][c]) === colorOf(grid[r][c - 1]);
+        if (same) { run++; continue; }
+        if (run >= 3 && colorOf(grid[r][c - 1]) >= 0) {
+          const cells = [];
+          for (let k = c - run; k < c; k++) cells.push([r, k]);
+          runs.push({ cells: cells, color: colorOf(grid[r][c - 1]), len: run });
+        }
+        run = 1;
+      }
+    }
+    for (let c = 0; c < N; c++) {
+      let run = 1;
+      for (let r = 1; r <= N; r++) {
+        const same = r < N && colorOf(grid[r][c]) >= 0 && colorOf(grid[r][c]) === colorOf(grid[r - 1][c]);
+        if (same) { run++; continue; }
+        if (run >= 3 && colorOf(grid[r - 1][c]) >= 0) {
+          const cells = [];
+          for (let k = r - run; k < r; k++) cells.push([k, c]);
+          runs.push({ cells: cells, color: colorOf(grid[r - 1][c]), len: run });
+        }
+        run = 1;
+      }
+    }
+    return runs;
+  }
+  // 兼容旧调用：要消除的格子标记矩阵
+  function findMatches(grid) {
+    const runs = findRuns(grid);
+    if (!runs.length) return null;
+    const mark = [];
+    for (let r = 0; r < N; r++) mark.push(new Array(N).fill(false));
+    runs.forEach((run) => run.cells.forEach((p) => { mark[p[0]][p[1]] = true; }));
+    return mark;
+  }
+  // 从种子格出发的完整消除（含炸弹 3×3 连锁引爆）；返回被清格子列表
+  function clearWithSpecials(grid, seeds) {
+    const cleared = [];
+    const seen = [];
+    for (let r = 0; r < N; r++) seen.push(new Array(N).fill(false));
+    const queue = seeds.slice();
+    seeds.forEach((p) => { seen[p[0]][p[1]] = true; });
+    while (queue.length) {
+      const p = queue.shift();
+      if (!inBoard(p[0], p[1]) || seen[p[0]][p[1]] === 'done') continue;
+      seen[p[0]][p[1]] = 'done';
+      cleared.push([p[0], p[1]]);
+      const v = grid[p[0]][p[1]];
+      if (v >= BOMB_BASE && v < RAINBOW) {
+        for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+          const rr = p[0] + dr, cc = p[1] + dc;
+          if (inBoard(rr, cc) && !seen[rr][cc]) { seen[rr][cc] = true; queue.push([rr, cc]); }
+        }
+      }
+    }
+    return cleared;
+  }
+  // 重力补落：每列非空值下沉、顶部补随机新格（新格全是普通色）
+  function collapse(grid) {
+    let moved = false;
+    for (let c = 0; c < N; c++) {
+      let write = N - 1;
+      for (let r = N - 1; r >= 0; r--) {
+        if (grid[r][c] >= 0) {
+          if (write !== r) { grid[write][c] = grid[r][c]; grid[r][c] = -1; moved = true; }
+          write--;
+        }
+      }
+      for (let r = write; r >= 0; r--) { grid[r][c] = Math.floor(Math.random() * KIND_N); moved = true; }
+    }
+    return moved;
+  }
+  // 在副本上完整结算一段消除链（无特殊生成），返回消除总得分（TA 打分用）
+  function simulateClear(gridIn) {
+    const g = gridIn.map((row) => row.slice());
+    let total = 0, chain = 0;
+    for (;;) {
+      const m = findMatches(g);
+      if (!m) break;
+      const seeds = [];
+      for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) { if (m[r][c]) seeds.push([r, c]); }
+      const cells = clearWithSpecials(g, seeds);
+      cells.forEach((p) => { g[p[0]][p[1]] = -1; });
+      total += cells.length * (chain + 1);
+      collapse(g);
+      chain++;
+      if (chain > 20) break;
+    }
+    return total;
+  }
+  // 枚举全部相邻交换后能产生消除的步（TA 决策 / 死锁检测 / 提示共用）；彩虹不入枚举
+  function allMoves(grid) {
+    const out = [];
+    const dirs = [[0, 1], [1, 0]];
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+      if (grid[r][c] >= RAINBOW) continue;
+      for (let d = 0; d < dirs.length; d++) {
+        const r2 = r + dirs[d][0], c2 = c + dirs[d][1];
+        if (r2 >= N || c2 >= N) continue;
+        if (grid[r2][c2] >= RAINBOW) continue;
+        const g = grid.map((row) => row.slice());
+        const t = g[r][c]; g[r][c] = g[r2][c2]; g[r2][c2] = t;
+        const gain = simulateClear(g);
+        if (gain > 0) out.push({ a: [r, c], b: [r2, c2], gain: gain });
+      }
+    }
+    return out;
+  }
+
+  // ---- 发牌 / 死锁洗牌 ----
+  function dealGrid() {
+    let grid;
+    do {
+      grid = [];
+      for (let r = 0; r < N; r++) {
+        const row = [];
+        for (let c = 0; c < N; c++) row.push(Math.floor(Math.random() * KIND_N));
+        grid.push(row);
+      }
+    } while (findMatches(grid) || allMoves(grid).length === 0);
+    return grid;
+  }
+  function reshuffle() {
+    let flat = [];
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) flat.push(st.grid[r][c]);
+    for (let tries = 0; tries < 80; tries++) {
+      shuffle(flat);
+      const g = [];
+      for (let r = 0; r < N; r++) g.push(flat.slice(r * N, (r + 1) * N));
+      if (!findMatches(g) && allMoves(g).length > 0) { st.grid = g; renderBoard(); return true; }
+    }
+    renderBoard();
+    return false;
+  }
+
+  // ---- 渲染 ----
+  function buildBoard() {
+    boardEl.innerHTML = '';
+    boardEl.style.gridTemplateColumns = 'repeat(' + N + ',1fr)';
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'm3-tile';
+      cell.setAttribute('data-r', String(r));
+      cell.setAttribute('data-c', String(c));
+      boardEl.appendChild(cell);
+    }
+  }
+  function fitBoard() {
+    if (!stageEl || panel.hidden || !st) return;
+    const w = stageEl.clientWidth;
+    if (!w) return;
+    // #306：同连连看——格宽固定 px + grid 3px gap，cellPx 不先扣 gap 会溢出右缘截断
+    const GAP = 3;
+    const cellPx = Math.max(26, Math.min(46, Math.floor((w - (N - 1) * GAP) / N)));
+    boardEl.style.width = (cellPx * N + (N - 1) * GAP) + 'px';
+    const tiles = boardEl.querySelectorAll('.m3-tile');
+    for (let i = 0; i < tiles.length; i++) { tiles[i].style.width = cellPx + 'px'; tiles[i].style.height = cellPx + 'px'; tiles[i].style.fontSize = Math.round(cellPx * 0.54) + 'px'; }
+  }
+  function tileAt(r, c) { return boardEl.children[r * N + c] || null; }
+  function renderBoard() {
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+      const el = tileAt(r, c);
+      if (!el) continue;
+      el.classList.remove('m3-sel', 'm3-hint', 'm3-shake', 'm3-bomb');
+      const v = st.grid[r][c];
+      if (v < 0) el.textContent = '';
+      else if (v >= RAINBOW) { el.textContent = '🌈'; }
+      else if (v >= BOMB_BASE) { el.textContent = '💥'; el.classList.add('m3-bomb'); }
+      else el.textContent = KINDS[v];
+    }
+    updateInfo();
+  }
+  function flashClear(cells) {
+    for (let i = 0; i < cells.length; i++) {
+      const el = tileAt(cells[i][0], cells[i][1]);
+      if (el) { el.classList.add('m3-pop'); setTimeout(((el2) => () => el2.classList.remove('m3-pop'))(el), 220); }
+    }
+  }
+  function updateInfo() {
+    if (infoEl) infoEl.innerHTML =
+      '<span>🎯 ' + st.score + ' / ' + st.target + '</span>' +
+      '<span>你 ' + st.myScore + '</span>' +
+      '<span>' + T('TA') + ' ' + st.taScore + '</span>' +
+      '<span>💕 ' + chemNow() + '</span>';
+  }
+  function chemNow() {
+    const total = st.myScore + st.taScore;
+    if (!total) return 60;
+    const share = Math.min(st.myScore, st.taScore) / Math.max(1, Math.max(st.myScore, st.taScore));
+    return Math.max(0, Math.min(100, Math.round(55 + share * 35 - st.misPicks * 2)));
+  }
+  function setStatus(html) { if (statusEl) statusEl.innerHTML = html; }
+  // #301 中局 TA 泡泡
+  let bubbleT = null;
+  function taSay(text) {
+    if (!stageEl) return;
+    try {
+      let b = stageEl.querySelector('.tg-bubble');
+      if (!b) { b = document.createElement('div'); b.className = 'tg-bubble'; stageEl.appendChild(b); }
+      b.textContent = text;
+      b.classList.remove('show'); void b.offsetWidth; b.classList.add('show');
+      clearTimeout(bubbleT);
+      bubbleT = setTimeout(() => { try { b.classList.remove('show'); } catch (e) {} }, 1600);
+    } catch (e) {}
+  }
+  function dot(side) { return '<i class="c4-dot ' + (side === 1 ? 'c4-dot-you' : 'c4-dot-ta') + '"></i>'; }
+  function showTurnStatus() {
+    if (!statusEl || !st || st.over) return;
+    setStatus(st.turn === 1 ? dot(1) + '你的回合：点一格再点相邻一格交换' : T(THINK_LINES[0]));
+  }
+
+  // ---- 对局流程 ----
+  function newGame() {
+    clearTimeout(thinkT); thinkT = null;
+    const diff = diffSel && DIFFS[diffSel.value] ? diffSel.value : 'normal';
+    st = newState(diff);
+    st.grid = dealGrid();
+    st.started = true;
+    hideOverlay();
+    buildBoard();
+    fitBoard();
+    renderBoard();
+    st.turn = 1;
+    setStatus(dot(1) + '你的回合：点一格再点相邻一格交换');
+  }
+  // 交换后完整结算：彩虹交换走特殊分支；普通路径四连生成炸弹、五连生成彩虹（仅首段）
+  function doSwap(a, b, byMe, cb) {
+    st.lock = true;
+    const va = st.grid[a[0]][a[1]], vb = st.grid[b[0]][b[1]];
+    const rbA = va >= RAINBOW, rbB = vb >= RAINBOW;
+    if (rbA || rbB) { doRainbowSwap(a, b, rbA && rbB, byMe, cb); return; }
+    const t = st.grid[a[0]][a[1]];
+    st.grid[a[0]][a[1]] = st.grid[b[0]][b[1]];
+    st.grid[b[0]][b[1]] = t;
+    let chain = 0, gained = 0;
+    const step = () => {
+      const runs = findRuns(st.grid);
+      if (!runs.length) {
+        if (!chain) {
+          // 无效交换：换回去
+          const t2 = st.grid[a[0]][a[1]];
+          st.grid[a[0]][a[1]] = st.grid[b[0]][b[1]];
+          st.grid[b[0]][b[1]] = t2;
+          renderBoard();
+          st.lock = false;
+          sfxBad();
+          if (cb) cb(false, 0);
+          return;
+        }
+        finish();
+        return;
+      }
+      chain++;
+      const seeds = [];
+      runs.forEach((run) => run.cells.forEach((p) => seeds.push(p)));
+      const cells = clearWithSpecials(st.grid, seeds);
+      const hadBoom = cells.some((p) => { const v = st.grid[p[0]][p[1]]; return v >= BOMB_BASE; });
+      cells.forEach((p) => { st.grid[p[0]][p[1]] = -1; });
+      // #301 特殊生成：仅交换引发的首段消除——四连→炸弹、五连+→彩虹（放最长一道的交换格/中格）
+      if (chain === 1) {
+        const best = runs.slice().sort((x, y) => y.len - x.len)[0];
+        if (best.len >= 5) {
+          const inBest = best.cells.some((p) => p[0] === b[0] && p[1] === b[1]);
+          const at2 = inBest ? b : best.cells[Math.floor(best.cells.length / 2)];
+          st.grid[at2[0]][at2[1]] = RAINBOW;
+          cells.push([at2[0], at2[1]]);
+          taSay(pick(['🌈 彩虹出现了！', '快用彩虹，超好用']));
+        } else if (best.len === 4) {
+          const at2 = best.cells.some((p) => p[0] === b[0] && p[1] === b[1]) ? b : best.cells[Math.floor(best.cells.length / 2)];
+          st.grid[at2[0]][at2[1]] = BOMB_BASE + best.color;
+          cells.push([at2[0], at2[1]]);
+          taSay(pick(['💣 炸弹生成！', '四连！收下这个💥']));
+        }
+      }
+      const pts = cells.length * chain;
+      gained += pts;
+      st.score += pts;
+      if (byMe) st.myScore += pts; else st.taScore += pts;
+      flashClear(cells);
+      if (hadBoom) sfxBoom();
+      sfxClear(chain);
+      if (chain >= 3) taSay('连锁 ×' + chain + (byMe ? '，好强！' : '，我也行吧'));
+      collapse(st.grid);          // 重力补落后再等下一轮查连锁
+      renderBoard();
+      setTimeout(step, Math.round(230 * fastMul()));
+    };
+    const finish = () => {
+      updateInfo();
+      st.lock = false;
+      if (cb) cb(true, gained);
+    };
+    step();
+  }
+  // 彩虹交换：单彩虹+色=清全该色；双彩虹=随机清两色。走完照常 collapse+连锁
+  function doRainbowSwap(a, b, both, byMe, cb) {
+    const rbPos = st.grid[a[0]][a[1]] >= RAINBOW ? a : b;
+    const other = st.grid[a[0]][a[1]] >= RAINBOW ? b : a;
+    const seeds = [[rbPos[0], rbPos[1]]];
+    const colors = [];
+    if (both) {
+      const pool = [0, 1, 2, 3, 4, 5].sort(() => Math.random() - 0.5).slice(0, 2);
+      pool.forEach((c2) => colors.push(c2));
+      seeds.push([other[0], other[1]]);
+    } else {
+      colors.push(colorOf(st.grid[other[0]][other[1]]));
+    }
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+      if (colors.indexOf(colorOf(st.grid[r][c])) >= 0 && colorOf(st.grid[r][c]) >= 0 && !seeds.some((p) => p[0] === r && p[1] === c)) seeds.push([r, c]);
+    }
+    sfxBoom();
+    taSay(both ? '双彩虹！看我的' : '🌈 全消 ' + KINDS[Math.max(0, colors[0])] + '！');
+    const cells = clearWithSpecials(st.grid, seeds);
+    cells.forEach((p) => { st.grid[p[0]][p[1]] = -1; });
+    const pts = cells.length;
+    st.score += pts;
+    if (byMe) st.myScore += pts; else st.taScore += pts;
+    flashClear(cells);
+    collapse(st.grid);
+    renderBoard();
+    setTimeout(() => {
+      st.lock = false;
+      if (cb) cb(true, pts);
+    }, Math.round(230 * fastMul()));
+  }
+  function afterMove(byMe) {
+    if (st.score >= st.target) { endGame(); return; }
+    if (allMoves(st.grid).length === 0) {
+      reshuffle();
+      setStatus('🌀 没有能消的了，自动洗了个牌');
+    }
+    st.turn = byMe ? 2 : 1;
+    if (st.turn === 2) scheduleTaTurn(TURN_MIN + Math.random() * TURN_VAR);
+    else showTurnStatus();
+  }
+  function playerSwap(a, b) {
+    if (!st || !st.started || st.over || st.lock || st.turn !== 1) return;
+    sfxSwap();
+    doSwap(a, b, true, (ok) => {
+      if (!ok) { st.misPicks++; updateInfo(); }
+      afterMove(true);
+    });
+  }
+
+  // ---- TA 回合 ----
+  function rollMode() {
+    const r = Math.random();
+    if (r < 0.55) return 'serious';
+    if (r < 0.8) return 'normal';
+    if (r < 0.93) return 'sandbag';
+    return 'blunder';
+  }
+  function scheduleTaTurn(delay) {
+    clearTimeout(thinkT);
+    setStatus(T(THINK_LINES[Math.floor(Math.random() * THINK_LINES.length)]));
+    thinkT = setTimeout(taTurn, Math.round(delay * fastMul()));
+  }
+  function taTurn() {
+    if (!st || st.over || st.turn !== 2 || st.lock) return;
+    st.mode = rollMode();
+    const moves = allMoves(st.grid);
+    if (!moves.length) { endGame(); return; }
+    if (st.mode === 'serious') {
+      moves.sort((x, y) => y.gain - x.gain);
+      exec(pick(moves.slice(0, 2)));
+    } else if (st.mode === 'normal') {
+      moves.sort((x, y) => y.gain - x.gain);
+      exec(pick(moves.slice(0, 5)));
+    } else if (st.mode === 'sandbag') {
+      moves.sort((x, y) => x.gain - y.gain);
+      exec(pick(moves.slice(0, Math.max(2, Math.ceil(moves.length / 2)))));
+    } else {
+      // blunder：先点一次无效交换（抖一下），再随便走一步
+      const a = [Math.floor(Math.random() * N), Math.floor(Math.random() * N)];
+      const dirs = [[0, 1], [1, 0], [0, -1], [-1, 0]];
+      const d = pick(dirs);
+      const b = [a[0] + d[0], a[1] + d[1]];
+      if (b[0] >= 0 && b[0] < N && b[1] >= 0 && b[1] < N) {
+        const g2 = st.grid.map((row) => row.slice());
+        const t = g2[a[0]][a[1]]; g2[a[0]][a[1]] = g2[b[0]][b[1]]; g2[b[0]][b[1]] = t;
+        if (!findMatches(g2)) {
+          sfxBad();
+          setStatus(T('TA') + '点错了，重新选……');
+          taSay(pick(['哎呀手滑', '这格不对……']));
+          const ea = tileAt(a[0], a[1]);
+          if (ea) { ea.classList.add('m3-shake'); setTimeout(() => ea.classList.remove('m3-shake'), 300); }
+          setTimeout(() => {
+            if (!st || st.over) return;
+            exec(pick(moves));
+          }, Math.round(600 * fastMul()));
+          return;
+        }
+      }
+      exec(pick(moves));
+    }
+    function exec(mv) {
+      if (!mv) { st.turn = 1; showTurnStatus(); return; }
+      sfxSwap();
+      doSwap(mv.a, mv.b, false, () => {
+        if (st.score >= st.target) { endGame(); return; }
+        if (allMoves(st.grid).length === 0) reshuffle();
+        st.turn = 1;
+        showTurnStatus();
+      });
+    }
+  }
+
+  // ---- 结束：默契 / 奖励 / 聊天联动 ----
+  function endGame() {
+    st.over = true; st.turn = 0; st.lock = false;
+    clearTimeout(thinkT); thinkT = null;
+    const chem = chemNow();
+    const s = loadStats();
+    s.clears = (s.clears || 0) + 1;
+    s.bestChem = Math.max(s.bestChem || 0, chem);
+    s.lastDiff = st.diff;
+    saveStats(s);
+    sfxWin();
+    taSay(pick(['达标啦，配合不错！', '我们通关咯']));
+    // 心意币：按难度发放，日封顶 ¥104，双方同步同额；#301 幸运日 ×2
+    var coinLine = '';
+    var dropLine = '';
+    try {
+      var COIN_CAP = 10400;
+      var day = new Date().toISOString().slice(0, 10);
+      var ck = prefix() + ':ml2_coin_match3_' + day;
+      var cur = Number(localStorage.getItem(ck)) || 0;
+      if (cur < COIN_CAP) {
+        var mult = (typeof window.arcadeMult === 'function') ? window.arcadeMult('match3') : 1;
+        var real = Math.min(Math.round(DIFFS[st.diff].coin * mult), COIN_CAP - cur);
+        try { localStorage.setItem(ck, String(cur + real)); } catch (e2) {}
+        if (real > 0 && typeof window.giftWalletChange === 'function') {
+          if (window.giftWalletChange(real, real, '消消乐')) {
+            if (typeof window.arcadeMarkLuckyPlayed === 'function') window.arcadeMarkLuckyPlayed('match3');
+            coinLine = '🪙 双方心意币各 +¥' + (real / 100).toFixed(2) + (mult > 1 ? '（🍀 幸运 ×2）' : '');
+          }
+        }
+      }
+    } catch (e) {}
+    // #301 跨游戏掉落：通关 8% 概率掉限定摆件
+    if (typeof window.arcadeTryDrop === 'function') {
+      try {
+        var dr = window.arcadeTryDrop('match3');
+        if (dr) { dropLine = '<div class="pong-end-stat">🌠 掉落限定摆件「' + dr.ico + ' ' + dr.name + '」！游乐室图鉴 +1</div>'; taSay('哇，掉了「' + dr.name + '」！'); }
+      } catch (e) {}
+    }
+    const body =
+      '<div class="pong-end-stat">🎯 达成 ' + st.score + ' / ' + st.target + ' 分</div>' +
+      '<div class="pong-end-stat">💕 默契 ' + chem + ' · 你 ' + st.myScore + ' · ' + T('TA') + ' ' + st.taScore + '</div>' +
+      '<div class="pong-end-stat">累计通关 ' + s.clears + ' 局 · 历史最佳默契 ' + s.bestChem + '</div>' +
+      (coinLine ? '<div class="pong-end-stat">' + coinLine + '</div>' : '') +
+      dropLine;
+    showOverlay('目标达成！', body, '再来一局');
+    if (startBtn) startBtn.textContent = '再来一局';
+    if (endBtn) endBtn.hidden = false;
+    setStatus('🎉 达成目标！默契 ' + chem);
+    // 写聊天系统消息 + TA 随机回应
+    try {
+      if (window.chatAddSystem) window.chatAddSystem(T('消消乐') + ' · 达成 ' + st.score + ' 分 · 默契 ' + chem, { special: 'match3' });
+      const fb = ['通关啦，配合不错。', '我们好默契呀。', '再来一局？'];
+      const pool = window.getInteractPool ? window.getInteractPool('游戏平局·回应', fb) : fb;
+      const say = pool[Math.floor(Math.random() * pool.length)] || fb[0];
+      setTimeout(() => {
+        try { if (window.chatAddIn) window.chatAddIn(say, { silent: true }); } catch (e) {}
+      }, 800);
+    } catch (e) {}
+  }
+
+  // ---- 覆盖层 ----
+  function showOverlay(title, body, btnText) {
+    if (!overlayEl) return;
+    if (ovTitleEl) ovTitleEl.innerHTML = title || '';
+    if (ovBodyEl) ovBodyEl.innerHTML = body || '';
+    if (startBtn && btnText) startBtn.textContent = btnText;
+    overlayEl.hidden = false;
+  }
+  function showStartOverlay() {
+    const s = loadStats();
+    showOverlay('消消乐',
+      '<div class="c4-start-tip">和 ' + T('TA') + ' 轮流交换相邻两格<br>凑成同款三连就消除，一起冲到目标分</div>' +
+      '<div class="c4-start-note">💣 四连生成炸弹 · 🌈 五连生成彩虹（换任意色全消）<br>🎲 ' + T('TA') + '每回合状态随机——最优步 / 前五挑一 / 放水 / 手滑</div>' +
+      (s.clears > 0 ? '<div class="pong-end-stat">累计通关 ' + s.clears + ' 局 · 历史最佳默契 ' + s.bestChem + '</div>' : ''),
+      s.clears > 0 ? '再来一局' : '开始对局');
+    if (endBtn) endBtn.hidden = true;
+  }
+  function hideOverlay() { if (overlayEl) overlayEl.hidden = true; if (endBtn) endBtn.hidden = true; }
+
+  // ---- 输入 ----
+  boardEl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const cell = e.target.closest('.m3-tile');
+    if (!cell) return;
+    const r = parseInt(cell.getAttribute('data-r'), 10) || 0;
+    const c = parseInt(cell.getAttribute('data-c'), 10) || 0;
+    if (!st || !st.started || st.over || st.lock || st.turn !== 1) return;
+    if (st.sel && st.sel[0] === r && st.sel[1] === c) {
+      st.sel = null;
+      cell.classList.remove('m3-sel');
+      sfxPick();
+      return;
+    }
+    if (!st.sel) {
+      st.sel = [r, c];
+      cell.classList.add('m3-sel');
+      sfxPick();
+      return;
+    }
+    const a = st.sel;
+    const dr = Math.abs(a[0] - r), dc = Math.abs(a[1] - c);
+    const adj = (dr === 1 && dc === 0) || (dr === 0 && dc === 1);
+    st.sel = null;
+    boardEl.querySelectorAll('.m3-sel').forEach((x) => x.classList.remove('m3-sel'));
+    if (!adj) {
+      st.sel = [r, c];
+      cell.classList.add('m3-sel');
+      sfxPick();
+      return;
+    }
+    playerSwap(a, [r, c]);
+  });
+  if (startBtn) startBtn.addEventListener('click', (e) => { e.stopPropagation(); newGame(); });
+  if (endBtn) endBtn.addEventListener('click', (e) => { e.stopPropagation(); closePanel(); });
+  if (closeBtn) closeBtn.addEventListener('click', (e) => { e.stopPropagation(); closePanel(); });
+  if (diffSel) diffSel.addEventListener('change', () => {
+    const s = loadStats(); s.lastDiff = diffSel.value; saveStats(s);
+  });
+  if (hintBtn) hintBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!st || !st.started || st.over || st.lock || st.turn !== 1) return;
+    const moves = allMoves(st.grid);
+    if (!moves.length) return;
+    moves.sort((x, y) => y.gain - x.gain);
+    const mv = moves[0];
+    [mv.a, mv.b].forEach((p) => {
+      const el = tileAt(p[0], p[1]);
+      if (el) { el.classList.remove('m3-hint'); void el.offsetWidth; el.classList.add('m3-hint'); }
+    });
+    sfxPick();
+  });
+  if (soundBtn) soundBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    soundOn = !soundOn;
+    soundBtn.textContent = soundOn ? '🔊' : '🔇';
+    soundBtn.classList.toggle('pong-sound-off', !soundOn);
+  });
+
+  // ---- 打开 / 关闭 ----
+  function setNames() {
+    let name = T('TA');
+    try {
+      const s = window.activeStore && window.activeStore();
+      name = (s && (s.get('cs-lbl-partner') || s.get('lbl-partner'))) || name;
+    } catch (e) {}
+    if (partnerNameEl) partnerNameEl.textContent = name;
+  }
+  window.openMatch3Panel = function () {
+    try { if (isFs) toggleFs(); } catch (e) {}
+    if (!st || !st.started) { try { const s = loadStats(); if (DIFFS[s.lastDiff] && diffSel) diffSel.value = s.lastDiff; } catch (e) {} }
+    panel.hidden = false;
+    try { setNames(); } catch (e) {}
+    try { if (st && st.started) fitBoard(); } catch (e) {}
+    // 有进行中的对局 → 接着玩（关面板期间轮到 TA 的补调度）
+    if (st && st.started && !st.over) {
+      if (st.turn === 2 && !thinkT && !st.lock) scheduleTaTurn(TURN_MIN + Math.random() * TURN_VAR);
+      else if (st.turn === 1) showTurnStatus();
+      return;
+    }
+    showStartOverlay();
+    setStatus('点击「开始对局」');
+  };
+  function closePanel() {
+    clearTimeout(thinkT); thinkT = null;
+    if (panel) panel.hidden = true;
+  }
+  window.closeMatch3Panel = closePanel;
+  document.addEventListener('contact-switched', () => { try { closePanel(); } catch (e) {} });
+  window.addEventListener('resize', () => { if (!panel.hidden) fitBoard(); });
+
+  // ---- 入口：聊天更多功能 → 小游戏 → 消消乐（自绑定，chat.js 不改） ----
+  (function bindEntry() {
+    const btn = document.getElementById('more-match3');
+    if (!btn) return;
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const mp = document.getElementById('chat-more-panel');
+      if (mp) mp.hidden = true;
+      hideSiblingPanels('chat-match3-panel');
+      try { if (window.closeAvlib) window.closeAvlib(); } catch (err) {}
+      try { if (window.closePongPanel) window.closePongPanel(); } catch (err) {}
+      try { openMatch3Panel(); } catch (err) {
+        try { panel.hidden = false; showStartOverlay(); setStatus('点击「开始对局」'); } catch (e2) {}
+        try { console.error('[match3] open failed', err); } catch (e2) {}
+      }
+    });
+    try {
+      if (window.MutationObserver) {
+        const SIBLING_IDS = siblingIds('chat-match3-panel');
+        const mo = new MutationObserver(() => {
+          if (panel.hidden) return;
+          for (let i = 0; i < SIBLING_IDS.length; i++) {
+            const el = document.getElementById(SIBLING_IDS[i]);
+            if (el && !el.hidden) { closePanel(); break; }
+          }
+        });
+        SIBLING_IDS.forEach((id) => { const el = document.getElementById(id); if (el) mo.observe(el, { attributes: true, attributeFilter: ['hidden'] }); });
+      }
+    } catch (e) {}
+  })();
+
+  // 半框互斥清单（全部聊天页浮层面板；各游戏文件各自维护一份含其余全部面板的列表）
+  function siblingIds(self) {
+    return ['poke-card', 'emoji-panel', 'chat-search', 'chat-ask-panel', 'chat-divine-panel', 'chat-decision-panel', 'chat-gdecision-panel', 'chat-rps-panel', 'chat-rp-panel', 'chat-call-panel', 'chat-pong-panel', 'chat-snake-panel', 'chat-brick-panel', 'chat-c4-panel', 'chat-ms-panel', 'chat-fish-panel', 'chat-memory-panel', 'chat-gift-panel', 'chat-gomoku-panel', 'chat-linkup-panel', 'chat-match3-panel', 'chat-auction-panel', 'chat-arcade-panel', 'chat-more-panel'].filter((id) => id !== self);
+  }
+  function hideSiblingPanels(self) {
+    siblingIds(self).forEach((id) => { const el = document.getElementById(id); if (el) el.hidden = true; });
+  }
+
+  // 只读调试口（供 verify 脚本复用）
+  window.__m3Debug = {
+    st: () => st,
+    newGame: newGame,
+    findRuns: findRuns,
+    findMatches: findMatches,
+    allMoves: allMoves,
+    simulateClear: simulateClear,
+    clearWithSpecials: clearWithSpecials,
+    colorOf: colorOf,
+    BOMB_BASE: BOMB_BASE,
+    RAINBOW: RAINBOW,
+    fast: false
+  };
+})();

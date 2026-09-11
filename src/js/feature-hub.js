@@ -1,0 +1,254 @@
+// ===== 功能：功能大全（设置 → 功能大全，#305）=====
+// 需求（用户 2026-09-11）：设置里新增一个和【回音机】【功能大全】一样的功能——
+// 全应用功能的可搜索索引页，点条目直达对应功能。灵感来源：回音机。
+// 与「功能介绍与可二传二改许可」页（page-about，静态说明）互补：本页是「找得到、跳得过去」的入口目录。
+//
+// 跳转机制：go 数组里的选择器按顺序逐个 .click()——各功能的打开逻辑都绑定在既有入口元素上
+//（桌面图标 .app[data-app=…] / 设置行 #row-* / 聊天更多面板按钮 #more-* / 字卡库列表项 #li-*），
+// 且均为同步 handler、首个元素的处理函数都会切页，链式点击即完整复现用户的操作路径，
+// 本文件不重复实现任何打开逻辑（功能入口变了跟着改 go 数组即可）。
+// where：没有可靠直达入口的功能，点击弹位置提示，不乱跳。
+// 纯本地、无网络请求；不写任何存储键。
+(function () {
+  // ---- 目录数据：g 组名 / n 名称 / d 一句话 / k 搜索关键词（含别名） / go 入口选择器链 / where 位置提示 ----
+  const HUB = [
+    { g: '聊天传讯', items: [
+      { n: '聊天', d: '和 TA 的主聊天：字卡回复、图文、引用、撤回补发', k: '聊天 消息 字卡', go: ['.app[data-app="chat"]'] },
+      { n: '群聊', d: '所有桌面成员聚在一个窗口聊天（需先在设置开启群聊模式）', k: '群聊 多人', go: ['.app[data-app="group-chat"]'] },
+      { n: '聊天设置', d: '聊天壁纸、气泡样式颜色、字体大小行距', k: '壁纸 气泡 字体 美化', go: ['.app[data-app="chat"]', '#chat-settings-btn'] },
+      { n: '回复设置', d: 'TA 的回复速度/条数/各类行为概率，全部可调', k: '概率 参数 速度 条数 主动', go: ['#row-general'] },
+      { n: '联系人 / 多桌面', d: '新建/改名/删除/切换联系人，数据互相独立', k: '联系人 桌面 切换', go: ['#row-contacts'] },
+      { n: '搜索聊天记录', d: '按关键词/日期搜聊天记录并跳转', k: '搜索 查找 记录', go: ['.app[data-app="chat"]', '#more-search'] },
+      { n: '批量发送', d: '一次编排多条消息（表情/图片/文字）按顺序发送', k: '批量 连发', go: ['.app[data-app="chat"]', '#chat-batch-btn'] },
+      { n: '语音消息', d: '录音最长 60 秒，试听后发语音', k: '语音 录音 麦克风', go: ['.app[data-app="chat"]', '#chat-mic-btn'] },
+      { n: '拍一拍', d: '拍 TA 一下，TA 也会拍回来', k: '拍一拍 互动', go: ['.app[data-app="chat"]', '#more-poke'] },
+      { n: '引用回复', d: '引用某条消息回复，可带表情包+文字', k: '引用 回复', where: '聊天里长按任意消息' },
+      { n: '通话', d: '拨打/接听电话，可设自定义铃声与背景', k: '电话 通话 打电话', go: ['.app[data-app="chat"]', '#more-call'] },
+      { n: '邀请 TA', d: '发邀请字卡（预设+自定义，可重复发送）', k: '邀请 约会', go: ['.app[data-app="chat"]', '#more-invite'] },
+      { n: '问问 TA / TA 的提问', d: '让 TA 现在问你一次，或向 TA 发问', k: '提问 问问 问题', go: ['.app[data-app="chat"]', '#more-ask'] },
+      { n: '收藏', d: '我的收藏 / TA 的收藏 分页浏览与批量管理', k: '收藏 星标', go: ['.app[data-app="note"]'] }
+    ] },
+    { g: '字卡库', items: [
+      { n: '字卡库', d: '全部字卡的统一入口：公用/专属/预设/情绪/回应…', k: '字卡库 词库', go: ['.tab[data-page="page-chatcard"]'] },
+      { n: '公用 / 专属自定义字卡', d: '自建字卡：公用全桌面共享，专属仅当前 TA', k: '自定义 公用 专属', go: ['.tab[data-page="page-chatcard"]', '#li-custom-cards'] },
+      { n: '系统预设字卡', d: '内置词库逐句开关，含词典语录分类', k: '预设 内置 词典 语录', go: ['.tab[data-page="page-chatcard"]', '#li-default-cards'] },
+      { n: '聊天情绪字卡', d: '情绪/心意/交流意图词库，按心情匹配', k: '情绪 心意 交流意图', go: ['.tab[data-page="page-chatcard"]', '#li-mood-cards'] },
+      { n: '聊天回应字卡', d: '游戏胜负平局等场景的回应词库', k: '回应 游戏 胜利 失败', go: ['.tab[data-page="page-chatcard"]', '#li-reply-cards'] },
+      { n: '语录字卡', d: '今日情话等语录内容管理', k: '语录 情话', go: ['.tab[data-page="page-chatcard"]', '#li-quote-cards'] },
+      { n: '其他互动功能字卡', d: '摸鱼/吃饭/经期/喝水/花园等功能触发字卡', k: '互动 功能字卡 摸鱼 经期 喝水', go: ['.tab[data-page="page-chatcard"]', '#li-fun-cards'] },
+      { n: 'TA 的提问字卡', d: '询问/小问题/好奇/吐槽/邀请 题库自定义', k: '提问 题库 询问 好奇 吐槽', go: ['.tab[data-page="page-chatcard"]', '#li-ta-ask'] },
+      { n: '查岗互动字卡', d: '温柔关心式查岗问题卡内容自定义', k: '查岗 定位', go: ['.tab[data-page="page-chatcard"]', '#li-ta-checkin'] },
+      { n: '寻踪日常字卡', d: 'TA 的日常/在哪里/在做什么/想对你说 内容', k: '寻踪 日常 位置', go: ['.tab[data-page="page-chatcard"]', '#li-loc-cards'] },
+      { n: '桌面查岗字卡', d: '联系人跨桌面查岗的系统预设字卡管理', k: '桌面查岗 跨桌面', go: ['.tab[data-page="page-chatcard"]', '#li-deskcheck'] },
+      { n: '贴贴邀请字卡', d: '贴贴/抱抱/牵手等邀请的内容词库', k: '贴贴 抱抱 牵手', go: ['.tab[data-page="page-chatcard"]', '#li-checkin-cards'] }
+    ] },
+    { g: '互动与心意', items: [
+      { n: '红包', d: '双向红包：预设档/随机/自定义金额、留言与封面', k: '红包 转账 钱', go: ['.app[data-app="chat"]', '#more-rp'] },
+      { n: '心意币 · 心意市集', d: '220+ 件商品分 12 类，送礼给 TA', k: '市集 商店 礼物 购买 心意币', go: ['.app[data-app="chat"]', '#more-gift'] },
+      { n: '心意柜', d: '收到/送出的礼物册与统计', k: '礼物柜 收藏 礼物', go: ['.app[data-app="chat"]', '#more-giftbox'] },
+      { n: '头像互动', d: '换头像邀请、头像池、定时自动换头像', k: '头像 换头像', go: ['.app[data-app="chat"]', '#more-avatar'] },
+      { n: '漂流瓶', d: '两个世界之间的海：捡瓶子/放瓶子', k: '漂流瓶 海 瓶子', go: ['.app[data-app="chat"]', '#more-drift'] },
+      { n: '帮我决定', d: '是/否或自定义选项随机决定，结果可发聊天', k: '决定 选择 纠结', go: ['.app[data-app="chat"]', '#more-decide'] },
+      { n: '多人决定', d: '成员名单各自随机出结果，逐行发送', k: '多人 决定 抽签', go: ['.app[data-app="chat"]', '#more-gdecide'] },
+      { n: '占卜', d: '塔罗 78 张 / 雷诺曼 40 张，三种牌阵', k: '占卜 塔罗 雷诺曼 运势', go: ['.app[data-app="divination"]'] },
+      { n: '寻踪 · TA 的日常', d: 'TA 在哪里/在做什么/想对你说 + 位置感知', k: '寻踪 日常 定位 在哪', go: ['.app[data-app="chat"]', '#chat-partner-av'] },
+      { n: '同频', d: 'TA 此刻状态字卡 + 敲三下暗号', k: '同频 暗号 此刻 状态', go: ['.app[data-app="tongpin"]'] },
+      { n: '伸手', d: '摸摸身边，三种触感 + 悄悄话', k: '伸手 摸摸 触感', go: ['.app[data-app="shenshou"]'] },
+      { n: '此间', d: '每位梦角的世界时间与在场状态', k: '此间 梦角 时辰 在场', go: ['.app[data-app="cjian"]'] },
+      { n: '房间（双人小屋）', d: '21 种家具互动、舒适度升级、按 TA 分屋', k: '房间 小屋 家具', go: ['.app[data-app="room"]'] }
+    ] },
+    { g: '小游戏', items: [
+      { n: '猜拳', d: '和 TA 猜拳，累计战绩', k: '猜拳 石头剪刀布 游戏', go: ['.app[data-app="chat"]', '#more-rps'] },
+      { n: 'Pong', d: '双人弹球对战，四档难度', k: 'pong 弹球 游戏', go: ['.app[data-app="chat"]', '#more-pong'] },
+      { n: '贪吃蛇', d: '双人同场抢食，速度/穿墙可设', k: '贪吃蛇 蛇 游戏', go: ['.app[data-app="chat"]', '#more-snake'] },
+      { n: '打砖块', d: '双人合作清砖，COMBO 连击', k: '打砖块 砖块 游戏', go: ['.app[data-app="chat"]', '#more-brick'] },
+      { n: '钓鱼', d: '抛竿收竿 + 14 种收集物图鉴', k: '钓鱼 鱼 图鉴', go: ['.app[data-app="chat"]', '#more-fish'] },
+      { n: '四子棋', d: '和 TA 对弈四子棋，战绩记录', k: '四子棋 棋 游戏', go: ['.app[data-app="chat"]', '#more-c4'] },
+      { n: '合作扫雷', d: '轮流挖格共用 3 颗❤，藏彩蛋', k: '扫雷 游戏', go: ['.app[data-app="chat"]', '#more-ms'] },
+      { n: '记忆翻牌', d: '合作找配对记默契分', k: '记忆 翻牌 配对 游戏', go: ['.app[data-app="chat"]', '#more-memory'] },
+      { n: '五子棋', d: '11×11 迷你盘三档难度，TA 会堵你的成五点', k: '五子棋 棋 游戏', go: ['.app[data-app="chat"]', '#more-gomoku'] },
+      { n: '连连看', d: '合作消除同款图案，连线不超两个弯', k: '连连看 游戏', go: ['.app[data-app="chat"]', '#more-linkup'] },
+      { n: '消消乐', d: '轮流交换凑三连，连锁连消冲目标分', k: '消消乐 三消 游戏', go: ['.app[data-app="chat"]', '#more-match3'] },
+      { n: '心意币拍卖会', d: '与 TA 轮番举牌，落槌价真实扣款', k: '拍卖 拍卖会 心意币', go: ['.app[data-app="chat"]', '#more-auction'] },
+      { n: '游乐室', d: '小游戏战绩、徽章、摆件图鉴一览', k: '游乐室 战绩 徽章 摆件 图鉴', go: ['.app[data-app="chat"]', '#more-arcade'] }
+    ] },
+    { g: '手机桌面与工具', items: [
+      { n: '桌面装修模式', d: '编辑布局/添加卡片/换图标/拖拽跨页', k: '装修 编辑 布局 图标 桌面', go: ['#row-custom-icon'] },
+      { n: '外观与主题', d: '主题色/壁纸预设/字号圆角/组件样式/深色模式', k: '美化 外观 主题 壁纸 颜色 深色 暗色', go: ['#row-appearance'] },
+      { n: '备忘录', d: '待办置顶/截止日期，TA 会追问和催办', k: '备忘录 待办 todo', go: ['.app[data-app="memo"]'] },
+      { n: '喝水', d: '今日杯数进度环，TA 定时催喝水', k: '喝水 杯数', go: ['.app[data-app="water"]'] },
+      { n: '吃什么', d: '随机抽菜/转盘，问 TA 征求意见', k: '吃什么 吃饭 菜 转盘', go: ['.app[data-app="eat"]'] },
+      { n: '存钱罐', d: '存取+小心愿目标，TA 当监督人', k: '存钱罐 攒钱 心愿', go: ['.app[data-app="piggy"]'] },
+      { n: '番茄钟', d: '专注/小憩/长休计时，陪伴模式', k: '番茄钟 专注 计时', go: ['.app[data-app="pomo"]'] },
+      { n: '经期记录', d: '经期/排卵期预测、症状体温情绪记录、TA 的关心', k: '经期 生理期 排卵 月经', go: ['.app[data-app="period"]'] },
+      { n: '记账', d: '收支分类/预算/图表/流水搜索', k: '记账 收支 预算 账本', go: ['.app[data-app="accounting"]'] },
+      { n: '花园', d: '种花杂交/花束工坊/成就年报，TA 代管', k: '花园 种花 花', go: ['.app[data-app="garden"]'] }
+    ] },
+    { g: '记录与统计', items: [
+      { n: '主页', d: '多 tab 统计：换头像/通话/摸鱼/TA 的关心/心意币', k: '主页 情侣空间 统计', go: ['.app[data-app="home"]'] },
+      { n: '聊天统计', d: '相处记录/聊天记录/情绪表达多维统计', k: '统计 聊天统计 数据', go: ['.app[data-app="stats"]'] },
+      { n: '提问记录', d: 'TA 的询问/小问题/好奇/吐槽/我的邀请历史', k: '提问记录 历史 记录', go: ['.app[data-app="interact"]'] },
+      { n: '查岗打卡', d: 'TA 的查岗打卡与位置记录', k: '查岗 打卡 定位', go: ['.app[data-app="checkin"]'] },
+      { n: '日历', d: 'TA 的每日留言、情话、我的备忘与心情', k: '日历 留言 签到', go: ['.app[data-app="calendar"]'] },
+      { n: '纪念', d: '纪念日/倒数日与相伴天数', k: '纪念 倒计时 周年', go: ['.app[data-app="memory"]'] },
+      { n: '信箱', d: '和 TA 写信/回信，支持图文信件', k: '信箱 写信 信件 邮件', go: ['.app[data-app="mail"]'] },
+      { n: '朋友圈', d: '发动态/点赞评论/TA 也会发', k: '朋友圈 动态 点评 转发', go: ['.app[data-app="feed"]'] },
+      { n: '音乐', d: '本地/链接上传、歌单、一起听歌、播放队列', k: '音乐 歌曲 播放 歌单', go: ['.app[data-app="music"]'] },
+      { n: '梦角档案', d: '认识 TA：九个分区 + 发现卡片 + 共同记录', k: '梦角档案 档案 认识', go: ['.app[data-app="memo-arc"]'] },
+      { n: '我的档案', d: '写给 TA 的自我说明与 IF 世界设定', k: '我的档案 自我 if 世界', go: ['.app[data-app="my-arc"]'] },
+      { n: '心情日记', d: '每天记心情，月度曲线对照、TA 的关心', k: '心情日记 心情 情绪 日记', go: ['.app[data-app="chat"]', '#more-mood'] }
+    ] },
+    { g: '系统与设置', items: [
+      { n: '音效设置', d: '来电铃声/消息音效本地上传', k: '音效 铃声 声音 提示音', go: ['#row-sfx-settings'] },
+      { n: '通话设置', d: '来电/接听/挂断等触发概率与通话背景', k: '通话设置 电话 概率', go: ['#row-call-settings'] },
+      { n: '数据导出', d: '导出全部数据为备份文件（请定期备份）', k: '导出 备份 数据', go: ['#row-export'] },
+      { n: '数据导入', d: '从备份文件恢复，含预览与进度', k: '导入 恢复 数据', go: ['#row-import'] },
+      { n: '查看存储占用', d: '按功能看本地存储占用，可清诊断记录', k: '存储 占用 空间 清理', go: ['#row-storage-view'] },
+      { n: '应用锁', d: '数字密码锁，防别人偷看聊天记录', k: '应用锁 密码 隐私 锁', where: '设置页「应用锁」分组' },
+      { n: '设备兼容诊断', d: '一键复制本机环境信息发给开发者排查', k: '诊断 兼容 环境 报障', go: ['#row-diagnostics'] },
+      { n: '屏幕适配诊断', d: '顶部空白/底部裁切/缩放异常一键定位', k: '屏幕 适配 诊断 顶部空白 裁切', go: ['#row-screen-diag'] },
+      { n: '功能诊断', d: '逐个测试全部功能是否正常（约15秒）', k: '功能诊断 自检 测试', go: ['#row-func-diag'] },
+      { n: '功能介绍与许可', d: '原创声明、二传二改许可、灵感来源', k: '介绍 许可 关于 版权', go: ['#row-about'] }
+    ] }
+  ];
+
+  // ---- 顶部分类 tab 样式（自包含注入，不动 base.css；深色模式走全局配色变量） ----
+  const hubStyle = document.createElement('style');
+  hubStyle.textContent = '.fhub-tabs{display:flex;gap:8px;overflow-x:auto;padding:2px 14px 8px;-webkit-overflow-scrolling:touch;scrollbar-width:none}.fhub-tabs::-webkit-scrollbar{display:none}.fhub-tag{flex:0 0 auto;padding:6px 13px;border-radius:20px;font-size:12px;color:var(--muted,#666);background:rgba(0,0,0,.055);white-space:nowrap;cursor:pointer;transition:background .15s,color .15s;-webkit-tap-highlight-color:transparent}.fhub-tag:active{transform:scale(.97)}.fhub-tag.on{color:#fff;background:#111}';
+  document.head.appendChild(hubStyle);
+
+  // ---- 渲染 ----
+  const body = document.getElementById('fhub-body');
+  const page = document.getElementById('page-featurehub');
+  if (!body || !page) return;
+  const ARROW = '<div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></div>';
+
+  function entryRow(it, gi) {
+    const row = document.createElement('div');
+    row.className = 'set-row';
+    row.innerHTML = '<div class="txt">' + it.n + '<span class="sub">' + it.d + '</span></div>' + ARROW;
+    row.addEventListener('click', () => jump(it));
+    return row;
+  }
+  function groupBlock(grp, gi, open) {
+    const wrap = document.createElement('div');
+    const title = document.createElement('div');
+    title.className = 'gs-title';
+    title.textContent = grp.g;
+    const card = document.createElement('div');
+    card.className = 'set-group glass';
+    grp.items.forEach(it => card.appendChild(entryRow(it, gi)));
+    wrap.appendChild(title);
+    wrap.appendChild(card);
+    if (!open) wrap.style.display = 'none';
+    return wrap;
+  }
+
+  // 默认按组全部平铺；顶部分类 tag 点击只显示对应组
+  let groups = [];
+  HUB.forEach((grp, gi) => { grp.items.forEach(it => { it._g = gi; }); groups.push(groupBlock(grp, gi, true)); });
+  groups.forEach(el => body.appendChild(el));
+
+  // ---- 顶部分类切换：全部 / 聊天传讯 / 字卡库 / … ----
+  const tags = document.getElementById('fhub-tags');
+  let activeGi = -1; // -1 = 全部
+  function setGroup(gi) {
+    activeGi = gi;
+    if (tags) Array.prototype.forEach.call(tags.children, (t, i) => t.classList.toggle('on', i - 1 === gi));
+    groups.forEach((el, i) => { el.style.display = (gi === -1 || i === gi) ? '' : 'none'; });
+  }
+  if (tags) {
+    [['全部', -1]].concat(HUB.map((g, i) => [g.g, i])).forEach((pair) => {
+      const label = pair[0], gi = pair[1];
+      const d = document.createElement('div');
+      d.className = 'fhub-tag';
+      d.textContent = label;
+      d.addEventListener('click', () => {
+        if (input && input.value) { input.value = ''; applyFilter(); }
+        setGroup(gi);
+        empty.hidden = true;
+      });
+      tags.appendChild(d);
+    });
+  }
+  setGroup(-1);
+
+  // ---- 搜索：命中名称/描述/关键词时只显示命中的行与所在组 ----
+  const input = document.getElementById('fhub-search');
+  const empty = document.getElementById('fhub-empty');
+  function norm(s) { return String(s || '').toLowerCase().replace(/\s+/g, ''); }
+  function applyFilter() {
+    const q = norm(input.value);
+    if (!q) {
+      // 清空 → 恢复顶部分类切换（setGroup 复显当前分类并复位行显隐）
+      Array.prototype.forEach.call(body.querySelectorAll('.set-row'), r => { r.style.display = ''; });
+      empty.hidden = true;
+      setGroup(activeGi);
+      return;
+    }
+    // 搜索命中名称/描述/关键词：全局范围内过滤（忽略当前分类），顶部分类高亮回到「全部」
+    if (tags) Array.prototype.forEach.call(tags.children, (t, i) => t.classList.toggle('on', i === 0));
+    let hits = 0;
+    HUB.forEach((grp, gi) => {
+      let gHit = 0;
+      grp.items.forEach((it, ii) => {
+        const hay = norm(it.n + it.d + (it.k || '') + (it.g || ''));
+        // 行序与 grp.items 一一对应：直接按子元素索引取
+        const rows = cardRows(gi);
+        const el = rows[ii];
+        const show = hay.indexOf(q) >= 0;
+        if (el) el.style.display = show ? '' : 'none';
+        if (show) { gHit++; hits++; }
+      });
+      if (groups[gi]) groups[gi].style.display = gHit ? '' : 'none';
+    });
+    empty.hidden = hits > 0;
+  }
+  function cardRows(gi) {
+    const card = groups[gi] ? groups[gi].querySelector('.set-group') : null;
+    return card ? Array.prototype.slice.call(card.children) : [];
+  }
+  if (input) {
+    input.addEventListener('input', applyFilter);
+  }
+
+  // ---- 跳转：链式点击既有入口；无 go 的弹位置提示 ----
+  function toast(msg) {
+    let t = document.getElementById('cc-toast');
+    if (!t) { t = document.createElement('div'); t.id = 'cc-toast'; document.body.appendChild(t); }
+    t.textContent = msg; t.className = 'cc-toast'; void t.offsetWidth; t.className = 'cc-toast show';
+    clearTimeout(t._timer); t._timer = setTimeout(() => { t.className = 'cc-toast'; }, 2400);
+  }
+  function jump(it) {
+    if (it.go && it.go.length) {
+      try {
+        it.go.forEach(sel => {
+          const el = document.querySelector(sel);
+          if (el && typeof el.click === 'function') el.click();
+        });
+        return;
+      } catch (e) { /* 落到位置提示 */ }
+    }
+    toast('「' + it.n + '」的位置：' + (it.where || it.g));
+  }
+
+  // ---- 返回设置页（与 row-about/about-back 同一导航模式） ----
+  const back = document.getElementById('fhub-back');
+  if (back) {
+    back.addEventListener('click', () => {
+      document.querySelectorAll('.page').forEach(p => { p.hidden = true; });
+      const setPage = document.getElementById('page-setting');
+      if (setPage) setPage.hidden = false;
+    });
+  }
+
+  // ---- 设置页入口行 ----
+  const row = document.getElementById('row-featurehub');
+  if (row) {
+    row.addEventListener('click', () => {
+      document.querySelectorAll('.page').forEach(p => { p.hidden = true; });
+      page.hidden = false;
+      if (input) { input.value = ''; applyFilter(); }
+    });
+  }
+})();
