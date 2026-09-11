@@ -76,23 +76,38 @@ ok(got && got.text !== got.src, 'B5 新句与源句不同（真的截断重造�
 ok(pick({ 'mjf-en': 0, 'mjf-prob': 100 }) === null, 'B1 mjf-en=0 → 不触发（默认关）');
 ok(pick({ 'mjf-en': 1, 'mjf-prob': 0 }) === null, 'B2 mjf-prob=0 → 不触发');
 ok(pick(null) === null, 'B3 cfg 缺失 → 不触发');
-// #328 旧式多手法（mjf-recall=0）：80 掷应大量出现补词/后缀/插符类手法
+// #329 三种造句手法确定性断言（直接调 dreamFreeRebuild(s, mode, material)）
+const rbM = w.dreamFreeRebuild;
 const FILL = /(想你|抱抱|亲亲|嘿嘿|哦|呀|啦|嘛|呢|哼|想你了|最喜欢你|晚安|早安|嘿嘿嘿|哼哼|呜呜|嘻嘻|好耶|喵)/;
-let oldStyle = 0;
+const SRCC = '今天也要好好爱自己';
+let cfOk = 0, cfCards = 0;
+for (let i = 0; i < 30; i++) {
+  const fixed = rbM(SRCC, 'cutfill', 'fixed');
+  const cards = rbM(SRCC, 'cutfill', 'cards');
+  if (fixed && FILL.test(fixed) && fixed !== SRC) cfOk++;
+  if (cards && cards !== SRC) cfCards++;
+}
+ok(cfOk >= 25, 'B6a mjf-style=0 cutfill 补固定语气词（30 掷 ' + cfOk + '）');
+ok(cfCards >= 25, 'B6b mjf-style=2 cutfill 补别的字卡的词（30 掷 ' + cfCards + '）');
+let sufOk = 0, atOk = 0, atCross = 0;
+for (let i = 0; i < 30; i++) {
+  const suf = rbM(SRCC, 'suffix', 'fixed');
+  if (suf && suf.indexOf(SRCC) === 0 && suf.length > SRCC.length) sufOk++;
+  const at = rbM(SRCC, 'addtail', 'cards');
+  if (at && at !== SRC && /好梦|日落|晚安|想和你|一起|明天见/.test(at)) atCross++;
+}
+ok(sufOk >= 25, 'B6c 语气词式 suffix 句尾加语气后缀（30 掷 ' + sufOk + '）');
+ok(atOk === 0 && atCross >= 20, 'B8 换字卡内容式 addtail 句尾拼别的字卡的词（30 掷 ' + atCross + '）');
+
+let s2 = 0, s2Cross = 0;
 for (let i = 0; i < 80; i++) {
-  const r = pick({ 'mjf-en': 1, 'mjf-prob': 100, 'mjf-recall': 0 });
+  const r = pick({ 'mjf-en': 1, 'mjf-prob': 100, 'mjf-style': 2 });
   if (!r) continue;
-  if (FILL.test(r.text) || /[呀啦哦呢嘛哟哈]$/.test(r.text) || r.text.includes('，') || r.text.includes(' ') || r.src.indexOf(r.text) === 0) oldStyle++;
+  s2++;
+  // 换字卡内容式：补的词来自「别的字卡」（好梦/日落/明天见/晚安/想和你/一起 为其他卡的词）
+  if (/好梦|日落|明天见|晚安|想和你|一起/.test(r.text)) s2Cross++;
 }
-ok(oldStyle >= 60, 'B6 #328 mjf-recall=0 旧式五手法可用（80 掷合法 ' + oldStyle + '）');
-// #328 默认（mjf-recall=1）：撤回式/温和形态为主（不为原句、必为前缀或插符变形）
-let defRecall = 0;
-for (let i = 0; i < 60; i++) {
-  const r = pick({ 'mjf-en': 1, 'mjf-prob': 100, 'mjf-recall': 1 });
-  if (!r) continue;
-  if (r.src.indexOf(r.text) === 0 || r.text.includes('，') || r.text.includes(' ')) defRecall++;
-}
-ok(defRecall >= 50, 'B7 #328 mjf-recall=1 默认撤回式/温和形态（60 掷合法 ' + defRecall + '）');
+ok(s2 >= 60 && s2Cross >= 20, 'B8 mjf-style=2 换字卡内容式：补「别的字卡」的词（80 掷 ' + s2 + '，含他卡词 ' + s2Cross + '）');
 
 // —— C 入库 API（沙盒模拟 chatcard 内存 groups + ccAppendCards 双作用域语义）——
 // 直接用真实源码太重（依赖 DOM），按 ccAppendCards 同语义打桩验证 dreamFreeSave 调用契约
@@ -143,9 +158,8 @@ const cc = readFileSync(join(root, 'src/js/chatcard.js'), 'utf8');
 ok(bm.includes("'quote-spell.js', 'dream-free.js',"), 'D1 build.mjs jsFiles 已登记 dream-free.js');
 ok(cc.includes("const CC_FUNC_KEYS = ['fish', 'eat', 'period', 'water', 'garden', 'sync', 'reach', 'cjian', 'room', 'piggy', 'drift', 'interact', 'music',\n    'mjfree'];"), 'D2 chatcard.js CC_FUNC_KEYS 含 mjfree（进管理页/不进聊天池）');
 ok(chat.includes("tag: '梦角自由造句'") && chat.includes('window.dreamFreePick && window.dreamFreePick(c)'), 'D3 chat.js replyOnce 接入+tag');
-ok(rs.includes("'mjf-en': 0, 'mjf-prob': 20,") && (rs.match(/'mjf-en', 'mjf-recall'\]/g) || []).length === 3, 'D4 reply-settings DEFAULTS+三处清单（#328 后清单含 mjf-recall）');
-ok(tpl.includes('id="mjf-en"') && tpl.includes('data-k="mjf-prob"'), 'D5 template 回复设置「梦角自由造句」组');
-ok(tpl.includes('id="mjf-recall"') && rs.includes("'mjf-recall': 1,") && (rs.match(/'mjf-en', 'mjf-recall'\]/g) || []).length === 3, 'D5b #328 「撤回式截断」形态切换开关（template+DEFAULTS+三清单）');
+ok(rs.includes("'mjf-en': 0, 'mjf-prob': 20,") && rs.includes("'mjf-style': 1,"), 'D4 reply-settings DEFAULTS（mjf 三键）');
+ok(tpl.includes('id="mjf-en"') && tpl.includes('data-k="mjf-prob"') && tpl.includes('data-k="mjf-style"'), 'D5 template 回复设置「梦角自由造句」组（开关+概率+手法三选一）');
 ok(rs.includes('梦角自由造句开启失败') && rs.includes('梦角自由造句已开启') && rs.includes('mjf-probe'), 'D5b #324 开关切换 toast 提示（成功/失败）+存储探针在位');
 ok(tpl.includes('data-type="mjfree"'), 'D6 template 字卡库「梦角自由造句」tab');
 

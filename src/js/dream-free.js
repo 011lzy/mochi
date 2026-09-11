@@ -96,15 +96,42 @@
     const out = toks.slice(0, gi).join('').replace(/[，、,\s]+$/, '');
     return (out !== str && out.length >= 4) ? out : null;
   }
-  // 重造句：s = 源句，mode = 手法。造不出（句太短/无可插边界）返回 null。
-  // #328：mode='cutfill'/'suffix'/'tailcut' 为旧式多手法（mjf-recall=0 时可选回退）
-  function rebuild(s, mode) {
+  // #329 词素材池：把「别的字卡」全部切词，收 ≥2 字词（截词补位/句尾拼接从这里取材，
+  // 不再用固定语气词——用户明确：补的应该是别的字卡内容）。excludeSrc=源句，防同句自补
+  function wordPool(excludeSrc) {
+    const pool = [];
+    corpusPool().forEach(card => {
+      if (card === excludeSrc) return;
+      segment(card).forEach(t => {
+        if (t.length >= 2 && isWordTok(t) && pool.indexOf(t) < 0) pool.push(t);
+      });
+    });
+    return pool;
+  }
+  // 重造句：s = 源句，mode = 手法，material = 补位素材（#329：'fixed'=固定语气词 /
+  // 'cards'=别的字卡里的词）。造不出（句太短/无可插边界）返回 null。
+  // 三手法对应关系（mjf-style）：0 语气词式→material fixed；2 换字卡内容式→material cards。
+  function rebuild(s, mode, material) {
     const str = String(s == null ? '' : s);
     if (mode === 'recall') return recallCut(str);
     if (mode === 'suffix') {
-      const base = str.replace(/[，。！？、…～\s]+$/, '');
+      // 语气词式（material='fixed'）：句尾加语气后缀
+      const base = str.replace(/[，。！？、…～s]+$/, '');
       if (base.length < 3) return null;
       const out = base + SUFFIXES[Math.floor(Math.random() * SUFFIXES.length)];
+      return out !== str ? out : null;
+    }
+    if (mode === 'addtail') {
+      let word = null;
+      if (material === 'cards') {
+        const wp = wordPool(str);
+        if (wp.length) word = wp[Math.floor(Math.random() * wp.length)];
+      } else {
+        word = SUFFIXES[Math.floor(Math.random() * SUFFIXES.length)];
+      }
+      if (!word) return null;
+      const base = str.replace(/[，。！？、…～\s]+$/, '');
+      const out = base + word;
       return out !== str ? out : null;
     }
     if (mode === 'tailcut') {
@@ -122,10 +149,17 @@
     if (!gaps.length) return null;
     const gi = gaps[Math.floor(Math.random() * gaps.length)];
     if (mode === 'cutfill') {
-      // 旧式：抽掉切点后的一个词、原位补语气词
+      // 抽掉切点后的一个词、原位补词：material='cards' 补「别的字卡」的词（词库空回落语气词）、
+      // 'fixed' 补固定语气词（语气词式）
       const rest = toks.slice(gi);
       const wi = Math.floor(Math.random() * rest.length);
-      const fill = FILL_WORDS[Math.floor(Math.random() * FILL_WORDS.length)];
+      let fill;
+      if (material === 'cards') {
+        const wp = wordPool(str);
+        fill = wp.length ? wp[Math.floor(Math.random() * wp.length)] : FILL_WORDS[Math.floor(Math.random() * FILL_WORDS.length)];
+      } else {
+        fill = FILL_WORDS[Math.floor(Math.random() * FILL_WORDS.length)];
+      }
       const out = toks.slice(0, gi).join('') + fill + rest.filter((_, k) => k !== wi).join('');
       return out !== str ? out : null;
     }
@@ -141,20 +175,26 @@
       if (!isFinite(prob) || prob <= 0 || Math.random() * 100 >= prob) return null;
       const pool = corpusPool();
       if (!pool.length) return null;
-      // #328 形态切换：mjf-recall=1（默认）＝撤回式 50% + 逗号/空格各 25%；
-      // mjf-recall=0＝旧式多手法（截词补词/加逗号/加空格/句尾后缀/删尾字五选一）
-      const OLD_MODES = ['cutfill', 'comma', 'space', 'suffix', 'tailcut'];
-      const oldMode = OLD_MODES[Math.floor(Math.random() * OLD_MODES.length)];
+      // #329 三种造句手法（mjf-style 选择，默认 1=撤回式）：
+      //   0=语气词式：截词补语气词 / 加逗号 / 加空格 / 句尾加语气后缀 / 删句尾字（五选一）
+      //   1=撤回式：撤回式截断 50% + 词间加逗号/空格各 25%
+      //   2=换字卡内容式：截词补「别的字卡」的词 / 加逗号 / 加空格 / 句尾拼「别的字卡」的词 / 删句尾字
+      const style = Math.max(0, Math.min(2, Number(c['mjf-style']) || 1));
+      const pickOf = arr => arr[Math.floor(Math.random() * arr.length)];
       for (let t = 0; t < 8; t++) {
         const s = pool[Math.floor(Math.random() * pool.length)];
         if (s === lastSrc) continue;
-        let mode;
-        if (c['mjf-recall'] === 0) mode = oldMode;
-        else {
+        let mode, material = 'fixed';
+        if (style === 1) {
           const r = Math.random();
           mode = r < 0.5 ? 'recall' : (r < 0.75 ? 'comma' : 'space');
+        } else if (style === 2) {
+          material = 'cards';
+          mode = pickOf(['cutfill', 'comma', 'space', 'addtail', 'tailcut']);
+        } else {
+          mode = pickOf(['cutfill', 'comma', 'space', 'suffix', 'tailcut']);
         }
-        const txt = rebuild(s, mode);
+        const txt = rebuild(s, mode, material);
         if (txt && txt !== s) { lastSrc = s; return { text: txt, src: s }; }
       }
       return null;
