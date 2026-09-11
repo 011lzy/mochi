@@ -655,6 +655,9 @@
     });
     mo.observe(panel, { attributes: true, attributeFilter: ['hidden'] });
   })();
+  // #347 寄回投递不再依赖打开拍卖会：全局每 10 分钟补投一次（开面板仍有 30s 细粒度检查），
+  // 否则「2~4 天寄回」实际是「2~4 天后你下次打开拍卖会才寄到」。checkGifts 自带 no-pending 快速返回。
+  setInterval(() => { try { checkGifts(); } catch (e) {} }, 600000);
   // 切联系人清空进行中场次：🎒 收藏按联系人桌面隔离，跨桌续拍会把拍品收进别桌收藏
   document.addEventListener('contact-switched', () => { try { closePanel(); st = null; } catch (e) {} });
 

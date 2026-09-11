@@ -1019,6 +1019,8 @@ const FIX_SENTINELS = [
   { name: '#346 背包返回文案按回合态（删＝TA 掂量中返回误报「到你出价了」）', file: 'js/auction.js', needle: '正在掂量你的出价' },
   { name: '#346 音效偏好持久化（删＝每次重开面板重置为开、🔇 记不住）', file: 'js/auction.js', needle: "localStorage.getItem('xy-home-v2:au-sound')" },
   { name: '#346 矮屏(横屏 max-height:500px)半框提到 82%（删＝横屏 68% 竞价区挤）', file: 'css/chat-pages.css', needle: '@media (max-height:500px)' },
+  // ==== 2026-09-12 #347 拍卖会寄回投递不依赖打开面板（全局 10 分钟补投）：原 checkGifts 只挂面板打开/开面板期 30s，「2~4 天寄回」实际是「下次打开拍卖会才寄到」====
+  { name: '#347 寄回全局补投·10 分钟一次（删＝TA 寄回的拍品要打开拍卖会才到账）', file: 'js/auction.js', needle: '600000' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
