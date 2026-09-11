@@ -41,6 +41,8 @@
   const introStart = document.getElementById('au-intro-start');
   const introHelp = document.getElementById('au-intro-help');
   const introExit = document.getElementById('au-intro-exit');
+  // #346 余额不足/账本未就绪的提示行（出价键静默置灰用户不知道为什么）
+  const walletHintEl = document.getElementById('au-wallet-hint');
   function showHelp() { if (helpOverlay) helpOverlay.hidden = false; }
   function hideHelp() { if (helpOverlay) helpOverlay.hidden = true; }
   function showIntro() { if (introEl) introEl.hidden = false; }
@@ -183,6 +185,7 @@
   // ---- 场次状态 ----
   let st = null;
   let thinkT = null;
+  let bagOpen = false; // #343/#346 背包覆盖层是否开着（寄到重渲染判定用）
 
   function newState() {
     const lots = shuffle(POOL.slice()).slice(0, LOTS_PER_SESSION);
@@ -247,6 +250,15 @@
         b.disabled = myBalance() < st.cur + step;
       }
     });
+    // #346 余额不足/账本未就绪时给一行提示，出价键不再静默置灰
+    if (walletHintEl) {
+      const noWallet = lotActive() && !walletOk();
+      const noBalance = lotActive() && walletOk() && myBalance() < st.cur + STEP1;
+      walletHintEl.hidden = !(noWallet || noBalance);
+      walletHintEl.textContent = noWallet
+        ? '心意币账本还没就绪，先去心意集市逛逛吧'
+        : (noBalance ? '心意币不够出这一价了——去集市补点心意币，或点「放弃这件」' : '');
+    }
   }
   function setStatus(html) { if (statusEl) statusEl.innerHTML = html; }
   // #301 中局 TA 泡泡（同其余小游戏）
@@ -451,14 +463,7 @@
     const s = loadStats();
     s.sessions = (s.sessions || 0) + 1;
     saveStats(s);
-    showOverlay('本场结束',
-      '<div class="pong-end-stat">你拍得 ' + st.myWins + ' 件 · 花了 ' + yuan(st.spent) + '</div>' +
-      '<div class="pong-end-stat">' + T('TA') + ' 拍走 ' + st.taWins + ' 件 · 流拍 ' + st.passed + ' 件</div>' +
-      '<div class="pong-end-stat">累计 ' + s.sessions + ' 场 · 🎒 收藏 ' + loadBag().length + ' 件</div>',
-      '再来一场');
-    if (startBtn) startBtn.textContent = '再来一场';
-    if (endBtn) endBtn.hidden = false;
-    setStatus('本场结束，点击「再来一场」');
+    showSummary();
     try {
       let txt = T('心意币拍卖会') + ' · ';
       if (st.myWins) txt += '拍下 ' + st.myWins + ' 件 ' + yuan(st.spent);
@@ -467,9 +472,22 @@
       if (window.chatAddSystem) window.chatAddSystem(txt, { special: 'auction' });
     } catch (e) {}
   }
+  // #346 结算汇总单独成函数：背包「返回」也要能回到这一屏（原先被背包覆盖后回不去）
+  function showSummary() {
+    const s = loadStats();
+    showOverlay('本场结束',
+      '<div class="pong-end-stat">你拍得 ' + st.myWins + ' 件 · 花了 ' + yuan(st.spent) + '</div>' +
+      '<div class="pong-end-stat">' + T('TA') + ' 拍走 ' + st.taWins + ' 件 · 流拍 ' + st.passed + ' 件</div>' +
+      '<div class="pong-end-stat">累计 ' + s.sessions + ' 场 · 🎒 收藏 ' + loadBag().length + ' 件</div>',
+      '再来一场');
+    if (startBtn) startBtn.textContent = '再来一场';
+    if (endBtn) endBtn.hidden = false;
+    setStatus('本场结束，点击「再来一场」');
+  }
 
   // ---- 🎒 小收藏（#301 支持转赠心意柜） ----
   function showBag() {
+    bagOpen = true;
     const bag = loadBag();
     const body = bag.length
       ? bag.map((it, i) =>
@@ -477,7 +495,7 @@
           (it.from === 'ta' ? '' : ' <button class="pong-overlay-btn au-send-btn" data-i="' + i + '" type="button">送' + T('TA') + '</button>') + '</div>').join('')
       : '<div class="pong-end-stat">还什么都没拍到</div>';
     showOverlay('🎒 拍品收藏（' + bag.length + '）', body, '返回');
-    if (startBtn) startBtn.textContent = st && st.started && !st.over ? '返回' : '开场拍卖';
+    if (startBtn) startBtn.textContent = '返回'; // #346 统一返回语义：场次中回竞价、结算后回本场汇总
     if (endBtn) endBtn.hidden = !(st && st.started && !st.over);
   }
   // 转赠：写心意柜「我送TA」记录（gift-shop 的 recordGiftBox，走既有心意柜渲染），拍品移出收藏
@@ -536,7 +554,7 @@
     hideOverlay(); // 半框覆盖层平时不显示（开场/成交才由流程显示）
     setStatus('全屏读玩法：点下方「开始拍卖」，或「详细玩法」');
   }
-  function hideOverlay() { if (overlayEl) overlayEl.hidden = true; }
+  function hideOverlay() { if (overlayEl) overlayEl.hidden = true; bagOpen = false; }
 
   // ---- 输入 ----
   if (startBtn) startBtn.addEventListener('click', (e) => {
@@ -545,7 +563,19 @@
     if (overlayEl && !overlayEl.hidden) {
       const t = startBtn.textContent || '';
       if (t === '下一件' || t === '结算') { advance(); return; }
-      if (t === '返回') { hideOverlay(); if (st && st.started && !st.over) { renderLot(); setStatus('继续——到你出价了'); } return; }
+      if (t === '返回') {
+        hideOverlay();
+        if (st && st.started && !st.over) {
+          renderLot();
+          // #346 返回文案按真实回合态：TA 掂量中不再误报「到你出价了」
+          setStatus(lotActive() && st.leader === 'you' && thinkT ? T('TA') + ' 正在掂量你的出价……' : '继续——到你出价了');
+        } else if (st && st.over) {
+          showSummary(); // #346 结算后开背包，「返回」= 回到本场结算汇总
+        } else {
+          showStartOverlay(); // 防御：无场次回开场教学
+        }
+        return;
+      }
     }
     newSession();
   });
@@ -561,13 +591,28 @@
     const sendBtn = e.target.closest('.au-send-btn');
     if (!sendBtn) return;
     e.stopPropagation();
-    giftAway(parseInt(sendBtn.getAttribute('data-i'), 10) || 0);
+    const i = parseInt(sendBtn.getAttribute('data-i'), 10) || 0;
+    const it = loadBag()[i];
+    if (!it) return;
+    // #346 转赠不可撤回，走全站 openModal 确认防误触（弹窗不可用时退回直送）
+    try {
+      if (typeof window.openModal === 'function') {
+        const ctl = window.openModal('送出拍品', '', function () { giftAway(i); }, {
+          noInput: true,
+          staticText: '把「' + it.ico + ' ' + it.name + '」送给 ' + T('TA') + '？送出后不可撤回。'
+        });
+        try { if (ctl && ctl.okText) ctl.okText('送出'); } catch (e2) {}
+        return;
+      }
+    } catch (e2) {}
+    giftAway(i);
   });
   if (soundBtn) soundBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     soundOn = !soundOn;
     soundBtn.textContent = soundOn ? '🔊' : '🔇';
     soundBtn.classList.toggle('pong-sound-off', !soundOn);
+    try { localStorage.setItem('xy-home-v2:au-sound', soundOn ? '1' : '0'); } catch (e2) {} // #346 偏好记忆
   });
 
   // ---- 打开 / 关闭 ----
@@ -583,6 +628,7 @@
     try { if (isFs) toggleFs(); } catch (e) {}
     panel.hidden = false;
     hideHelp();                                              // #321 重开默认收起玩法说明
+    if (soundBtn) { soundBtn.textContent = soundOn ? '🔊' : '🔇'; soundBtn.classList.toggle('pong-sound-off', !soundOn); } // #346 图标跟随持久化偏好
     try { setNames(); } catch (e) {}
     try { checkGifts(); } catch (e) {}   // #301 到期回寄投递
     // 有进行中的场次 → 接着拍（关面板期间 TA 思考的补调度）
@@ -596,6 +642,7 @@
   function closePanel() {
     clearTimeout(thinkT); thinkT = null;
     clearInterval(giftTimer); giftTimer = null;
+    bagOpen = false;
     hideIntro(); hideHelp();
     if (panel) panel.hidden = true;
   }

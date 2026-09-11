@@ -954,6 +954,9 @@ const FIX_SENTINELS = [
   // ==== 2026-09-11 #306 小游戏 UI 收口（连连看/消消乐棋盘 gap 溢出截断、头部标题被挤竖排、拍卖会「不拍了」白字白底隐形）+ 全部小游戏通用全屏 .game-fs ====
   { name: '#306 连连看 fitBoard 扣除 grid gap 再取整（删则牌面总宽多出 (cols-1)*3px 溢出右缘、最右列被截断）', file: 'js/linkup.js', needle: 'Math.floor((w - (st.cols - 1) * GAP) / st.cols)' },
   { name: '#306 消消乐 fitBoard 扣除 grid gap 再取整（同连连看，删则第 8 列被裁）', file: 'js/match3.js', needle: 'Math.floor((w - (N - 1) * GAP) / N)' },
+  // ==== 2026-09-12 #340 消消乐动画（用户报「没有真消消乐动画很突兀」）：棋子层+transform 合成器过渡，交换滑动/消除爆开/按距离下落 ====
+  { name: '#340 消消乐消除爆开动画 keyframes（删则消除无爆开、退回瞬间消失）', file: 'css/chat-pages.css', needle: '@keyframes m3-popout' },
+  { name: '#340 消消乐结算动画循环按距离等待（删则下落不等待、整盘退回瞬跳重绘）', file: 'js/match3.js', needle: 'animMs(FALL_MS)' },
   { name: '#306 半框头部标题禁止压缩换行（删则控件多的面板标题被挤成一字一行竖排）', file: 'css/chat-main.css', needle: '.poke-card-head > span { white-space:nowrap; }' },
   { name: '#306 拍卖会「不拍了」举牌行内可见样式（删则半透明白底+白字在白卡上完全隐形＝按钮像消失）', file: 'css/chat-pages.css', needle: '.au-bids .pong-overlay-btn2 { background:rgba(0,0,0,.07); color:var(--ink,#222); }' },
   { name: '#306 小游戏共享全屏容器 .game-fs（fixed 满视口 + iOS 高度修复同款表达式，删则全屏按钮失效）', file: 'css/chat-pages.css', needle: 'height:100vh; height:min(var(--mochi-ios-h, 100dvh), 100dvh);' },
@@ -1008,6 +1011,14 @@ const FIX_SENTINELS = [
   { name: '#342 拍卖半框 68% 规则限定非全屏（删 :not(.game-fs)＝ID 规则重新压过 game-fs，⛶ 全屏只有 68% 高半截屏）', file: 'css/chat-pages.css', needle: '#chat-auction-panel:not(.game-fs) { height:auto; min-height:min(68%, 560px); max-height:68%; }' },
   // ==== 2026-09-12 #345 TA主动消息「通知已弹、进聊天被吞」（红米 K80 Chrome 报障，全机型同现与设备无关；K80 诊断：后台保活存活期消息到达+系统通知已弹）：横幅/系统通知在 addIn 同步链发出，rc-prob 25% 撤回签 900ms 后才掷、rc-refix 未命中不补发＝通知承诺的内容进聊天只剩「对方撤回了一条消息」。修复：撤回签提前到投递前掷，命中撤回的本条 silent 落地（不弹通知、未读角标照增），补发的替换消息走正常投递。行为断言 tools/verify-proactive-retract.mjs ====
   { name: '#345 撤回先掷签后投递·silent 接线（改回 silent: i > 0＝撤回消息重新弹通知、进聊天内容消失＝「刚主动发的消息被吞」回归）', file: 'js/chat.js', needle: 'silent: i > 0 || willRetract' },
+  // ==== 2026-09-12 #346 拍卖会余缺陷批（用户「全部修复」）：结算后开🎒回不去汇总／转赠无确认易误触／寄到时背包列表 data-i 错位可能送错件／余额不足出价键静默置灰／TA掂量中返回文案误报／音效开关不记忆／矮屏(横屏)半框 68% 太挤。行为断言 tools/verify-auction-overlay.mjs G 组 ====
+  { name: '#346 结算汇总 showSummary 独立成函数（内联回 endSession＝结算被🎒覆盖后回不去本场汇总）', file: 'js/auction.js', needle: 'function showSummary() {' },
+  { name: '#346 转赠走全站 openModal 确认（删＝点「送TA」立即移出不可撤回＝误触丢拍品）', file: 'js/auction.js', needle: '送出后不可撤回。' },
+  { name: '#346 寄到且背包开着就重渲染（删＝unshift 后已渲染 data-i 整体 +1，「送TA」可能送错件）', file: 'js/auction.js', needle: 'delivered && bagOpen' },
+  { name: '#346 余额不足提示行接线（删＝出价键静默置灰无解释，新用户不知道要先有心意币）', file: 'template.html', needle: 'id="au-wallet-hint"' },
+  { name: '#346 背包返回文案按回合态（删＝TA 掂量中返回误报「到你出价了」）', file: 'js/auction.js', needle: '正在掂量你的出价' },
+  { name: '#346 音效偏好持久化（删＝每次重开面板重置为开、🔇 记不住）', file: 'js/auction.js', needle: "localStorage.getItem('xy-home-v2:au-sound')" },
+  { name: '#346 矮屏(横屏 max-height:500px)半框提到 82%（删＝横屏 68% 竞价区挤）', file: 'css/chat-pages.css', needle: '@media (max-height:500px)' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

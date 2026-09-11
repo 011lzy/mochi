@@ -201,6 +201,90 @@ await sleep(400);
 const eBack = await evalJs(`(function(){ var p = document.getElementById('chat-auction-panel'); return getComputedStyle(p).maxHeight; })()`);
 chk('E4 退出全屏恢复 68% 半框', eBack === '68%', 'maxH=' + eBack);
 
+// G1) #346 结算后开🎒「返回」= 回到本场结算汇总（旧版被背包顶掉后回不去）
+await evalJs(`(function(){ var s = window.__auDebug && window.__auDebug.st(); if (s) { s.over = true; s.phase = 'idle'; } return 1; })()`);
+await evalJs(`(function(){ var b = document.getElementById('au-bag'); if (b) b.click(); return 1; })()`);
+await sleep(200);
+const g1Btn = await evalJs(`(function(){ var b = document.getElementById('au-btn-start'); return b ? b.textContent : 'no-el'; })()`);
+await evalJs(`(function(){ var b = document.getElementById('au-btn-start'); if (b) b.click(); return 1; })()`);
+await sleep(250);
+const g1Title = await evalJs(`(function(){ var t = document.getElementById('au-ov-title'); var o = document.getElementById('au-overlay'); return (t ? t.textContent : '') + '|' + (o ? String(o.hidden) : '?'); })()`);
+chk('G1 结算后背包按钮统一为「返回」', g1Btn === '返回', 'btn=' + g1Btn);
+chk('G1 返回后回到「本场结束」结算汇总', g1Title.indexOf('本场结束') >= 0 && g1Title.indexOf('false') > 0, 'got=' + g1Title);
+
+// G2) #346 音效开关持久化
+await evalJs(`(function(){ var b = document.getElementById('au-sound'); if (b) b.click(); return 1; })()`);
+await sleep(100);
+const g2a = await evalJs(`(function(){ try { return localStorage.getItem('xy-home-v2:au-sound'); } catch (e) { return 'ERR'; } })()`);
+await evalJs(`(function(){ var b = document.getElementById('au-sound'); if (b) b.click(); return 1; })()`);
+await sleep(100);
+const g2b = await evalJs(`(function(){ try { return localStorage.getItem('xy-home-v2:au-sound'); } catch (e) { return 'ERR'; } })()`);
+chk('G2 音效开关写入偏好（关=0 开=1）', g2a === '0' && g2b === '1', 'after=' + g2a + '/' + g2b);
+
+// G3) #346 转赠先弹全站确认，确认后才真送出
+await evalJs(`(function(){
+  var pre = (window.activePrefix && window.activePrefix()) || 'xy-home-v2';
+  localStorage.setItem(pre + ':auction-items', JSON.stringify([{ ico: '🌹', name: '测试玫瑰', fen: 520, ts: Date.now() }]));
+  return 1;
+})()`);
+await evalJs(`(function(){ var b = document.getElementById('au-bag'); if (b) b.click(); return 1; })()`);
+await sleep(250);
+await evalJs(`(function(){ var b = document.querySelector('#au-overlay .au-send-btn'); if (b) b.click(); return 1; })()`);
+await sleep(300);
+const g3Modal = JSON.parse(await evalJs(`(function(){
+  var m = document.getElementById('modal-mask');
+  var s = document.getElementById('modal-static');
+  return JSON.stringify({ open: !!m && !m.hidden, text: s ? s.textContent : '' });
+})()`));
+await evalJs(`(function(){ var b = document.getElementById('modal-ok'); if (b) b.click(); return 1; })()`);
+await sleep(400);
+const g3Bag = await evalJs(`(function(){
+  var pre = (window.activePrefix && window.activePrefix()) || 'xy-home-v2';
+  try { return JSON.parse(localStorage.getItem(pre + ':auction-items') || '[]').length; } catch (e) { return -1; }
+})()`);
+chk('G3 送TA先弹确认弹窗（含拍品名）', g3Modal.open === true && g3Modal.text.indexOf('测试玫瑰') >= 0, g3Modal);
+chk('G3 确认后拍品真移出收藏', g3Bag === 0, 'bagLen=' + g3Bag);
+
+// G4) #346 余额不足给提示行（不再静默置灰）
+await evalJs(`(function(){ var b = document.getElementById('au-btn-start'); if (b) b.click(); return 1; })()`);
+await sleep(250); // 背包「返回」→ 回到本场汇总
+await evalJs(`(function(){ var b = document.getElementById('au-btn-start'); if (b) b.click(); return 1; })()`);
+await sleep(300); // 汇总「再来一场」→ 开新场进入竞价
+await evalJs(`(function(){ try { window.giftWalletSet({ myBalance: 100, systemBalance: 100 }); } catch (e) {} return 1; })()`);
+await evalJs(`(function(){ if (window.openAuctionPanel) window.openAuctionPanel(); return 1; })()`);
+await sleep(300);
+const g4a = JSON.parse(await evalJs(`(function(){
+  var h = document.getElementById('au-wallet-hint');
+  return JSON.stringify({ exists: !!h, hidden: h ? !!h.hidden : null, text: h ? h.textContent : '' });
+})()`));
+await evalJs(`(function(){ try { window.giftWalletSet({ myBalance: 999900, systemBalance: 999900 }); } catch (e) {} return 1; })()`);
+await evalJs(`(function(){ if (window.openAuctionPanel) window.openAuctionPanel(); return 1; })()`);
+await sleep(300);
+const g4b = await evalJs(`(function(){ var h = document.getElementById('au-wallet-hint'); return h ? String(!!h.hidden) : 'no-el'; })()`);
+chk('G4 余额不足时提示行出现（含指引文案）', g4a.exists === true && g4a.hidden === false && g4a.text.indexOf('心意币不够') >= 0, g4a);
+chk('G4 余额恢复后提示行收起', g4b === 'true', 'hidden=' + g4b);
+
+// G5) #346 TA 掂量中从背包返回，文案按真实回合态
+await evalJs(`(function(){ var b = document.getElementById('au-bid1'); if (b) b.click(); return 1; })()`);
+await sleep(120);
+await evalJs(`(function(){ var b = document.getElementById('au-bag'); if (b) b.click(); return 1; })()`);
+await sleep(100);
+await evalJs(`(function(){ var b = document.getElementById('au-btn-start'); if (b) b.click(); return 1; })()`);
+await sleep(100);
+const g5 = await evalJs(`(function(){ var s = document.getElementById('au-status'); return s ? s.textContent : ''; })()`);
+chk('G5 TA 掂量中返回＝「正在掂量你的出价」文案', g5.indexOf('掂量') >= 0, 'status=' + g5);
+
+// G6) #346 矮屏（横屏）半框提到 82%
+await cdp('Emulation.setDeviceMetricsOverride', { width: 844, height: 430, deviceScaleFactor: 2, mobile: true });
+await sleep(400);
+const g6 = await evalJs(`(function(){
+  var p = document.getElementById('chat-auction-panel');
+  var r = p.getBoundingClientRect();
+  return JSON.stringify({ h: Math.round(r.height), vh: innerHeight, ratio: +(r.height / innerHeight).toFixed(2) });
+})()`);
+await cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
+chk('G6 矮屏半框高度占比 ≥78%（旧版 68% 太挤）', (() => { try { return JSON.parse(g6).ratio >= 0.78; } catch (e) { return false; } })(), g6);
+
 console.log('入口=' + opened + '  结果: ' + pass + ' 通过 / ' + fail + ' 失败');
 chrome.kill();
 server.close();

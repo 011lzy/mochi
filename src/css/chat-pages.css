@@ -4141,16 +4141,23 @@ body.mail-emoji-mode #emoji-panel { bottom: calc(64px + var(--mochi-safe-bottom,
 .m3-info { display:flex; flex-wrap:wrap; justify-content:center; gap:12px; font-size:12px; color:var(--muted); }
 .m3-stage { position:relative; width:100%; min-height:190px; display:flex; justify-content:center; align-items:center; } /* #308：同连连看，防未开局时开始覆盖层被压扁 */
 .m3-board { position:relative; user-select:none; -webkit-user-select:none; touch-action:manipulation; }
-.m3-tile { position:absolute; top:0; left:0; display:flex; align-items:center; justify-content:center; background:rgba(127,127,127,.09); border-radius:10px; cursor:pointer; -webkit-tap-highlight-color:transparent; line-height:1; transition:left .18s ease, top .24s ease; will-change:left,top; }
+.m3-tile { position:absolute; top:0; left:0; display:flex; align-items:center; justify-content:center; background:rgba(127,127,127,.09); border-radius:10px; cursor:pointer; -webkit-tap-highlight-color:transparent; line-height:1; transition:transform .18s ease; }
+.m3-glyph { display:block; }
 .m3-noanim .m3-tile { transition:none !important; }
 @keyframes m3-popout { 0% { transform:scale(1); opacity:1; } 35% { transform:scale(1.25); opacity:.9; } 100% { transform:scale(0); opacity:0; } }
 @keyframes m3-born { 0% { transform:scale(.3); opacity:0; } 100% { transform:scale(1); opacity:1; } }
-.m3-tile.m3-born { animation:m3-born .24s ease; }
+.m3-tile.m3-born .m3-glyph { animation:m3-born .24s ease; }
 [data-theme="dark"] .m3-tile { background:rgba(255,255,255,.08); }
-.m3-tile.m3-sel { outline:2px solid #5b8ff9; transform:scale(1.1); }
+.m3-tile.m3-sel { outline:2px solid #5b8ff9; }
+.m3-tile.m3-sel .m3-glyph { transform:scale(1.1); }
 .m3-tile.m3-hint { outline:2px solid #ffb347; animation:pairgame-blink .6s ease-in-out 3; }
-.m3-tile.m3-shake { animation:pairgame-shake .3s; }
-.m3-tile.m3-pop { animation:m3-popout .22s ease forwards; pointer-events:none; }
+.m3-tile.m3-shake .m3-glyph { animation:pairgame-shake .3s; }
+.m3-tile.m3-pop { pointer-events:none; }
+.m3-tile.m3-pop .m3-glyph { animation:m3-popout .22s ease forwards; }
+@media (prefers-reduced-motion: reduce) {
+  .m3-tile { transition-duration:.05s; }
+  .m3-tile .m3-glyph { animation-duration:.05s !important; }
+}
 .m3-status { min-height:20px; font-size:13px; color:var(--muted); text-align:center; }
 
 @keyframes pairgame-blink { 50% { outline-color:transparent; } }
@@ -4233,6 +4240,11 @@ body.mail-emoji-mode #emoji-panel { bottom: calc(64px + var(--mochi-safe-bottom,
    否则点 ⛶ 全屏后面板仍被钳在 68% 高（实测 574/844px，底部露出聊天页＝全屏名存实亡） */
 #chat-auction-panel:not(.game-fs) { height:auto; min-height:min(68%, 560px); max-height:68%; }
 #chat-auction-panel .poke-card-scroll { min-height:0; max-height:none; }
+/* #346 余额不足/账本未就绪提示行（出价键下方一行小字，替代静默置灰） */
+#au-wallet-hint { padding:2px 4px 0; font-size:12px; line-height:1.5; color:#b0621f; text-align:center; }
+[data-theme="dark"] #au-wallet-hint { color:#ffb37a; }
+/* #346 矮屏（横屏手机）68% 半框太矮、竞价区挤 → 提到 82% */
+@media (max-height:500px) { #chat-auction-panel:not(.game-fs) { min-height:82%; max-height:82%; } }
 /* ===== #302 朋友圈贴纸回复 + 回忆闪回 ===== */
 .feed-imgs { position: relative; }
 .feed-sticker { position: absolute; width: 44px; height: 44px; transform: translate(-50%, -50%); cursor: pointer; z-index: 2; filter: drop-shadow(0 2px 4px rgba(0,0,0,.25)); }
