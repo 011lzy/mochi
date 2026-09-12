@@ -1520,6 +1520,16 @@
         // 点击输入栏键盘弹出动画期间 vv.offsetTop 先起、vv.height 后缩，_aKb 未置位时
         // 平移已残留 → 输入栏错位+灰条）。850ms 后交回稳态条件。
         var _aBurstUntil = 0;
+        // FIX 2026-09-12 #369：会话级「全屏布局基线」——VivoBrowser（iQOO Z9/V2361A
+        // 实报「聊天聊到一半屏幕突然变成一半」「听歌闪几下加载中然后变成一半」，多机型
+        // 同族）收键盘后 innerHeight 与 vv 一起停在键盘态不回基准（现场 800 物理屏
+        // inner=vv=373），且 _aProvCheck 无聚焦分支会把 _aIH 重锚到残留值 → #236/#209
+        // 各判据（均含 inner≥基线−12）全部失明，.phone 被污染的 100dvh 撑成半屏且无
+        // 内联高可清＝四条复原路全断。_aFullIH 只涨不跌（换屏幕尺寸键=旋转时重置），
+        // _aScrKey 记当前屏幕尺寸键，_aVpPin=布局残留钉高在位。
+        var _aFullIH = Math.max(window.innerHeight || 0, Math.round(_aVV.height || 0));
+        var _aScrKey = (screen.width || 0) + 'x' + (screen.height || 0);
+        var _aVpPin = false;
         // FIX 2026-09-05 #209：稳态停靠残留清扫（安卓侧唯一视口看门狗——iOS 侧
         // healViewport 在 isIOS 分支，安卓不经过；device.js 监视只读不修）。
         // 场景：安卓返回键/手势收键盘不派 blur（activeElement 保留），#197 族
@@ -1605,6 +1615,44 @@
               return;
             }
             if (_aKb || _aProv) return;
+            // FIX 2026-09-12 #369：布局视口残留深缩自愈（#236 同族第三形态：inner 与
+            // vv 一起停在键盘态）。判据纯视口证据、零机型分支：无键盘会话 + 无文本聚焦
+            // + 静默>2.2s + vv 读数已稳>1.2s（避开动画中途）+ 屏幕尺寸键未变（排除旋转）
+            // + pointer:coarse（桌面缩放窗口不误伤）+ 本会话出现过真实键盘收缩（_aVvShrunkSeen
+            // /实测平移）+ innerHeight 距 _aFullIH 深缩≥键盘下限（22%；地址栏显隐只有几十
+            // px 不及）+ vv≈inner（同缩＝布局视口被内核收走的残留世界）。动作：scrollTo(0,0)
+            // 试探内核自愈，再把 .phone 钉回 _aFullIH px（dvh 已被残留读数污染，只能 px 钉）；
+            // 内核真恢复（inner 回基线）同拍解除。健康设备凑不齐这套条件，行为零变化。
+            var _ihNow = window.innerHeight || 0;
+            var _skNow = (screen.width || 0) + 'x' + (screen.height || 0);
+            if (_skNow !== _aScrKey) {
+              _aScrKey = _skNow;
+              _aFullIH = Math.max(_ihNow, Math.round(_aVV.height || 0));
+              if (_aVpPin) { _aVpPin = false; _aPhone.style.height = ''; _aPhone.style.alignSelf = ''; }
+              return;
+            }
+            if (_ihNow > _aFullIH) _aFullIH = _ihNow;
+            if (_aVpPin && _ihNow >= _aFullIH - 12) {
+              _aVpPin = false;
+              _aPhone.style.height = '';
+              _aPhone.style.alignSelf = '';
+              return;
+            }
+            var _coarse = false;
+            try { _coarse = window.matchMedia && matchMedia('(pointer:coarse)').matches; } catch (eC) {}
+            var _ihFloor = Math.round(Math.min(_aFullIH, _aH || _aFullIH) * 0.22);
+            if (!_aVpPin && _coarse && (_aVvShrunkSeen || _aPanSeen >= 80)
+                && !_aIsText(document.activeElement) && !_aIsText(_aTextFocused)
+                && Date.now() - _aLastAct > 2200 && Date.now() - _aVvChgAt > 1200
+                && _ihNow > 0 && _ihNow < _aFullIH - 60 && (_aFullIH - _ihNow) >= _ihFloor
+                && Math.abs(_ihNow - Math.round(_aVV.height || 0)) <= 12) {
+              try { window.scrollTo(0, 0); } catch (eS) {}
+              _aVpPin = true;
+              if (_aPhone.style.height !== _aFullIH + 'px') _aPhone.style.height = _aFullIH + 'px';
+              _aPanComp();
+              kbUndockPanels();
+              return;
+            }
             if (!_aPhone.style.height && !_aPhone.style.alignSelf) return;
             var _hNow = Math.round(_aVV.height || 0);
             if (_hNow <= 0 || _hNow < _aH - 12) return;
@@ -2022,7 +2070,11 @@
             var ih = window.innerHeight;
             if (!tgt) {
               // 无聚焦：无键盘态基线跟随 + 保底停靠残留清理（可视高度回基准=键盘已收）
-              if (!_aKb && !_aProv) _aIH = ih;
+              // FIX 2026-09-12 #369：基准重锚加浅漂移闸——原样 `if(!_aKb&&!_aProv) _aIH=ih`
+              // 会把无键盘基准吞成内核残留值（VivoBrowser 收键盘后 inner 恒停 373），
+              // #236/#209 所有「inner≥基线−12」判据从此恒真＝全数失明。改为仅浅漂移
+              //（降幅 <22% 键盘下限，地址栏显隐量级）才跟随，深缩一律不吞。
+              if (!_aKb && !_aProv && (ih >= _aIH - 12 || _aIH - ih < Math.round(Math.min(_aIH || ih, _aH || ih) * 0.22))) _aIH = ih;
               if (_aProv && _aVV.height >= _aH - 60) _aProvClear();
               return;
             }

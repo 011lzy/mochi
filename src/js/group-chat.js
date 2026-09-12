@@ -682,7 +682,7 @@
     gcRenderStart = Math.max(0, n - RENDER_MAX);
     if (gcRenderStart > 0) body.appendChild(gcEarlierBtn());
     for (let i = gcRenderStart; i < n; i++) renderMsg(msgs[i], i);
-    scrollToBottom();
+    followGcBottom(true); // #371：进页滚底同走三连写（内核可能丢弃单次 scrollTop 写入）
   }
   function gcEarlierBtn() {
     const d = document.createElement('div');
@@ -713,8 +713,27 @@
   function nearGcBottom() {
     try { return body.scrollHeight - body.scrollTop - body.clientHeight < 150; } catch (e) { return true; }
   }
+  // FIX 群聊跟底 #370（红米 K80 Chrome 等多机型报「联系人发消息不自动滚到最新」）：
+  // 单聊 #162 同根因——移动内核可能丢弃一次性 scrollTop 写入，或被迟到的布局变更
+  // （头像/图片异步解码撑高）顶开，只写一次=视口停在新消息上方。对齐单聊三连写口径：
+  // 即时写 + rAF + 150ms 复写；复写用 gcUserGcScrollTouched（触摸/滚轮置位）判断用户
+  // 是否已手动接管滚动，未接管才补写（内核丢弃写入时视口离底 >150px，nearGcBottom
+  // 会误判为「在看历史」，所以复写不能只看 nearGcBottom）；用户已滚动则不抢滚动权。
+  let gcUserGcScrollTouched = false;
+  body.addEventListener('touchstart', () => { gcUserGcScrollTouched = true; }, { passive: true });
+  body.addEventListener('wheel', () => { gcUserGcScrollTouched = true; }, { passive: true });
   function followGcBottom(force) {
-    try { if (force || nearGcBottom()) scrollToBottom(); } catch (e) {}
+    try {
+      const stick = force || nearGcBottom();
+      if (!stick) return;
+      scrollToBottom();
+      const rewrite = () => {
+        try { if (!gcUserGcScrollTouched) scrollToBottom(); } catch (e) {}
+      };
+      if (window.requestAnimationFrame) requestAnimationFrame(rewrite);
+      setTimeout(rewrite, 150);
+      gcUserGcScrollTouched = false;
+    } catch (e) {}
   }
   // v3.12.x：停留页内实时追加的 DOM 窗口上限——renderAll 只在进页时收窄到 RENDER_MAX，
   // 之后每条收发都走 renderMsg 直接 append，长时间泡在群里 DOM（含每条一个 dataURL 头像

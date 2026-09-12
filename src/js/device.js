@@ -517,7 +517,7 @@
       var r = e && e.reason;
       var m = '';
       try { m = (r && r.message) ? r.message : String(r); } catch (e2) {}
-      // FIX 2026-09-12 #366 AbortError 类未处理 rejection 不进错误环——调用方主动
+      // FIX 2026-09-12 #367 AbortError 类未处理 rejection 不进错误环——调用方主动
       // abort（音乐/通话流超时兜底、切页取消、fetch 包装层超时）是设计内取消，不是
       // bug；Safari 报「Fetch is aborted」、Chromium 报「signal is aborted without
       // reason」等，各机型诊断环反复刷红点（iPhone18.7/iOS26 standalone 9/7~9/10

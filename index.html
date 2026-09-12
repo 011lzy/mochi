@@ -9280,9 +9280,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1789193358879">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.612</b></span>
-        <span class="sv-deploy">部署于 2026-09-12 14:09<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1789196873428">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.613</b></span>
+        <span class="sv-deploy">部署于 2026-09-12 15:07<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -10473,7 +10473,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.612</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.613</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10768,7 +10768,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.612</span>
+              <span class="lic-ver">v3.26.613</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -14956,6 +14956,12 @@ window.addEventListener('unhandledrejection', function (e) {
 var r = e && e.reason;
 var m = '';
 try { m = (r && r.message) ? r.message : String(r); } catch (e2) {}
+var _isAbort = false;
+try {
+_isAbort = !!(r && r.name === 'AbortError')
+|| /^(Fetch is aborted|signal is aborted without reason|The user aborted a request\.?|Aborted)$/i.test(String(m || '').trim());
+} catch (e3) {}
+if (_isAbort) return;
 if (m && String(m).indexOf('ResizeObserver') < 0) pushErr('(promise) ' + m, r && r.stack ? String(r.stack) : '');
 });
 } catch (e) {}
@@ -35907,7 +35913,7 @@ const n = msgs.length;
 gcRenderStart = Math.max(0, n - RENDER_MAX);
 if (gcRenderStart > 0) body.appendChild(gcEarlierBtn());
 for (let i = gcRenderStart; i < n; i++) renderMsg(msgs[i], i);
-scrollToBottom();
+followGcBottom(true); // #371：进页滚底同走三连写（内核可能丢弃单次 scrollTop 写入）
 }
 function gcEarlierBtn() {
 const d = document.createElement('div');
@@ -35936,8 +35942,21 @@ function scrollToBottom() { try { body.scrollTop = body.scrollHeight; } catch (e
 function nearGcBottom() {
 try { return body.scrollHeight - body.scrollTop - body.clientHeight < 150; } catch (e) { return true; }
 }
+let gcUserGcScrollTouched = false;
+body.addEventListener('touchstart', () => { gcUserGcScrollTouched = true; }, { passive: true });
+body.addEventListener('wheel', () => { gcUserGcScrollTouched = true; }, { passive: true });
 function followGcBottom(force) {
-try { if (force || nearGcBottom()) scrollToBottom(); } catch (e) {}
+try {
+const stick = force || nearGcBottom();
+if (!stick) return;
+scrollToBottom();
+const rewrite = () => {
+try { if (!gcUserGcScrollTouched) scrollToBottom(); } catch (e) {}
+};
+if (window.requestAnimationFrame) requestAnimationFrame(rewrite);
+setTimeout(rewrite, 150);
+gcUserGcScrollTouched = false;
+} catch (e) {}
 }
 const GC_DOM_WINDOW = 400, GC_DOM_CUT = 320;
 function pruneGcDom() {
@@ -44967,7 +44986,6 @@ try {
 if (window.defaultCardCat && window.defaultCardCat('dict') === false) return quotes;
 const grps = (window.getDefaultCardGroups && window.getDefaultCardGroups('dict')) || [];
 grps.forEach(g => {
-if (!g || typeof g[0] !== 'string' || g[0].indexOf('语录') !== 0) return;
 (g[1] || []).forEach(q => { if (typeof q === 'string') quotes.push(q); });
 });
 } catch (e) { quotes = []; }
@@ -44975,10 +44993,10 @@ try {
 if (window.isDefaultCardOff) quotes = quotes.filter(q => !window.isDefaultCardOff('dict', q));
 } catch (e) {}
 return quotes.filter(function (q) {
-if (typeof q !== 'string' || q.length < 2 || q.length > 26) return false;
+if (typeof q !== 'string' || !q.trim()) return false;
 if (q.indexOf('data:') === 0 || q.indexOf('|||') >= 0) return false;
 if (/[\uD800-\uDBFF]/.test(q)) return false; // emoji 整卡不拼
-return (q.match(/[\u4e00-\u9fff]/g) || []).length >= 2;
+return true;
 });
 }
 window.dictQuoteOne = function () {
@@ -45011,11 +45029,8 @@ return (s.match(/[\u4e00-\u9fff]/g) || []).length >= 2;
 if (!pool.length) return null;
 const oneOn = c['qs-one'] === 1;
 const multiOn = c['qs-multi'] === 1;
-let one;
-if (oneOn && multiOn) one = Math.random() < 0.5;
-else if (oneOn) one = true;
-else if (multiOn) one = false;
-else one = false;
+let one = true;
+if (multiOn) one = oneOn ? Math.random() >= 0.2 : false;
 const pmin = Math.max(1, Math.min(10, Number(c['py-min']) || 2));
 const pmax = Math.max(pmin, Math.min(10, Number(c['py-max']) || 5));
 let want = pmin + Math.floor(Math.random() * (pmax - pmin + 1));
@@ -58242,6 +58257,7 @@ applyCallBg();
 }
 } catch (e) {}
 applyCallBg();
+document.addEventListener('contact-switched', applyCallBg);
 const CALL_MINI_KEY = 'call-mini-enabled';
 function callMiniEnabled() {
 try { return store.get(CALL_MINI_KEY) !== '0'; } catch (e) { return true; }
@@ -67494,6 +67510,7 @@ closeOthers.forEach(function (id) { const e = document.getElementById(id); if (e
 if (window.closeAvlib) try { window.closeAvlib(); } catch (e) {}
 const mp = document.getElementById('chat-more-panel'); if (mp) mp.hidden = true;
 const nm = document.getElementById('gift-partner-name'); if (nm) nm.textContent = partnerName();
+const gwBtn0 = document.getElementById('gift-wish-ta'); if (gwBtn0) gwBtn0.textContent = '看看 ' + partnerName() + ' 的心愿单';
 const bal = document.getElementById('gift-balance'); if (bal) bal.textContent = walletText();
 panelCat = '全部'; resetSearchInput('gift-search');
 giftPanelRerender();
@@ -89459,6 +89476,9 @@ var _aLastVVH = 0;
 var _aPrevH = 0;
 var _aPanSeen = 0, _aPanSeenAt = 0;
 var _aBurstUntil = 0;
+var _aFullIH = Math.max(window.innerHeight || 0, Math.round(_aVV.height || 0));
+var _aScrKey = (screen.width || 0) + 'x' + (screen.height || 0);
+var _aVpPin = false;
 setInterval(function () {
 try {
 if (document.visibilityState !== 'visible') return;
@@ -89494,6 +89514,36 @@ kbUndockPanels();
 return;
 }
 if (_aKb || _aProv) return;
+var _ihNow = window.innerHeight || 0;
+var _skNow = (screen.width || 0) + 'x' + (screen.height || 0);
+if (_skNow !== _aScrKey) {
+_aScrKey = _skNow;
+_aFullIH = Math.max(_ihNow, Math.round(_aVV.height || 0));
+if (_aVpPin) { _aVpPin = false; _aPhone.style.height = ''; _aPhone.style.alignSelf = ''; }
+return;
+}
+if (_ihNow > _aFullIH) _aFullIH = _ihNow;
+if (_aVpPin && _ihNow >= _aFullIH - 12) {
+_aVpPin = false;
+_aPhone.style.height = '';
+_aPhone.style.alignSelf = '';
+return;
+}
+var _coarse = false;
+try { _coarse = window.matchMedia && matchMedia('(pointer:coarse)').matches; } catch (eC) {}
+var _ihFloor = Math.round(Math.min(_aFullIH, _aH || _aFullIH) * 0.22);
+if (!_aVpPin && _coarse && (_aVvShrunkSeen || _aPanSeen >= 80)
+&& !_aIsText(document.activeElement) && !_aIsText(_aTextFocused)
+&& Date.now() - _aLastAct > 2200 && Date.now() - _aVvChgAt > 1200
+&& _ihNow > 0 && _ihNow < _aFullIH - 60 && (_aFullIH - _ihNow) >= _ihFloor
+&& Math.abs(_ihNow - Math.round(_aVV.height || 0)) <= 12) {
+try { window.scrollTo(0, 0); } catch (eS) {}
+_aVpPin = true;
+if (_aPhone.style.height !== _aFullIH + 'px') _aPhone.style.height = _aFullIH + 'px';
+_aPanComp();
+kbUndockPanels();
+return;
+}
 if (!_aPhone.style.height && !_aPhone.style.alignSelf) return;
 var _hNow = Math.round(_aVV.height || 0);
 if (_hNow <= 0 || _hNow < _aH - 12) return;
@@ -89762,7 +89812,7 @@ var tgt = (_aIsText(_aTextFocused) ? _aTextFocused : null) ||
 (_aIsText(document.activeElement) ? document.activeElement : null);
 var ih = window.innerHeight;
 if (!tgt) {
-if (!_aKb && !_aProv) _aIH = ih;
+if (!_aKb && !_aProv && (ih >= _aIH - 12 || _aIH - ih < Math.round(Math.min(_aIH || ih, _aH || ih) * 0.22))) _aIH = ih;
 if (_aProv && _aVV.height >= _aH - 60) _aProvClear();
 return;
 }
@@ -90161,4 +90211,4 @@ lastHeal: his
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mtxzj38f -->
+<!-- __MOCHI_EOF__ mty1mf2s -->

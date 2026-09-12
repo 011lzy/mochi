@@ -947,7 +947,7 @@ const FIX_SENTINELS = [
   { name: '#298 词典拼字接线·replyOnce 抽句门+逐词连发（删则开关存在但永不生效）', file: 'js/chat.js', needle: '(window.quoteSpellPick && window.quoteSpellPick(c))' },
   // ==== 2026-09-11 #310 词典拼字单气泡形态 + 普通字卡截断修复（qs-one 50% 混合单气泡/逐词；qs-cc 默认关防普通字卡被抽去拼字）====
   { name: '#310 单气泡拼字形态·chat.js 空格连卡+「词典拼字」tag（删则 qs-one 开了也只有逐词连发、无单气泡形态）', file: 'js/chat.js', needle: "if (rep.spell && rep.spellOne) {\nm = addIn(rep.spell.join(' '), {" },
-  { name: '#323 词典拼字双形态选择·qs-one 单气泡/qs-multi 逐卡混合掷币（删则退回单一形态＝可开关混合失效；双关兜底逐卡 else one=false）', file: 'js/quote-spell.js', needle: "if (oneOn && multiOn) one = Math.random() < 0.5;" },
+  // #323 双形态选择哨兵已被 #370 收编（50/50 掷币改为 80/20 单气泡为主，见下方 #370 两条）
   { name: '#330 逐卡连发受回复条数最多上限·完整字卡连发≤reply-max（删则完整字卡一次刷 5 条＝超出联系人回复条数设置）', file: 'js/quote-spell.js', needle: 'if (want > rmax) want = rmax;' },
   { name: '#351a 逐卡连发不受条数限制·qs-noLimit 默认开（删则逐卡被 reply-max 收口＝默认玩法被限流；仅显式 0 才收口）', file: 'js/quote-spell.js', needle: "if (!one && c['qs-noLimit'] === 0) {" },
   { name: '#351b 撤回补发总开关·rc-en 闸门（删则关开关后撤回仍补发＝开关失效）', file: 'js/chat.js', needle: "if (c['rc-en'] !== 0 && hit(c['rc-refix'])) {" },
@@ -1065,6 +1065,20 @@ const FIX_SENTINELS = [
   // ==== 2026-09-12 #365 #319 锁定补口：聊天回应/接话/情绪链/TA的心情都是系统预设字卡源，此前未接二级密码锁——锁定态回复仍被「嗯嗯/知道了」类回应字卡覆盖或追加（用户反馈「没解锁时联系人只会发嗯嗯 知道了啦」）；修复=四处统一接 cardLockOpen 闸，解锁后照常 ====
   { name: '#365 回应字卡锁闸·replySrcLocked 判定（删闸＝锁定态联系人仍发嗯嗯/知道了等系统预设回应字卡）', file: 'js/mood-reply-cards.js', needle: 'return !!(window.cardLockOpen && !window.cardLockOpen())' },
   { name: '#365 TA的心情分享锁闸（删闸＝锁定态仍主动发系统预设心情字卡）', file: 'js/ta-mood.js', needle: 'if (window.cardLockOpen && !window.cardLockOpen()) return null;' },
+  // ==== 2026-09-12 #367 诊断红点：AbortError 类未处理 rejection（音乐/通话流超时兜底、切页取消的主动 abort）入错误环刷屏——Safari「Fetch is aborted」iOS 实录 ×41 条；修复=unhandledrejection 采集层按 AbortError 名/已知 abort 文案放行，与 fetch 包装层网络失败口径对齐 ====
+  { name: '#367 AbortError rejection 放行（删放行＝主动 abort 取消照旧刷诊断红点，Safari 报「Fetch is aborted」）', file: 'js/device.js', needle: "r.name === 'AbortError')\n|| /^(Fetch is aborted|signal is aborted without reason" },
+  // ==== 2026-09-12 #368 跨桌面串数据两件（iOS Safari 用户反馈，多机型同现）====
+  { name: '#368 通话背景切桌面重读（applyCallBg 只在加载/上传/移除执行＝切联系人后 .call-panel/#call-mini 残留上一桌面的背景图，跨桌面串图且设置页显示不随桌面走）', file: 'js/call.js', needle: "document.addEventListener('contact-switched', applyCallBg)" },
+  { name: '#368 送礼面板心愿单入口名字随桌面刷新（init 注入写死 partnerName＝切联系人后「看看 XX 的心愿单」残留上一个桌面的名字）', file: 'js/gift-shop.js', needle: "gwBtn0.textContent = '看看 ' + partnerName() + ' 的心愿单'" },
+  // ==== 2026-09-12 #369 布局视口残留深缩自愈（iQOO Z9 VivoBrowser 实报「聊天聊到一半屏幕突然变成一半」「听歌闪几下加载中变成一半」，#236 同族第三形态：inner 与 vv 一起停在键盘态）====
+  { name: '#369 布局视口残留钉高（inner/vv 同停键盘态、基准被重锚吞掉＝#236/#209 全失明；看门狗把 .phone 钉回 _aFullIH，inner 回基线解除）', file: 'js/mobile-adapt.js', needle: 'if (_aVpPin && _ihNow >= _aFullIH - 12)' },
+  { name: '#369 基准重锚浅漂移闸（无聚焦分支原样 _aIH=ih 会把无键盘基准吞成残留值 373）', file: 'js/mobile-adapt.js', needle: 'ih >= _aIH - 12 || _aIH - ih < Math.round(Math.min(_aIH || ih, _aH || ih) * 0.22)' },
+  // ==== 2026-09-12 #370 词典拼字两件（用户定稿：①词典全部分组字卡都进抽卡池，不再只取「语录*」前缀组；②形态概率——单气泡拼字为主，qs-multi 逐条连发降为 20% 小概率，multi 关=不能连发，双形态全关兜底单气泡不再兜底连发）====
+  { name: '#370 词典拼字抽卡池放开到词典全部分组（原「语录*」前缀过滤删除=词库/常用词/自建词都能抽）', file: 'js/quote-spell.js', needle: "if (typeof q === 'string') quotes.push(q);" },
+  { name: '#370 逐条连发降小概率（双开 80/20 单气泡为主；multi 关=one 恒 true 不能连发）', file: 'js/quote-spell.js', needle: 'if (multiOn) one = oneOn ? Math.random() >= 0.2 : false;' },
+  // ==== 2026-09-12 #371 群聊跟底三连写（红米 K80 Chrome 等多机型报「群聊联系人发消息不自动滚到最新，要手动滑」；单聊 #162 同根因同修法：移动内核丢弃一次性 scrollTop 写入/迟到布局顶开，group-chat.js 只写一次从未跟进）====
+  { name: '#371 群聊跟底复写闸（触摸/滚轮接管判断；内核丢弃首写时视口离底>150px 会被 nearGcBottom 误判，复写不能只看 nearGcBottom）', file: 'js/group-chat.js', needle: 'if (!gcUserGcScrollTouched) scrollToBottom();' },
+  { name: '#371 进群 renderAll 滚底走三连写（进页不贴底同一内核问题）', file: 'js/group-chat.js', needle: 'followGcBottom(true); // #371：进页滚底同走三连写' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

@@ -6,11 +6,12 @@
 //   ② 多回复形态（qs-multi，默认开）：每张字卡单独一条气泡逐条连发——不依赖「多字卡回复」
 //      开关（py-en 关、没触发多字卡回复时也会触发）、不受「回复条数」reply-min/max 限制；
 //      短字卡（一两个字）本来就适合一条一条发。
-//   两种形态都命中时（都开）各 50% 掷币；都关 = 拼字只按逐卡形态兜底（qs-en 开着不能完全没形态）。
+//   两种形态都命中时（都开）单气泡为主、逐条连发小概率（80/20，#370 定稿）；multi 关 = 不能连发，
+//   都关 = 兜底单气泡形态（qs-en 开着不能完全没形态）。
 //   每条气泡/单气泡下都显示「词典拼字」tag。
 // 纯本地，无网络请求。
-// 数据源：DEFAULT_CARD_DATA.dict「语录」分组（128 条手写语录，每条=一张完整字卡）+
-// 自建语录；受分类开关 dc-cat-dict 与单卡开关 dc-off-dict:* 控制。
+// 数据源：DEFAULT_CARD_DATA.dict 全部分组（语录 + 词库 + 自建词条；#370 定稿词典里
+// 所有字卡都能抽用）；受分类开关 dc-cat-dict 与单卡开关 dc-off-dict:* 控制。
 // 设置项（回复设置 → 聊天 tab「词典拼字」组，见 reply-settings.js DEFAULTS）：
 //   qs-en    总开关（1=开）
 //   qs-prob  拼字概率（%，每条回复掷一次；0=不触发）
@@ -22,15 +23,15 @@
 // { segs: 完整语录字卡数组, one: true|false }；下游收藏/心情分享/情绪链/撤回等链路原样复用。
 (function () {
   let lastQuote = '';   // 连续防复读：上一条拼字首卡不立刻重抽
-  // 拼字抽卡池：词典语录（受分类/单卡开关控制）；qs-cc=1 时由 pick 再并入自定义字卡池
+  // 拼字抽卡池：词典分类下全部分组（内置语录 + 自建语录 + 词库 + 扩展常用词，#370：
+  // 用户定稿「词典里所有的字卡都能使用」，不再只取「语录*」前缀组；受分类/单卡开关控制）；
+  // qs-cc=1 时由 pick 再并入自定义字卡池
   function quotePool() {
     let quotes = [];
     try {
       if (window.defaultCardCat && window.defaultCardCat('dict') === false) return quotes;
       const grps = (window.getDefaultCardGroups && window.getDefaultCardGroups('dict')) || [];
-      // 组名「语录*」前缀匹配：内置语录 + 自建语录，全进抽卡池
       grps.forEach(g => {
-        if (!g || typeof g[0] !== 'string' || g[0].indexOf('语录') !== 0) return;
         (g[1] || []).forEach(q => { if (typeof q === 'string') quotes.push(q); });
       });
     } catch (e) { quotes = []; }
@@ -38,10 +39,10 @@
       if (window.isDefaultCardOff) quotes = quotes.filter(q => !window.isDefaultCardOff('dict', q));
     } catch (e) {}
     return quotes.filter(function (q) {
-      if (typeof q !== 'string' || q.length < 2 || q.length > 26) return false;
+      if (typeof q !== 'string' || !q.trim()) return false;
       if (q.indexOf('data:') === 0 || q.indexOf('|||') >= 0) return false;
       if (/[\uD800-\uDBFF]/.test(q)) return false; // emoji 整卡不拼
-      return (q.match(/[\u4e00-\u9fff]/g) || []).length >= 2;
+      return true;
     });
   }
   // v3.36.x：词典语录单条只读取口（供写信/朋友圈按各自场景开关+概率混入）——
@@ -79,15 +80,13 @@
         } catch (e) {}
       }
       if (!pool.length) return null;
-      // #323 形态选择：qs-one 单气泡 / qs-multi 多回复逐卡，双开各 50% 掷币；
-      // 只开其一会中该形态；双关（qs-en 开但两个形态开关都关）= 兜底逐卡形态，避免拼字开关空转
+      // #323 形态选择（#370 定稿）：单气泡拼字是主形态——2~5 张字卡空格连成一条消息；
+      // qs-multi 逐条连发降为小概率形态：只在 multi 开时按 20% 掷出（双开 80/20）；
+      // multi 关 = 不能连发（只发单气泡）；两个形态开关都关 = 兜底单气泡（不再兜底连发）
       const oneOn = c['qs-one'] === 1;
       const multiOn = c['qs-multi'] === 1;
-      let one;
-      if (oneOn && multiOn) one = Math.random() < 0.5;
-      else if (oneOn) one = true;
-      else if (multiOn) one = false;
-      else one = false;
+      let one = true;
+      if (multiOn) one = oneOn ? Math.random() >= 0.2 : false;
       // 抽卡条数：复用「多字卡回复」设置 py-min/py-max（默认 2~5 张）；
       // #350：逐卡连发形态不受「回复条数最多」reply-max 限制（用户定稿默认行为）——
       // 旧 #330 上限逻辑保留为可切换（qs-noLimit 默认 1=不受限），单气泡形态本就只发一条

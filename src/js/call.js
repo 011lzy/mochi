@@ -137,6 +137,9 @@
     }
   } catch (e) {}
   applyCallBg();
+  // v3.26.x：切换联系人桌面后重读当前桌面的通话背景——.call-panel/#call-mini 是全站共享 DOM，
+  //   背景图 style 只在加载/上传/移除时写入，切桌面不刷新就会残留上一个联系人的背景（跨桌面串图）
+  document.addEventListener('contact-switched', applyCallBg);
 
   // v3.7.x：通话小框开关（每联系人桌面独立，默认开启）
   //   - 开启：接通后 2 秒自动最小化为底部悬浮小框（原行为）

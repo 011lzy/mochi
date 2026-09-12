@@ -1049,6 +1049,8 @@
     if (window.closeAvlib) try { window.closeAvlib(); } catch (e) {}
     const mp = document.getElementById('chat-more-panel'); if (mp) mp.hidden = true;
     const nm = document.getElementById('gift-partner-name'); if (nm) nm.textContent = partnerName();
+    // v3.26.x：送心愿单入口按钮的名字在 init 注入时写死过一次，切联系人后不刷新会残留上一个桌面的名字——每次打开面板重写
+    const gwBtn0 = document.getElementById('gift-wish-ta'); if (gwBtn0) gwBtn0.textContent = '看看 ' + partnerName() + ' 的心愿单';
     const bal = document.getElementById('gift-balance'); if (bal) bal.textContent = walletText();
     panelCat = '全部'; resetSearchInput('gift-search');
     giftPanelRerender();
