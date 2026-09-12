@@ -9280,9 +9280,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1789196873428">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.613</b></span>
-        <span class="sv-deploy">部署于 2026-09-12 15:07<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1789198895694">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.614</b></span>
+        <span class="sv-deploy">部署于 2026-09-12 15:41<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -9769,6 +9769,10 @@ transition-duration: .01ms !important;
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
       让TA现在问一次
     </button>
+    <button class="div-draw" id="ta-ask-survey-open" style="margin-top:10px">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L20 6"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+      设置批量提问问卷
+    </button>
     <div class="set-group glass">
       <div class="gs-row"><span>TA 偶尔向你提问</span><label class="toggle"><input type="checkbox" id="ta-ask-enable"><span class="tk"></span></label></div>
       <div class="gs-row"><span>使用系统预设问题</span><label class="toggle"><input type="checkbox" id="ta-ask-default" checked><span class="tk"></span></label></div>
@@ -9803,6 +9807,33 @@ transition-duration: .01ms !important;
       </div>
       <div id="ta-ask-mine-cats"></div>
     </div>
+  </div>
+</div>
+
+<!-- 批量提问问卷（独立页面：用户批量出题 · 联系人作答交卷） -->
+<div class="page" id="page-ta-ask-survey" hidden>
+  <div class="chat-head">
+    <span class="ch-back" id="ta-survey-back">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </span>
+    <span class="ch-name">批量提问问卷</span>
+  </div>
+  <div class="gs-scroll">
+    <div class="set-group glass" style="padding:14px">
+      <div class="cal-card-title" style="padding:0 0 8px">问卷题目（批量设置）</div>
+      <div class="dec-inp-wrap" style="flex:1 0 100%"><textarea id="ta-survey-text" class="tc-input" rows="12" placeholder="单选题：第一行【问题】，下面每行一个选项，如：&#10;【今晚想吃什么？】&#10;火锅&#10;烧烤&#10;寿司&#10;&#10;文字题：第一行【问题】，下一行只写一个「一」，如：&#10;【今天过得怎么样？】&#10;一"></textarea><button type="button" class="dec-inp-clear" data-clear="ta-survey-text" aria-label="清空" title="清空">✕</button></div>
+      <div style="font-size:12px;color:var(--muted,#999);padding-top:8px;line-height:1.8">· 单选题：【问题】后每行一个选项（至少 2 个）<br>· 文字题：【问题】后一行只写「一」，TA 会用字卡作答（和正常聊天一样用自定义字卡 + 系统预设字卡；未成年人防护锁定系统预设字卡时，只用自定义字卡）<br>· 发出后 TA 开始作答：到交卷时间自动交卷，之前每 30 秒按「提前交卷概率」可能提前交卷</div>
+    </div>
+    <div class="set-group glass">
+      <div class="gs-row"><span>交卷时间（到点TA自动交卷）</span><input type="datetime-local" id="ta-survey-deadline" class="tc-input" style="flex:1;min-width:0;max-width:170px;padding:5px 8px;font-size:12px"><button id="ta-survey-deadline-clear" style="flex:none;margin-left:6px;padding:4px 10px;font-size:12px;border:1px solid var(--line,#e5e5e5);border-radius:8px;background:transparent;color:var(--muted,#999)">清除</button></div>
+      <div class="gs-row"><span>每30秒提前交卷概率</span><input type="range" id="ta-survey-prob" min="0" max="100" step="1" class="tc-range"><span class="tc-prob-val" id="ta-survey-prob-val">10%</span></div>
+    </div>
+    <div class="set-group glass" style="padding:12px 14px">
+      <div id="ta-survey-status" style="font-size:13px;line-height:1.8">尚未发出问卷</div>
+    </div>
+    <button class="ta-add-btn" style="width:100%" id="ta-survey-send">发出问卷给TA</button>
+    <button class="ta-add-btn" style="width:100%;margin-top:10px" id="ta-survey-reset">撤回问卷（重置为草稿）</button>
+    <div style="height:16px"></div>
   </div>
 </div>
 
@@ -10473,7 +10504,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.613</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.614</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10768,7 +10799,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.613</span>
+              <span class="lic-ver">v3.26.614</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -19909,7 +19940,7 @@ pages.forEach(p => { if (!p.hidden) p.hidden = true; }); // FIX #338 同值写�
 document.getElementById(tab.dataset.page).hidden = false;
 });
 });
-const FULL_PAGES = ['page-chat', 'page-group-chat', 'page-chat-settings', 'page-custom-cards', 'page-default-cards', 'page-fun-cards', 'page-mood-cards', 'page-reply-cards', 'page-theme', 'page-fav', 'page-fav-settings', 'page-memory', 'page-calendar', 'page-period', 'page-accounting', 'page-garden', 'page-divine', 'page-music', 'page-stats', 'page-interact', 'page-checkin', 'page-ta-ask', 'page-ta-choose', 'page-ta-curious', 'page-ta-roast', 'page-ta-checkin', 'page-ta-invite', 'page-checkin-cards', 'page-quote-cards', 'page-home', 'page-mail', 'page-mail-write', 'page-mail-reply', 'page-feed', 'page-feed-all', 'page-feed-friends', 'page-license', 'page-about', 'page-featurehub', 'page-reply-settings', 'page-call-settings', 'page-sfx-settings', 'page-memo-arc', 'page-cjian', 'page-room', 'page-drift', 'page-my-arc', 'page-mood'];
+const FULL_PAGES = ['page-chat', 'page-group-chat', 'page-chat-settings', 'page-custom-cards', 'page-default-cards', 'page-fun-cards', 'page-mood-cards', 'page-reply-cards', 'page-theme', 'page-fav', 'page-fav-settings', 'page-memory', 'page-calendar', 'page-period', 'page-accounting', 'page-garden', 'page-divine', 'page-music', 'page-stats', 'page-interact', 'page-checkin', 'page-ta-ask', 'page-ta-ask-survey', 'page-ta-choose', 'page-ta-curious', 'page-ta-roast', 'page-ta-checkin', 'page-ta-invite', 'page-checkin-cards', 'page-quote-cards', 'page-home', 'page-mail', 'page-mail-write', 'page-mail-reply', 'page-feed', 'page-feed-all', 'page-feed-friends', 'page-license', 'page-about', 'page-featurehub', 'page-reply-settings', 'page-call-settings', 'page-sfx-settings', 'page-memo-arc', 'page-cjian', 'page-room', 'page-drift', 'page-my-arc', 'page-mood'];
 let _scPhone = null, _scTabbar = null, _scLastSig = null;
 function syncChrome() {
 let visible = null;
@@ -51542,7 +51573,8 @@ try { restoreLib('avatar-lib'); } catch (e) {}
 try { restoreLib('avatar-me-lib'); } catch (e) {}
 })();
 } catch (__e) { try { console.error("[JS] avatar-lib.js", __e && __e.message || __e); } catch (x) {} if (window.__jsErrors) window.__jsErrors.push(String(__e && __e.message || __e)); } })();
-(function () { try {
+</script>
+<script>(function () { try {
 (function () {
 const uid = window.activePrefix();
 const store = window.activeStore();
@@ -54681,6 +54713,214 @@ attachIdbRestore(KEY, taAskLoad, taAskMerge);
 attachIdbRestore(KEY2, tcLoad, tcMerge);
 attachIdbRestore(KEY3, tcuLoad, tcuMerge);
 attachIdbRestore(KEY4, trLoad, trMerge);
+const SKEY = 'ta-survey';
+function surveyLoad() {
+let d = null;
+try { d = JSON.parse(store.get(SKEY) || 'null'); } catch (e) { d = null; }
+if (!d || typeof d !== 'object' || Array.isArray(d)) d = {};
+if (typeof d.text !== 'string') d.text = '';
+if (!d.settings || typeof d.settings !== 'object') d.settings = { prob: 10, deadline: 0 };
+if (typeof d.settings.prob !== 'number') d.settings.prob = 10;
+if (typeof d.settings.deadline !== 'number') d.settings.deadline = 0;
+if (!Array.isArray(d.qs)) d.qs = [];
+if (!Array.isArray(d.answers)) d.answers = [];
+if (d.status !== 'sent' && d.status !== 'done') { d.status = 'draft'; d.sentAt = 0; }
+return d;
+}
+function surveySave(d) { try { store.set(SKEY, JSON.stringify(d)); } catch (e) {} }
+function surveyParse(text) {
+const lines = String(text || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+const qs = [];
+let cur = null, marked = false;
+const flush = () => {
+if (!cur) return;
+if (!marked && cur.opts.length >= 2) qs.push({ type: 'single', text: cur.text, options: cur.opts.slice() });
+else qs.push({ type: 'text', text: cur.text, options: [] });
+cur = null; marked = false;
+};
+lines.forEach(t => {
+const m = t.match(/^【(.+?)】$/);
+if (m) { flush(); if (m[1].trim()) cur = { text: m[1].trim(), opts: [] }; return; }
+if (cur) {
+if (!marked && !cur.opts.length && t === '一') { marked = true; return; }
+cur.opts.push(t); return;
+}
+flush();
+qs.push({ type: 'text', text: t, options: [] }); // 无【】裸行：整行当文字题题干
+});
+flush();
+return qs.filter(q => q.text);
+}
+function surveyAnswerText() {
+let t = '';
+let words = [];
+try {
+const cards = (window.getCustomCards && window.getCustomCards()) || [];
+words = cards.filter(s => typeof s === 'string' && s.trim() && s.indexOf('data:') !== 0 && s.indexOf('|||') < 0);
+} catch (e) {}
+if (words.length) {
+const n = 1 + Math.floor(Math.random() * Math.min(5, words.length));
+const copy = words.slice(); const out = [];
+while (out.length < n) out.push(copy.splice(Math.floor(Math.random() * copy.length), 1)[0]);
+t = out.join(' ');
+}
+try {
+const dc = window.getDefaultCards && window.getDefaultCards('chat');
+if (dc && dc.type !== 'poke' && typeof dc.text === 'string' && dc.text.trim()) t = dc.text;
+} catch (e) {}
+if (!t) {
+if (window.cardLockOpen && window.cardLockOpen()) {
+t = window.pickAskCardReply ? window.pickAskCardReply() : '收到你的回答。';
+} else {
+t = '……';
+}
+}
+return t;
+}
+function surveySeqAnswers(qs, cb, i) {
+if (i >= qs.length) { cb(); return; }
+const q = qs[i];
+let msg;
+if (q.type === 'single' && Array.isArray(q.options) && q.options.length) {
+msg = '【' + q.text + '】我的选择：' + q.options[Math.floor(Math.random() * q.options.length)];
+} else {
+msg = '【' + q.text + '】' + surveyAnswerText();
+}
+try { window.chatAddIn(msg, {}); } catch (e) {}
+setTimeout(() => surveySeqAnswers(qs, cb, i + 1), 1200 + Math.floor(Math.random() * 1600));
+}
+function surveySubmitAll(d, early) {
+const remaining = d.qs.slice(d.answers.length);
+const finish = () => {
+const d2 = surveyLoad();
+if (d2.status !== 'sent') return;
+d2.answers = d2.qs.map((q, i) => d2.answers[i] || surveyAnswerText());
+d2.status = 'done';
+surveySave(d2);
+try { window.chatAddSystem(early ? 'TA 提前交卷了（共 ' + d2.qs.length + ' 题）。' : 'TA 交卷了（共 ' + d2.qs.length + ' 题）。', { special: 'ask-msg' }); } catch (e) {}
+surveyRender();
+};
+if (remaining.length) surveySeqAnswers(remaining, finish, 0); else finish();
+}
+function surveyTick() {
+let d;
+try { d = surveyLoad(); } catch (e) { return; }
+if (d.status !== 'sent') return;
+if (Date.now() - (d.sentAt || 0) < 15000) return; // 刚发出 15s 内不动作
+const done = d.answers.length >= d.qs.length;
+const deadlineHit = d.settings.deadline > 0 && Date.now() >= d.settings.deadline;
+const earlyHit = !done && !deadlineHit && Math.random() * 100 < d.settings.prob;
+if (done || deadlineHit || earlyHit) { surveySubmitAll(d, earlyHit); return; }
+const q = d.qs[d.answers.length];
+if (!q) return;
+surveySeqAnswers([q], () => {
+const d2 = surveyLoad();
+if (d2.status !== 'sent') return;
+d2.answers.push(surveyAnswerText());
+surveySave(d2);
+surveyRender();
+}, 0);
+}
+setInterval(surveyTick, 30000);
+function surveySend() {
+const d = surveyLoad();
+if (d.status === 'sent') { toast('问卷已发出，TA 正在作答'); return; }
+const tEl = document.getElementById('ta-survey-text');
+if (tEl) { d.text = tEl.value; d.qs = surveyParse(tEl.value); surveySave(d); }
+if (!d.qs.length) { toast('请先填写问卷题目（【问题】+ 选项行 / 「一」行）'); return; }
+if (d.settings.deadline && d.settings.deadline <= Date.now()) { toast('交卷时间已过期，请重新设置'); return; }
+d.status = 'sent'; d.sentAt = Date.now(); d.answers = [];
+surveySave(d);
+try { window.chatAddSystem('你向TA发出了一份问卷（' + d.qs.length + ' 题）。', { special: 'ask-msg' }); } catch (e) {}
+surveyRender();
+toast('问卷已发出，TA 开始作答');
+}
+function surveyRender() {
+const d = surveyLoad();
+const txt = document.getElementById('ta-survey-text');
+if (txt && document.activeElement !== txt && txt.value !== d.text) txt.value = d.text;
+const dl = document.getElementById('ta-survey-deadline');
+if (dl && document.activeElement !== dl) dl.value = d.settings.deadline ? fmtDeadlineLocal(d.settings.deadline) : '';
+const prob = document.getElementById('ta-survey-prob');
+if (prob && document.activeElement !== prob) prob.value = d.settings.prob;
+const pv = document.getElementById('ta-survey-prob-val');
+if (pv) pv.textContent = d.settings.prob + '%';
+const st = document.getElementById('ta-survey-status');
+if (st) {
+if (d.status === 'draft') {
+const nS = d.qs.filter(q => q.type === 'single').length;
+st.innerHTML = '当前状态：草稿 —— 已解析 <b>' + d.qs.length + '</b> 题' + (d.qs.length ? '（单选 ' + nS + ' 题 / 文字 ' + (d.qs.length - nS) + ' 题）' : '') + '。填好后点「发出问卷给TA」。';
+} else if (d.status === 'sent') {
+st.innerHTML = '当前状态：TA 作答中 —— 已答 <b>' + d.answers.length + '</b> / ' + d.qs.length + ' 题' + (d.settings.deadline ? '；交卷时间 ' + fmtDeadlineLocal(d.settings.deadline) : '；未设交卷时间') + '；每 30 秒按 ' + d.settings.prob + '% 概率提前交卷。';
+} else {
+st.innerHTML = '当前状态：已交卷 —— 共 ' + d.qs.length + ' 题。可修改题目/时间后再次发出。';
+}
+}
+}
+const surveyPage = document.getElementById('page-ta-ask-survey');
+if (surveyPage) {
+const surveyOpen = document.getElementById('ta-ask-survey-open');
+if (surveyOpen) surveyOpen.addEventListener('click', () => {
+document.querySelectorAll('.page').forEach(p => p.hidden = true);
+surveyPage.hidden = false;
+surveyRender();
+});
+const backS = document.getElementById('ta-survey-back');
+if (backS) backS.addEventListener('click', () => {
+document.querySelectorAll('.page').forEach(p => p.hidden = true);
+const home = document.getElementById('page-ta-ask');
+if (home) home.hidden = false;
+});
+const stxt = document.getElementById('ta-survey-text');
+if (stxt) {
+stxt.addEventListener('change', () => {
+const d = surveyLoad();
+d.text = stxt.value;
+d.qs = surveyParse(stxt.value);
+surveySave(d);
+surveyRender();
+});
+bindTaInpClears(stxt.parentElement);
+}
+const sdl = document.getElementById('ta-survey-deadline');
+if (sdl) sdl.addEventListener('change', () => {
+const d = surveyLoad();
+const t = sdl.value ? new Date(sdl.value).getTime() : 0;
+d.settings.deadline = (t && !isNaN(t)) ? t : 0;
+surveySave(d);
+toast(d.settings.deadline ? '交卷时间已设置：' + sdl.value.replace('T', ' ') : '交卷时间已清除');
+surveyRender();
+});
+const sdlClear = document.getElementById('ta-survey-deadline-clear');
+if (sdlClear) sdlClear.addEventListener('click', () => {
+const d = surveyLoad();
+d.settings.deadline = 0;
+surveySave(d);
+if (sdl) sdl.value = '';
+toast('交卷时间已清除');
+surveyRender();
+});
+const sprob = document.getElementById('ta-survey-prob');
+if (sprob) sprob.addEventListener('input', () => {
+const d = surveyLoad();
+d.settings.prob = parseInt(sprob.value, 10) || 0;
+surveySave(d);
+const v = document.getElementById('ta-survey-prob-val');
+if (v) v.textContent = sprob.value + '%';
+});
+const ssend = document.getElementById('ta-survey-send');
+if (ssend) ssend.addEventListener('click', surveySend);
+const sreset = document.getElementById('ta-survey-reset');
+if (sreset) sreset.addEventListener('click', () => {
+const d = surveyLoad();
+if (d.status === 'draft' && !d.answers.length) { toast('尚未发出问卷'); return; }
+d.status = 'draft'; d.answers = []; d.sentAt = 0;
+surveySave(d);
+surveyRender();
+toast('问卷已撤回（重置为草稿）');
+});
+surveyRender();
+}
 var _askCeReflowT = null;
 function _reflowAskCeBoxes() {
 var page = document.getElementById('page-ta-ask');
@@ -54708,8 +54948,7 @@ _trSessionTriggered = false;
 });
 })();
 } catch (__e) { try { console.error("[JS] ta-ask.js", __e && __e.message || __e); } catch (x) {} if (window.__jsErrors) window.__jsErrors.push(String(__e && __e.message || __e)); } })();
-</script>
-<script>(function () { try {
+(function () { try {
 (function () {
 const store = window.activeStore();
 const KEY = 'ta-checkin';
@@ -60005,7 +60244,8 @@ updateBadge();
 });
 })();
 } catch (__e) { try { console.error("[JS] mail.js", __e && __e.message || __e); } catch (x) {} if (window.__jsErrors) window.__jsErrors.push(String(__e && __e.message || __e)); } })();
-(function () { try {
+</script>
+<script>(function () { try {
 (function () {
 const uid = 'xy-home-v2';
 const store = window.xyStore(uid);
@@ -62618,8 +62858,7 @@ return out;
 } });
 })();
 } catch (__e) { try { console.error("[JS] loc-lib.js", __e && __e.message || __e); } catch (x) {} if (window.__jsErrors) window.__jsErrors.push(String(__e && __e.message || __e)); } })();
-</script>
-<script>(function () { try {
+(function () { try {
 (function () {
 const uid = window.activePrefix();
 const store = window.activeStore();
@@ -69240,7 +69479,8 @@ if (document.readyState === 'loading') document.addEventListener('DOMContentLoad
 else boot();
 })();
 } catch (__e) { try { console.error("[JS] memo-arc.js", __e && __e.message || __e); } catch (x) {} if (window.__jsErrors) window.__jsErrors.push(String(__e && __e.message || __e)); } })();
-(function () { try {
+</script>
+<script>(function () { try {
 (function () {
 const GNS = 'xy-home-v2';
 const KEY = 'myarc';
@@ -71518,8 +71758,7 @@ document.addEventListener('contact-switched', function () { setTimeout(renderDes
 document.addEventListener('mochi-restore-done', function () { setTimeout(renderDeskWidget, 200); });
 })();
 } catch (__e) { try { console.error("[JS] period.js", __e && __e.message || __e); } catch (x) {} if (window.__jsErrors) window.__jsErrors.push(String(__e && __e.message || __e)); } })();
-</script>
-<script>(function () { try {
+(function () { try {
 (function () {
 var G = 'xy-home-v2';
 var store = window.activeStore();
@@ -80001,7 +80240,8 @@ fast: false
 };
 })();
 } catch (__e) { try { console.error("[JS] coop-mine.js", __e && __e.message || __e); } catch (x) {} if (window.__jsErrors) window.__jsErrors.push(String(__e && __e.message || __e)); } })();
-(function () { try {
+</script>
+<script>(function () { try {
 (function () {
 const panel = document.getElementById('chat-fish-panel');
 if (!panel) return;
@@ -83360,8 +83600,7 @@ fast: false
 };
 })();
 } catch (__e) { try { console.error("[JS] match3.js", __e && __e.message || __e); } catch (x) {} if (window.__jsErrors) window.__jsErrors.push(String(__e && __e.message || __e)); } })();
-</script>
-<script>(function () { try {
+(function () { try {
 (function () {
 const panel = document.getElementById('chat-auction-panel');
 if (!panel) return;
@@ -90211,4 +90450,4 @@ lastHeal: his
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mty1mf2s -->
+<!-- __MOCHI_EOF__ mty2trgu -->

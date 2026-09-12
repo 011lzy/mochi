@@ -3519,6 +3519,230 @@ window.openTCPanel = openTCPanel;
   attachIdbRestore(KEY2, tcLoad, tcMerge);
   attachIdbRestore(KEY3, tcuLoad, tcuMerge);
   attachIdbRestore(KEY4, trLoad, trMerge);
+
+  // ================= 批量提问问卷（v3.32.x：用户批量出题 → 联系人作答交卷） =================
+  // 题目格式（textarea 批量编辑）：单选题 = 第一行【问题】+ 下面每行一个选项（≥2 个成单选）；
+  // 文字题 = 第一行【问题】+ 下一行只写一个「一」（与单选题的区别标记）。
+  // 联系人文字题用字卡作答，与正常聊天同源：自定义字卡 1~5 张空格连发，系统预设默认聊天
+  // 字卡（getDefaultCards('chat')）可覆盖——后者内部尊重 #319 未成年人防护锁（锁定时系统
+  // 预设字卡抽不出，只剩自定义字卡；锁定且字卡库为空时兜底「……」，绝不泄漏预设）。
+  // 交卷节奏：交卷时间（settings.deadline）到点自动交卷；未到点每 30 秒掷一次
+  // 「提前交卷概率」（settings.prob），命中即把剩余题目一次性答完并交卷；
+  // 未命中且还有未答题时按序再答一道（作答中体感）。
+  const SKEY = 'ta-survey';
+  function surveyLoad() {
+    let d = null;
+    try { d = JSON.parse(store.get(SKEY) || 'null'); } catch (e) { d = null; }
+    if (!d || typeof d !== 'object' || Array.isArray(d)) d = {};
+    if (typeof d.text !== 'string') d.text = '';
+    if (!d.settings || typeof d.settings !== 'object') d.settings = { prob: 10, deadline: 0 };
+    if (typeof d.settings.prob !== 'number') d.settings.prob = 10;
+    if (typeof d.settings.deadline !== 'number') d.settings.deadline = 0;
+    if (!Array.isArray(d.qs)) d.qs = [];
+    if (!Array.isArray(d.answers)) d.answers = [];
+    if (d.status !== 'sent' && d.status !== 'done') { d.status = 'draft'; d.sentAt = 0; }
+    return d;
+  }
+  function surveySave(d) { try { store.set(SKEY, JSON.stringify(d)); } catch (e) {} }
+  // 解析问卷文本：返回 [{type:'single'|'text', text, options}]
+  function surveyParse(text) {
+    const lines = String(text || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+    const qs = [];
+    let cur = null, marked = false;
+    const flush = () => {
+      if (!cur) return;
+      if (!marked && cur.opts.length >= 2) qs.push({ type: 'single', text: cur.text, options: cur.opts.slice() });
+      else qs.push({ type: 'text', text: cur.text, options: [] });
+      cur = null; marked = false;
+    };
+    lines.forEach(t => {
+      const m = t.match(/^【(.+?)】$/);
+      if (m) { flush(); if (m[1].trim()) cur = { text: m[1].trim(), opts: [] }; return; }
+      if (cur) {
+        if (!marked && !cur.opts.length && t === '一') { marked = true; return; }
+        cur.opts.push(t); return;
+      }
+      flush();
+      qs.push({ type: 'text', text: t, options: [] }); // 无【】裸行：整行当文字题题干
+    });
+    flush();
+    return qs.filter(q => q.text);
+  }
+  // 文字题答案：与正常聊天同源抽字卡（自定义字卡连发 → 默认聊天字卡覆盖 → 兜底）
+  function surveyAnswerText() {
+    let t = '';
+    let words = [];
+    try {
+      const cards = (window.getCustomCards && window.getCustomCards()) || [];
+      words = cards.filter(s => typeof s === 'string' && s.trim() && s.indexOf('data:') !== 0 && s.indexOf('|||') < 0);
+    } catch (e) {}
+    if (words.length) {
+      const n = 1 + Math.floor(Math.random() * Math.min(5, words.length));
+      const copy = words.slice(); const out = [];
+      while (out.length < n) out.push(copy.splice(Math.floor(Math.random() * copy.length), 1)[0]);
+      t = out.join(' ');
+    }
+    try {
+      const dc = window.getDefaultCards && window.getDefaultCards('chat');
+      if (dc && dc.type !== 'poke' && typeof dc.text === 'string' && dc.text.trim()) t = dc.text;
+    } catch (e) {}
+    if (!t) {
+      // 未锁定时走「询问·回应」混合池；未成年人防护锁定下不碰任何系统预设，仅字卡库（已空则最小兜底）
+      if (window.cardLockOpen && window.cardLockOpen()) {
+        t = window.pickAskCardReply ? window.pickAskCardReply() : '收到你的回答。';
+      } else {
+        t = '……';
+      }
+    }
+    return t;
+  }
+  // 逐题发答（题与答案合一条消息：【题干】答案；间隔 1.2~2.8s 模拟打字节奏）
+  function surveySeqAnswers(qs, cb, i) {
+    if (i >= qs.length) { cb(); return; }
+    const q = qs[i];
+    let msg;
+    if (q.type === 'single' && Array.isArray(q.options) && q.options.length) {
+      msg = '【' + q.text + '】我的选择：' + q.options[Math.floor(Math.random() * q.options.length)];
+    } else {
+      msg = '【' + q.text + '】' + surveyAnswerText();
+    }
+    try { window.chatAddIn(msg, {}); } catch (e) {}
+    setTimeout(() => surveySeqAnswers(qs, cb, i + 1), 1200 + Math.floor(Math.random() * 1600));
+  }
+  function surveySubmitAll(d, early) {
+    const remaining = d.qs.slice(d.answers.length);
+    const finish = () => {
+      const d2 = surveyLoad();
+      if (d2.status !== 'sent') return;
+      d2.answers = d2.qs.map((q, i) => d2.answers[i] || surveyAnswerText());
+      d2.status = 'done';
+      surveySave(d2);
+      try { window.chatAddSystem(early ? 'TA 提前交卷了（共 ' + d2.qs.length + ' 题）。' : 'TA 交卷了（共 ' + d2.qs.length + ' 题）。', { special: 'ask-msg' }); } catch (e) {}
+      surveyRender();
+    };
+    if (remaining.length) surveySeqAnswers(remaining, finish, 0); else finish();
+  }
+  function surveyTick() {
+    let d;
+    try { d = surveyLoad(); } catch (e) { return; }
+    if (d.status !== 'sent') return;
+    if (Date.now() - (d.sentAt || 0) < 15000) return; // 刚发出 15s 内不动作
+    const done = d.answers.length >= d.qs.length;
+    const deadlineHit = d.settings.deadline > 0 && Date.now() >= d.settings.deadline;
+    const earlyHit = !done && !deadlineHit && Math.random() * 100 < d.settings.prob;
+    if (done || deadlineHit || earlyHit) { surveySubmitAll(d, earlyHit); return; }
+    // 未交卷：按序再答一道
+    const q = d.qs[d.answers.length];
+    if (!q) return;
+    surveySeqAnswers([q], () => {
+      const d2 = surveyLoad();
+      if (d2.status !== 'sent') return;
+      d2.answers.push(surveyAnswerText());
+      surveySave(d2);
+      surveyRender();
+    }, 0);
+  }
+  setInterval(surveyTick, 30000);
+  function surveySend() {
+    const d = surveyLoad();
+    if (d.status === 'sent') { toast('问卷已发出，TA 正在作答'); return; }
+    const tEl = document.getElementById('ta-survey-text');
+    if (tEl) { d.text = tEl.value; d.qs = surveyParse(tEl.value); surveySave(d); }
+    if (!d.qs.length) { toast('请先填写问卷题目（【问题】+ 选项行 / 「一」行）'); return; }
+    if (d.settings.deadline && d.settings.deadline <= Date.now()) { toast('交卷时间已过期，请重新设置'); return; }
+    d.status = 'sent'; d.sentAt = Date.now(); d.answers = [];
+    surveySave(d);
+    try { window.chatAddSystem('你向TA发出了一份问卷（' + d.qs.length + ' 题）。', { special: 'ask-msg' }); } catch (e) {}
+    surveyRender();
+    toast('问卷已发出，TA 开始作答');
+  }
+  function surveyRender() {
+    const d = surveyLoad();
+    const txt = document.getElementById('ta-survey-text');
+    if (txt && document.activeElement !== txt && txt.value !== d.text) txt.value = d.text;
+    const dl = document.getElementById('ta-survey-deadline');
+    if (dl && document.activeElement !== dl) dl.value = d.settings.deadline ? fmtDeadlineLocal(d.settings.deadline) : '';
+    const prob = document.getElementById('ta-survey-prob');
+    if (prob && document.activeElement !== prob) prob.value = d.settings.prob;
+    const pv = document.getElementById('ta-survey-prob-val');
+    if (pv) pv.textContent = d.settings.prob + '%';
+    const st = document.getElementById('ta-survey-status');
+    if (st) {
+      if (d.status === 'draft') {
+        const nS = d.qs.filter(q => q.type === 'single').length;
+        st.innerHTML = '当前状态：草稿 —— 已解析 <b>' + d.qs.length + '</b> 题' + (d.qs.length ? '（单选 ' + nS + ' 题 / 文字 ' + (d.qs.length - nS) + ' 题）' : '') + '。填好后点「发出问卷给TA」。';
+      } else if (d.status === 'sent') {
+        st.innerHTML = '当前状态：TA 作答中 —— 已答 <b>' + d.answers.length + '</b> / ' + d.qs.length + ' 题' + (d.settings.deadline ? '；交卷时间 ' + fmtDeadlineLocal(d.settings.deadline) : '；未设交卷时间') + '；每 30 秒按 ' + d.settings.prob + '% 概率提前交卷。';
+      } else {
+        st.innerHTML = '当前状态：已交卷 —— 共 ' + d.qs.length + ' 题。可修改题目/时间后再次发出。';
+      }
+    }
+  }
+  const surveyPage = document.getElementById('page-ta-ask-survey');
+  if (surveyPage) {
+    const surveyOpen = document.getElementById('ta-ask-survey-open');
+    if (surveyOpen) surveyOpen.addEventListener('click', () => {
+      document.querySelectorAll('.page').forEach(p => p.hidden = true);
+      surveyPage.hidden = false;
+      surveyRender();
+    });
+    const backS = document.getElementById('ta-survey-back');
+    if (backS) backS.addEventListener('click', () => {
+      document.querySelectorAll('.page').forEach(p => p.hidden = true);
+      const home = document.getElementById('page-ta-ask');
+      if (home) home.hidden = false;
+    });
+    const stxt = document.getElementById('ta-survey-text');
+    if (stxt) {
+      stxt.addEventListener('change', () => {
+        const d = surveyLoad();
+        d.text = stxt.value;
+        d.qs = surveyParse(stxt.value);
+        surveySave(d);
+        surveyRender();
+      });
+      bindTaInpClears(stxt.parentElement);
+    }
+    const sdl = document.getElementById('ta-survey-deadline');
+    if (sdl) sdl.addEventListener('change', () => {
+      const d = surveyLoad();
+      const t = sdl.value ? new Date(sdl.value).getTime() : 0;
+      d.settings.deadline = (t && !isNaN(t)) ? t : 0;
+      surveySave(d);
+      toast(d.settings.deadline ? '交卷时间已设置：' + sdl.value.replace('T', ' ') : '交卷时间已清除');
+      surveyRender();
+    });
+    const sdlClear = document.getElementById('ta-survey-deadline-clear');
+    if (sdlClear) sdlClear.addEventListener('click', () => {
+      const d = surveyLoad();
+      d.settings.deadline = 0;
+      surveySave(d);
+      if (sdl) sdl.value = '';
+      toast('交卷时间已清除');
+      surveyRender();
+    });
+    const sprob = document.getElementById('ta-survey-prob');
+    if (sprob) sprob.addEventListener('input', () => {
+      const d = surveyLoad();
+      d.settings.prob = parseInt(sprob.value, 10) || 0;
+      surveySave(d);
+      const v = document.getElementById('ta-survey-prob-val');
+      if (v) v.textContent = sprob.value + '%';
+    });
+    const ssend = document.getElementById('ta-survey-send');
+    if (ssend) ssend.addEventListener('click', surveySend);
+    const sreset = document.getElementById('ta-survey-reset');
+    if (sreset) sreset.addEventListener('click', () => {
+      const d = surveyLoad();
+      if (d.status === 'draft' && !d.answers.length) { toast('尚未发出问卷'); return; }
+      d.status = 'draft'; d.answers = []; d.sentAt = 0;
+      surveySave(d);
+      surveyRender();
+      toast('问卷已撤回（重置为草稿）');
+    });
+    surveyRender();
+  }
+
   // v3.9.x：安卓键盘弹起（viewport interactive-widget=resizes-content）时 layout viewport
   // 收缩 → page-ta-ask 重排 → .ta-add 内 ce-box 文字合成层停在旧位置，表现=输入文字与
   // 输入框边框分离（框移新位、文字留旧位）。mobile-adapt.js 安卓未监听键盘做合成层同步，

@@ -759,6 +759,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
       让TA现在问一次
     </button>
+    <button class="div-draw" id="ta-ask-survey-open" style="margin-top:10px">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L20 6"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+      设置批量提问问卷
+    </button>
     <div class="set-group glass">
       <div class="gs-row"><span>TA 偶尔向你提问</span><label class="toggle"><input type="checkbox" id="ta-ask-enable"><span class="tk"></span></label></div>
       <div class="gs-row"><span>使用系统预设问题</span><label class="toggle"><input type="checkbox" id="ta-ask-default" checked><span class="tk"></span></label></div>
@@ -793,6 +797,33 @@
       </div>
       <div id="ta-ask-mine-cats"></div>
     </div>
+  </div>
+</div>
+
+<!-- 批量提问问卷（独立页面：用户批量出题 · 联系人作答交卷） -->
+<div class="page" id="page-ta-ask-survey" hidden>
+  <div class="chat-head">
+    <span class="ch-back" id="ta-survey-back">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </span>
+    <span class="ch-name">批量提问问卷</span>
+  </div>
+  <div class="gs-scroll">
+    <div class="set-group glass" style="padding:14px">
+      <div class="cal-card-title" style="padding:0 0 8px">问卷题目（批量设置）</div>
+      <div class="dec-inp-wrap" style="flex:1 0 100%"><textarea id="ta-survey-text" class="tc-input" rows="12" placeholder="单选题：第一行【问题】，下面每行一个选项，如：&#10;【今晚想吃什么？】&#10;火锅&#10;烧烤&#10;寿司&#10;&#10;文字题：第一行【问题】，下一行只写一个「一」，如：&#10;【今天过得怎么样？】&#10;一"></textarea><button type="button" class="dec-inp-clear" data-clear="ta-survey-text" aria-label="清空" title="清空">✕</button></div>
+      <div style="font-size:12px;color:var(--muted,#999);padding-top:8px;line-height:1.8">· 单选题：【问题】后每行一个选项（至少 2 个）<br>· 文字题：【问题】后一行只写「一」，TA 会用字卡作答（和正常聊天一样用自定义字卡 + 系统预设字卡；未成年人防护锁定系统预设字卡时，只用自定义字卡）<br>· 发出后 TA 开始作答：到交卷时间自动交卷，之前每 30 秒按「提前交卷概率」可能提前交卷</div>
+    </div>
+    <div class="set-group glass">
+      <div class="gs-row"><span>交卷时间（到点TA自动交卷）</span><input type="datetime-local" id="ta-survey-deadline" class="tc-input" style="flex:1;min-width:0;max-width:170px;padding:5px 8px;font-size:12px"><button id="ta-survey-deadline-clear" style="flex:none;margin-left:6px;padding:4px 10px;font-size:12px;border:1px solid var(--line,#e5e5e5);border-radius:8px;background:transparent;color:var(--muted,#999)">清除</button></div>
+      <div class="gs-row"><span>每30秒提前交卷概率</span><input type="range" id="ta-survey-prob" min="0" max="100" step="1" class="tc-range"><span class="tc-prob-val" id="ta-survey-prob-val">10%</span></div>
+    </div>
+    <div class="set-group glass" style="padding:12px 14px">
+      <div id="ta-survey-status" style="font-size:13px;line-height:1.8">尚未发出问卷</div>
+    </div>
+    <button class="ta-add-btn" style="width:100%" id="ta-survey-send">发出问卷给TA</button>
+    <button class="ta-add-btn" style="width:100%;margin-top:10px" id="ta-survey-reset">撤回问卷（重置为草稿）</button>
+    <div style="height:16px"></div>
   </div>
 </div>
 
