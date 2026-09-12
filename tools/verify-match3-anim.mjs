@@ -48,7 +48,8 @@ const shape = await page.evaluate(() => {
 });
 check('A1 开局 64 颗棋子', shape.n === 64, 'n=' + shape.n);
 check('A2 棋子绝对定位（可位移动画）', shape.pos === 'absolute', shape.pos);
-check('A3 棋子带 left/top 过渡', /left/.test(shape.trans) && /top/.test(shape.trans), shape.trans);
+check('A3 棋子带 transform 过渡（合成器动画，不进 layout）', /transform/.test(shape.trans), shape.trans);
+check('A3b 棋子含内层 .m3-glyph（缩放/抖动动画载体）', await page.evaluate(() => !!document.querySelector('#m3-board .m3-tile .m3-glyph')));
 
 // B 找一步可消交换，点击触发：爆开（m3-pop）→ 新子出生（m3-born）→ 落定 64 颗
 const mv = await page.evaluate(() => {
@@ -99,6 +100,40 @@ if (mv) {
   check('B3 结算完成棋盘回到 64 颗、位置不重叠', settled.n === 64 && settled.uniq === 64, JSON.stringify(settled));
   check('B4 该步真实得分', settled.score > 0, 'score=' + settled.score);
   check('B5 结算后解锁', !settled.lock);
+  // B6 下落时长按距离计（掉得远的棋子带更长的 transitionDuration，封顶 0.42s）
+  const durOk = await page.evaluate(() => {
+    const st = window.__m3Debug.st();
+    const moves = window.__m3Debug.allMoves(st.grid);
+    if (!moves.length) return 'nomove';
+    const mv = moves.sort((a, b) => b.gain - a.gain)[0];
+    const board = document.getElementById('m3-board');
+    const e1 = [...board.querySelectorAll('.m3-tile')].find((x) => x._r === mv.a[0] && x._c === mv.a[1]);
+    const e2 = [...board.querySelectorAll('.m3-tile')].find((x) => x._r === mv.b[0] && x._c === mv.b[1]);
+    e1.click(); e2.click();
+    return 'clicked';
+  });
+  let maxDur = 0;
+  const t1 = Date.now();
+  while (Date.now() - t1 < 1200) {
+    maxDur = Math.max(maxDur, await page.evaluate(() => {
+      let m = 0;
+      document.querySelectorAll('#m3-board .m3-tile').forEach((x) => {
+        const d = parseFloat(x.style.transitionDuration);
+        if (d > m) m = d;
+      });
+      return m;
+    }));
+    if (maxDur > 0.3) break;
+    await page.waitForTimeout(50);
+  }
+  check('B6 下落时长按距离分档（观测到 >0.3s 的长距离下落）', maxDur > 0.3, 'maxDur=' + maxDur.toFixed(2) + 's (' + durOk + ')');
+  await page.waitForFunction(() => {
+    const st = window.__m3Debug.st();
+    return st && !st.over && st.turn === 1 && !st.lock;
+  }, null, { timeout: 15000 });
+  await page.evaluate(() => {
+    document.querySelectorAll('#m3-board .m3-tile').forEach((x) => { x.style.transitionDuration = ''; });
+  });
 }
 
 // C 无效交换：换过去又滑回来，分数不变、棋盘还原

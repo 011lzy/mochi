@@ -9232,9 +9232,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1789170926196">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.598</b></span>
-        <span class="sv-deploy">部署于 2026-09-12 07:55<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1789172708951">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.599</b></span>
+        <span class="sv-deploy">部署于 2026-09-12 08:25<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -10423,7 +10423,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.598</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.599</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10718,7 +10718,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.598</span>
+              <span class="lic-ver">v3.26.599</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -43854,8 +43854,9 @@ window.DEFAULT_CARD_DATA.dict_ext = [
 ["两个世界的对照时钟", ["座","计","飞","折","速","盘","针","暂","懒","自","己","偏","子","卫","辰","殊","电","置","估","使","命","需"]],
 ["卡里的观星台", ["建","观","台","设备","简","陋","睛","然","汇","奇","北","斗","勺","柄","尽","儿","承","流","愿","括","固","执","闭","馆","息","代","资","众","吸","镇","途","借","内","券","免","必","须","抬"]],
 ["卡里的晚安巡逻", ["活","巡","逻","档","灰","义","郑","哨","兵","状","立","临","秘","密","任","务","喜","符","备","部","终","枕","糊","制","创","始","踏","习","惯"]],
-["字卡医院", ["症","医","院","挂","诊","治","疗","案","术","救","经","忆","文","房","测","体","克","告","份","论","健","康","良","唯","复","阅","导","致","卷","嘱","印","廊","锦","旗","款","乎","遗","憾","直","应","兼","职","精","振"]],
 ["两个世界的时区地图", ["屏","幕","构","通","运","倒","共","黄","昏","阳","斜","剖","质","轴","注","适","尺","公","程","旅","示","支","持","释","网","典","屋","檐"]],
+["卡里的年度新词", ["诞","选","思","喻","驻","序","官","鸽","孵","历","衰","形","瞬","足","幸","颁","布","仪","宣","增","基","础","曾","或","源","华"]],
+["睡前消息", ["消","未","宜","撂","象","确","函","珍","砸","哼","片","视","耳","朵"]],
 ];
 } catch (__e) { try { console.error("[JS] dict-ext-data.js", __e && __e.message || __e); } catch (x) {} if (window.__jsErrors) window.__jsErrors.push(String(__e && __e.message || __e)); } })();
 (function () { try {
@@ -82327,28 +82328,33 @@ let nextPid = 1;
 let cellPx = 40;
 function setGlyph(el, v) {
 el.classList.remove('m3-bomb');
-if (v >= RAINBOW) el.textContent = '🌈';
-else if (v >= BOMB_BASE) { el.textContent = '💥'; el.classList.add('m3-bomb'); }
-else el.textContent = KINDS[v];
+const g = el._g || el;
+if (v >= RAINBOW) g.textContent = '🌈';
+else if (v >= BOMB_BASE) { g.textContent = '💥'; el.classList.add('m3-bomb'); }
+else g.textContent = KINDS[v];
 }
+function fallSec(dist) { return Math.min(0.42, 0.16 + dist * 0.05); }
 function layoutTile(el, r, c) {
 el.style.width = cellPx + 'px';
 el.style.height = cellPx + 'px';
 el.style.fontSize = Math.round(cellPx * 0.54) + 'px';
-el.style.left = (c * (cellPx + GAP)) + 'px';
-el.style.top = (r * (cellPx + GAP)) + 'px';
+el.style.transform = 'translate(' + (c * (cellPx + GAP)) + 'px,' + (r * (cellPx + GAP)) + 'px)';
 el._r = r; el._c = c;
 }
-function spawnTile(v, r, c, fromRow, born) {
+function spawnTile(v, r, c, fromRow, born, fallDist) {
 const el = document.createElement('div');
 el.className = 'm3-tile' + (born ? ' m3-born' : '');
 const id = nextPid++;
+const g = document.createElement('span');
+g.className = 'm3-glyph';
+el.appendChild(g);
+el._g = g;
 setGlyph(el, v);
 el.style.width = cellPx + 'px';
 el.style.height = cellPx + 'px';
 el.style.fontSize = Math.round(cellPx * 0.54) + 'px';
-el.style.left = (c * (cellPx + GAP)) + 'px';
-el.style.top = ((fromRow != null ? fromRow : r) * (cellPx + GAP)) + 'px';
+el.style.transform = 'translate(' + (c * (cellPx + GAP)) + 'px,' + ((fromRow != null ? fromRow : r) * (cellPx + GAP)) + 'px)';
+if (fallDist) el.style.transitionDuration = fallSec(fallDist) + 's';
 el._r = r; el._c = c;
 boardEl.appendChild(el);
 pieces.set(id, { v: v, el: el });
@@ -82389,8 +82395,8 @@ function swapPid(a, b) {
 const ia = pidGrid[a[0]][a[1]], ib = pidGrid[b[0]][b[1]];
 pidGrid[a[0]][a[1]] = ib; pidGrid[b[0]][b[1]] = ia;
 const pa = pieces.get(ia), pb = pieces.get(ib);
-if (pa) layoutTile(pa.el, b[0], b[1]);
-if (pb) layoutTile(pb.el, a[0], a[1]);
+if (pa) { pa.el.style.transitionDuration = ''; layoutTile(pa.el, b[0], b[1]); }
+if (pb) { pb.el.style.transitionDuration = ''; layoutTile(pb.el, a[0], a[1]); }
 }
 function popClear(cells) {
 for (let i = 0; i < cells.length; i++) {
@@ -82407,6 +82413,7 @@ setTimeout(((el) => () => { if (el.parentNode) el.parentNode.removeChild(el); })
 }
 }
 function collapseAnimated() {
+let maxDist = 1;
 for (let c = 0; c < N; c++) {
 let write = N - 1;
 for (let r = N - 1; r >= 0; r--) {
@@ -82416,17 +82423,25 @@ if (write !== r) {
 const p = pieces.get(id);
 pidGrid[write][c] = id; pidGrid[r][c] = -1;
 st.grid[write][c] = st.grid[r][c]; st.grid[r][c] = -1;
-if (p) layoutTile(p.el, write, c);
+if (p) {
+const dist = write - r;
+if (dist > maxDist) maxDist = dist;
+p.el.style.transitionDuration = fallSec(dist) + 's';
+layoutTile(p.el, write, c);
+}
 }
 write--;
 }
 }
+const gapN = write + 1;
+if (gapN > maxDist) maxDist = gapN;
 for (let r = write; r >= 0; r--) {
 const v = Math.floor(Math.random() * KIND_N);
 st.grid[r][c] = v;
-spawnTile(v, r, c, r - (write + 1), true);
+spawnTile(v, r, c, r - gapN, true, gapN);
 }
 }
+return maxDist;
 }
 function updateInfo() {
 if (infoEl) infoEl.innerHTML =
@@ -82542,8 +82557,8 @@ if (hadBoom) sfxBoom();
 sfxClear(chain);
 if (chain >= 3) taSay('连锁 ×' + chain + (byMe ? '，好强！' : '，我也行吧'));
 setTimeout(() => {
-collapseAnimated();         // 下落补位后再等下一轮查连锁
-setTimeout(step, animMs(FALL_MS));
+const maxDist = collapseAnimated();   // 下落补位后再等下一轮查连锁
+setTimeout(step, Math.max(animMs(FALL_MS), animMs(fallSec(maxDist) * 1000 + 80)));
 }, animMs(POP_MS));
 };
 const finish = () => {
@@ -82577,11 +82592,11 @@ st.score += pts;
 if (byMe) st.myScore += pts; else st.taScore += pts;
 popClear(cells);
 setTimeout(() => {
-collapseAnimated();
+const maxDist = collapseAnimated();
 setTimeout(() => {
 st.lock = false;
 if (cb) cb(true, pts);
-}, animMs(FALL_MS));
+}, Math.max(animMs(FALL_MS), animMs(fallSec(maxDist) * 1000 + 80)));
 }, animMs(POP_MS));
 }
 function afterMove(byMe) {
@@ -89552,4 +89567,4 @@ lastHeal: his
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mtxm6a2c -->
+<!-- __MOCHI_EOF__ mtxn8hnb -->

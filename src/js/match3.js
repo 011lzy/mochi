@@ -267,28 +267,35 @@
   let cellPx = 40;
   function setGlyph(el, v) {
     el.classList.remove('m3-bomb');
-    if (v >= RAINBOW) el.textContent = '🌈';
-    else if (v >= BOMB_BASE) { el.textContent = '💥'; el.classList.add('m3-bomb'); }
-    else el.textContent = KINDS[v];
+    const g = el._g || el;
+    if (v >= RAINBOW) g.textContent = '🌈';
+    else if (v >= BOMB_BASE) { g.textContent = '💥'; el.classList.add('m3-bomb'); }
+    else g.textContent = KINDS[v];
   }
+  // 下落时长按距离计：掉得远耗时长（封顶 0.42s），避免远距离瞬移感
+  function fallSec(dist) { return Math.min(0.42, 0.16 + dist * 0.05); }
+  // 定位走 transform（合成器动画，低端机不进 layout），缩放/抖动类动画在内层 .m3-glyph 上不冲突
   function layoutTile(el, r, c) {
     el.style.width = cellPx + 'px';
     el.style.height = cellPx + 'px';
     el.style.fontSize = Math.round(cellPx * 0.54) + 'px';
-    el.style.left = (c * (cellPx + GAP)) + 'px';
-    el.style.top = (r * (cellPx + GAP)) + 'px';
+    el.style.transform = 'translate(' + (c * (cellPx + GAP)) + 'px,' + (r * (cellPx + GAP)) + 'px)';
     el._r = r; el._c = c;
   }
-  function spawnTile(v, r, c, fromRow, born) {
+  function spawnTile(v, r, c, fromRow, born, fallDist) {
     const el = document.createElement('div');
     el.className = 'm3-tile' + (born ? ' m3-born' : '');
     const id = nextPid++;
+    const g = document.createElement('span');
+    g.className = 'm3-glyph';
+    el.appendChild(g);
+    el._g = g;
     setGlyph(el, v);
     el.style.width = cellPx + 'px';
     el.style.height = cellPx + 'px';
     el.style.fontSize = Math.round(cellPx * 0.54) + 'px';
-    el.style.left = (c * (cellPx + GAP)) + 'px';
-    el.style.top = ((fromRow != null ? fromRow : r) * (cellPx + GAP)) + 'px';
+    el.style.transform = 'translate(' + (c * (cellPx + GAP)) + 'px,' + ((fromRow != null ? fromRow : r) * (cellPx + GAP)) + 'px)';
+    if (fallDist) el.style.transitionDuration = fallSec(fallDist) + 's';
     el._r = r; el._c = c;
     boardEl.appendChild(el);
     pieces.set(id, { v: v, el: el });
@@ -326,13 +333,13 @@
     return p ? p.el : null;
   }
   function renderBoard() { buildBoard(); updateInfo(); }
-  // 交换动画：pid 随模型换位，两颗棋子滑到对方位置
+  // 交换动画：pid 随模型换位，两颗棋子滑到对方位置（清掉下落时长，回到基础过渡速度）
   function swapPid(a, b) {
     const ia = pidGrid[a[0]][a[1]], ib = pidGrid[b[0]][b[1]];
     pidGrid[a[0]][a[1]] = ib; pidGrid[b[0]][b[1]] = ia;
     const pa = pieces.get(ia), pb = pieces.get(ib);
-    if (pa) layoutTile(pa.el, b[0], b[1]);
-    if (pb) layoutTile(pb.el, a[0], a[1]);
+    if (pa) { pa.el.style.transitionDuration = ''; layoutTile(pa.el, b[0], b[1]); }
+    if (pb) { pb.el.style.transitionDuration = ''; layoutTile(pb.el, a[0], a[1]); }
   }
   // 消除动画：棋子缩放爆开后移除（模型已在调用前置 -1）
   function popClear(cells) {
@@ -349,8 +356,9 @@
       setTimeout(((el) => () => { if (el.parentNode) el.parentNode.removeChild(el); })(p.el), animMs(POP_MS) + 60);
     }
   }
-  // 重力下落动画：现有棋子滑到新位，顶部空位生成新棋子从棋盘上方落进
+  // 重力下落动画：现有棋子按距离滑到新位，顶部空位生成新棋子从棋盘上方落进；返回本段最大下落距离
   function collapseAnimated() {
+    let maxDist = 1;
     for (let c = 0; c < N; c++) {
       let write = N - 1;
       for (let r = N - 1; r >= 0; r--) {
@@ -360,17 +368,25 @@
             const p = pieces.get(id);
             pidGrid[write][c] = id; pidGrid[r][c] = -1;
             st.grid[write][c] = st.grid[r][c]; st.grid[r][c] = -1;
-            if (p) layoutTile(p.el, write, c);
+            if (p) {
+              const dist = write - r;
+              if (dist > maxDist) maxDist = dist;
+              p.el.style.transitionDuration = fallSec(dist) + 's';
+              layoutTile(p.el, write, c);
+            }
           }
           write--;
         }
       }
+      const gapN = write + 1;
+      if (gapN > maxDist) maxDist = gapN;
       for (let r = write; r >= 0; r--) {
         const v = Math.floor(Math.random() * KIND_N);
         st.grid[r][c] = v;
-        spawnTile(v, r, c, r - (write + 1), true);
+        spawnTile(v, r, c, r - gapN, true, gapN);
       }
     }
+    return maxDist;
   }
   function updateInfo() {
     if (infoEl) infoEl.innerHTML =
@@ -494,8 +510,8 @@
       sfxClear(chain);
       if (chain >= 3) taSay('连锁 ×' + chain + (byMe ? '，好强！' : '，我也行吧'));
       setTimeout(() => {
-        collapseAnimated();         // 下落补位后再等下一轮查连锁
-        setTimeout(step, animMs(FALL_MS));
+        const maxDist = collapseAnimated();   // 下落补位后再等下一轮查连锁
+        setTimeout(step, Math.max(animMs(FALL_MS), animMs(fallSec(maxDist) * 1000 + 80)));
       }, animMs(POP_MS));
     };
     const finish = () => {
@@ -530,11 +546,11 @@
     if (byMe) st.myScore += pts; else st.taScore += pts;
     popClear(cells);
     setTimeout(() => {
-      collapseAnimated();
+      const maxDist = collapseAnimated();
       setTimeout(() => {
         st.lock = false;
         if (cb) cb(true, pts);
-      }, animMs(FALL_MS));
+      }, Math.max(animMs(FALL_MS), animMs(fallSec(maxDist) * 1000 + 80)));
     }, animMs(POP_MS));
   }
   function afterMove(byMe) {
