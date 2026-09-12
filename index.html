@@ -6351,6 +6351,10 @@ gap:12px; padding:22px 18px; background:rgba(12,16,26,.92);
 .feed-sticker { position: absolute; width: 44px; height: 44px; transform: translate(-50%, -50%); cursor: pointer; z-index: 2; filter: drop-shadow(0 2px 4px rgba(0,0,0,.25)); }
 .feed-sticker img { width: 100%; height: 100%; object-fit: contain; }
 .feed-sticker-emoji { font-size: 30px; line-height: 44px; }
+.feed-imgs.feed-sticker-picking { cursor: crosshair; }
+.feed-imgs.feed-sticker-picking::after { content: ''; position: absolute; inset: 0; z-index: 1; background: rgba(255, 107, 157, .08); pointer-events: none; }
+.feed-pick-hint { position: absolute; left: 0; right: 0; top: 0; z-index: 3; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; background: rgba(0, 0, 0, .55); color: #fff; font-size: 12px; border-radius: 8px 8px 0 0; pointer-events: auto; }
+.feed-pick-hint button { border: 0; background: none; color: #fff; font-size: 12px; padding: 2px 6px; }
 .feed-mem-card { position: relative; margin: 0 0 12px; padding: 12px 30px 12px 14px; border-radius: 14px; cursor: pointer; }
 .feed-mem-label { font-size: 12px; font-weight: 600; color: #ff6b9d; margin-bottom: 6px; }
 .feed-mem-body { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #444; }
@@ -9276,9 +9280,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1789187761559">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.611</b></span>
-        <span class="sv-deploy">部署于 2026-09-12 12:36<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1789193358879">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.612</b></span>
+        <span class="sv-deploy">部署于 2026-09-12 14:09<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -10469,7 +10473,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.611</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.612</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10764,7 +10768,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.611</span>
+              <span class="lic-ver">v3.26.612</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -60725,8 +60729,7 @@ img.alt = '贴纸';
 d.appendChild(img);
 d.addEventListener('click', (e) => {
 e.stopPropagation();
-addFeedSticker(feedStickerCard.dataset.pid, { src });
-feedStickerCard.hidden = true;
+feedPickStickerPos(feedStickerCard.dataset.pid, src);
 });
 grid.appendChild(d);
 });
@@ -60735,13 +60738,52 @@ list.appendChild(grid);
 function feedRandStickerPos() {
 return { x: Math.round(6 + Math.random() * 74), y: Math.round(6 + Math.random() * 70) };
 }
+let feedPickCtx = null;
+function feedCancelPickSticker() {
+if (!feedPickCtx) return;
+const ctx = feedPickCtx;
+feedPickCtx = null;
+ctx.box.removeEventListener('click', ctx.onPick, true);
+if (ctx.box.isConnected) {
+ctx.box.classList.remove('feed-sticker-picking');
+const hint = ctx.box.querySelector('.feed-pick-hint');
+if (hint) hint.remove();
+}
+}
+function feedPickStickerPos(pid, src) {
+feedCancelPickSticker();
+const post = document.getElementById('feed-post-' + pid);
+const box = post ? post.querySelector('.feed-imgs') : null;
+if (!box) { addFeedSticker(pid, { src }); return; }
+feedStickerCard.hidden = true;
+box.classList.add('feed-sticker-picking');
+const hint = document.createElement('div');
+hint.className = 'feed-pick-hint';
+hint.innerHTML = '<span>📍 点击照片选贴纸位置</span><button type="button">取消</button>';
+hint.querySelector('button').addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); feedCancelPickSticker(); });
+box.appendChild(hint);
+const onPick = (e) => {
+e.preventDefault(); e.stopPropagation();
+if (e.target.closest('.feed-pick-hint')) { feedCancelPickSticker(); return; }
+if (!box.isConnected) { feedCancelPickSticker(); return; }
+const r = box.getBoundingClientRect();
+const x = Math.round(Math.min(90, Math.max(4, ((e.clientX - r.left) / Math.max(1, r.width)) * 100)));
+const y = Math.round(Math.min(90, Math.max(6, ((e.clientY - r.top) / Math.max(1, r.height)) * 100)));
+feedCancelPickSticker();
+addFeedSticker(pid, { src, x, y });
+};
+box.addEventListener('click', onPick, true);
+feedPickCtx = { box, onPick };
+}
 function addFeedSticker(pid, st) {
 const list = load();
 const p = list.find(x => x.id === pid);
 if (!p) { toast('这条动态不存在了'); return; }
 p.stickers = Array.isArray(p.stickers) ? p.stickers : [];
 if (p.stickers.length >= 5) { toast('这张照片上贴纸够多啦（最多 5 张）'); return; }
-const pos = feedRandStickerPos();
+const pos = (st && Number.isFinite(Number(st.x)) && Number.isFinite(Number(st.y)))
+? { x: Math.min(92, Math.max(0, Math.round(Number(st.x)))), y: Math.min(92, Math.max(0, Math.round(Number(st.y)))) }
+: feedRandStickerPos();
 p.stickers.push({ src: st.src || '', emoji: st.emoji || '', x: pos.x, y: pos.y, ts: Date.now(), role: 'me', owner: 'me', authorName: feedUserName() });
 save(list);
 refreshPostCard(pid);
@@ -90119,4 +90161,4 @@ lastHeal: his
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mtxw74bb -->
+<!-- __MOCHI_EOF__ mtxzj38f -->

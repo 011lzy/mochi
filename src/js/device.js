@@ -517,6 +517,18 @@
       var r = e && e.reason;
       var m = '';
       try { m = (r && r.message) ? r.message : String(r); } catch (e2) {}
+      // FIX 2026-09-12 #366 AbortError 类未处理 rejection 不进错误环——调用方主动
+      // abort（音乐/通话流超时兜底、切页取消、fetch 包装层超时）是设计内取消，不是
+      // bug；Safari 报「Fetch is aborted」、Chromium 报「signal is aborted without
+      // reason」等，各机型诊断环反复刷红点（iPhone18.7/iOS26 standalone 9/7~9/10
+      // 实录 ×41 条），掩盖真错误。fetch 包装层（下方）本就不把它记网络失败，此处
+      // 同口径：仅按 AbortError 名/已知 abort 文案放行，其余 rejection 照常入环。
+      var _isAbort = false;
+      try {
+        _isAbort = !!(r && r.name === 'AbortError')
+          || /^(Fetch is aborted|signal is aborted without reason|The user aborted a request\.?|Aborted)$/i.test(String(m || '').trim());
+      } catch (e3) {}
+      if (_isAbort) return;
       if (m && String(m).indexOf('ResizeObserver') < 0) pushErr('(promise) ' + m, r && r.stack ? String(r.stack) : '');
     });
   } catch (e) {}

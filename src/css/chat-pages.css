@@ -4292,6 +4292,11 @@ body.mail-emoji-mode #emoji-panel { bottom: calc(64px + var(--mochi-safe-bottom,
 .feed-sticker { position: absolute; width: 44px; height: 44px; transform: translate(-50%, -50%); cursor: pointer; z-index: 2; filter: drop-shadow(0 2px 4px rgba(0,0,0,.25)); }
 .feed-sticker img { width: 100%; height: 100%; object-fit: contain; }
 .feed-sticker-emoji { font-size: 30px; line-height: 44px; }
+/* v3.36.x：我贴贴纸位置自定义——点照片选位置模式（TA 回贴仍随机） */
+.feed-imgs.feed-sticker-picking { cursor: crosshair; }
+.feed-imgs.feed-sticker-picking::after { content: ''; position: absolute; inset: 0; z-index: 1; background: rgba(255, 107, 157, .08); pointer-events: none; }
+.feed-pick-hint { position: absolute; left: 0; right: 0; top: 0; z-index: 3; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; background: rgba(0, 0, 0, .55); color: #fff; font-size: 12px; border-radius: 8px 8px 0 0; pointer-events: auto; }
+.feed-pick-hint button { border: 0; background: none; color: #fff; font-size: 12px; padding: 2px 6px; }
 .feed-mem-card { position: relative; margin: 0 0 12px; padding: 12px 30px 12px 14px; border-radius: 14px; cursor: pointer; }
 .feed-mem-label { font-size: 12px; font-weight: 600; color: #ff6b9d; margin-bottom: 6px; }
 .feed-mem-body { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #444; }

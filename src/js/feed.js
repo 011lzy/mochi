@@ -967,8 +967,7 @@
       d.appendChild(img);
       d.addEventListener('click', (e) => {
         e.stopPropagation();
-        addFeedSticker(feedStickerCard.dataset.pid, { src });
-        feedStickerCard.hidden = true;
+        feedPickStickerPos(feedStickerCard.dataset.pid, src);
       });
       grid.appendChild(d);
     });
@@ -977,6 +976,45 @@
   function feedRandStickerPos() {
     return { x: Math.round(6 + Math.random() * 74), y: Math.round(6 + Math.random() * 70) };
   }
+  // v3.36.x：我贴的贴纸位置可自定义——选完贴纸进入「点照片选位置」模式，点哪里贴哪里；
+  // 找不到配图（数据被并发删掉等）时退回随机落位；TA 回贴仍走 feedRandStickerPos
+  let feedPickCtx = null;
+  function feedCancelPickSticker() {
+    if (!feedPickCtx) return;
+    const ctx = feedPickCtx;
+    feedPickCtx = null;
+    ctx.box.removeEventListener('click', ctx.onPick, true);
+    if (ctx.box.isConnected) {
+      ctx.box.classList.remove('feed-sticker-picking');
+      const hint = ctx.box.querySelector('.feed-pick-hint');
+      if (hint) hint.remove();
+    }
+  }
+  function feedPickStickerPos(pid, src) {
+    feedCancelPickSticker();
+    const post = document.getElementById('feed-post-' + pid);
+    const box = post ? post.querySelector('.feed-imgs') : null;
+    if (!box) { addFeedSticker(pid, { src }); return; }
+    feedStickerCard.hidden = true;
+    box.classList.add('feed-sticker-picking');
+    const hint = document.createElement('div');
+    hint.className = 'feed-pick-hint';
+    hint.innerHTML = '<span>📍 点击照片选贴纸位置</span><button type="button">取消</button>';
+    hint.querySelector('button').addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); feedCancelPickSticker(); });
+    box.appendChild(hint);
+    const onPick = (e) => {
+      e.preventDefault(); e.stopPropagation();
+      if (e.target.closest('.feed-pick-hint')) { feedCancelPickSticker(); return; }
+      if (!box.isConnected) { feedCancelPickSticker(); return; }
+      const r = box.getBoundingClientRect();
+      const x = Math.round(Math.min(90, Math.max(4, ((e.clientX - r.left) / Math.max(1, r.width)) * 100)));
+      const y = Math.round(Math.min(90, Math.max(6, ((e.clientY - r.top) / Math.max(1, r.height)) * 100)));
+      feedCancelPickSticker();
+      addFeedSticker(pid, { src, x, y });
+    };
+    box.addEventListener('click', onPick, true);
+    feedPickCtx = { box, onPick };
+  }
   // 我贴一张：每条动态上限 5 张；贴完 TA 有概率（评论回应概率同源）回贴一张并进通知
   function addFeedSticker(pid, st) {
     const list = load();
@@ -984,7 +1022,10 @@
     if (!p) { toast('这条动态不存在了'); return; }
     p.stickers = Array.isArray(p.stickers) ? p.stickers : [];
     if (p.stickers.length >= 5) { toast('这张照片上贴纸够多啦（最多 5 张）'); return; }
-    const pos = feedRandStickerPos();
+    // v3.36.x：位置自定义——st 带 x/y（点照片选位置的落点）就用它，否则随机
+    const pos = (st && Number.isFinite(Number(st.x)) && Number.isFinite(Number(st.y)))
+      ? { x: Math.min(92, Math.max(0, Math.round(Number(st.x)))), y: Math.min(92, Math.max(0, Math.round(Number(st.y)))) }
+      : feedRandStickerPos();
     p.stickers.push({ src: st.src || '', emoji: st.emoji || '', x: pos.x, y: pos.y, ts: Date.now(), role: 'me', owner: 'me', authorName: feedUserName() });
     save(list);
     refreshPostCard(pid);
