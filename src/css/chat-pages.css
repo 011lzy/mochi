@@ -231,6 +231,13 @@
 #page-fun-cards #fc-list { flex:0 0 auto; overflow:visible; min-height:0; -webkit-overflow-scrolling:auto; overscroll-behavior:auto; }
 #page-deskcheck { overflow-y:auto; }
 #page-deskcheck #dk-list { flex:0 0 auto; overflow:visible; min-height:0; -webkit-overflow-scrolling:auto; overscroll-behavior:auto; }
+/* FIX 2026-09-12 #350：词典页同款整页滚动——v3.36.x 在 #d2-dict-list 上方插入场景开关 +
+   使用概率两组设置块（~660px）后漏加本同款规则，.card-list{flex:1;overflow-y:auto} 的
+   overflow 非 visible 使 flex 自动最小尺寸归 0：列表被压成 29px（423×853 无头实测）、
+   360×640 下仅 6px 且 top=762 整个在屏外，页面 scrollH==clientH 无可滚＝「词典点进去
+   上下滑不了页面」（荣耀畅玩40 Plus/夸克 报障，多机型同现，与设备无关）。同款双保险。 */
+#page-dict-cards { overflow-y:auto; }
+#page-dict-cards #d2-dict-list { flex:0 0 auto; overflow:visible; min-height:0; -webkit-overflow-scrolling:auto; overscroll-behavior:auto; }
 /* 虚拟窗口高度占位块：只用高度撑出滚动区间，本身无内容不可点 */
 .cc-vspace { display:block; margin:0; padding:0; pointer-events:none; }
 .dc-toggle {
@@ -3085,6 +3092,15 @@ body.mail-emoji-mode #emoji-panel { bottom: calc(64px + var(--mochi-safe-bottom,
 #chat-snake-panel.snake-fs .snake-dp { font-size:min(7vw, 5.6vh); border-radius:min(3vw, 2.4vh); }
 .snake-res-pop { animation: snakeResPop .32s cubic-bezier(.2,.9,.3,1.2) both; }
 @keyframes snakeResPop { from { opacity:0; transform:scale(.7); } to { opacity:1; transform:scale(1); } }
+/* 死亡瞬间反馈（结算浮层延迟弹，JS 端挂 snk-die/-red）：冻结的最后一帧画布整体抖动，
+   我方死亡追加红色外晕一闪（画布是替换元素，inset 阴影会被位图盖住，故用外晕） */
+.snake-canvas.snk-die { animation: snkdie .5s ease-out both; }
+.snake-canvas.snk-die.snk-die-red { animation: snkdie .5s ease-out both, snkdiered .8s ease-out both; }
+@keyframes snkdie { 0%,100% { transform:translate(0,0); } 14% { transform:translate(-6px,3px); } 28% { transform:translate(5px,-4px); } 42% { transform:translate(-4px,-2px); } 56% { transform:translate(3px,2px); } 72% { transform:translate(-2px,1px); } 86% { transform:translate(1px,-1px); } }
+@keyframes snkdiered { 0% { box-shadow:0 0 0 0 rgba(255,86,96,0); } 30% { box-shadow:0 0 24px 5px rgba(255,86,96,.5); } 100% { box-shadow:0 0 24px 5px rgba(255,86,96,0); } }
+@media (prefers-reduced-motion: reduce) {
+  .snake-canvas.snk-die, .snake-canvas.snk-die.snk-die-red { animation:none; }
+}
 /* 聊天记录里的贪吃蛇结果卡片（居中白底） */
 .msg-snake-card { min-width:220px; }
 .msg-snake-title { font-size:13px; font-weight:700; color:var(--ink); padding-bottom:8px; border-bottom:1px dashed rgba(0,0,0,.1); margin-bottom:8px; }
@@ -3683,10 +3699,20 @@ body.mail-emoji-mode #emoji-panel { bottom: calc(64px + var(--mochi-safe-bottom,
 #ms-overlay:not([hidden]) > :nth-child(2) { animation-delay:45ms; }
 #ms-overlay:not([hidden]) > :nth-child(3) { animation-delay:90ms; }
 @keyframes msovin { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+/* #349 扫雷动画二批：开局对角波次发牌 / 宝物格金色弹出+光晕 / 失败揭雷 / 掉心脉冲 */
+.ms-cell.ms-born { animation:msborn .26s ease-out both; }
+@keyframes msborn { from { opacity:0; transform:scale(.55); } to { opacity:1; transform:scale(1); } }
+.ms-tr { box-shadow:0 0 9px 2px rgba(255,196,70,.45); }
+.ms-tr .ms-face.ms-pop { animation:mstreasure .5s cubic-bezier(.2,.8,.3,1.4); }
+@keyframes mstreasure { 0% { transform:scale(.3) rotate(-14deg); opacity:.2; } 55% { transform:scale(1.35) rotate(4deg); opacity:1; } 100% { transform:scale(1); } }
+.ms-cell.ms-reveal { background:#efe0d5 !important; }
+.ms-hearts.ms-hurt { display:inline-block; animation:mshurt .5s ease-out; }
+@keyframes mshurt { 0% { transform:scale(1.45); filter:brightness(1.7); } 100% { transform:scale(1); filter:none; } }
 /* 弱动效偏好：开格/抖动动画关闭（布局不受影响） */
 @media (prefers-reduced-motion: reduce) {
   .ms-face.ms-pop, .ms-shake { animation:none; }
   .ms-cell.ms-boom .ms-face.ms-pop, .ms-board.ms-quake, #ms-overlay:not([hidden]) > * { animation:none; }
+  .ms-cell.ms-born, .ms-tr .ms-face.ms-pop, .ms-hearts.ms-hurt { animation:none; }
 }
 
 /* ===== 双人钓鱼（聊天页底部半框：水边场景 + 时机收竿 + 今日收获/图鉴/TA送礼） ===== */
@@ -4158,6 +4184,14 @@ body.mail-emoji-mode #emoji-panel { bottom: calc(64px + var(--mochi-safe-bottom,
   .m3-tile { transition-duration:.05s; }
   .m3-tile .m3-glyph { animation-duration:.05s !important; }
 }
+/* #340 三轮：开局发牌对角波次（backwards 填充让延迟格先隐形）、洗牌缩一下、飘分、炸弹震屏 */
+.m3-glyph.m3-deal { animation:m3-born .24s ease backwards; }
+.m3-glyph.m3-shuf { animation:m3-shufscale .32s ease; }
+@keyframes m3-shufscale { 0% { transform:scale(1); } 45% { transform:scale(.72) rotate(8deg); } 100% { transform:scale(1); } }
+.m3-float { position:absolute; z-index:3; font-weight:700; color:#ff7aa2; text-shadow:0 1px 2px rgba(0,0,0,.15); pointer-events:none; transform:translate(-50%,-50%); animation:m3-rise .72s ease-out forwards; }
+@keyframes m3-rise { 0% { opacity:0; transform:translate(-50%,-30%) scale(.6); } 25% { opacity:1; } 100% { opacity:0; transform:translate(-50%,-170%) scale(1.05); } }
+.m3-board.m3-quake { animation:m3-quake .32s ease; }
+@keyframes m3-quake { 0%,100% { transform:translate(0,0); } 20% { transform:translate(-3px,2px); } 45% { transform:translate(3px,-2px); } 70% { transform:translate(-2px,1px); } }
 .m3-status { min-height:20px; font-size:13px; color:var(--muted); text-align:center; }
 
 @keyframes pairgame-blink { 50% { outline-color:transparent; } }
@@ -4245,6 +4279,14 @@ body.mail-emoji-mode #emoji-panel { bottom: calc(64px + var(--mochi-safe-bottom,
 [data-theme="dark"] #au-wallet-hint { color:#ffb37a; }
 /* #346 矮屏（横屏手机）68% 半框太矮、竞价区挤 → 提到 82% */
 @media (max-height:500px) { #chat-auction-panel:not(.game-fs) { min-height:82%; max-height:82%; } }
+/* #349 成色评级标签（普通/稀有/SSR，暗色反向） */
+.au-rare { display:inline-block; font-size:10px; padding:1px 6px; border-radius:8px; margin-right:2px; vertical-align:1px; }
+.au-r0 { background:rgba(0,0,0,.08); color:var(--ink,#222); }
+.au-r1 { background:rgba(58,127,213,.16); color:#2b62a8; }
+.au-r2 { background:rgba(240,173,40,.25); color:#9c6a00; font-weight:700; }
+[data-theme="dark"] .au-r0 { background:rgba(255,255,255,.14); color:#eee; }
+[data-theme="dark"] .au-r1 { background:rgba(88,150,230,.25); color:#9ec4f5; }
+[data-theme="dark"] .au-r2 { background:rgba(240,173,40,.28); color:#ffd479; }
 /* ===== #302 朋友圈贴纸回复 + 回忆闪回 ===== */
 .feed-imgs { position: relative; }
 .feed-sticker { position: absolute; width: 44px; height: 44px; transform: translate(-50%, -50%); cursor: pointer; z-index: 2; filter: drop-shadow(0 2px 4px rgba(0,0,0,.25)); }

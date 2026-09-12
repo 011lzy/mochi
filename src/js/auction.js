@@ -43,6 +43,9 @@
   const introExit = document.getElementById('au-intro-exit');
   // #346 余额不足/账本未就绪的提示行（出价键静默置灰用户不知道为什么）
   const walletHintEl = document.getElementById('au-wallet-hint');
+  // #348 拍卖记录 / 自制拍品入口（头部按钮）
+  const historyBtn = document.getElementById('au-history');
+  const addBtn = document.getElementById('au-add');
   function showHelp() { if (helpOverlay) helpOverlay.hidden = false; }
   function hideHelp() { if (helpOverlay) helpOverlay.hidden = true; }
   function showIntro() { if (introEl) introEl.hidden = false; }
@@ -84,12 +87,12 @@
     { ico: '💐', name: '全明星花束', desc: '什么花都有一点', base: 1314, wish: '像你，什么都好。' },
     { ico: '💎', name: '小钻戒', desc: '别紧张，不是那种……大概', base: 9999, wish: '先占个位置。', mystery: 1 }
   ];
-  // TA 行为状态：系数=心理价位底价倍数；stepPref=TA 加价档偏好；talk=开场台词
+  // TA 行为状态：系数=心理价位底价倍数；stepPref=TA 加价档偏好；talk=开场台词；calls=跟价台词库（#348 按状态差异化）
   const TA_MODES = {
-    eager:  { factor: 1.5,  stepPref: [STEP5, STEP13, STEP13], talk: '眼睛亮了，志在必得' },
-    normal: { factor: 1.15, stepPref: [STEP1, STEP5, STEP13],  talk: '掂了掂这件的分量' },
-    stingy: { factor: 0.7,  stepPref: [STEP1, STEP1, STEP5],   talk: '皱着眉算了算' },
-    bluff:  { factor: 1.2,  stepPref: [STEP13, STEP5, STEP5],  talk: '一路跟得飞快，像真想要' }
+    eager:  { factor: 1.5,  stepPref: [STEP5, STEP13, STEP13], talk: '眼睛亮了，志在必得', calls: ['跟！这件我要定了', '就这点诚意？接着', '休想从我手里抢走'] },
+    normal: { factor: 1.15, stepPref: [STEP1, STEP5, STEP13],  talk: '掂了掂这件的分量', calls: ['这件我挺喜欢的', '我掂量着值这个价', '那我也加一点'] },
+    stingy: { factor: 0.7,  stepPref: [STEP1, STEP1, STEP5],   talk: '皱着眉算了算', calls: ['唔……勉强跟一手', '快超预算了呀', '再贵我就撤了'] },
+    bluff:  { factor: 1.2,  stepPref: [STEP13, STEP5, STEP5],  talk: '一路跟得飞快，像真想要', calls: ['加价不加价？跟', '气势不能输', '谁怕谁呀'] }
   };
   const TALK_MIN = 850, TALK_VAR = 900;
   const LOTS_PER_SESSION = 3;
@@ -101,6 +104,36 @@
   function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
   function yuan(fen) { return '¥' + (fen / 100).toFixed(2); }
   function yuanC(fen) { const v = fen / 100; return Number.isInteger(v) ? '¥' + v : '¥' + v.toFixed(2); } // #321 整数省略 .00，按钮直白些
+
+  // ---- #348 成色评级（按底价分档：≥5000 分 SSR / ≥2600 稀有 / 其余 普通）、震动反馈 ----
+  const RARITY = [['普通', 'au-r0'], ['稀有', 'au-r1'], ['SSR', 'au-r2']];
+  function rarityOf(item) { const r = (item && item.base >= 5000) ? 2 : (item && item.base >= 2600) ? 1 : 0; return { label: RARITY[r][0], cls: RARITY[r][1] }; }
+  function buzz(p) {
+    try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) {}
+    try { window.__auDebug.lastBuzz = p; } catch (e) {}
+  }
+  // ---- #348 落盘双写：localStorage（同步读）+ IndexedDB（防容量/换机），idbSet 可用即写 ----
+  function persist(key, val) {
+    try { localStorage.setItem(key, typeof val === 'string' ? val : JSON.stringify(val)); } catch (e) {}
+    try { if (typeof window.idbSet === 'function') window.idbSet(key, val); } catch (e) {}
+  }
+  // #348 拍卖记录：每件拍品的成交/流拍明细（最近 60 条）
+  function historyKey() { return prefix() + ':auction-history'; }
+  function loadHistory() { try { const a = JSON.parse(localStorage.getItem(historyKey()) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+  function recordHistory(item, price, who) {
+    const h = loadHistory();
+    h.unshift({ t: Date.now(), ico: item.ico, name: item.name, price: price, who: who, rarity: rarityOf(item).label });
+    if (h.length > 60) h.length = 60;
+    persist(historyKey(), h);
+  }
+  // #348 自制拍品（每联系人独立，上限 20；添加弹窗里输入已有名称＝删除）
+  function customKey() { return prefix() + ':auction-custom'; }
+  function loadCustom() { try { const a = JSON.parse(localStorage.getItem(customKey()) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+  function saveCustom(a) { try { if (a.length > 20) a.length = 20; persist(customKey(), a); } catch (e) {} }
+  // #348 自制拍品并入奖池（随机 20% 蒙面登场）
+  function activePool() {
+    return POOL.concat(loadCustom().map((c) => ({ ico: c.ico, name: c.name, desc: c.desc, base: c.base, wish: c.wish, mystery: c.mystery || 0, custom: 1 })));
+  }
 
   // ---- 音效 ----
   let audioCtx = null;
@@ -150,12 +183,12 @@
     } catch (e) {}
     return d;
   }
-  function saveStats(s) { try { localStorage.setItem(statsKey(), JSON.stringify(s)); } catch (e) {} }
+  function saveStats(s) { persist(statsKey(), s); }
   function bagKey() { return prefix() + ':auction-items'; }
   function loadBag() {
     try { const a = JSON.parse(localStorage.getItem(bagKey()) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; }
   }
-  function saveBag(a) { try { localStorage.setItem(bagKey(), JSON.stringify(a)); } catch (e) {} }
+  function saveBag(a) { persist(bagKey(), a); }
   // #301 TA 回寄：TA 拍走的拍品 2~4 天后寄回给你（进你的 🎒，附一句留言）
   function giftsKey() { return prefix() + ':au-gifts-pending'; }
   function loadPending() { try { const a = JSON.parse(localStorage.getItem(giftsKey()) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
@@ -188,7 +221,7 @@
   let bagOpen = false; // #343/#346 背包覆盖层是否开着（寄到重渲染判定用）
 
   function newState() {
-    const lots = shuffle(POOL.slice()).slice(0, LOTS_PER_SESSION);
+    const lots = shuffle(activePool()).slice(0, LOTS_PER_SESSION);
     return {
       started: false,
       over: false,           // 一场是否结束
@@ -309,13 +342,29 @@
   // 你的加价：出价 = 当前价 + step；随后轮到 TA 掂量
   function myBid(step) {
     if (!lotActive()) return;
+    placeBid(st.cur + step);
+  }
+  // #348 自定义出价共用落价：直接压上这个价（≤余额；不够时给状态提示）
+  function placeBid(newCur) {
+    if (!lotActive()) return;
     const bal = myBalance();
-    if (!walletOk() || bal < st.cur + step) return;
-    st.cur = st.cur + step;
+    if (!walletOk() || bal < newCur) { setStatus('心意币不够这个价——去心意集市补点吧'); updateBidBtns(); return; }
+    st.cur = newCur;
     st.leader = 'you';
     sfxBid();
     renderLot();
     scheduleTaThink('TA低头想了想……');
+  }
+  // #348 长按任一档位弹自定义出价（≥当前价+¥1，确认即压价）
+  function customBidModal() {
+    if (!lotActive() || !walletOk() || typeof window.openModal !== 'function') return;
+    const minFen = st.cur + STEP1;
+    const ctl = window.openModal('自定义出价', String(minFen / 100), function (v) {
+      const fen = Math.round(parseFloat(String(v).replace(/[^\d.]/g, '')) * 100);
+      if (!fen || fen < minFen) { ctl.stay(); ctl.val(''); ctl.ph('至少要比当前价多 ¥1（≥' + yuanC(minFen) + '）'); return; }
+      placeBid(fen);
+    }, { inputmode: 'decimal', placeholder: '直接压上这个价（≥' + yuanC(minFen) + '）' });
+    try { if (ctl) ctl.okText('压价'); } catch (e) {}
   }
   function myPass() {
     if (!lotActive()) return;
@@ -345,7 +394,7 @@
       st.leader = 'ta';
       sfxBid();
       renderLot();
-      taSay(pick(['跟！', '这件我要了', '就这点诚意？', '继续呀']));
+      taSay(pick(m.calls));
       setStatus(T('TA') + '举牌：' + yuan(st.cur) + '——到你出价了');
       updateBidBtns();
     } else {
@@ -368,15 +417,18 @@
     saveStats(s);
     const item = st.lots[st.idx];
     sfxHammer();
+    buzz(80);                 // #348 被抢走震动
+    recordHistory(item, st.cur, 'ta');
     // #301 TA 回寄排队：2~4 天后寄回给你
     try {
       const pend = loadPending();
       pend.push({ ico: item.ico, name: item.name, due: Date.now() + (2 + Math.floor(Math.random() * 3)) * 86400000 });
       savePending(pend);
     } catch (e) {}
+    const rt = rarityOf(item);
     showOverlay(T('TA') + '拍得了',
       '<div class="au-ov-ico">' + item.ico + '</div>' +
-      '<div class="pong-end-stat">' + item.name + ' · ' + yuan(st.cur) + ' 归 ' + T('TA') + '</div>' +
+      '<div class="pong-end-stat"><span class="au-rare ' + rt.cls + '">' + rt.label + '</span> ' + item.name + ' · ' + yuan(st.cur) + ' 归 ' + T('TA') + '</div>' +
       '<div class="pong-end-stat">📬 不过 TA 拍走的拍品，过几天会寄回给你</div>',
       st.idx + 1 < st.lots.length ? '下一件' : '结算', 'ta');
     setStatus(T('TA') + '把「' + item.name + '」抱走了');
@@ -393,6 +445,7 @@
     clearTimeout(thinkT); thinkT = null;
     st.passed++;
     const item = st.lots[st.idx];
+    recordHistory(item, st.cur, 'pass');
     showOverlay('流拍了',
       '<div class="au-ov-ico">' + item.ico + '</div>' +
       '<div class="pong-end-stat">' + item.name + ' 没人要，收回仓库</div>',
@@ -426,11 +479,14 @@
     bag.push({ ico: item.ico, name: item.name, fen: st.cur, ts: Date.now() });
     saveBag(bag);
     sfxWin(); sfxHammer();
+    buzz([30, 40, 80]);       // #348 落槌成交震动
+    recordHistory(item, st.cur, 'you');
     taSay(pick(['被你拍走了…', '亏了亏了', '那件我本来想要来着']));
     if (balanceEl) balanceEl.textContent = walletOk() ? '心意币 ' + yuan(myBalance()) : '心意币 —';
+    const rt = rarityOf(item);
     showOverlay('落槌！',
       '<div class="au-ov-ico">' + item.ico + '</div>' +
-      '<div class="pong-end-stat">' + item.name + ' · ' + yuan(st.cur) + ' 拍下</div>' +
+      '<div class="pong-end-stat"><span class="au-rare ' + rt.cls + '">' + rt.label + '</span> ' + item.name + ' · ' + yuan(st.cur) + ' 拍下</div>' +
       '<div class="pong-end-stat">💌 ' + item.wish + '</div>' +
       '<div class="pong-end-stat">已收进 🎒 小收藏（剩 ' + yuan(myBalance()) + '）· 可在 🎒 里转赠给 ' + T('TA') + '</div>',
       st.idx + 1 < st.lots.length ? '下一件' : '结算', 'win');
@@ -497,6 +553,54 @@
     showOverlay('🎒 拍品收藏（' + bag.length + '）', body, '返回');
     if (startBtn) startBtn.textContent = '返回'; // #346 统一返回语义：场次中回竞价、结算后回本场汇总
     if (endBtn) endBtn.hidden = !(st && st.started && !st.over);
+  }
+  // #348 拍卖记录页：最近 60 条成交/流拍明细
+  function showHistory() {
+    const h = loadHistory();
+    const fmt = (t) => { const d = new Date(t); return (d.getMonth() + 1) + '月' + d.getDate() + '日'; };
+    const whoTxt = { you: '你拍得', ta: T('TA') + '拍走', pass: '流拍' };
+    const cls = (r) => r === 'SSR' ? 'au-r2' : r === '稀有' ? 'au-r1' : 'au-r0';
+    const body = h.length
+      ? h.map((it) => '<div class="pong-end-stat au-hist-row"><span class="au-rare ' + cls(it.rarity) + '">' + (it.rarity || '普通') + '</span> ' + it.ico + ' ' + it.name + ' · ' + (it.who === 'pass' ? '流拍' : yuan(it.price)) + ' · ' + (whoTxt[it.who] || '') + ' · ' + fmt(it.t) + '</div>').join('')
+      : '<div class="pong-end-stat">还没拍过任何东西</div>';
+    showOverlay('📜 拍卖记录（' + h.length + '）', body, '返回');
+    if (startBtn) startBtn.textContent = '返回';
+    if (endBtn) endBtn.hidden = !(st && st.started && !st.over);
+  }
+  // #348 自制拍品三段式添加（名称→底价→彩蛋）；名称输入已有自制拍品＝删除
+  function addCustomModal() {
+    if (typeof window.openModal !== 'function') return;
+    let stage = 1, pendingName = null;
+    const list = () => { const a = loadCustom(); return a.length ? '已有 ' + a.length + '/20：' + a.map((c) => c.name).join('、') : '还没有自制拍品（上限 20 个）'; };
+    const ctl = window.openModal('自制拍品', '', function (v) {
+      const s = String(v || '').trim();
+      if (stage === 1) {
+        if (!s) return;
+        const cur = loadCustom();
+        const idx = cur.findIndex((c) => c.name === s);
+        if (idx >= 0) { cur.splice(idx, 1); saveCustom(cur); taSay(pick(['这件……不拍了？', '行吧，收回仓库'])); return; }
+        if (cur.length >= 20) { ctl.stay(); ctl.val(''); ctl.ph('自制拍品已满 20 个，先删再加'); return; }
+        pendingName = s; stage = 2;
+        ctl.stay(); ctl.val(''); ctl.ph('底价（元，如 20）'); ctl.okText('下一步');
+        return;
+      }
+      if (stage === 2) {
+        const yuanV = parseFloat(s.replace(/[^\d.]/g, ''));
+        if (!yuanV || yuanV <= 0) { ctl.stay(); ctl.val(''); ctl.ph('请输入大于 0 的金额'); return; }
+        pendingName = { name: pendingName, base: Math.max(100, Math.round(yuanV * 100)) };
+        stage = 3;
+        ctl.stay(); ctl.val(''); ctl.ph('拍下后的一句话彩蛋（可空）'); ctl.okText('完成');
+        return;
+      }
+      const a = loadCustom();
+      a.push({
+        ico: pick(['🎁', '💎', '🧸', '🌈', '⭐', '🍰', '🎧', '🧿', '🌙', '🎀']) || '🎁',
+        name: pendingName.name, desc: '我们自己才懂的小玩意', base: pendingName.base,
+        wish: s || '是心意呀。', mystery: Math.random() < 0.2 ? 1 : 0
+      });
+      saveCustom(a);
+      taSay(pick(['又上新拍品啦？', '你出的题我接了']));
+    }, { maxlength: 24, placeholder: '名称（输入已有名称＝删除）', staticText: list() });
   }
   // 转赠：写心意柜「我送TA」记录（gift-shop 的 recordGiftBox，走既有心意柜渲染），拍品移出收藏
   function giftAway(i) {
@@ -581,11 +685,24 @@
   });
   if (endBtn) endBtn.addEventListener('click', (e) => { e.stopPropagation(); closePanel(); });
   if (closeBtn) closeBtn.addEventListener('click', (e) => { e.stopPropagation(); closePanel(); });
-  if (bid1Btn) bid1Btn.addEventListener('click', (e) => { e.stopPropagation(); myBid(STEP1); });
-  if (bid5Btn) bid5Btn.addEventListener('click', (e) => { e.stopPropagation(); myBid(STEP5); });
-  if (bid13Btn) bid13Btn.addEventListener('click', (e) => { e.stopPropagation(); myBid(STEP13); });
+  // #348 出价键：点按=加一档；长按 600ms=弹自定义出价（点按与长按互斥，长按吞掉随后的 click）
+  let lpT = null, lpFired = false;
+  function bindBidBtn(btn, step) {
+    if (!btn) return;
+    const start = () => { lpFired = false; clearTimeout(lpT); lpT = setTimeout(() => { lpFired = true; customBidModal(); }, 600); };
+    const cancel = () => { clearTimeout(lpT); };
+    btn.addEventListener('touchstart', start, { passive: true });
+    btn.addEventListener('mousedown', start);
+    ['touchend', 'touchcancel', 'mouseup', 'mouseleave'].forEach((ev) => btn.addEventListener(ev, cancel));
+    btn.addEventListener('click', (e) => { e.stopPropagation(); if (lpFired) { lpFired = false; return; } myBid(step); });
+  }
+  bindBidBtn(bid1Btn, STEP1);
+  bindBidBtn(bid5Btn, STEP5);
+  bindBidBtn(bid13Btn, STEP13);
   if (passBtn) passBtn.addEventListener('click', (e) => { e.stopPropagation(); myPass(); });
   if (bagBtn) bagBtn.addEventListener('click', (e) => { e.stopPropagation(); showBag(); });
+  if (historyBtn) historyBtn.addEventListener('click', (e) => { e.stopPropagation(); showHistory(); });
+  if (addBtn) addBtn.addEventListener('click', (e) => { e.stopPropagation(); addCustomModal(); });
   // #301 转赠按钮（收藏列表内，事件委托）
   if (ovBodyEl) ovBodyEl.addEventListener('click', (e) => {
     const sendBtn = e.target.closest('.au-send-btn');
@@ -658,6 +775,25 @@
   // #347 寄回投递不再依赖打开拍卖会：全局每 10 分钟补投一次（开面板仍有 30s 细粒度检查），
   // 否则「2~4 天寄回」实际是「2~4 天后你下次打开拍卖会才寄到」。checkGifts 自带 no-pending 快速返回。
   setInterval(() => { try { checkGifts(); } catch (e) {} }, 600000);
+  // #348 开屏异步回填：localStorage 缺失而 IndexedDB 有（被清/换机）时把收藏与记录搬回同步读路径
+  (function restoreFromIdb() {
+    ['auction-items', 'auction-history'].forEach((k) => {
+      try {
+        const key = prefix() + ':' + k;
+        if (localStorage.getItem(key)) return;
+        if (typeof window.idbGet !== 'function') return;
+        Promise.resolve(window.idbGet(key)).then((v) => {
+          try {
+            if (v === undefined || v === null) return;
+            const s = typeof v === 'string' ? v : JSON.stringify(v);
+            if (!s) return;
+            const p = JSON.parse(s);
+            if (Array.isArray(p) && p.length) localStorage.setItem(key, s);
+          } catch (e) {}
+        }).catch(() => {});
+      } catch (e) {}
+    });
+  })();
   // 切联系人清空进行中场次：🎒 收藏按联系人桌面隔离，跨桌续拍会把拍品收进别桌收藏
   document.addEventListener('contact-switched', () => { try { closePanel(); st = null; } catch (e) {} });
 
@@ -706,6 +842,8 @@
     newSession: newSession,
     myBid: myBid,
     loadBag: loadBag,
+    poolSize: () => activePool().length,
+    lastBuzz: null,
     fast: false
   };
 })();

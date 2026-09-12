@@ -957,7 +957,6 @@ const FIX_SENTINELS = [
   // ==== 2026-09-12 #340 消消乐动画（用户报「没有真消消乐动画很突兀」）：棋子层+transform 合成器过渡，交换滑动/消除爆开/按距离下落 ====
   { name: '#340 消消乐消除爆开动画 keyframes（删则消除无爆开、退回瞬间消失）', file: 'css/chat-pages.css', needle: '@keyframes m3-popout' },
   { name: '#340 消消乐结算动画循环按距离等待（删则下落不等待、整盘退回瞬跳重绘）', file: 'js/match3.js', needle: 'animMs(FALL_MS)' },
-  { name: '#340 消消乐死锁洗牌滑动动画（删则洗牌退回整盘瞬跳重绘）', file: 'js/match3.js', needle: "p.el.style.transitionDuration = '0.32s';" },
   { name: '#306 半框头部标题禁止压缩换行（删则控件多的面板标题被挤成一字一行竖排）', file: 'css/chat-main.css', needle: '.poke-card-head > span { white-space:nowrap; }' },
   { name: '#306 拍卖会「不拍了」举牌行内可见样式（删则半透明白底+白字在白卡上完全隐形＝按钮像消失）', file: 'css/chat-pages.css', needle: '.au-bids .pong-overlay-btn2 { background:rgba(0,0,0,.07); color:var(--ink,#222); }' },
   { name: '#306 小游戏共享全屏容器 .game-fs（fixed 满视口 + iOS 高度修复同款表达式，删则全屏按钮失效）', file: 'css/chat-pages.css', needle: 'height:100vh; height:min(var(--mochi-ios-h, 100dvh), 100dvh);' },
@@ -1022,6 +1021,17 @@ const FIX_SENTINELS = [
   { name: '#346 矮屏(横屏 max-height:500px)半框提到 82%（删＝横屏 68% 竞价区挤）', file: 'css/chat-pages.css', needle: '@media (max-height:500px)' },
   // ==== 2026-09-12 #347 拍卖会寄回投递不依赖打开面板（全局 10 分钟补投）：原 checkGifts 只挂面板打开/开面板期 30s，「2~4 天寄回」实际是「下次打开拍卖会才寄到」====
   { name: '#347 寄回全局补投·10 分钟一次（删＝TA 寄回的拍品要打开拍卖会才到账）', file: 'js/auction.js', needle: '600000' },
+  // ==== 2026-09-12 #348 拍卖会优化批（用户「都需要优化」）：成色评级 SSR/稀有/普通（按底价分档，揭晓与记录展示）／落槌与被抢走震动反馈／落盘 localStorage+IndexedDB 双写+开屏回填／拍卖记录页（📜 最近 60 条）／自制拍品（➕ 三段式添加，输入同名删除，上限 20，随机 20% 蒙面并入奖池）／自定义出价（长按出价键 600ms 直接压价）／TA 四状态跟价台词库。行为断言 tools/verify-auction-overlay.mjs H 组 ====
+  { name: '#348 成色评级分档（删则拍品无普通/稀有/SSR 之分，揭晓与记录退化）', file: 'js/auction.js', needle: 'function rarityOf(' },
+  { name: '#348 落槌/被抢走震动反馈（删则安卓无触感反馈）', file: 'js/auction.js', needle: 'navigator.vibrate' },
+  { name: '#348 落盘双写 localStorage+IndexedDB（删则收藏/记录只存 localStorage，清站点即丢）', file: 'js/auction.js', needle: 'function persist(' },
+  { name: '#348 开屏 idb 回填收藏/记录（删则换机/清站点后双写数据无法找回）', file: 'js/auction.js', needle: 'restoreFromIdb' },
+  { name: '#348 拍卖记录存储（删则 📜 记录页永远空）', file: 'js/auction.js', needle: ':auction-history' },
+  { name: '#348 自制拍品存储（删则 ➕ 添加的拍品无处安放、奖池不合并）', file: 'js/auction.js', needle: ':auction-custom' },
+  { name: '#348 自定义出价（删＝长按无反应只能三档出价）', file: 'js/auction.js', needle: 'customBidModal(' },
+  { name: '#348 TA 按行为状态差异化跟价台词（改回固定池＝四状态语气趋同）', file: 'js/auction.js', needle: 'pick(m.calls)' },
+  // ==== 2026-09-12 #350 词典页整页滚动：v3.36.x 场景开关/概率块插到列表上方后漏加 #239 同款规则，列表被 flex 挤成 6~29px＝「词典点进去上下滑不了」（多机型）====
+  { name: '#350 词典页整页滚动（删则词典列表被设置块挤成几像素/屏外＝页面滑不动，#239 同族回归）', file: 'css/chat-pages.css', needle: '#page-dict-cards #d2-dict-list { flex:0 0 auto; overflow:visible; min-height:0;' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

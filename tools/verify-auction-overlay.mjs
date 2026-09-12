@@ -285,6 +285,78 @@ const g6 = await evalJs(`(function(){
 await cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
 chk('G6 矮屏半框高度占比 ≥78%（旧版 68% 太挤）', (() => { try { return JSON.parse(g6).ratio >= 0.78; } catch (e) { return false; } })(), g6);
 
+// H1) #348 长按出价键弹自定义出价，确认后直接压价
+// 确定性：开 fast 模式（TA 思考 42~87ms），压价值取「TA 心理价位+¥5」→ TA 必立即放手，
+// leader 保持 you、cur 精确等于压价值（taThink 两个分支都不改 cur）
+await evalJs(`(function(){ window.__auDebug.fast = true; return 1; })()`);
+await sleep(200);
+await evalJs(`(function(){ var b = document.getElementById('au-bid1'); b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); return 1; })()`);
+await sleep(800);
+const h1modal = await evalJs(`(function(){
+  var m = document.getElementById('modal-mask');
+  var t = document.getElementById('modal-title');
+  return JSON.stringify({ open: !!m && !m.hidden, title: t ? t.textContent : '' });
+})()`);
+const h1before = await evalJs(`(function(){
+  var s = window.__auDebug.st();
+  var fen = Math.max(s.limit, s.cur + 100) + 500;
+  document.getElementById('modal-input').value = (fen / 100).toFixed(2);
+  document.getElementById('modal-ok').click();
+  return fen;
+})()`);
+await sleep(600);
+const h1st = await evalJs(`(function(){ var s = window.__auDebug.st(); return JSON.stringify({ cur: s.cur, leader: s.leader, phase: s.phase }); })()`);
+chk('H1 长按出价键弹出「自定义出价」', (() => { try { const o = JSON.parse(h1modal); return o.open === true && o.title.indexOf('自定义出价') >= 0; } catch (e) { return false; } })(), h1modal);
+chk('H1 确认后价格压到自定义价且 leader=you', (() => { try { const o = JSON.parse(h1st); return o.leader === 'you' && o.cur === h1before; } catch (e) { return false; } })(), h1st + ' wantCur=' + h1before);
+
+// H2) #348 自制拍品：三段式添加 → 奖池合并 → idb 双写 → 输入同名删除
+await evalJs(`(function(){ var b = document.getElementById('au-add'); if (b) b.click(); return 1; })()`);
+await sleep(250);
+await evalJs(`(function(){ document.getElementById('modal-input').value = '自定义拍品A'; document.getElementById('modal-ok').click(); return 1; })()`);
+await sleep(200);
+await evalJs(`(function(){ document.getElementById('modal-input').value = '12.34'; document.getElementById('modal-ok').click(); return 1; })()`);
+await sleep(200);
+await evalJs(`(function(){ document.getElementById('modal-input').value = '测试彩蛋'; document.getElementById('modal-ok').click(); return 1; })()`);
+await sleep(400);
+const h2a = JSON.parse(await evalJs(`(async function(){
+  var pre = (window.activePrefix && window.activePrefix()) || 'xy-home-v2';
+  var loc = JSON.parse(localStorage.getItem(pre + ':auction-custom') || '[]').length;
+  var idbN = -1;
+  try { var v = await window.idbGet(pre + ':auction-custom'); idbN = Array.isArray(v) ? v.length : -1; } catch (e) {}
+  return JSON.stringify({ loc: loc, idb: idbN, pool: window.__auDebug.poolSize() });
+})()`));
+await evalJs(`(function(){ var b = document.getElementById('au-add'); if (b) b.click(); return 1; })()`);
+await sleep(250);
+await evalJs(`(function(){ document.getElementById('modal-input').value = '自定义拍品A'; document.getElementById('modal-ok').click(); return 1; })()`);
+await sleep(300);
+const h2b = JSON.parse(await evalJs(`(function(){
+  var pre = (window.activePrefix && window.activePrefix()) || 'xy-home-v2';
+  return JSON.stringify({ loc: JSON.parse(localStorage.getItem(pre + ':auction-custom') || '[]').length, pool: window.__auDebug.poolSize() });
+})()`));
+chk('H2 自制拍品添加成功（本地+idb 双写+奖池 12→13）', h2a.loc === 1 && h2a.idb === 1 && h2a.pool === 13, JSON.stringify(h2a));
+chk('H2 输入同名删除（奖池回落 12）', h2b.loc === 0 && h2b.pool === 12, JSON.stringify(h2b));
+
+// H3) #348 拍卖记录页：评级标签 + 明细渲染
+await evalJs(`(function(){
+  var pre = (window.activePrefix && window.activePrefix()) || 'xy-home-v2';
+  localStorage.setItem(pre + ':auction-history', JSON.stringify([
+    { t: Date.now(), ico: '💎', name: '小钻戒', price: 9999, who: 'you', rarity: 'SSR' },
+    { t: Date.now() - 86400000, ico: '🌹', name: '永生玫瑰', price: 520, who: 'pass', rarity: '普通' }
+  ]));
+  var b = document.getElementById('au-history');
+  if (b) b.click();
+  return 1;
+})()`);
+await sleep(300);
+const h3 = JSON.parse(await evalJs(`(function(){
+  var o = document.getElementById('au-overlay');
+  var t = document.getElementById('au-ov-title');
+  var b = document.getElementById('au-ov-body');
+  return JSON.stringify({ open: !!o && !o.hidden, title: t ? t.textContent : '', body: b ? b.textContent : '' });
+})()`));
+chk('H3 记录页打开（标题含拍卖记录）', h3.open === true && h3.title.indexOf('拍卖记录') >= 0, h3.title);
+chk('H3 记录明细含评级与条目（SSR/小钻戒/流拍）', h3.body.indexOf('SSR') >= 0 && h3.body.indexOf('小钻戒') >= 0 && h3.body.indexOf('流拍') >= 0, h3.body.slice(0, 80));
+
 console.log('入口=' + opened + '  结果: ' + pass + ' 通过 / ' + fail + ' 失败');
 chrome.kill();
 server.close();
