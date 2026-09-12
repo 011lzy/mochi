@@ -9264,9 +9264,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1789174434183">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.602</b></span>
-        <span class="sv-deploy">部署于 2026-09-12 08:53<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1789174685119">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.604</b></span>
+        <span class="sv-deploy">部署于 2026-09-12 08:58<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -10455,7 +10455,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.602</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.604</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10750,7 +10750,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.602</span>
+              <span class="lic-ver">v3.26.604</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -20380,7 +20380,8 @@ const syncPageHint = (slide) => {
 if (!slide) return;
 const hint = slide.querySelector('.desk-page-hint');
 if (!hint) return;
-const hasContent = !!slide.querySelector('[data-desk-widget], [data-desk-image]');
+const hasContent = Array.prototype.slice.call(slide.querySelectorAll('[data-desk-widget]')).some(n => !(n.classList.contains('app-grid') && !n.querySelector('.app'))) ||
+!!slide.querySelector('[data-desk-image]');
 hint.style.display = hasContent ? 'none' : '';
 };
 function compressImage(dataUrl, maxSide) {
@@ -21378,6 +21379,12 @@ applyBgVisibility();
 }
 } catch (e) {}
 const grids = document.querySelectorAll('.app-grid');
+const ICON_HOME_GRID = {};
+document.querySelectorAll('.app-grid').forEach(g => {
+const gid = g.dataset.app;
+if (!gid) return;
+g.querySelectorAll('.app').forEach(a => { if (a.dataset.app) ICON_HOME_GRID[a.dataset.app] = gid; });
+});
 document.querySelectorAll('.app .app-ico').forEach(ico => {
 if (!ico.dataset.orig) ico.dataset.orig = ico.innerHTML;
 });
@@ -21419,22 +21426,43 @@ ico.innerHTML = ico.dataset.orig;
 };
 restoreAppIcons();
 const restoreAppIconOrder = () => {
-grids.forEach(grid => {
+const allGrids = Array.prototype.slice.call(document.querySelectorAll('.app-grid'));
+const byKey = {};
+allGrids.forEach(g => {
+g.querySelectorAll('.app').forEach(a => { if (a.dataset.app) byKey[a.dataset.app] = a; });
+});
+const arrays = {};
+allGrids.forEach(grid => {
 const gid = grid.dataset.app;
 if (!gid) return;
-let order = null;
-try { const v = store.get('app-icon-order-' + gid); if (v) order = JSON.parse(v); } catch (e) {}
-if (!Array.isArray(order) || !order.length) return;
-const apps = Array.prototype.slice.call(grid.querySelectorAll('.app'));
-const byKey = {};
-apps.forEach(a => { byKey[a.dataset.app] = a; });
+try { const v = store.get('app-icon-order-' + gid); if (v) { const p = JSON.parse(v); if (Array.isArray(p)) arrays[gid] = p; } } catch (e) {}
+});
+const owner = {};
+allGrids.forEach(grid => {
+const gid = grid.dataset.app;
+const arr = arrays[gid];
+if (!arr) return;
+arr.forEach(k => {
+if (!byKey[k]) return;
+if (!owner[k] || (owner[k] === ICON_HOME_GRID[k] && gid !== ICON_HOME_GRID[k])) owner[k] = gid;
+});
+});
+allGrids.forEach(grid => {
+const gid = grid.dataset.app;
+const order = arrays[gid];
+if (!order || !order.length) return;
 order.forEach((k, i) => {
+if (owner[k] !== gid) return;
 const node = byKey[k];
-if (node && node.parentNode === grid) {
+if (!node) return;
+if (node.parentNode !== grid) grid.appendChild(node); // 跨网格认领：先搬入再定位
 const ref = grid.children[i];
 if (ref && ref !== node) grid.insertBefore(node, ref);
-}
 });
+const cleaned = order.filter(k => !byKey[k] || owner[k] === gid);
+if (cleaned.length !== order.length) {
+try { store.set('app-icon-order-' + gid, JSON.stringify(cleaned)); } catch (e) {}
+}
 });
 };
 restoreAppIconOrder();
@@ -21616,6 +21644,13 @@ e.stopPropagation();
 window.openIconMenu(app);
 });
 });
+document.addEventListener('click', (e) => {
+const grid = e.target.closest ? e.target.closest('.app-grid') : null;
+if (!grid || !grid.classList.contains('editing')) return;
+const app = e.target.closest('.app');
+if (!app) return;
+window.openIconMenu(app);
+});
 const phoneDecorEl = document.getElementById('page-phone');
 if (phoneDecorEl) {
 phoneDecorEl.addEventListener('click', (e) => {
@@ -21637,7 +21672,7 @@ if (phoneTab) phoneTab.classList.add('active');
 document.querySelectorAll('.page').forEach(p => p.hidden = true);
 const phonePage = document.getElementById('page-phone');
 if (phonePage) phonePage.hidden = false;
-grids.forEach(g => g.classList.add('editing'));
+document.querySelectorAll('.app-grid').forEach(g => g.classList.add('editing'));
 const phone = document.getElementById('page-phone');
 if (phone) phone.classList.add('decor-on');
 const bar = document.getElementById('decor-bar');
@@ -23749,6 +23784,25 @@ while (slides.length > target) {
 const delIdx = slides.length - 1;
 const s = slides.pop();
 if (s && s.parentNode) {
+const pgG = s.querySelector('.app-grid[data-desk-widget^="pg"]');
+if (pgG && pgG.dataset.app) {
+const homeGrids = {};
+Array.prototype.slice.call(pagesBox.querySelectorAll('.page-slide')).forEach(ps => {
+const hg = ps.querySelector('.app-grid');
+if (hg && hg.dataset.app && hg !== pgG) homeGrids[hg.dataset.app] = hg;
+});
+Array.prototype.slice.call(pgG.querySelectorAll('.app')).forEach(a => {
+const key = a.dataset.app;
+if (!key) return;
+let dest = homeGrids[ICON_HOME_GRID[key]] || document.querySelector('.app-grid[data-desk-widget="apps"]');
+if (dest && dest !== pgG) {
+dest.appendChild(a);
+const dOrder = Array.prototype.slice.call(dest.querySelectorAll('.app')).map(x => x.dataset.app);
+try { store.set('app-icon-order-' + dest.dataset.app, JSON.stringify(dOrder)); } catch (e) {}
+}
+});
+try { store.remove('app-icon-order-' + pgG.dataset.app); } catch (e) {}
+}
 const pool = ensureWidgetPool();
 const widgetNodes = Array.prototype.slice.call(s.querySelectorAll('[data-desk-widget]'));
 widgetNodes.forEach(node => {
@@ -23770,6 +23824,10 @@ for (let i = slides.length; i < target; i++) {
 const s = document.createElement('div');
 s.className = 'page-slide desk-page';
 s.dataset.desk = String(i);
+const pgGrid = document.createElement('div');
+pgGrid.className = 'app-grid';
+pgGrid.dataset.app = 'pg' + i;
+pgGrid.setAttribute('data-desk-widget', 'pg' + i);
 const hint = document.createElement('div');
 hint.className = 'desk-page-hint';
 hint.textContent = '空白主页 · 可上传整页背景图';
@@ -23781,6 +23839,7 @@ e.stopPropagation();
 const curIdx = Array.prototype.indexOf.call(pagesBox.querySelectorAll('.page-slide'), s);
 openDeskLib(s, curIdx);
 });
+s.appendChild(pgGrid);
 s.appendChild(hint);
 s.appendChild(addBtn);
 pagesBox.appendChild(s);
@@ -23918,6 +23977,7 @@ if (ctl && ctl.pills) ctl.pills([{ label: '确定恢复默认', value: '1' }], '
 }
 let deskSwitchBuild = false;
 buildDeskPages();
+window.__deskIconDebug = { restoreAppIconOrder: restoreAppIconOrder, buildDeskPages: buildDeskPages };
 document.addEventListener('contact-switched', () => { deskSwitchBuild = true; try { buildDeskPages(); } finally { deskSwitchBuild = false; } });
 const rebuildDeskWhenReady = () => {
 try { buildDeskPages(); } catch (e) {}
@@ -24339,9 +24399,32 @@ panels[g.key] = p;
 const addWidgetToPage = (wid) => {
 const node = document.querySelector('[data-desk-widget="' + wid + '"]');
 if (!node) return;
+if (wid.indexOf('app-') === 0) {
+const grid = pageSlide.querySelector('.app-grid');
+if (grid && grid.dataset.app) {
+const srcGrid = node.closest('.app-grid');
+grid.appendChild(node);
+document.querySelectorAll('.app-grid').forEach(g => {
+const gid = g.dataset.app;
+if (!gid || g === grid) return;
+let arr = [];
+try { arr = JSON.parse(store.get('app-icon-order-' + gid) || '[]'); } catch (e) {}
+const cleaned = arr.filter(k => k !== wid);
+if (cleaned.length !== arr.length) store.set('app-icon-order-' + gid, JSON.stringify(cleaned));
+});
+const order = Array.prototype.slice.call(grid.querySelectorAll('.app')).map(a => a.dataset.app);
+store.set('app-icon-order-' + grid.dataset.app, JSON.stringify(order));
+if (srcGrid && srcGrid !== grid) try { syncPageHint(srcGrid.closest('.page-slide')); } catch (e) {}
+} else {
 const addBtn = pageSlide.querySelector('.desk-page-add');
 if (addBtn) pageSlide.insertBefore(node, addBtn);
 else pageSlide.appendChild(node);
+}
+} else {
+const addBtn = pageSlide.querySelector('.desk-page-add');
+if (addBtn) pageSlide.insertBefore(node, addBtn);
+else pageSlide.appendChild(node);
+}
 syncPageHint(pageSlide);
 saveDeskLayout();
 if (window.deskRebuild) window.deskRebuild();
@@ -24912,7 +24995,7 @@ openDeskLib(slides[curIdx], curIdx);
 });
 }
 function exitDecor() {
-grids.forEach(g => g.classList.remove('editing'));
+document.querySelectorAll('.app-grid').forEach(g => g.classList.remove('editing')); // FIX 2026-09-12 #351 动态查询含 pg* 网格
 const phone = document.getElementById('page-phone');
 if (phone) phone.classList.remove('decor-on');
 const bar = document.getElementById('decor-bar');
@@ -24961,7 +25044,7 @@ document.addEventListener('contact-switched', restoreAppIconOrder);
 const tabbar = document.querySelector('.tabbar');
 if (tabbar && grids.length) {
 tabbar.addEventListener('click', () => {
-grids.forEach(g => g.classList.remove('editing'));
+document.querySelectorAll('.app-grid').forEach(g => g.classList.remove('editing')); // FIX 2026-09-12 #351 动态查询含 pg* 网格
 const phone = document.getElementById('page-phone');
 if (phone) phone.classList.remove('decor-on');
 const bar = document.getElementById('decor-bar');
@@ -25161,6 +25244,13 @@ let curIdx = window.deskIdx ? window.deskIdx() : 0;
 curIdx = Math.max(0, Math.min(slides.length - 1, curIdx));
 const slide = slides[curIdx];
 if (!slide) return null;
+const curGrid = slide.querySelector('.app-grid');
+if (curGrid) {
+const gr = curGrid.getBoundingClientRect();
+if (clientX >= gr.left && clientX <= gr.right && clientY >= gr.top && clientY <= gr.bottom) {
+return gridDropInfo(curGrid, dragged, clientX, clientY);
+}
+}
 const items = Array.prototype.slice.call(slide.querySelectorAll('[data-desk-widget]')).filter(n => {
 if (n === dragged) return false;
 const p = n.parentElement;
@@ -25196,6 +25286,7 @@ dropLine.style.top = (info.before ? r.top : r.bottom) + 'px';
 function doDrop(dragged, info) {
 if (info.type === 'grid') {
 if (info.ref && dragged.contains(info.ref)) return;
+const srcGrid = dragged.closest('.app-grid');
 if (dragged.parentNode !== info.grid) info.grid.appendChild(dragged);
 if (info.ref && dragged !== info.ref) {
 if (info.before) info.grid.insertBefore(dragged, info.ref);
@@ -25203,6 +25294,15 @@ else info.grid.insertBefore(dragged, info.ref.nextSibling);
 }
 const order = Array.prototype.slice.call(info.grid.querySelectorAll('.app')).map(a => a.dataset.app);
 store.set('app-icon-order-' + info.grid.dataset.app, JSON.stringify(order));
+if (srcGrid && srcGrid !== info.grid && srcGrid.dataset.app) {
+let srcOrder = [];
+try { srcOrder = JSON.parse(store.get('app-icon-order-' + srcGrid.dataset.app) || '[]'); } catch (e) {}
+const key = dragged.dataset.app;
+const cleaned = srcOrder.filter(k => k !== key);
+if (cleaned.length !== srcOrder.length) {
+store.set('app-icon-order-' + srcGrid.dataset.app, JSON.stringify(cleaned));
+}
+}
 } else {
 const slides = Array.prototype.slice.call(pagesBox.querySelectorAll('.page-slide'));
 const targetIdx = slides.indexOf(info.slide);
@@ -29064,8 +29164,7 @@ mm.className = 'msg-moods';
 const recalled = [];
 rec.mood.forEach((md, mi) => {
 if (rec.retractedMood && rec.retractedMood.indexOf(mi) >= 0) { recalled.push(md); return; }
-const _tagShow = md.tag === '词典拼字' ? '词典' : md.tag;
-const mt = escTxt(T(_tagShow)), ml = escTxt(T(md.label));
+const mt = escTxt(T(md.tag)), ml = escTxt(T(md.label));
 const dupBody = md.label != null && String(md.label) !== '' && String(md.label) === String(rec.text == null ? '' : rec.text);
 if (md.tag === '交流意图') {
 mm.innerHTML += '<div class="msg-mood msg-intent"><span class="msg-mood-tag">' + mt + '</span>' + (dupBody ? '' : '<span>' + ml + '</span>') + '</div>';
@@ -29941,6 +30040,7 @@ setTimeout(() => { try { if (window.dreamFreeSave && mjf.text) window.dreamFreeS
 }
 }
 let m = null;
+const dictTag = (rep.spell && rep.spell.every(t => (t || '').length > 4)) ? '词典' : '词典拼字';
 if (rep.spell && rep.spellOne) {
 m = addIn(rep.spell.join(' '), {
 quote: quote,
@@ -29949,7 +30049,7 @@ qidx: quote ? quoteIdx : undefined,
 type: 'text',
 parts: rep.parts,
 silent: silent,
-tag: '词典',
+tag: dictTag,
 tagNoDup: true
 });
 } else if (rep.spell) {
@@ -29967,7 +30067,7 @@ qidx: (si === 0 && quote) ? quoteIdx : undefined,
 type: 'text',
 parts: si === rep.spell.length - 1 ? rep.parts : null,
 silent: si > 0 ? true : silent,
-tag: '词典',
+tag: dictTag,
 tagNoDup: true
 });
 }
@@ -76135,32 +76235,32 @@ running = false;
 if (rafId) cancelAnimationFrame(rafId);
 rafId = null;
 }
-const SAVE_KEY = (window.activePrefix && window.activePrefix() || 'xy-home-v2') + ':pong-saved';
+function saveKey() { return (window.activePrefix && window.activePrefix() || 'xy-home-v2') + ':pong-saved'; }
 let paused = false;
 function canSave(s) {
 return s && s.status !== 'ended' && (s.playerScore + s.opponentScore > 0 || s.status === 'rally' || s.status === 'scored');
 }
 function saveGame() {
 try {
-if (!canSave(state)) { localStorage.removeItem(SAVE_KEY); return; }
+if (!canSave(state)) { localStorage.removeItem(saveKey()); return; }
 const s = state;
 const clone = JSON.parse(JSON.stringify(s));
 clone.countdownAt = 0; clone.scorePauseUntil = 0;
 clone.opponent.aiNextAt = 0; clone.opponent.reactUntil = 0;
 clone._cdLen = null;
-localStorage.setItem(SAVE_KEY, JSON.stringify(clone));
+localStorage.setItem(saveKey(), JSON.stringify(clone));
 } catch (e) {}
 }
 function loadSaved() {
 try {
-const raw = localStorage.getItem(SAVE_KEY);
+const raw = localStorage.getItem(saveKey());
 if (!raw) return null;
 const s = JSON.parse(raw);
 if (!s || s.status === 'ended') return null;
 return s;
 } catch (e) { return null; }
 }
-function clearSaved() { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} }
+function clearSaved() { try { localStorage.removeItem(saveKey()); } catch (e) {} }
 function resumeGame() {
 const s = loadSaved();
 if (!s) return false;
@@ -76336,10 +76436,11 @@ let GW = 15, GH = 15;
 const FS_CELL = 21;                  // 全屏地图目标格子尺寸（逻辑 px）——偏小让地图更大
 const INIT_LEN = 3;
 const FOOD_TARGET = 2;
-const PREFIX = (window.activePrefix && window.activePrefix()) || 'xy-home-v2';
-const KEY = PREFIX + ':snake-score';
-const SAVE_KEY = PREFIX + ':snake-saved';
-const PARTNER_KEY = PREFIX + ':lbl-partner';
+function prefix() { return (window.activePrefix && window.activePrefix()) || 'xy-home-v2'; }
+function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function keyScore() { return prefix() + ':snake-score'; }
+function keySaved() { return prefix() + ':snake-saved'; }
+function keyBest() { return prefix() + ':snake-best'; }
 const DIFFS = {
 easy:   { ticks: [200, 180, 160, 140] },
 normal: { ticks: [150, 130, 115, 100] },
@@ -76370,7 +76471,6 @@ let isFs = false;
 let pauseAt = 0;
 let cssW = 360, cssH = 360, dpr = 1;   // 画布 CSS 尺寸（全屏由 setupCanvas 按剩余空间计算）
 let particles = [], floaters = [], renderLastTime = 0;
-const BEST_KEY = PREFIX + ':snake-best';
 function gW() { return (state && state.gw) || GW; }
 function gH() { return (state && state.gh) || GH; }
 function vib(pattern) { try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (e) {} }
@@ -76391,15 +76491,15 @@ eat: function () { beep(880, 0.07); },
 hit: function () { beep(180, 0.18); },
 win: function () { beep(660, 0.12); setTimeout(function () { beep(880, 0.14); }, 130); }
 };
-function readScore() { try { return JSON.parse(localStorage.getItem(KEY) || '{"w":0,"l":0,"d":0}'); } catch (e) { return { w: 0, l: 0, d: 0 }; } }
-function writeScore(s) { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {} }
+function readScore() { const raw = lsGet(keyScore()) || lsGet('xy-home-v2:snake-score'); try { return JSON.parse(raw || '{"w":0,"l":0,"d":0}'); } catch (e) { return { w: 0, l: 0, d: 0 }; } }
+function writeScore(s) { try { localStorage.setItem(keyScore(), JSON.stringify(s)); } catch (e) {} }
 function renderScore() {
 if (!scoreEl) return;
 const s = readScore();
 scoreEl.textContent = '胜 ' + s.w + ' · 负 ' + s.l + ' · 平 ' + s.d;
 }
-function readBest() { try { return JSON.parse(localStorage.getItem(BEST_KEY) || '{}'); } catch (e) { return {}; } }
-function writeBest(b) { try { localStorage.setItem(BEST_KEY, JSON.stringify(b)); } catch (e) {} }
+function readBest() { const raw = lsGet(keyBest()) || lsGet('xy-home-v2:snake-best'); try { return JSON.parse(raw || '{}'); } catch (e) { return {}; } }
+function writeBest(b) { try { localStorage.setItem(keyBest(), JSON.stringify(b)); } catch (e) {} }
 function renderBest() {
 if (!bestEl) return;
 const b = readBest();
@@ -76642,6 +76742,7 @@ if (wallBtn) wallBtn.classList.toggle('on', state.flags.wall);
 if (safeBtn) safeBtn.classList.toggle('on', state.flags.safe);
 behavior = { current: null, until: 0, stepLeft: 0, cooldowns: {}, targetFood: null, speedUp: false, speedUpUntil: 0 };
 particles = []; floaters = [];
+if (canvas) canvas.classList.remove('snk-die', 'snk-die-red');   // 清上一局死亡反馈
 maintainFood();
 }
 function startGame(diff) {
@@ -77014,8 +77115,18 @@ writeScore(s);
 updateBest(result);
 renderScore();
 renderBest();
-showResult(d);
+try {
+canvas.classList.remove('snk-die', 'snk-die-red');
+void canvas.offsetWidth;
+canvas.classList.add('snk-die');
+if (!state.player.alive) canvas.classList.add('snk-die-red');
+} catch (e) {}
 if (window.sendSnakeResult) window.sendSnakeResult(d);
+const _endState = state;
+setTimeout(function () {
+if (state !== _endState || _endState.status !== 'over') return;
+showResult(d);
+}, 700);
 }
 function showResult(d) {
 if (!resultEl) return;
@@ -77154,8 +77265,8 @@ render(0);
 function canSave(s) { return s && s.status === 'playing'; }
 function saveGame() {
 try {
-if (!canSave(state)) { localStorage.removeItem(SAVE_KEY); return; }
-localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+if (!canSave(state)) { localStorage.removeItem(keySaved()); return; }
+localStorage.setItem(keySaved(), JSON.stringify(state));
 } catch (e) {}
 }
 function validCoord(p, w, h) { return p && p.x >= 0 && p.x < w && p.y >= 0 && p.y < h; }
@@ -77170,7 +77281,7 @@ return true;
 }
 function loadSaved() {
 try {
-const raw = localStorage.getItem(SAVE_KEY);
+const raw = lsGet(keySaved());
 if (!raw) return null;
 const s = JSON.parse(raw);
 if (!s || s.status !== 'playing') return null;
@@ -77178,7 +77289,7 @@ if (!validState(s)) { clearSaved(); return null; }
 return s;
 } catch (e) { return null; }
 }
-function clearSaved() { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} }
+function clearSaved() { try { localStorage.removeItem(keySaved()); } catch (e) {} }
 function resumeGame() {
 const s = loadSaved();
 if (!s) return false;
@@ -77207,7 +77318,14 @@ if (!panel) return;
 if (window.closeAvlib) window.closeAvlib();
 const mp = $('chat-more-panel'); if (mp) mp.hidden = true;
 const nameEl = $('snake-partner-name');
-if (nameEl) nameEl.textContent = (typeof localStorage !== 'undefined' && localStorage.getItem(PARTNER_KEY)) || 'TA';
+if (nameEl) {
+let pname = 'TA';
+try {
+const nst = window.activeStore && window.activeStore();
+pname = (nst && (nst.get('cs-lbl-partner') || nst.get('lbl-partner'))) || pname;
+} catch (e) {}
+nameEl.textContent = pname;
+}
 panel.hidden = false;
 renderScore();
 renderBest();   // 最长纪录行要先落到 DOM：toggleFs 会按当时可见的兄弟块量画布，晚一行就把按钮顶出屏
@@ -77723,6 +77841,7 @@ s.lives--;
 s.combo = 0;
 s.rallyHits = 0;
 sfxLose();
+s.shakeUntil = now + 300; s.shakeMag = 5;   // 丢命震屏（render 内 300ms 线性衰减随机位移）
 if (b.x <= W / 2) trySay(s, 'nearmiss', 0.22, now);
 if (s.lives <= 0) {
 endGame(s, now);
@@ -77790,6 +77909,10 @@ let _bgGrad = null, _rowGrads = null;
 function render(s, now) {
 ctx.save();
 ctx.clearRect(0, 0, W, H);
+if (now < (s.shakeUntil || 0)) {
+const _sk = (s.shakeUntil - now) / 300 * (s.shakeMag || 5);
+ctx.translate((Math.random() * 2 - 1) * _sk, (Math.random() * 2 - 1) * _sk);
+}
 if (!_bgGrad) {
 _bgGrad = ctx.createLinearGradient(0, 0, 0, H);
 _bgGrad.addColorStop(0, '#0c1120');
@@ -77797,7 +77920,7 @@ _bgGrad.addColorStop(0.55, '#101625');
 _bgGrad.addColorStop(1, '#161e34');
 }
 ctx.fillStyle = _bgGrad;
-ctx.fillRect(0, 0, W, H);
+ctx.fillRect(-9, -9, W + 18, H + 18);
 ctx.fillStyle = '#cfe0ff';
 for (const st of STARS) {
 ctx.globalAlpha = 0.2 + 0.16 * Math.sin(now * st.s + st.p);
@@ -79111,6 +79234,18 @@ face.className = 'ms-face';
 cell.appendChild(face);
 boardEl.appendChild(cell);
 }
+for (let i = 0; i < N(); i++) {
+const r = Math.floor(i / st.n), c = i % st.n;
+const cell = boardEl.children[i];
+cell.classList.add('ms-born');
+cell.style.animationDelay = Math.min((r + c) * 26, 480) + 'ms';
+cell.addEventListener('animationend', function h(e) {
+if (e.target !== cell || e.animationName !== 'msborn') return;
+cell.classList.remove('ms-born');
+cell.style.animationDelay = '';
+cell.removeEventListener('animationend', h);
+});
+}
 fitBoard();
 }
 function fitBoard() {
@@ -79240,6 +79375,7 @@ s.digs[byYou ? 'you' : 'ta']++;
 renderCell(idx, true);
 boardEl.classList.remove('ms-quake'); void boardEl.offsetWidth; boardEl.classList.add('ms-quake');
 updateHud();
+if (livesEl) { livesEl.classList.remove('ms-hurt'); void livesEl.offsetWidth; livesEl.classList.add('ms-hurt'); }
 sfxBoom();
 const who = byYou ? '你' : T('TA');
 let msg = '💥 ' + who + '踩到了雷！' + heartsStr();
@@ -79390,11 +79526,31 @@ body +=
 }
 if (s.coinEarned > 0) body += '<div class="pong-end-stat">🪙 我的心意币 +¥' + (s.coinEarned / 100).toFixed(2) + '</div>';
 body += '<div class="pong-end-stat ms-quote">「' + (win ? pick(['一起找完了。', '我们配合得不错嘛。', '全部清完啦，开心。']) : pick(['差一点点而已，再来！', '下次小心一点就好。'])) + '」</div>';
+let showDelay = overlayDelay || 0;
+if (!win) {
+const gen = st;
+let rvN = 0, rvMax = 0;
+for (let i = 0; i < N(); i++) {
+if (!s.mine[i] || s.boom[i] || s.open[i] || s.flag[i]) continue;
+const dly = 140 + rvN * 90;
+rvN++; if (dly > rvMax) rvMax = dly;
+setTimeout(() => {
+if (st !== gen) return;
+const cell = cellAt(i);
+if (!cell) return;
+cell.classList.add('ms-reveal');
+const face = cell.firstChild;
+face.textContent = '💣';
+face.classList.remove('ms-pop'); void face.offsetWidth; face.classList.add('ms-pop');
+}, Math.round(dly * fastMul()));
+}
+if (rvN) showDelay = Math.max(showDelay, rvMax + 280);
+}
 const showResult = function () {
 if (!st || !st.over || panel.hidden) return;
 showOverlay(win ? '💣 合作完成' : '💥 差一点', body, '再来一次');
 };
-if (overlayDelay) setTimeout(showResult, Math.round(overlayDelay * fastMul()));
+if (showDelay) setTimeout(showResult, Math.round(showDelay * fastMul()));
 else showResult();
 if (startBtn) startBtn.textContent = '再来一次';
 if (endBtn) endBtn.hidden = false;
@@ -82346,12 +82502,34 @@ return grid;
 }
 function reshuffle() {
 let flat = [];
-for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) flat.push(st.grid[r][c]);
+for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) flat.push({ v: st.grid[r][c], id: pidGrid[r][c] });
 for (let tries = 0; tries < 80; tries++) {
 shuffle(flat);
-const g = [];
-for (let r = 0; r < N; r++) g.push(flat.slice(r * N, (r + 1) * N));
-if (!findMatches(g) && allMoves(g).length > 0) { st.grid = g; renderBoard(); return true; }
+const g = [], ids = [];
+for (let r = 0; r < N; r++) {
+g.push(flat.slice(r * N, (r + 1) * N).map((x) => x.v));
+ids.push(flat.slice(r * N, (r + 1) * N).map((x) => x.id));
+}
+if (!findMatches(g) && allMoves(g).length > 0) {
+st.grid = g;
+for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+const id = ids[r][c];
+pidGrid[r][c] = id;
+const p = pieces.get(id);
+if (p) {
+p.el.style.transitionDuration = '0.32s';
+p.el.style.transitionTimingFunction = 'cubic-bezier(.45,.05,.35,1.2)';
+layoutTile(p.el, r, c);
+const gl = p.el._g;
+if (gl) { gl.classList.remove('m3-shuf'); void gl.offsetWidth; gl.classList.add('m3-shuf'); }
+}
+}
+setTimeout(() => {
+pieces.forEach((p) => { p.el.style.transitionDuration = ''; p.el.style.transitionTimingFunction = ''; });
+}, animMs(360));
+updateInfo();
+return true;
+}
 }
 renderBoard();
 return false;
@@ -82388,7 +82566,7 @@ el.style.width = cellPx + 'px';
 el.style.height = cellPx + 'px';
 el.style.fontSize = Math.round(cellPx * 0.54) + 'px';
 el.style.transform = 'translate(' + (c * (cellPx + GAP)) + 'px,' + ((fromRow != null ? fromRow : r) * (cellPx + GAP)) + 'px)';
-if (fallDist) el.style.transitionDuration = fallSec(fallDist) + 's';
+if (fallDist) { el.style.transitionDuration = fallSec(fallDist) + 's'; el.style.transitionTimingFunction = 'cubic-bezier(.55,0,.75,.45)'; }
 el._r = r; el._c = c;
 boardEl.appendChild(el);
 pieces.set(id, { v: v, el: el });
@@ -82429,8 +82607,8 @@ function swapPid(a, b) {
 const ia = pidGrid[a[0]][a[1]], ib = pidGrid[b[0]][b[1]];
 pidGrid[a[0]][a[1]] = ib; pidGrid[b[0]][b[1]] = ia;
 const pa = pieces.get(ia), pb = pieces.get(ib);
-if (pa) { pa.el.style.transitionDuration = ''; layoutTile(pa.el, b[0], b[1]); }
-if (pb) { pb.el.style.transitionDuration = ''; layoutTile(pb.el, a[0], a[1]); }
+if (pa) { pa.el.style.transitionDuration = ''; pa.el.style.transitionTimingFunction = 'cubic-bezier(.3,1.35,.55,1)'; layoutTile(pa.el, b[0], b[1]); }
+if (pb) { pb.el.style.transitionDuration = ''; pb.el.style.transitionTimingFunction = 'cubic-bezier(.3,1.35,.55,1)'; layoutTile(pb.el, a[0], a[1]); }
 }
 function popClear(cells) {
 for (let i = 0; i < cells.length; i++) {
@@ -82445,6 +82623,23 @@ p.el.classList.remove('m3-sel', 'm3-hint');
 p.el.classList.add('m3-pop');
 setTimeout(((el) => () => { if (el.parentNode) el.parentNode.removeChild(el); })(p.el), animMs(POP_MS) + 60);
 }
+}
+function floatScore(cells, pts) {
+if (!cells || !cells.length || !pts) return;
+let sr = 0, sc = 0;
+cells.forEach((p) => { sr += p[0]; sc += p[1]; });
+const el = document.createElement('div');
+el.className = 'm3-float';
+el.textContent = '+' + pts;
+el.style.left = ((sc / cells.length + 0.5) * (cellPx + GAP)) + 'px';
+el.style.top = ((sr / cells.length + 0.5) * (cellPx + GAP)) + 'px';
+el.style.fontSize = Math.max(14, Math.round(cellPx * 0.42)) + 'px';
+boardEl.appendChild(el);
+setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, animMs(780));
+}
+function quakeBoard() {
+boardEl.classList.remove('m3-quake'); void boardEl.offsetWidth; boardEl.classList.add('m3-quake');
+setTimeout(() => { boardEl.classList.remove('m3-quake'); }, animMs(380));
 }
 function collapseAnimated() {
 let maxDist = 1;
@@ -82461,6 +82656,7 @@ if (p) {
 const dist = write - r;
 if (dist > maxDist) maxDist = dist;
 p.el.style.transitionDuration = fallSec(dist) + 's';
+p.el.style.transitionTimingFunction = 'cubic-bezier(.55,0,.75,.45)';
 layoutTile(p.el, write, c);
 }
 }
@@ -82518,6 +82714,18 @@ hideOverlay();
 buildBoard();
 fitBoard();
 updateInfo();
+st.lock = true;
+boardEl.querySelectorAll('.m3-tile').forEach((el) => {
+const gl = el._g;
+if (gl) { gl.style.animationDelay = ((el._r + el._c) * 35) + 'ms'; gl.classList.add('m3-deal'); }
+});
+setTimeout(() => {
+boardEl.querySelectorAll('.m3-tile').forEach((el) => {
+const gl = el._g;
+if (gl) { gl.classList.remove('m3-deal'); gl.style.animationDelay = ''; }
+});
+st.lock = false;
+}, animMs(35 * (2 * N - 2) + 260));
 st.turn = 1;
 setStatus(dot(1) + '你的回合：点一格再点相邻一格交换');
 }
@@ -82580,6 +82788,7 @@ gained += pts;
 st.score += pts;
 if (byMe) st.myScore += pts; else st.taScore += pts;
 popClear(kept ? cells.filter((p) => p[0] !== kept[0] || p[1] !== kept[1]) : cells);
+floatScore(cells, pts);
 if (kept) {
 const el = tileAt(kept[0], kept[1]);
 if (el) {
@@ -82587,7 +82796,7 @@ setGlyph(el, st.grid[kept[0]][kept[1]]);
 el.classList.remove('m3-born'); void el.offsetWidth; el.classList.add('m3-born');
 }
 }
-if (hadBoom) sfxBoom();
+if (hadBoom) { sfxBoom(); quakeBoard(); }
 sfxClear(chain);
 if (chain >= 3) taSay('连锁 ×' + chain + (byMe ? '，好强！' : '，我也行吧'));
 setTimeout(() => {
@@ -82625,6 +82834,7 @@ const pts = cells.length;
 st.score += pts;
 if (byMe) st.myScore += pts; else st.taScore += pts;
 popClear(cells);
+floatScore(cells, pts);
 setTimeout(() => {
 const maxDist = collapseAnimated();
 setTimeout(() => {
@@ -82913,6 +83123,7 @@ findMatches: findMatches,
 allMoves: allMoves,
 simulateClear: simulateClear,
 clearWithSpecials: clearWithSpecials,
+reshuffle: reshuffle,
 colorOf: colorOf,
 BOMB_BASE: BOMB_BASE,
 RAINBOW: RAINBOW,
@@ -89726,4 +89937,4 @@ lastHeal: his
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mtxo9guf -->
+<!-- __MOCHI_EOF__ mtxoeugv -->

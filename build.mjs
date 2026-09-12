@@ -941,7 +941,7 @@ const FIX_SENTINELS = [
   { name: '#323 词典拼字双形态选择·qs-one 单气泡/qs-multi 逐卡混合掷币（删则退回单一形态＝可开关混合失效；双关兜底逐卡 else one=false）', file: 'js/quote-spell.js', needle: "if (oneOn && multiOn) one = Math.random() < 0.5;" },
   { name: '#330 逐卡连发受回复条数最多上限·完整字卡连发≤reply-max（删则完整字卡一次刷 5 条＝超出联系人回复条数设置）', file: 'js/quote-spell.js', needle: 'if (want > rmax) want = rmax;' },
   { name: '#310 qs-cc 旧默认 1→0 迁移（删则存量桌面普通字卡继续被抽去拼字截断＝用户报障回流）', file: 'js/reply-settings.js', needle: "s.set('reply-qs-cc', '0'); changed = true; }" },
-  { name: '#310b/325/348 逐卡连发每条气泡挂「词典」tag（删则多气泡无来源标注；#333 曾反转为「词典拼字」，#348 用户定稿回「词典」）', file: 'js/chat.js', needle: "silent: si > 0 ? true : silent,\ntag: '词典'," },
+  { name: '#310b/325/348 逐卡连发每条气泡挂「词典」tag（删则多气泡无来源标注；#333 曾反转为「词典拼字」，#348 用户定稿回「词典」）', file: 'js/chat.js', needle: "silent: si > 0 ? true : silent,\ntag: dictTag," },
   // ==== 2026-09-11 #317 梦角自由造句（梦角语料抽卡→截断几字重造句→入库自定义字卡「梦角自由造句」分类）====
   { name: '#317 梦角自由造句抽句门·mjf-en/mjf-prob 生效（删则开关概率失效，梦角永不造句）', file: 'js/dream-free.js', needle: "if (!c || c['mjf-en'] !== 1) return null;" },
   { name: '#327 撤回式截断·词间隙切尾前缀成新句（删则造句变回随机截补＝句子离奇，用户明确否决）', file: 'js/dream-free.js', needle: "const out = toks.slice(0, gi).join('').replace(/[，、,\\s]+$/, '');" },
@@ -992,8 +992,6 @@ const FIX_SENTINELS = [
   { name: '#334 跳转解钉（删则钉住态下跳到旧区被 #162 图片 onload 补滚拽回底部＝搜索/引用跳转「点了没反应」）', file: 'js/chat.js', needle: 'unpinChatAndAnchor(); // FIX 2026-09-11 #334' },
   { name: '#334 showTyping 复写守钉（删则用户读历史时「对方正在输入」把视图无条件拽回底部并重新钉住）', file: 'js/chat.js', needle: 'setTimeout(() => { if (chatPinnedBottom) scrollChatBottom(); }, 60);' },
   { name: '#334 hideTyping 复写守钉（删则回复落地收打字态时把已跳到旧区的视图拽回底部）', file: 'js/chat.js', needle: 'if (chatPinnedBottom) scrollChatBottom(); // FIX 2026-09-11 #334 同 showTyping' },
-  // ==== 2026-09-12 #333 词典拼字 tag 旧文案「词典」存量 chip 渲染映射为「词典拼字」（#325→#333 规格两改，历史消息 chip 统一显示，不动存储数据）====
-  { name: '#333 词典旧文案渲染映射（删则历史拼字消息左下角仍显示旧「词典」tag，与新「词典拼字」并存两种叫法）', file: 'js/chat.js', needle: "const _tagShow = md.tag === '词典拼字' ? '词典' : md.tag;" },
   // ==== 2026-09-11 #337 安卓键盘盖输入栏（荣耀畅玩80Pro 自带浏览器，多机型同族）：键盘弹出时 vv 读数漂移/不缩 → 读数判据 _aProvCheck 永不命中 + 58% 盲猜对高占比输入法停靠不足。三件套：①可见性触发停靠（聚焦>900ms+手势武装+实测元素底边低于可视区底边=被盖才动作，与内核读数无关）②VirtualKeyboard 实测尺（overlaysContent=true+geometrychange 按 base−kbH 精停，特性探测，_aProvClear 归还）③欠深自纠（停靠后仍被盖每 250ms 再收 8% 基准至露出/34% 地板）。行为断言 tools/verify-kb-cover-dock.mjs ====
   { name: '#337 键盘可见性触发停靠（删则读数漂移内核输入栏整行留在键盘下=畅玩80Pro 族无法聊天）', file: 'js/mobile-adapt.js', needle: 'if (_r && _r.height > 0 && _aCoverBottom(tgt) > _visBottom + 12) _aProvDock();' },
   { name: '#337 VirtualKeyboard 实测尺拉起（删则悬浮键盘只能 58% 盲猜，高占比输入法停靠不足仍被盖）', file: 'js/mobile-adapt.js', needle: 'vk.overlaysContent = true;' },
@@ -1030,8 +1028,17 @@ const FIX_SENTINELS = [
   { name: '#348 自制拍品存储（删则 ➕ 添加的拍品无处安放、奖池不合并）', file: 'js/auction.js', needle: ':auction-custom' },
   { name: '#348 自定义出价（删＝长按无反应只能三档出价）', file: 'js/auction.js', needle: 'customBidModal(' },
   { name: '#348 TA 按行为状态差异化跟价台词（改回固定池＝四状态语气趋同）', file: 'js/auction.js', needle: 'pick(m.calls)' },
+  // ==== 2026-09-12 #349 游戏面板跨桌面串名串档：snake 五个存储键（昵称/战绩/最高分/存档）与 pong 存档键都是【模块加载时冻结】的桌面 cid——加载时在 A 桌面、切到 B 桌面后开面板读写仍是 A 的键（任何机型必现）。改动态 activePrefix()/activeStore（同其余游戏面板既有模式）====
+  { name: '#349 贪吃蛇标题名走 activeStore 动态命名空间（改回裸读冻结 PARTNER_KEY＝切桌面标题串名）', file: 'js/snake-game.js', needle: "nst.get('cs-lbl-partner') || nst.get('lbl-partner')" },
+  { name: '#349 贪吃蛇战绩/最高分/存档键动态取桌面（改回加载时冻结 const PREFIX＝切桌面串档）', file: 'js/snake-game.js', needle: "function keyScore() { return prefix() + ':snake-score'; }" },
+  { name: '#349 乒乓存档键动态取桌面（改回顶层 const SAVE_KEY 冻结 cid＝切桌面串档）', file: 'js/pong.js', needle: "function saveKey() { return (window.activePrefix && window.activePrefix() || 'xy-home-v2') + ':pong-saved'; }" },
   // ==== 2026-09-12 #350 词典页整页滚动：v3.36.x 场景开关/概率块插到列表上方后漏加 #239 同款规则，列表被 flex 挤成 6~29px＝「词典点进去上下滑不了」（多机型）====
   { name: '#350 词典页整页滚动（删则词典列表被设置块挤成几像素/屏外＝页面滑不动，#239 同族回归）', file: 'css/chat-pages.css', needle: '#page-dict-cards #d2-dict-list { flex:0 0 auto; overflow:visible; min-height:0;' },
+  { name: '#340 消消乐死锁洗牌滑动动画（删则洗牌退回整盘瞬跳重绘）', file: 'js/match3.js', needle: "p.el.style.transitionDuration = '0.32s';" },
+  // ==== 2026-09-12 #351 桌面装修图标摆放（vivo X200s/V2458A VivoBrowser 报障，多机型同现）：跨页拖动只写目标页顺序数组、启动模板把图标放回默认页且旧恢复逻辑只排「已在本格」节点＝退出重进图标回原位；新增页无 .app-grid＝放进去的图标只能独立竖排无排版不可调位。修复：启动跨网格认领归位（非模板默认页认领胜出+脏条目自愈清盘）、拖动/装修库同步清源页数组、新页自带 pg* 网格、独立图标可拖入网格 ====
+  { name: '#351 跨页图标启动归位（删则退出重进图标回原位——顺序数组跨网格认领+非默认页裁决）', file: 'js/personalize.js', needle: 'owner[k] === ICON_HOME_GRID[k] && gid !== ICON_HOME_GRID[k]' },
+  { name: '#351 跨页拖动清源页顺序数组（删则源页脏条目残留→启动认领回原位）', file: 'js/personalize.js', needle: "store.set('app-icon-order-' + srcGrid.dataset.app" },
+  { name: '#351 新页自带图标网格（删则新页图标只能独立竖排、无排版不可调位）', file: 'js/personalize.js', needle: "pgGrid.setAttribute('data-desk-widget', 'pg' + i)" },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
