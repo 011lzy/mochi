@@ -160,6 +160,7 @@ ok(cc.includes("const CC_FUNC_KEYS = ['fish', 'eat', 'period', 'water', 'garden'
 ok(chat.includes("tag: '梦角自由造句'") && chat.includes('window.dreamFreePick && window.dreamFreePick(c)'), 'D3 chat.js replyOnce 接入+tag');
 ok(rs.includes("'mjf-en': 0, 'mjf-prob': 20,") && rs.includes("'mjf-style': 1,"), 'D4 reply-settings DEFAULTS（mjf 三键）');
 ok(tpl.includes('id="mjf-en"') && tpl.includes('data-k="mjf-prob"') && tpl.includes('data-k="mjf-style"'), 'D5 template 回复设置「梦角自由造句」组（开关+概率+手法三选一）');
+ok(tpl.includes('id="rc-en"') && tpl.includes('id="qs-noLimit"') && rs.includes('"rc-en": 1'.replace(/"/g, String.fromCharCode(39))) && rs.includes('"qs-noLimit": 1'.replace(/"/g, String.fromCharCode(39))), 'D5c #351 撤回补发总开关+逐卡不受限开关（template+DEFAULTS 默认开）');
 ok(rs.includes('梦角自由造句开启失败') && rs.includes('梦角自由造句已开启') && rs.includes('mjf-probe'), 'D5b #324 开关切换 toast 提示（成功/失败）+存储探针在位');
 ok(tpl.includes('data-type="mjfree"'), 'D6 template 字卡库「梦角自由造句」tab');
 

@@ -86,16 +86,22 @@ got = null;
 for (let i = 0; i < 50 && !got; i++) got = pick({ 'qs-en': 1, 'qs-prob': 100, 'qs-cc': 1 });
 ok(got && Array.isArray(got.segs) && got.segs.length >= 2, 'C7 qs-cc=1 混用自定义字卡池同样可抽中');
 ok(got && got.segs.every(sg => typeof sg === 'string' && sg.trim()), 'C8 混池抽中的每张卡也是完整内容（不拆分）');
-// #330 逐卡连发受「回复条数最多」上限：reply-max=2、py 2~5 → 逐卡形态恒 ≤2；单气泡仍 2~5
+// #330→#351 默认（qs-noLimit=1）逐卡不受 reply-max 限：恒按 py 2~5；noLimit=0 时收口到 reply-max
 let maxMulti = 0, maxOne2 = 0;
 for (let i = 0; i < 100; i++) {
-  const rm = pick({ 'qs-en': 1, 'qs-prob': 100, 'qs-cc': 0, 'py-min': 2, 'py-max': 5, 'reply-max': 2, 'qs-one': 0, 'qs-multi': 1 });
+  const rm = pick({ 'qs-en': 1, 'qs-prob': 100, 'qs-cc': 0, 'py-min': 2, 'py-max': 5, 'reply-max': 2, 'qs-one': 0, 'qs-multi': 1, 'qs-noLimit': 0 });
   if (rm && rm.one === false) maxMulti = Math.max(maxMulti, rm.segs.length);
   const ro = pick({ 'qs-en': 1, 'qs-prob': 100, 'qs-cc': 0, 'py-min': 2, 'py-max': 5, 'reply-max': 2, 'qs-one': 1, 'qs-multi': 0 });
   if (ro && ro.one === true) maxOne2 = Math.max(maxOne2, ro.segs.length);
 }
-ok(maxMulti <= 2 && maxMulti >= 2, 'C9 #330 逐卡连发受回复条数最多上限（reply-max=2 → 恒 2，实测 ' + maxMulti + '）');
+ok(maxMulti <= 2 && maxMulti >= 2, 'C9 #351 noLimit=0 时逐卡受回复条数最多上限（reply-max=2 → 恒 2，实测 ' + maxMulti + '）');
 ok(maxOne2 === 5, 'C10 #330 单气泡形态不受 reply-max 限（仍拼满 2~5，实测最大 ' + maxOne2 + '）');
+let maxFree = 0;
+for (let i = 0; i < 100; i++) {
+  const rf = pick({ 'qs-en': 1, 'qs-prob': 100, 'qs-cc': 0, 'py-min': 2, 'py-max': 5, 'reply-max': 2, 'qs-one': 0, 'qs-multi': 1 });
+  if (rf && rf.one === false) maxFree = Math.max(maxFree, rf.segs.length);
+}
+ok(maxFree === 5, 'C11 #351 默认 noLimit=1 逐卡不受 reply-max 限（仍拼满 2~5，实测最大 ' + maxFree + '）');
 
 // —— D 接线（源码级）——
 const chat = readFileSync(join(root, 'src/js/chat.js'), 'utf8');
@@ -108,7 +114,7 @@ ok(rs.includes("'qs-en': 1, 'qs-prob': 25, 'qs-cc': 0, 'qs-one': 1,"), 'D2 reply
 ok((rs.match(/'qs-en', 'qs-cc', 'qs-one'/g) || []).length === 3, 'D3 三处开关清单都含 qs-en/qs-cc/qs-one');
 ok(rs.includes('migrateQsCcOld()') && rs.includes("s.set('reply-qs-cc', '0')") && rs.includes("'reply-qs-cc-migrated'"), 'D3b qs-cc 旧默认 1→0 一次性迁移在位');
 ok(tpl.includes('id="qs-en"') && tpl.includes('data-k="qs-prob"') && tpl.includes('id="qs-cc"') && tpl.includes('id="qs-one"'), 'D4 template.html 回复设置「词典拼字」组四控件');
-ok(chat.includes('dictTag') && chat.includes("? '词典' : '词典拼字'") && chat.includes('rep.spell.join(\' \')'), 'D5 chat.js 单气泡形态：空格连卡+#349 按字卡长度定 tag（词典/词典拼字）');
+ok(chat.includes('dictTag') && chat.includes("? '词典' : '词典拼字'") && chat.includes("tag: '词典逐卡连发'") && chat.includes('rep.spell.join(\' \')'), 'D5 chat.js tag：单气泡按字卡长度（词典/词典拼字）+逐卡连发固定「词典逐卡连发」（#350）');
 ok(tpl.includes('id="page-dict-cards"') && tpl.includes('id="d2-dict-list"'), 'D6 词典独立页在位（page-dict-cards，并行 #316 批重构）');
 ok(bm.includes("'default-cards.js', 'quote-spell.js'"), 'D7 build.mjs jsFiles 已登记 quote-spell.js');
 

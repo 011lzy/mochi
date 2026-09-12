@@ -89,14 +89,13 @@
       else if (multiOn) one = false;
       else one = false;
       // 抽卡条数：复用「多字卡回复」设置 py-min/py-max（默认 2~5 张）；
-      // 抽卡条数：复用「多字卡回复」设置 py-min/py-max（默认 2~5 张）
+      // #350：逐卡连发形态不受「回复条数最多」reply-max 限制（用户定稿默认行为）——
+      // 旧 #330 上限逻辑保留为可切换（qs-noLimit 默认 1=不受限），单气泡形态本就只发一条
       const pmin = Math.max(1, Math.min(10, Number(c['py-min']) || 2));
       const pmax = Math.max(pmin, Math.min(10, Number(c['py-max']) || 5));
-      // #330 逐卡连发形态（完整整条字卡一条一条发）受「回复条数最多」reply-max 上限约束——
-      // 完整字卡连发多条＝一次普通多回复，不该超过联系人「回复条数最多」；单气泡形态
-      // 只发一条消息不受此限（条数=拼进同一气泡的卡数，仍按 py-min/py-max）
       let want = pmin + Math.floor(Math.random() * (pmax - pmin + 1));
-      if (!one) {
+      if (!one && c['qs-noLimit'] === 0) {
+        // 仅当用户手动关闭「逐卡不受条数限制」时才收口到 reply-max
         const rmax = Math.max(pmin, Math.min(20, Number(c['reply-max']) || 2));
         if (want > rmax) want = rmax;
       }

@@ -3780,8 +3780,8 @@ setTimeout(() => { try { if (window.dreamFreeSave && mjf.text) window.dreamFreeS
 }
 }
 let m = null;
-// #349 tag 按抽到的字卡长度区分：全部字卡 >4 字（完整句子）→「词典」；含 1~4 字短卡 →「词典拼字」
-//（两种本质都是拼字卡；短卡拼在一起更像拼字，长句整卡更像引用词典）
+// #349/#350 tag 规则：单气泡＝按抽到的字卡长度（全部 >4 字完整句→「词典」；含 1~4 字短卡→「词典拼字」）；
+// 多回复逐卡连发＝固定「词典逐卡连发」（每条气泡都带，一眼区分这是逐卡连发玩法）
 const dictTag = (rep.spell && rep.spell.every(t => (t || '').length > 4)) ? '词典' : '词典拼字';
 if (rep.spell && rep.spellOne) {
 m = addIn(rep.spell.join(' '), {
@@ -3809,9 +3809,9 @@ qidx: (si === 0 && quote) ? quoteIdx : undefined,
 type: 'text',
 parts: si === rep.spell.length - 1 ? rep.parts : null,
 silent: si > 0 ? true : silent,
-// #310b/#349：逐卡连发的每条气泡挂同一「词典/词典拼字」tag（按抽到的字卡长度定，
+// #350：逐卡连发的每条气泡挂「词典逐卡连发」tag（与单气泡的词典/词典拼字区分，
 // tagNoDup 不重复正文，chip 随消息持久化重进聊天仍在）
-tag: dictTag,
+tag: '词典逐卡连发',
 tagNoDup: true
 });
 }
@@ -3898,7 +3898,7 @@ if (hit(c['rc-prob'])) {
 setTimeout(() => {
 if (!sameCid()) return;
 partialRetractMsg(m, 'in');
-if (hit(c['rc-refix'])) {
+if (c['rc-en'] !== 0 && hit(c['rc-refix'])) {
 showTyping();
 setTimeout(() => { if (!sameCid()) return; hideTyping(); replyOnce(c, null); }, 600);
 }
@@ -4256,7 +4256,7 @@ if (willRetract && m) {
 setTimeout(() => {
 if (!sameAutoCid()) return; // FIX #187
 retractMsg(m, 'in');
-if (hit(c['rc-refix'])) {
+if (c['rc-en'] !== 0 && hit(c['rc-refix'])) {
 showTyping();
 setTimeout(() => { if (!sameAutoCid()) return; hideTyping(); addIn(pick(pool.text) || '…', { initiative: true }); }, 600);
 }
