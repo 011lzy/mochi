@@ -2800,8 +2800,8 @@ mm.className = 'msg-moods';
 const recalled = [];
 rec.mood.forEach((md, mi) => {
 if (rec.retractedMood && rec.retractedMood.indexOf(mi) >= 0) { recalled.push(md); return; }
-      // #333 旧数据兼容：词典拼字 tag 旧文案「词典」存量 chip 渲染时统一显示「词典拼字」（只改显示，不动存储）
-      const _tagShow = md.tag === '词典' ? '词典拼字' : md.tag;
+      // #333→#348 旧数据兼容（方向反转，用户定稿 tag=「词典」）：历史存量「词典拼字」chip 渲染时统一显示「词典」（只改显示，不动存储）
+      const _tagShow = md.tag === '词典拼字' ? '词典' : md.tag;
       const mt = escTxt(T(_tagShow)), ml = escTxt(T(md.label));
       // v3.16.x：来源标签 chip（opts.tag 生成）的 label 恒等于气泡正文，不再重复渲染右侧文案，
       // 否则「字卡一行 + 标签行同文」内容重复（摸鱼抓包等）；真实情绪字卡 label≠正文不受影响
@@ -3788,7 +3788,7 @@ qidx: quote ? quoteIdx : undefined,
 type: 'text',
 parts: rep.parts,
 silent: silent,
-tag: '词典拼字',
+tag: '词典',
 tagNoDup: true
 });
 } else if (rep.spell) {
@@ -3808,7 +3808,7 @@ parts: si === rep.spell.length - 1 ? rep.parts : null,
 silent: si > 0 ? true : silent,
 // #310b：逐词连发的每条断续气泡同样挂「词典拼字」来源 tag（与单气泡形态一致，
 // 用户能看出这一串是拼字；tagNoDup 不重复正文，chip 随消息持久化重进聊天仍在）
-tag: '词典拼字',
+tag: '词典',
 tagNoDup: true
 });
 }

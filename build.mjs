@@ -941,7 +941,7 @@ const FIX_SENTINELS = [
   { name: '#323 词典拼字双形态选择·qs-one 单气泡/qs-multi 逐卡混合掷币（删则退回单一形态＝可开关混合失效；双关兜底逐卡 else one=false）', file: 'js/quote-spell.js', needle: "if (oneOn && multiOn) one = Math.random() < 0.5;" },
   { name: '#330 逐卡连发受回复条数最多上限·完整字卡连发≤reply-max（删则完整字卡一次刷 5 条＝超出联系人回复条数设置）', file: 'js/quote-spell.js', needle: 'if (want > rmax) want = rmax;' },
   { name: '#310 qs-cc 旧默认 1→0 迁移（删则存量桌面普通字卡继续被抽去拼字截断＝用户报障回流）', file: 'js/reply-settings.js', needle: "s.set('reply-qs-cc', '0'); changed = true; }" },
-  { name: '#310b/325/333 逐卡连发每条气泡挂「词典拼字」tag（删则多气泡无来源标注；#325 曾统一为「词典」，#333 用户规格改为「词典拼字」）', file: 'js/chat.js', needle: "silent: si > 0 ? true : silent,\ntag: '词典拼字'," },
+  { name: '#310b/325/348 逐卡连发每条气泡挂「词典」tag（删则多气泡无来源标注；#333 曾反转为「词典拼字」，#348 用户定稿回「词典」）', file: 'js/chat.js', needle: "silent: si > 0 ? true : silent,\ntag: '词典'," },
   // ==== 2026-09-11 #317 梦角自由造句（梦角语料抽卡→截断几字重造句→入库自定义字卡「梦角自由造句」分类）====
   { name: '#317 梦角自由造句抽句门·mjf-en/mjf-prob 生效（删则开关概率失效，梦角永不造句）', file: 'js/dream-free.js', needle: "if (!c || c['mjf-en'] !== 1) return null;" },
   { name: '#327 撤回式截断·词间隙切尾前缀成新句（删则造句变回随机截补＝句子离奇，用户明确否决）', file: 'js/dream-free.js', needle: "const out = toks.slice(0, gi).join('').replace(/[，、,\\s]+$/, '');" },
@@ -957,6 +957,7 @@ const FIX_SENTINELS = [
   // ==== 2026-09-12 #340 消消乐动画（用户报「没有真消消乐动画很突兀」）：棋子层+transform 合成器过渡，交换滑动/消除爆开/按距离下落 ====
   { name: '#340 消消乐消除爆开动画 keyframes（删则消除无爆开、退回瞬间消失）', file: 'css/chat-pages.css', needle: '@keyframes m3-popout' },
   { name: '#340 消消乐结算动画循环按距离等待（删则下落不等待、整盘退回瞬跳重绘）', file: 'js/match3.js', needle: 'animMs(FALL_MS)' },
+  { name: '#340 消消乐死锁洗牌滑动动画（删则洗牌退回整盘瞬跳重绘）', file: 'js/match3.js', needle: "p.el.style.transitionDuration = '0.32s';" },
   { name: '#306 半框头部标题禁止压缩换行（删则控件多的面板标题被挤成一字一行竖排）', file: 'css/chat-main.css', needle: '.poke-card-head > span { white-space:nowrap; }' },
   { name: '#306 拍卖会「不拍了」举牌行内可见样式（删则半透明白底+白字在白卡上完全隐形＝按钮像消失）', file: 'css/chat-pages.css', needle: '.au-bids .pong-overlay-btn2 { background:rgba(0,0,0,.07); color:var(--ink,#222); }' },
   { name: '#306 小游戏共享全屏容器 .game-fs（fixed 满视口 + iOS 高度修复同款表达式，删则全屏按钮失效）', file: 'css/chat-pages.css', needle: 'height:100vh; height:min(var(--mochi-ios-h, 100dvh), 100dvh);' },
@@ -993,7 +994,7 @@ const FIX_SENTINELS = [
   { name: '#334 showTyping 复写守钉（删则用户读历史时「对方正在输入」把视图无条件拽回底部并重新钉住）', file: 'js/chat.js', needle: 'setTimeout(() => { if (chatPinnedBottom) scrollChatBottom(); }, 60);' },
   { name: '#334 hideTyping 复写守钉（删则回复落地收打字态时把已跳到旧区的视图拽回底部）', file: 'js/chat.js', needle: 'if (chatPinnedBottom) scrollChatBottom(); // FIX 2026-09-11 #334 同 showTyping' },
   // ==== 2026-09-12 #333 词典拼字 tag 旧文案「词典」存量 chip 渲染映射为「词典拼字」（#325→#333 规格两改，历史消息 chip 统一显示，不动存储数据）====
-  { name: '#333 词典旧文案渲染映射（删则历史拼字消息左下角仍显示旧「词典」tag，与新「词典拼字」并存两种叫法）', file: 'js/chat.js', needle: "const _tagShow = md.tag === '词典' ? '词典拼字' : md.tag;" },
+  { name: '#333 词典旧文案渲染映射（删则历史拼字消息左下角仍显示旧「词典」tag，与新「词典拼字」并存两种叫法）', file: 'js/chat.js', needle: "const _tagShow = md.tag === '词典拼字' ? '词典' : md.tag;" },
   // ==== 2026-09-11 #337 安卓键盘盖输入栏（荣耀畅玩80Pro 自带浏览器，多机型同族）：键盘弹出时 vv 读数漂移/不缩 → 读数判据 _aProvCheck 永不命中 + 58% 盲猜对高占比输入法停靠不足。三件套：①可见性触发停靠（聚焦>900ms+手势武装+实测元素底边低于可视区底边=被盖才动作，与内核读数无关）②VirtualKeyboard 实测尺（overlaysContent=true+geometrychange 按 base−kbH 精停，特性探测，_aProvClear 归还）③欠深自纠（停靠后仍被盖每 250ms 再收 8% 基准至露出/34% 地板）。行为断言 tools/verify-kb-cover-dock.mjs ====
   { name: '#337 键盘可见性触发停靠（删则读数漂移内核输入栏整行留在键盘下=畅玩80Pro 族无法聊天）', file: 'js/mobile-adapt.js', needle: 'if (_r && _r.height > 0 && _aCoverBottom(tgt) > _visBottom + 12) _aProvDock();' },
   { name: '#337 VirtualKeyboard 实测尺拉起（删则悬浮键盘只能 58% 盲猜，高占比输入法停靠不足仍被盖）', file: 'js/mobile-adapt.js', needle: 'vk.overlaysContent = true;' },

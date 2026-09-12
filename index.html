@@ -5838,9 +5838,18 @@ to { filter:brightness(1.25) drop-shadow(0 0 7px rgba(255,224,138,.9)); }
 #ms-overlay:not([hidden]) > :nth-child(2) { animation-delay:45ms; }
 #ms-overlay:not([hidden]) > :nth-child(3) { animation-delay:90ms; }
 @keyframes msovin { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+.ms-cell.ms-born { animation:msborn .26s ease-out both; }
+@keyframes msborn { from { opacity:0; transform:scale(.55); } to { opacity:1; transform:scale(1); } }
+.ms-tr { box-shadow:0 0 9px 2px rgba(255,196,70,.45); }
+.ms-tr .ms-face.ms-pop { animation:mstreasure .5s cubic-bezier(.2,.8,.3,1.4); }
+@keyframes mstreasure { 0% { transform:scale(.3) rotate(-14deg); opacity:.2; } 55% { transform:scale(1.35) rotate(4deg); opacity:1; } 100% { transform:scale(1); } }
+.ms-cell.ms-reveal { background:#efe0d5 !important; }
+.ms-hearts.ms-hurt { display:inline-block; animation:mshurt .5s ease-out; }
+@keyframes mshurt { 0% { transform:scale(1.45); filter:brightness(1.7); } 100% { transform:scale(1); filter:none; } }
 @media (prefers-reduced-motion: reduce) {
 .ms-face.ms-pop, .ms-shake { animation:none; }
 .ms-cell.ms-boom .ms-face.ms-pop, .ms-board.ms-quake, #ms-overlay:not([hidden]) > * { animation:none; }
+.ms-cell.ms-born, .ms-tr .ms-face.ms-pop, .ms-hearts.ms-hurt { animation:none; }
 }
 #chat-fish-panel { height:auto; max-height:86%; }
 #chat-fish-panel .poke-card-scroll { min-height:0; max-height:none; }
@@ -6248,6 +6257,13 @@ padding-bottom:max(var(--mochi-safe-bottom, env(safe-area-inset-bottom, 0px)), 8
 .m3-tile { transition-duration:.05s; }
 .m3-tile .m3-glyph { animation-duration:.05s !important; }
 }
+.m3-glyph.m3-deal { animation:m3-born .24s ease backwards; }
+.m3-glyph.m3-shuf { animation:m3-shufscale .32s ease; }
+@keyframes m3-shufscale { 0% { transform:scale(1); } 45% { transform:scale(.72) rotate(8deg); } 100% { transform:scale(1); } }
+.m3-float { position:absolute; z-index:3; font-weight:700; color:#ff7aa2; text-shadow:0 1px 2px rgba(0,0,0,.15); pointer-events:none; transform:translate(-50%,-50%); animation:m3-rise .72s ease-out forwards; }
+@keyframes m3-rise { 0% { opacity:0; transform:translate(-50%,-30%) scale(.6); } 25% { opacity:1; } 100% { opacity:0; transform:translate(-50%,-170%) scale(1.05); } }
+.m3-board.m3-quake { animation:m3-quake .32s ease; }
+@keyframes m3-quake { 0%,100% { transform:translate(0,0); } 20% { transform:translate(-3px,2px); } 45% { transform:translate(3px,-2px); } 70% { transform:translate(-2px,1px); } }
 .m3-status { min-height:20px; font-size:13px; color:var(--muted); text-align:center; }
 @keyframes pairgame-blink { 50% { outline-color:transparent; } }
 @keyframes pairgame-shake { 25% { transform:translateX(-3px); } 75% { transform:translateX(3px); } }
@@ -9232,9 +9248,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1789172708951">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.599</b></span>
-        <span class="sv-deploy">部署于 2026-09-12 08:25<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1789173533473">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.601</b></span>
+        <span class="sv-deploy">部署于 2026-09-12 08:38<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -10423,7 +10439,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.599</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.601</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10718,7 +10734,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.599</span>
+              <span class="lic-ver">v3.26.601</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -29030,7 +29046,7 @@ mm.className = 'msg-moods';
 const recalled = [];
 rec.mood.forEach((md, mi) => {
 if (rec.retractedMood && rec.retractedMood.indexOf(mi) >= 0) { recalled.push(md); return; }
-const _tagShow = md.tag === '词典' ? '词典拼字' : md.tag;
+const _tagShow = md.tag === '词典拼字' ? '词典' : md.tag;
 const mt = escTxt(T(_tagShow)), ml = escTxt(T(md.label));
 const dupBody = md.label != null && String(md.label) !== '' && String(md.label) === String(rec.text == null ? '' : rec.text);
 if (md.tag === '交流意图') {
@@ -29915,7 +29931,7 @@ qidx: quote ? quoteIdx : undefined,
 type: 'text',
 parts: rep.parts,
 silent: silent,
-tag: '词典拼字',
+tag: '词典',
 tagNoDup: true
 });
 } else if (rep.spell) {
@@ -29933,7 +29949,7 @@ qidx: (si === 0 && quote) ? quoteIdx : undefined,
 type: 'text',
 parts: si === rep.spell.length - 1 ? rep.parts : null,
 silent: si > 0 ? true : silent,
-tag: '词典拼字',
+tag: '词典',
 tagNoDup: true
 });
 }
@@ -79077,6 +79093,18 @@ face.className = 'ms-face';
 cell.appendChild(face);
 boardEl.appendChild(cell);
 }
+for (let i = 0; i < N(); i++) {
+const r = Math.floor(i / st.n), c = i % st.n;
+const cell = boardEl.children[i];
+cell.classList.add('ms-born');
+cell.style.animationDelay = Math.min((r + c) * 26, 480) + 'ms';
+cell.addEventListener('animationend', function h(e) {
+if (e.target !== cell || e.animationName !== 'msborn') return;
+cell.classList.remove('ms-born');
+cell.style.animationDelay = '';
+cell.removeEventListener('animationend', h);
+});
+}
 fitBoard();
 }
 function fitBoard() {
@@ -79206,6 +79234,7 @@ s.digs[byYou ? 'you' : 'ta']++;
 renderCell(idx, true);
 boardEl.classList.remove('ms-quake'); void boardEl.offsetWidth; boardEl.classList.add('ms-quake');
 updateHud();
+if (livesEl) { livesEl.classList.remove('ms-hurt'); void livesEl.offsetWidth; livesEl.classList.add('ms-hurt'); }
 sfxBoom();
 const who = byYou ? '你' : T('TA');
 let msg = '💥 ' + who + '踩到了雷！' + heartsStr();
@@ -79356,11 +79385,31 @@ body +=
 }
 if (s.coinEarned > 0) body += '<div class="pong-end-stat">🪙 我的心意币 +¥' + (s.coinEarned / 100).toFixed(2) + '</div>';
 body += '<div class="pong-end-stat ms-quote">「' + (win ? pick(['一起找完了。', '我们配合得不错嘛。', '全部清完啦，开心。']) : pick(['差一点点而已，再来！', '下次小心一点就好。'])) + '」</div>';
+let showDelay = overlayDelay || 0;
+if (!win) {
+const gen = st;
+let rvN = 0, rvMax = 0;
+for (let i = 0; i < N(); i++) {
+if (!s.mine[i] || s.boom[i] || s.open[i] || s.flag[i]) continue;
+const dly = 140 + rvN * 90;
+rvN++; if (dly > rvMax) rvMax = dly;
+setTimeout(() => {
+if (st !== gen) return;
+const cell = cellAt(i);
+if (!cell) return;
+cell.classList.add('ms-reveal');
+const face = cell.firstChild;
+face.textContent = '💣';
+face.classList.remove('ms-pop'); void face.offsetWidth; face.classList.add('ms-pop');
+}, Math.round(dly * fastMul()));
+}
+if (rvN) showDelay = Math.max(showDelay, rvMax + 280);
+}
 const showResult = function () {
 if (!st || !st.over || panel.hidden) return;
 showOverlay(win ? '💣 合作完成' : '💥 差一点', body, '再来一次');
 };
-if (overlayDelay) setTimeout(showResult, Math.round(overlayDelay * fastMul()));
+if (showDelay) setTimeout(showResult, Math.round(showDelay * fastMul()));
 else showResult();
 if (startBtn) startBtn.textContent = '再来一次';
 if (endBtn) endBtn.hidden = false;
@@ -82312,12 +82361,34 @@ return grid;
 }
 function reshuffle() {
 let flat = [];
-for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) flat.push(st.grid[r][c]);
+for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) flat.push({ v: st.grid[r][c], id: pidGrid[r][c] });
 for (let tries = 0; tries < 80; tries++) {
 shuffle(flat);
-const g = [];
-for (let r = 0; r < N; r++) g.push(flat.slice(r * N, (r + 1) * N));
-if (!findMatches(g) && allMoves(g).length > 0) { st.grid = g; renderBoard(); return true; }
+const g = [], ids = [];
+for (let r = 0; r < N; r++) {
+g.push(flat.slice(r * N, (r + 1) * N).map((x) => x.v));
+ids.push(flat.slice(r * N, (r + 1) * N).map((x) => x.id));
+}
+if (!findMatches(g) && allMoves(g).length > 0) {
+st.grid = g;
+for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+const id = ids[r][c];
+pidGrid[r][c] = id;
+const p = pieces.get(id);
+if (p) {
+p.el.style.transitionDuration = '0.32s';
+p.el.style.transitionTimingFunction = 'cubic-bezier(.45,.05,.35,1.2)';
+layoutTile(p.el, r, c);
+const gl = p.el._g;
+if (gl) { gl.classList.remove('m3-shuf'); void gl.offsetWidth; gl.classList.add('m3-shuf'); }
+}
+}
+setTimeout(() => {
+pieces.forEach((p) => { p.el.style.transitionDuration = ''; p.el.style.transitionTimingFunction = ''; });
+}, animMs(360));
+updateInfo();
+return true;
+}
 }
 renderBoard();
 return false;
@@ -82354,7 +82425,7 @@ el.style.width = cellPx + 'px';
 el.style.height = cellPx + 'px';
 el.style.fontSize = Math.round(cellPx * 0.54) + 'px';
 el.style.transform = 'translate(' + (c * (cellPx + GAP)) + 'px,' + ((fromRow != null ? fromRow : r) * (cellPx + GAP)) + 'px)';
-if (fallDist) el.style.transitionDuration = fallSec(fallDist) + 's';
+if (fallDist) { el.style.transitionDuration = fallSec(fallDist) + 's'; el.style.transitionTimingFunction = 'cubic-bezier(.55,0,.75,.45)'; }
 el._r = r; el._c = c;
 boardEl.appendChild(el);
 pieces.set(id, { v: v, el: el });
@@ -82395,8 +82466,8 @@ function swapPid(a, b) {
 const ia = pidGrid[a[0]][a[1]], ib = pidGrid[b[0]][b[1]];
 pidGrid[a[0]][a[1]] = ib; pidGrid[b[0]][b[1]] = ia;
 const pa = pieces.get(ia), pb = pieces.get(ib);
-if (pa) { pa.el.style.transitionDuration = ''; layoutTile(pa.el, b[0], b[1]); }
-if (pb) { pb.el.style.transitionDuration = ''; layoutTile(pb.el, a[0], a[1]); }
+if (pa) { pa.el.style.transitionDuration = ''; pa.el.style.transitionTimingFunction = 'cubic-bezier(.3,1.35,.55,1)'; layoutTile(pa.el, b[0], b[1]); }
+if (pb) { pb.el.style.transitionDuration = ''; pb.el.style.transitionTimingFunction = 'cubic-bezier(.3,1.35,.55,1)'; layoutTile(pb.el, a[0], a[1]); }
 }
 function popClear(cells) {
 for (let i = 0; i < cells.length; i++) {
@@ -82411,6 +82482,23 @@ p.el.classList.remove('m3-sel', 'm3-hint');
 p.el.classList.add('m3-pop');
 setTimeout(((el) => () => { if (el.parentNode) el.parentNode.removeChild(el); })(p.el), animMs(POP_MS) + 60);
 }
+}
+function floatScore(cells, pts) {
+if (!cells || !cells.length || !pts) return;
+let sr = 0, sc = 0;
+cells.forEach((p) => { sr += p[0]; sc += p[1]; });
+const el = document.createElement('div');
+el.className = 'm3-float';
+el.textContent = '+' + pts;
+el.style.left = ((sc / cells.length + 0.5) * (cellPx + GAP)) + 'px';
+el.style.top = ((sr / cells.length + 0.5) * (cellPx + GAP)) + 'px';
+el.style.fontSize = Math.max(14, Math.round(cellPx * 0.42)) + 'px';
+boardEl.appendChild(el);
+setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, animMs(780));
+}
+function quakeBoard() {
+boardEl.classList.remove('m3-quake'); void boardEl.offsetWidth; boardEl.classList.add('m3-quake');
+setTimeout(() => { boardEl.classList.remove('m3-quake'); }, animMs(380));
 }
 function collapseAnimated() {
 let maxDist = 1;
@@ -82427,6 +82515,7 @@ if (p) {
 const dist = write - r;
 if (dist > maxDist) maxDist = dist;
 p.el.style.transitionDuration = fallSec(dist) + 's';
+p.el.style.transitionTimingFunction = 'cubic-bezier(.55,0,.75,.45)';
 layoutTile(p.el, write, c);
 }
 }
@@ -82484,6 +82573,18 @@ hideOverlay();
 buildBoard();
 fitBoard();
 updateInfo();
+st.lock = true;
+boardEl.querySelectorAll('.m3-tile').forEach((el) => {
+const gl = el._g;
+if (gl) { gl.style.animationDelay = ((el._r + el._c) * 35) + 'ms'; gl.classList.add('m3-deal'); }
+});
+setTimeout(() => {
+boardEl.querySelectorAll('.m3-tile').forEach((el) => {
+const gl = el._g;
+if (gl) { gl.classList.remove('m3-deal'); gl.style.animationDelay = ''; }
+});
+st.lock = false;
+}, animMs(35 * (2 * N - 2) + 260));
 st.turn = 1;
 setStatus(dot(1) + '你的回合：点一格再点相邻一格交换');
 }
@@ -82546,6 +82647,7 @@ gained += pts;
 st.score += pts;
 if (byMe) st.myScore += pts; else st.taScore += pts;
 popClear(kept ? cells.filter((p) => p[0] !== kept[0] || p[1] !== kept[1]) : cells);
+floatScore(cells, pts);
 if (kept) {
 const el = tileAt(kept[0], kept[1]);
 if (el) {
@@ -82553,7 +82655,7 @@ setGlyph(el, st.grid[kept[0]][kept[1]]);
 el.classList.remove('m3-born'); void el.offsetWidth; el.classList.add('m3-born');
 }
 }
-if (hadBoom) sfxBoom();
+if (hadBoom) { sfxBoom(); quakeBoard(); }
 sfxClear(chain);
 if (chain >= 3) taSay('连锁 ×' + chain + (byMe ? '，好强！' : '，我也行吧'));
 setTimeout(() => {
@@ -82591,6 +82693,7 @@ const pts = cells.length;
 st.score += pts;
 if (byMe) st.myScore += pts; else st.taScore += pts;
 popClear(cells);
+floatScore(cells, pts);
 setTimeout(() => {
 const maxDist = collapseAnimated();
 setTimeout(() => {
@@ -82879,6 +82982,7 @@ findMatches: findMatches,
 allMoves: allMoves,
 simulateClear: simulateClear,
 clearWithSpecials: clearWithSpecials,
+reshuffle: reshuffle,
 colorOf: colorOf,
 BOMB_BASE: BOMB_BASE,
 RAINBOW: RAINBOW,
@@ -82919,6 +83023,8 @@ const introStart = document.getElementById('au-intro-start');
 const introHelp = document.getElementById('au-intro-help');
 const introExit = document.getElementById('au-intro-exit');
 const walletHintEl = document.getElementById('au-wallet-hint');
+const historyBtn = document.getElementById('au-history');
+const addBtn = document.getElementById('au-add');
 function showHelp() { if (helpOverlay) helpOverlay.hidden = false; }
 function hideHelp() { if (helpOverlay) helpOverlay.hidden = true; }
 function showIntro() { if (introEl) introEl.hidden = false; }
@@ -82953,10 +83059,10 @@ const POOL = [
 { ico: '💎', name: '小钻戒', desc: '别紧张，不是那种……大概', base: 9999, wish: '先占个位置。', mystery: 1 }
 ];
 const TA_MODES = {
-eager:  { factor: 1.5,  stepPref: [STEP5, STEP13, STEP13], talk: '眼睛亮了，志在必得' },
-normal: { factor: 1.15, stepPref: [STEP1, STEP5, STEP13],  talk: '掂了掂这件的分量' },
-stingy: { factor: 0.7,  stepPref: [STEP1, STEP1, STEP5],   talk: '皱着眉算了算' },
-bluff:  { factor: 1.2,  stepPref: [STEP13, STEP5, STEP5],  talk: '一路跟得飞快，像真想要' }
+eager:  { factor: 1.5,  stepPref: [STEP5, STEP13, STEP13], talk: '眼睛亮了，志在必得', calls: ['跟！这件我要定了', '就这点诚意？接着', '休想从我手里抢走'] },
+normal: { factor: 1.15, stepPref: [STEP1, STEP5, STEP13],  talk: '掂了掂这件的分量', calls: ['这件我挺喜欢的', '我掂量着值这个价', '那我也加一点'] },
+stingy: { factor: 0.7,  stepPref: [STEP1, STEP1, STEP5],   talk: '皱着眉算了算', calls: ['唔……勉强跟一手', '快超预算了呀', '再贵我就撤了'] },
+bluff:  { factor: 1.2,  stepPref: [STEP13, STEP5, STEP5],  talk: '一路跟得飞快，像真想要', calls: ['加价不加价？跟', '气势不能输', '谁怕谁呀'] }
 };
 const TALK_MIN = 850, TALK_VAR = 900;
 const LOTS_PER_SESSION = 3;
@@ -82967,6 +83073,30 @@ function pick(arr) { return arr && arr.length ? arr[Math.floor(Math.random() * a
 function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
 function yuan(fen) { return '¥' + (fen / 100).toFixed(2); }
 function yuanC(fen) { const v = fen / 100; return Number.isInteger(v) ? '¥' + v : '¥' + v.toFixed(2); } // #321 整数省略 .00，按钮直白些
+const RARITY = [['普通', 'au-r0'], ['稀有', 'au-r1'], ['SSR', 'au-r2']];
+function rarityOf(item) { const r = (item && item.base >= 5000) ? 2 : (item && item.base >= 2600) ? 1 : 0; return { label: RARITY[r][0], cls: RARITY[r][1] }; }
+function buzz(p) {
+try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) {}
+try { window.__auDebug.lastBuzz = p; } catch (e) {}
+}
+function persist(key, val) {
+try { localStorage.setItem(key, typeof val === 'string' ? val : JSON.stringify(val)); } catch (e) {}
+try { if (typeof window.idbSet === 'function') window.idbSet(key, val); } catch (e) {}
+}
+function historyKey() { return prefix() + ':auction-history'; }
+function loadHistory() { try { const a = JSON.parse(localStorage.getItem(historyKey()) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+function recordHistory(item, price, who) {
+const h = loadHistory();
+h.unshift({ t: Date.now(), ico: item.ico, name: item.name, price: price, who: who, rarity: rarityOf(item).label });
+if (h.length > 60) h.length = 60;
+persist(historyKey(), h);
+}
+function customKey() { return prefix() + ':auction-custom'; }
+function loadCustom() { try { const a = JSON.parse(localStorage.getItem(customKey()) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+function saveCustom(a) { try { if (a.length > 20) a.length = 20; persist(customKey(), a); } catch (e) {} }
+function activePool() {
+return POOL.concat(loadCustom().map((c) => ({ ico: c.ico, name: c.name, desc: c.desc, base: c.base, wish: c.wish, mystery: c.mystery || 0, custom: 1 })));
+}
 let audioCtx = null;
 let soundOn = true;
 try { soundOn = localStorage.getItem('xy-home-v2:au-sound') !== '0'; } catch (e) {} // #343 音效偏好全局记忆（非联系人维度）
@@ -83010,12 +83140,12 @@ if (raw) { const v = JSON.parse(raw); if (v && typeof v === 'object') return Obj
 } catch (e) {}
 return d;
 }
-function saveStats(s) { try { localStorage.setItem(statsKey(), JSON.stringify(s)); } catch (e) {} }
+function saveStats(s) { persist(statsKey(), s); }
 function bagKey() { return prefix() + ':auction-items'; }
 function loadBag() {
 try { const a = JSON.parse(localStorage.getItem(bagKey()) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; }
 }
-function saveBag(a) { try { localStorage.setItem(bagKey(), JSON.stringify(a)); } catch (e) {} }
+function saveBag(a) { persist(bagKey(), a); }
 function giftsKey() { return prefix() + ':au-gifts-pending'; }
 function loadPending() { try { const a = JSON.parse(localStorage.getItem(giftsKey()) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
 function savePending(a) { try { localStorage.setItem(giftsKey(), JSON.stringify(a)); } catch (e) {} }
@@ -83043,7 +83173,7 @@ let st = null;
 let thinkT = null;
 let bagOpen = false; // #343/#346 背包覆盖层是否开着（寄到重渲染判定用）
 function newState() {
-const lots = shuffle(POOL.slice()).slice(0, LOTS_PER_SESSION);
+const lots = shuffle(activePool()).slice(0, LOTS_PER_SESSION);
 return {
 started: false,
 over: false,           // 一场是否结束
@@ -83151,13 +83281,27 @@ setStatus('槌起！' + T('TA') + TA_MODES[st.mode].talk + '——你来出价')
 }
 function myBid(step) {
 if (!lotActive()) return;
+placeBid(st.cur + step);
+}
+function placeBid(newCur) {
+if (!lotActive()) return;
 const bal = myBalance();
-if (!walletOk() || bal < st.cur + step) return;
-st.cur = st.cur + step;
+if (!walletOk() || bal < newCur) { setStatus('心意币不够这个价——去心意集市补点吧'); updateBidBtns(); return; }
+st.cur = newCur;
 st.leader = 'you';
 sfxBid();
 renderLot();
 scheduleTaThink('TA低头想了想……');
+}
+function customBidModal() {
+if (!lotActive() || !walletOk() || typeof window.openModal !== 'function') return;
+const minFen = st.cur + STEP1;
+const ctl = window.openModal('自定义出价', String(minFen / 100), function (v) {
+const fen = Math.round(parseFloat(String(v).replace(/[^\d.]/g, '')) * 100);
+if (!fen || fen < minFen) { ctl.stay(); ctl.val(''); ctl.ph('至少要比当前价多 ¥1（≥' + yuanC(minFen) + '）'); return; }
+placeBid(fen);
+}, { inputmode: 'decimal', placeholder: '直接压上这个价（≥' + yuanC(minFen) + '）' });
+try { if (ctl) ctl.okText('压价'); } catch (e) {}
 }
 function myPass() {
 if (!lotActive()) return;
@@ -83184,7 +83328,7 @@ st.cur = Math.max(bid, st.cur + STEP1);
 st.leader = 'ta';
 sfxBid();
 renderLot();
-taSay(pick(['跟！', '这件我要了', '就这点诚意？', '继续呀']));
+taSay(pick(m.calls));
 setStatus(T('TA') + '举牌：' + yuan(st.cur) + '——到你出价了');
 updateBidBtns();
 } else {
@@ -83206,14 +83350,17 @@ s.taWins = (s.taWins || 0) + 1;
 saveStats(s);
 const item = st.lots[st.idx];
 sfxHammer();
+buzz(80);                 // #348 被抢走震动
+recordHistory(item, st.cur, 'ta');
 try {
 const pend = loadPending();
 pend.push({ ico: item.ico, name: item.name, due: Date.now() + (2 + Math.floor(Math.random() * 3)) * 86400000 });
 savePending(pend);
 } catch (e) {}
+const rt = rarityOf(item);
 showOverlay(T('TA') + '拍得了',
 '<div class="au-ov-ico">' + item.ico + '</div>' +
-'<div class="pong-end-stat">' + item.name + ' · ' + yuan(st.cur) + ' 归 ' + T('TA') + '</div>' +
+'<div class="pong-end-stat"><span class="au-rare ' + rt.cls + '">' + rt.label + '</span> ' + item.name + ' · ' + yuan(st.cur) + ' 归 ' + T('TA') + '</div>' +
 '<div class="pong-end-stat">📬 不过 TA 拍走的拍品，过几天会寄回给你</div>',
 st.idx + 1 < st.lots.length ? '下一件' : '结算', 'ta');
 setStatus(T('TA') + '把「' + item.name + '」抱走了');
@@ -83230,6 +83377,7 @@ st.phase = 'done';
 clearTimeout(thinkT); thinkT = null;
 st.passed++;
 const item = st.lots[st.idx];
+recordHistory(item, st.cur, 'pass');
 showOverlay('流拍了',
 '<div class="au-ov-ico">' + item.ico + '</div>' +
 '<div class="pong-end-stat">' + item.name + ' 没人要，收回仓库</div>',
@@ -83262,11 +83410,14 @@ const bag = loadBag();
 bag.push({ ico: item.ico, name: item.name, fen: st.cur, ts: Date.now() });
 saveBag(bag);
 sfxWin(); sfxHammer();
+buzz([30, 40, 80]);       // #348 落槌成交震动
+recordHistory(item, st.cur, 'you');
 taSay(pick(['被你拍走了…', '亏了亏了', '那件我本来想要来着']));
 if (balanceEl) balanceEl.textContent = walletOk() ? '心意币 ' + yuan(myBalance()) : '心意币 —';
+const rt = rarityOf(item);
 showOverlay('落槌！',
 '<div class="au-ov-ico">' + item.ico + '</div>' +
-'<div class="pong-end-stat">' + item.name + ' · ' + yuan(st.cur) + ' 拍下</div>' +
+'<div class="pong-end-stat"><span class="au-rare ' + rt.cls + '">' + rt.label + '</span> ' + item.name + ' · ' + yuan(st.cur) + ' 拍下</div>' +
 '<div class="pong-end-stat">💌 ' + item.wish + '</div>' +
 '<div class="pong-end-stat">已收进 🎒 小收藏（剩 ' + yuan(myBalance()) + '）· 可在 🎒 里转赠给 ' + T('TA') + '</div>',
 st.idx + 1 < st.lots.length ? '下一件' : '结算', 'win');
@@ -83329,6 +83480,52 @@ const body = bag.length
 showOverlay('🎒 拍品收藏（' + bag.length + '）', body, '返回');
 if (startBtn) startBtn.textContent = '返回'; // #346 统一返回语义：场次中回竞价、结算后回本场汇总
 if (endBtn) endBtn.hidden = !(st && st.started && !st.over);
+}
+function showHistory() {
+const h = loadHistory();
+const fmt = (t) => { const d = new Date(t); return (d.getMonth() + 1) + '月' + d.getDate() + '日'; };
+const whoTxt = { you: '你拍得', ta: T('TA') + '拍走', pass: '流拍' };
+const cls = (r) => r === 'SSR' ? 'au-r2' : r === '稀有' ? 'au-r1' : 'au-r0';
+const body = h.length
+? h.map((it) => '<div class="pong-end-stat au-hist-row"><span class="au-rare ' + cls(it.rarity) + '">' + (it.rarity || '普通') + '</span> ' + it.ico + ' ' + it.name + ' · ' + (it.who === 'pass' ? '流拍' : yuan(it.price)) + ' · ' + (whoTxt[it.who] || '') + ' · ' + fmt(it.t) + '</div>').join('')
+: '<div class="pong-end-stat">还没拍过任何东西</div>';
+showOverlay('📜 拍卖记录（' + h.length + '）', body, '返回');
+if (startBtn) startBtn.textContent = '返回';
+if (endBtn) endBtn.hidden = !(st && st.started && !st.over);
+}
+function addCustomModal() {
+if (typeof window.openModal !== 'function') return;
+let stage = 1, pendingName = null;
+const list = () => { const a = loadCustom(); return a.length ? '已有 ' + a.length + '/20：' + a.map((c) => c.name).join('、') : '还没有自制拍品（上限 20 个）'; };
+const ctl = window.openModal('自制拍品', '', function (v) {
+const s = String(v || '').trim();
+if (stage === 1) {
+if (!s) return;
+const cur = loadCustom();
+const idx = cur.findIndex((c) => c.name === s);
+if (idx >= 0) { cur.splice(idx, 1); saveCustom(cur); taSay(pick(['这件……不拍了？', '行吧，收回仓库'])); return; }
+if (cur.length >= 20) { ctl.stay(); ctl.val(''); ctl.ph('自制拍品已满 20 个，先删再加'); return; }
+pendingName = s; stage = 2;
+ctl.stay(); ctl.val(''); ctl.ph('底价（元，如 20）'); ctl.okText('下一步');
+return;
+}
+if (stage === 2) {
+const yuanV = parseFloat(s.replace(/[^\d.]/g, ''));
+if (!yuanV || yuanV <= 0) { ctl.stay(); ctl.val(''); ctl.ph('请输入大于 0 的金额'); return; }
+pendingName = { name: pendingName, base: Math.max(100, Math.round(yuanV * 100)) };
+stage = 3;
+ctl.stay(); ctl.val(''); ctl.ph('拍下后的一句话彩蛋（可空）'); ctl.okText('完成');
+return;
+}
+const a = loadCustom();
+a.push({
+ico: pick(['🎁', '💎', '🧸', '🌈', '⭐', '🍰', '🎧', '🧿', '🌙', '🎀']) || '🎁',
+name: pendingName.name, desc: '我们自己才懂的小玩意', base: pendingName.base,
+wish: s || '是心意呀。', mystery: Math.random() < 0.2 ? 1 : 0
+});
+saveCustom(a);
+taSay(pick(['又上新拍品啦？', '你出的题我接了']));
+}, { maxlength: 24, placeholder: '名称（输入已有名称＝删除）', staticText: list() });
 }
 function giftAway(i) {
 const bag = loadBag();
@@ -83404,11 +83601,23 @@ newSession();
 });
 if (endBtn) endBtn.addEventListener('click', (e) => { e.stopPropagation(); closePanel(); });
 if (closeBtn) closeBtn.addEventListener('click', (e) => { e.stopPropagation(); closePanel(); });
-if (bid1Btn) bid1Btn.addEventListener('click', (e) => { e.stopPropagation(); myBid(STEP1); });
-if (bid5Btn) bid5Btn.addEventListener('click', (e) => { e.stopPropagation(); myBid(STEP5); });
-if (bid13Btn) bid13Btn.addEventListener('click', (e) => { e.stopPropagation(); myBid(STEP13); });
+let lpT = null, lpFired = false;
+function bindBidBtn(btn, step) {
+if (!btn) return;
+const start = () => { lpFired = false; clearTimeout(lpT); lpT = setTimeout(() => { lpFired = true; customBidModal(); }, 600); };
+const cancel = () => { clearTimeout(lpT); };
+btn.addEventListener('touchstart', start, { passive: true });
+btn.addEventListener('mousedown', start);
+['touchend', 'touchcancel', 'mouseup', 'mouseleave'].forEach((ev) => btn.addEventListener(ev, cancel));
+btn.addEventListener('click', (e) => { e.stopPropagation(); if (lpFired) { lpFired = false; return; } myBid(step); });
+}
+bindBidBtn(bid1Btn, STEP1);
+bindBidBtn(bid5Btn, STEP5);
+bindBidBtn(bid13Btn, STEP13);
 if (passBtn) passBtn.addEventListener('click', (e) => { e.stopPropagation(); myPass(); });
 if (bagBtn) bagBtn.addEventListener('click', (e) => { e.stopPropagation(); showBag(); });
+if (historyBtn) historyBtn.addEventListener('click', (e) => { e.stopPropagation(); showHistory(); });
+if (addBtn) addBtn.addEventListener('click', (e) => { e.stopPropagation(); addCustomModal(); });
 if (ovBodyEl) ovBodyEl.addEventListener('click', (e) => {
 const sendBtn = e.target.closest('.au-send-btn');
 if (!sendBtn) return;
@@ -89567,4 +89776,4 @@ lastHeal: his
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mtxn8hnb -->
+<!-- __MOCHI_EOF__ mtxnq5up -->
