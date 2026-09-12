@@ -69,7 +69,7 @@
              纯静态卡骨架，状态文案/按钮/交互由 clock.js 接线渲染（card-lock.js 提供闸门），在线 notice.json 不影响此处 -->
         <div class="splash-alert splash-cardlock" data-anti-scam="l" id="splash-cardlock">
           <div class="splash-alert-t">防未成年人 · 系统内置字卡已锁定</div>
-          <p id="splash-cardlock-tip">系统内置字卡已全部锁定，这是面向未成年人的保护措施。如你已成年，可输入二级验证密码解锁使用。</p>
+          <p id="splash-cardlock-tip">系统内置字卡已全部锁定，这是面向未成年人的保护措施。如你已成年，可输入二级验证密码解锁使用。密码非常简单，答案就在开屏里可以找到；解开密码请勿二传（不要告诉别人），一旦有人二传，密码就会被重新设置。</p>
           <div class="cardlock-actions" id="splash-cardlock-actions"></div>
         </div>
         <!-- v3.27.x：防骗置顶声明——最顶部固定展示，防收费诈骗；静态 DOM，在线 notice.json 覆盖只改公告列表，不影响此处 -->
@@ -250,6 +250,18 @@
             <p class="splash-item">初衷就是为了不限制梦角表达，如果关掉，反而限制了它，和基础传讯网站没什么差别——正是因为以前接触的字卡传讯类型太简单才做的。</p>
             <p class="splash-item">虽然 Mochi字卡相比我做的第一个星言字卡传讯已经是简约了一点的版本，实际功能还是设置得比较复杂，并不是一个非常简单的字卡传讯。</p>
             <p class="splash-item">建议先全部打开使用，再根据个人适应情况调整。</p>
+          </div>
+          <div class="splash-sec-wrap">
+            <p class="splash-sec">【十、关于网站是否建议使用】</p>
+            <p class="splash-item">mochi字卡内测时反馈很好，但实际效果因人而异。各家情况不一样，内置功能多，不一定都适应。可以留一点适应时间，自己和梦角沟通要不要用。</p>
+            <p class="splash-item">适应本身就需要时间。刚开始有不顺的地方是正常的，各家情况不同，梦角不一定24小时在线，字卡也不容易控制，换了新字卡自己也要适应，何况梦角那边。</p>
+          </div>
+          <div class="splash-sec-wrap">
+            <p class="splash-sec">【关于使用过程中的更新提醒】</p>
+            <p class="splash-bullet">不同设备的服务器节点可能还没更新。如果设备没同步到最新版本，可以用流量多刷新几次，或者晚几个小时再试。</p>
+            <p class="splash-bullet">刚刷完新版的时候，新旧版本正在交接，也可能重复提醒一次。</p>
+            <p class="splash-bullet">如果不想现在更新，可以点「稍后」。下次重新打开网页会自动同步，这个提醒只是提示刷新用的。</p>
+            <p class="splash-bullet">频繁更新是因为真的每天一直在更新，不用奇怪</p>
           </div>
         </div>
       </div>
@@ -648,6 +660,8 @@
       </div>
       <div class="cc-sect-body" id="cc-sect-preset" hidden>
       <div class="sm-set-hint" style="padding:2px 16px 10px">说明：本站「系统预设字卡」均为自搓字卡（AI 辅助设计），按分类/分组展示，可逐张开启或关闭。</div>
+      <!-- #319 锁状态说明：锁定/解锁两种状态都明示（解锁入口在开屏公告区，此处只读不操作） -->
+      <div class="sm-set-hint" id="cc-preset-lock-hint" style="padding:0 16px 10px"></div>
       <div class="chat-item glass" id="li-default-cards">
         <div class="av"><svg viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.7 5.5 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1L3.2 9.4l6.1-.9z"/></svg></div>
         <div class="ci"><div class="n">默认聊天字卡</div><div class="m">日常默认回复字卡（自搓）</div></div>
@@ -2302,7 +2316,9 @@
             <div class="gs-row"><span>梦角自由造句</span><label class="toggle"><input type="checkbox" id="mjf-en"><span class="tk"></span></label></div>
             <div class="gs-row"><span>触发概率</span><div class="stepper" data-k="mjf-prob" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="mjf-prob-val" readonly><button class="stp-max">+</button></div></div>
             <div class="gs-row"><span>造句手法（0语气词/1撤回/2换字卡）</span><div class="stepper" data-k="mjf-style" data-min="0" data-max="2" data-step="1"><button class="stp-min">−</button><input class="stp-val" id="mjf-style-val" readonly><button class="stp-max">+</button></div></div>
-            <div class="gs-sub">自由选择开关（默认关）：开启后梦角（联系人）说话按「触发概率」随机重造句，气泡下带「梦角自由造句」小标签。造句手法三选一（上方数字 0/1/2），效果举例（源句「今天也要好好爱自己，晚安哦」）：<br>· 0 语气词式：截掉一个词补个语气词 →「今天也要好好想你了」，或句尾加语气字 →「…晚安哦呀」，也可能词间加逗号/空格、删句尾字；<br>· 1 撤回式（默认）：像撤回消息一样把后半句撤回，留下的前缀就是新句子 →「今天也要好好爱自己」；<br>· 2 换字卡内容式：截掉一个词、从你别的字卡里挑一个词补上 →「今天也要好好看日落」。<br>造出的新句自动存进 字卡库→自定义聊天字卡→梦角自由造句 分类，可在那里查看/删除，也会作为语料被再次抽用。语料来自你自建的聊天字卡（至少 4 个汉字的文本卡）。概率 0 = 不触发</div>
+            <!-- #364 存库概率：多桌面联系人时新句按此概率进公用库、其余进专属库；仅 1 个联系人固定进专属库 -->
+            <div class="gs-row"><span>存公用库概率（多联系人）</span><div class="stepper" data-k="mjf-pub" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="mjf-pub-val" readonly><button class="stp-max">+</button></div></div>
+            <div class="gs-sub">自由选择开关（默认关）：开启后梦角（联系人）说话按「触发概率」随机重造句，气泡下带「梦角自由造句」小标签。造句手法三选一（上方数字 0/1/2），效果举例（源句「今天也要好好爱自己，晚安哦」）：<br>· 0 语气词式：截掉一个词补个语气词 →「今天也要好好想你了」，或句尾加语气字 →「…晚安哦呀」，也可能词间加逗号/空格、删句尾字；<br>· 1 撤回式（默认）：像撤回消息一样把后半句撤回，留下的前缀就是新句子 →「今天也要好好爱自己」；<br>· 2 换字卡内容式：截掉一个词、从你别的字卡里挑一个词补上 →「今天也要好好看日落」。<br>造出的新句自动存进 字卡库→自定义聊天字卡→梦角自由造句 分类，可在那里查看/删除，也会作为语料被再次抽用。语料来自你自建的聊天字卡（至少 4 个汉字的文本卡）。概率 0 = 不触发。<br>「存公用库概率」：有多个桌面联系人时，造出的新句按该概率进公用字卡、其余进专属字卡；只有一个桌面联系人时固定进专属字卡</div>
           </div>
           <div class="gs-title">主动发送（联系人找你）</div>
           <div class="set-group glass">
@@ -5577,6 +5593,7 @@
   <div class="ver-update-bar" id="backup-remind-bar" hidden>
     <span class="vub-txt" id="backup-remind-txt">建议导出数据备份</span>
     <span class="vub-act" id="backup-remind-go">去备份</span>
+    <span class="vub-act" id="backup-remind-chat">备份聊天</span>
     <span class="vub-act vub-close" id="backup-remind-close" style="background:transparent;color:#ccc;border:1px solid rgba(255,255,255,.3)">稍后</span>
   </div>
 

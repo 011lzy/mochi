@@ -17,7 +17,10 @@
     if (!slide) return;
     const hint = slide.querySelector('.desk-page-hint');
     if (!hint) return;
-    const hasContent = !!slide.querySelector('[data-desk-widget], [data-desk-image]');
+    // FIX 2026-09-12 #351：空图标网格不算内容——新页自带 .app-grid（pg* 网格）后，
+    // 空 grid 也带 data-desk-widget，按旧判法新页提示永远不显示
+    const hasContent = Array.prototype.slice.call(slide.querySelectorAll('[data-desk-widget]')).some(n => !(n.classList.contains('app-grid') && !n.querySelector('.app'))) ||
+      !!slide.querySelector('[data-desk-image]');
     hint.style.display = hasContent ? 'none' : '';
   };
 
@@ -1260,6 +1263,16 @@ try {
   // 注意：桌面分页后可能存在多个 .app-grid，全部绑定
   // v3.5.87：装修模式下点击已有自定义图的图标 → 弹「更换 / 清除」；清除恢复默认图标
   const grids = document.querySelectorAll('.app-grid');
+  // FIX 2026-09-12 #351：图标【模板默认页】快照——脚本加载期 DOM 尚是 template 原状，
+  // 记下每个图标 data-app → 所在网格 dataset.app。跨页拖动后多个网格的顺序数组都可能
+  // 残留同一图标（旧版只写目标页不清理源页），启动归位时用它裁决「用户真实意图」：
+  // 非默认页的认领胜出（图标被搬离默认页），只有默认页自己认领时才回默认页。
+  const ICON_HOME_GRID = {};
+  document.querySelectorAll('.app-grid').forEach(g => {
+    const gid = g.dataset.app;
+    if (!gid) return;
+    g.querySelectorAll('.app').forEach(a => { if (a.dataset.app) ICON_HOME_GRID[a.dataset.app] = gid; });
+  });
   // 给每个图标存一份原始 SVG，清除时还原
   document.querySelectorAll('.app .app-ico').forEach(ico => {
     if (!ico.dataset.orig) ico.dataset.orig = ico.innerHTML;
@@ -1311,24 +1324,53 @@ try {
   };
   restoreAppIcons();
   // v3.6.x：恢复图标网格内自定义顺序（app-icon-order-<grid.app> 存 data-app 数组）
+  // FIX 2026-09-12 #351：跨页图标归位——旧实现只在「节点已在本网格」时重排，而模板
+  // 每次启动都把图标放回默认网格，跨页拖动（只存目标页顺序）永远无法还原 = 「退出重进
+  // 图标回原位」。现在：①动态查询全部网格（含新页 pg* 网格）；②按顺序数组跨网格认领
+  // 图标（搬入认领网格再插到记录位）；③同一图标被多个网格残留认领时（旧版不清理源页的
+  // 脏数据），非【模板默认页】的认领胜出（见 ICON_HOME_GRID），并当场把输家数组里的
+  // 脏条目清掉落盘——首启自愈，之后数组一致不再有歧义。DOM 里查不到的键（动态注入
+  // 图标尚未生成）保留不动，等 mochi-restore-done / contact-switched 的下一轮归位。
   const restoreAppIconOrder = () => {
-    grids.forEach(grid => {
+    const allGrids = Array.prototype.slice.call(document.querySelectorAll('.app-grid'));
+    const byKey = {};
+    allGrids.forEach(g => {
+      g.querySelectorAll('.app').forEach(a => { if (a.dataset.app) byKey[a.dataset.app] = a; });
+    });
+    const arrays = {};
+    allGrids.forEach(grid => {
       const gid = grid.dataset.app;
       if (!gid) return;
-      let order = null;
-      try { const v = store.get('app-icon-order-' + gid); if (v) order = JSON.parse(v); } catch (e) {}
-      if (!Array.isArray(order) || !order.length) return;
-      const apps = Array.prototype.slice.call(grid.querySelectorAll('.app'));
-      const byKey = {};
-      apps.forEach(a => { byKey[a.dataset.app] = a; });
-      order.forEach((k, i) => {
-        const node = byKey[k];
-        if (node && node.parentNode === grid) {
-          // 插入到当前第 i 个位置前（移动节点不重建，事件绑定保留）
-          const ref = grid.children[i];
-          if (ref && ref !== node) grid.insertBefore(node, ref);
-        }
+      try { const v = store.get('app-icon-order-' + gid); if (v) { const p = JSON.parse(v); if (Array.isArray(p)) arrays[gid] = p; } } catch (e) {}
+    });
+    const owner = {};
+    allGrids.forEach(grid => {
+      const gid = grid.dataset.app;
+      const arr = arrays[gid];
+      if (!arr) return;
+      arr.forEach(k => {
+        if (!byKey[k]) return;
+        if (!owner[k] || (owner[k] === ICON_HOME_GRID[k] && gid !== ICON_HOME_GRID[k])) owner[k] = gid;
       });
+    });
+    allGrids.forEach(grid => {
+      const gid = grid.dataset.app;
+      const order = arrays[gid];
+      if (!order || !order.length) return;
+      order.forEach((k, i) => {
+        if (owner[k] !== gid) return;
+        const node = byKey[k];
+        if (!node) return;
+        if (node.parentNode !== grid) grid.appendChild(node); // 跨网格认领：先搬入再定位
+        // 插入到当前第 i 个位置前（移动节点不重建，事件绑定保留）
+        const ref = grid.children[i];
+        if (ref && ref !== node) grid.insertBefore(node, ref);
+      });
+      // 脏条目清理：DOM 可见但归属别处的键从本网格数组剔除并落盘（幂等，无变化不写）
+      const cleaned = order.filter(k => !byKey[k] || owner[k] === gid);
+      if (cleaned.length !== order.length) {
+        try { store.set('app-icon-order-' + gid, JSON.stringify(cleaned)); } catch (e) {}
+      }
     });
   };
   restoreAppIconOrder();
@@ -1548,6 +1590,16 @@ try {
       window.openIconMenu(app);
     });
   });
+  // FIX 2026-09-12 #351：运行时创建的新页网格（pg*）收不到上面的 per-grid 绑定——
+  // 委托到 document 兜底：编辑态网格内的图标点击统一弹图标菜单。静态网格路径已在
+  // 自身监听里 stopPropagation，不会走到这里重复弹。
+  document.addEventListener('click', (e) => {
+    const grid = e.target.closest ? e.target.closest('.app-grid') : null;
+    if (!grid || !grid.classList.contains('editing')) return;
+    const app = e.target.closest('.app');
+    if (!app) return;
+    window.openIconMenu(app);
+  });
   // v3.15.x：装修模式点「独立组件图标」换图兜底——被移出 .app-grid 的单个功能图标
   //（装修库「添加到此页」/拖拽换页后的 app-* 图标，第2/3页装修用户常见）不在任何
   // 网格内，上面的网格监听器不触发；而这类图标自身 handler 在 editing 时按约定
@@ -1578,7 +1630,9 @@ try {
     document.querySelectorAll('.page').forEach(p => p.hidden = true);
     const phonePage = document.getElementById('page-phone');
     if (phonePage) phonePage.hidden = false;
-    grids.forEach(g => g.classList.add('editing'));
+    // FIX 2026-09-12 #351：动态查询——新页 pg* 网格是运行时创建的，静态 grids 列表
+    // 不含它们；编辑态类漏挂 = 装修模式点新页图标走功能入口而不是图标菜单
+    document.querySelectorAll('.app-grid').forEach(g => g.classList.add('editing'));
     const phone = document.getElementById('page-phone');
     if (phone) phone.classList.add('decor-on');
     const bar = document.getElementById('decor-bar');
@@ -3924,6 +3978,30 @@ try {
       const delIdx = slides.length - 1;
       const s = slides.pop();
       if (s && s.parentNode) {
+        // FIX 2026-09-12 #351：删除页时新页网格（pg*）就地解散——网格内图标归还各自
+        // 模板默认网格并保存顺序，网格顺序键一并清除；空网格壳随后照常随顶层组件进
+        // 隐藏池。不解散＝整网格带着图标一起进池＝图标集体隐身（池不可见），装修库
+        // 只能逐个找回。只认 pg* 网格：第三页模板网格（p3apps）保留「整组进池、
+        // 装修库整组找回」的既有语义不动。
+        const pgG = s.querySelector('.app-grid[data-desk-widget^="pg"]');
+        if (pgG && pgG.dataset.app) {
+          const homeGrids = {};
+          Array.prototype.slice.call(pagesBox.querySelectorAll('.page-slide')).forEach(ps => {
+            const hg = ps.querySelector('.app-grid');
+            if (hg && hg.dataset.app && hg !== pgG) homeGrids[hg.dataset.app] = hg;
+          });
+          Array.prototype.slice.call(pgG.querySelectorAll('.app')).forEach(a => {
+            const key = a.dataset.app;
+            if (!key) return;
+            let dest = homeGrids[ICON_HOME_GRID[key]] || document.querySelector('.app-grid[data-desk-widget="apps"]');
+            if (dest && dest !== pgG) {
+              dest.appendChild(a);
+              const dOrder = Array.prototype.slice.call(dest.querySelectorAll('.app')).map(x => x.dataset.app);
+              try { store.set('app-icon-order-' + dest.dataset.app, JSON.stringify(dOrder)); } catch (e) {}
+            }
+          });
+          try { store.remove('app-icon-order-' + pgG.dataset.app); } catch (e) {}
+        }
         // 该页上的组件移回隐藏池（不随页面删除丢失）
         // 只移动顶层组件——嵌套子组件（如 p3apps 内的 app-period/app-accounting）
         // 随父组件整体移动，避免拆散导致空壳
@@ -3956,6 +4034,14 @@ try {
       const s = document.createElement('div');
       s.className = 'page-slide desk-page';
       s.dataset.desk = String(i);
+      // FIX 2026-09-12 #351：新页自带 4 列图标网格（id 稳定 = pg<页序>）——此前新页无
+      // .app-grid，拖拽/装修库放进来的图标只能当独立组件竖排（无排版、无上移/下移、
+      // 跨页拖到新页落不了格）。网格随页增删，页序稳定（页只能从尾部增删）键不漂移；
+      // 删除页时网格内图标归还模板默认页（见上方删页分支）。
+      const pgGrid = document.createElement('div');
+      pgGrid.className = 'app-grid';
+      pgGrid.dataset.app = 'pg' + i;
+      pgGrid.setAttribute('data-desk-widget', 'pg' + i);
       // 空白页装修提示 + 「+ 添加卡片」（仅新增页，第 0/1 页是核心页）
       const hint = document.createElement('div');
       hint.className = 'desk-page-hint';
@@ -3968,6 +4054,7 @@ try {
         const curIdx = Array.prototype.indexOf.call(pagesBox.querySelectorAll('.page-slide'), s);
         openDeskLib(s, curIdx);
       });
+      s.appendChild(pgGrid);
       s.appendChild(hint);
       s.appendChild(addBtn);
       pagesBox.appendChild(s);
@@ -4125,6 +4212,8 @@ try {
   //（上一桌面的排布）落盘成新桌面的 desk-layout（见删页分支注释）
   let deskSwitchBuild = false;
   buildDeskPages();
+  // FIX 2026-09-12 #351：行为验证口（verify-desk-icon-place 断言用）——暴露启动归位与页重建
+  window.__deskIconDebug = { restoreAppIconOrder: restoreAppIconOrder, buildDeskPages: buildDeskPages };
   document.addEventListener('contact-switched', () => { deskSwitchBuild = true; try { buildDeskPages(); } finally { deskSwitchBuild = false; } });
   // v3.6.x 修复（刷新后桌面页数消失）：IndexedDB 回填完成前，desk-page-count 若只存于
   // IDB（localStorage 缺失，如旧数据迁移后/个别浏览器配额清理），首次 buildDeskPages
@@ -4678,9 +4767,35 @@ try {
     const addWidgetToPage = (wid) => {
       const node = document.querySelector('[data-desk-widget="' + wid + '"]');
       if (!node) return;
-      const addBtn = pageSlide.querySelector('.desk-page-add');
-      if (addBtn) pageSlide.insertBefore(node, addBtn);
-      else pageSlide.appendChild(node);
+      // FIX 2026-09-12 #351：功能图标入目标页【网格】排版（4 列横排、可上移/下移/
+      // 拖拽定位，重进不丢），不再作为独立组件竖排。同时把该图标从其他页网格的顺序
+      // 数组剔除并落盘——否则启动归位时旧页数组把它认领回去（「添加后重进回原位」）。
+      if (wid.indexOf('app-') === 0) {
+        const grid = pageSlide.querySelector('.app-grid');
+        if (grid && grid.dataset.app) {
+          const srcGrid = node.closest('.app-grid');
+          grid.appendChild(node);
+          document.querySelectorAll('.app-grid').forEach(g => {
+            const gid = g.dataset.app;
+            if (!gid || g === grid) return;
+            let arr = [];
+            try { arr = JSON.parse(store.get('app-icon-order-' + gid) || '[]'); } catch (e) {}
+            const cleaned = arr.filter(k => k !== wid);
+            if (cleaned.length !== arr.length) store.set('app-icon-order-' + gid, JSON.stringify(cleaned));
+          });
+          const order = Array.prototype.slice.call(grid.querySelectorAll('.app')).map(a => a.dataset.app);
+          store.set('app-icon-order-' + grid.dataset.app, JSON.stringify(order));
+          if (srcGrid && srcGrid !== grid) try { syncPageHint(srcGrid.closest('.page-slide')); } catch (e) {}
+        } else {
+          const addBtn = pageSlide.querySelector('.desk-page-add');
+          if (addBtn) pageSlide.insertBefore(node, addBtn);
+          else pageSlide.appendChild(node);
+        }
+      } else {
+        const addBtn = pageSlide.querySelector('.desk-page-add');
+        if (addBtn) pageSlide.insertBefore(node, addBtn);
+        else pageSlide.appendChild(node);
+      }
       syncPageHint(pageSlide);
       saveDeskLayout();
       if (window.deskRebuild) window.deskRebuild();
@@ -5312,7 +5427,7 @@ try {
 
   // 退出装修模式（含桌面顶部"完成"按钮）
   function exitDecor() {
-    grids.forEach(g => g.classList.remove('editing'));
+    document.querySelectorAll('.app-grid').forEach(g => g.classList.remove('editing')); // FIX 2026-09-12 #351 动态查询含 pg* 网格
     const phone = document.getElementById('page-phone');
     if (phone) phone.classList.remove('decor-on');
     const bar = document.getElementById('decor-bar');
@@ -5371,7 +5486,7 @@ try {
   const tabbar = document.querySelector('.tabbar');
   if (tabbar && grids.length) {
     tabbar.addEventListener('click', () => {
-      grids.forEach(g => g.classList.remove('editing'));
+      document.querySelectorAll('.app-grid').forEach(g => g.classList.remove('editing')); // FIX 2026-09-12 #351 动态查询含 pg* 网格
       const phone = document.getElementById('page-phone');
       if (phone) phone.classList.remove('decor-on');
       const bar = document.getElementById('decor-bar');
@@ -5638,6 +5753,15 @@ try {
       curIdx = Math.max(0, Math.min(slides.length - 1, curIdx));
       const slide = slides[curIdx];
       if (!slide) return null;
+      // FIX 2026-09-12 #351：独立组件状态的图标（历史装修库添加/旧数据）拖到本页网格
+      // 上＝入格排版（网格型落点），不再只能与其他独立组件前后排序
+      const curGrid = slide.querySelector('.app-grid');
+      if (curGrid) {
+        const gr = curGrid.getBoundingClientRect();
+        if (clientX >= gr.left && clientX <= gr.right && clientY >= gr.top && clientY <= gr.bottom) {
+          return gridDropInfo(curGrid, dragged, clientX, clientY);
+        }
+      }
       const items = Array.prototype.slice.call(slide.querySelectorAll('[data-desk-widget]')).filter(n => {
         if (n === dragged) return false;
         const p = n.parentElement;
@@ -5678,6 +5802,9 @@ try {
         // v3.26.x #134：自嵌套防线——ref 在 dragged 内部时 insertBefore 会抛
         // HierarchyRequestError（节点不能插进自己的子孙位置），任何路径都不允许
         if (info.ref && dragged.contains(info.ref)) return;
+        // FIX 2026-09-12 #351：挪动前记下源网格——跨页后源页顺序数组必须同步剔除该
+        // 图标，否则启动归位时源/目标两个数组都认领同一图标（旧版「回原位」根因之一）
+        const srcGrid = dragged.closest('.app-grid');
         if (dragged.parentNode !== info.grid) info.grid.appendChild(dragged);
         if (info.ref && dragged !== info.ref) {
           if (info.before) info.grid.insertBefore(dragged, info.ref);
@@ -5685,6 +5812,15 @@ try {
         }
         const order = Array.prototype.slice.call(info.grid.querySelectorAll('.app')).map(a => a.dataset.app);
         store.set('app-icon-order-' + info.grid.dataset.app, JSON.stringify(order));
+        if (srcGrid && srcGrid !== info.grid && srcGrid.dataset.app) {
+          let srcOrder = [];
+          try { srcOrder = JSON.parse(store.get('app-icon-order-' + srcGrid.dataset.app) || '[]'); } catch (e) {}
+          const key = dragged.dataset.app;
+          const cleaned = srcOrder.filter(k => k !== key);
+          if (cleaned.length !== srcOrder.length) {
+            store.set('app-icon-order-' + srcGrid.dataset.app, JSON.stringify(cleaned));
+          }
+        }
       } else {
         const slides = Array.prototype.slice.call(pagesBox.querySelectorAll('.page-slide'));
         const targetIdx = slides.indexOf(info.slide);
@@ -6159,14 +6295,24 @@ try {
           try { sessionStorage.removeItem('xy-ls-big-migrated'); } catch (e) {}
           // 清空 IndexedDB（mochi-db）：只清 localStorage 不清 IDB 的话，
           // 刷新后 idbRestore 会把 IDB 里的旧数据全部回填，等于没清除（手机端必现）
-          const idbDone = (window.idbClearAll && window.idbClearAll()) || Promise.resolve(true);
+          // 优先真删库（idbDestroy 连库删除，IDB 残留彻底消失，回填无源可依）；
+          // 删库失败（被其它连接占用等）再退回 idbClearAll 清 store。决不用
+          // Promise.resolve(true) 掩盖失败——否则只清了 LS、IDB 残留回填复活，
+          // 表现为「专属字卡没了但其余内容全还原」（用户已在红米 K70 等实测）。
+          const idbClear = function () {
+            const destroy = (window.idbDestroy && window.idbDestroy()) || Promise.resolve(false);
+            return destroy.then(ok => ok ? true : ((window.idbClearAll && window.idbClearAll()) || Promise.resolve(false)));
+          };
+          const idbDone = idbClear();
           // 顺带清理 Service Worker 离线缓存（只缓存页面静态资源，不含用户数据）
           if (window.caches && caches.keys) {
             try {
               caches.keys().then(ks => Promise.all(ks.map(k => caches.delete(k)))).catch(() => {});
             } catch (e) {}
           }
-          idbDone.then(() => { location.reload(); });
+          // 清完后刷新；__resetting 屏障已阻止 beforeunload 把内存回写，删库成功则
+          // 重启后 IDB 为空、idbRestore 无可回填，彻底清除（含专属字卡等 LS-only 键）。
+          idbDone.then(() => { try { location.reload(); } catch (e) {} });
         }, { noInput: true });
       }
     });

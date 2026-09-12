@@ -319,11 +319,16 @@
   // 池键值却被剥成空串——导入后＝令牌全体失配的永久坏图，且空串条目随今后每次完整备份
   // 继续传播给对方设备（多机型反复「图片丢失」的真相）。文字模式必须整键跳过，绝不剥值留键。
   const MEDIA_POOL_KEY_RE = /^xy-home-v2:media:[0-9a-f]{32}$/;
+  // v3.3x.x：聊天记录消息键——全局 xy-home-v2:chat-msgs + 各桌面 xy-home-v2:<cid>:chat-msgs。
+  // 「仅聊天记录」导出只收这两种键（LS 小键 + IDB 权威值，含最新消息与图片/语音），
+  // 其余设置/字卡/音乐/媒体池全部跳过，体积最小、用来快速保住最不可再生的聊天记录。
+  const CHAT_KEY_RE = /:?chat-msgs$/;
 
   function exportCfg(mode) {
     if (mode === 'no-music') return { mode: mode, label: '不含音乐文件', note: '不含本地音乐文件', skip: (k) => MUSIC_KEY_RE.test(k), strip: false };
     // #275：文字模式媒体池整键跳过（skip 在读值前生效）——strip 只会剥值，键若留下就是空池
     if (mode === 'text') return { mode: mode, label: '只备份文字', note: '不含图片/语音/音乐附件', skip: (k) => MUSIC_KEY_RE.test(k) || MEDIA_POOL_KEY_RE.test(k), strip: true };
+    if (mode === 'chat') return { mode: mode, label: '仅聊天记录', note: '只导出聊天记录', skip: (k) => !CHAT_KEY_RE.test(k), strip: false };
     return { mode: 'full', label: '完整备份', note: '全部数据完整', skip: () => false, strip: false };
   }
 
@@ -633,8 +638,10 @@
     // v3.27.x：体积友好显示——大备份自动换算 MB（原只显示 KB，上千 KB 不便读）
     const sizeStr = fmtSize(blob.size);
     const doneText = '数据已导出（' + sizeStr + '，' + cfg.note + '）';
-    // v3.6.x：记录最近一次成功导出时间——备份提醒条（pwa.js）据此判断是否该提醒
-    try { localStorage.setItem('xy-home-v2:__last-backup', String(Date.now())); } catch (e) {}
+    // v3.6.x：记录最近一次成功导出时间——备份提醒条（pwa.js）据此判断是否该提醒。
+    // v3.3x.x：#355b 「仅聊天记录」导出只算部分备份，不更新 __last-backup——否则会压制
+    // 全量备份提醒，让用户误以为数据已整体备份完（音乐/图片/设置等都还没备份）。
+    if (cfg.mode !== 'chat') { try { localStorage.setItem('xy-home-v2:__last-backup', String(Date.now())); } catch (e) {} }
     // v3.29.x：自动备份副本已下线——导出不再把整包 JSON 复制进 IndexedDB。
     //   旧实现有 ≤3MB 才写的阈值（为修 iOS Safari 导出闪退 / 小米 14U Edge 导出后本地存储被写坏而加），
     //   结果是真正需要备份的大数据量用户永远拿不到副本，副本只留存在旧版本里变成纯冗余占用
@@ -1367,6 +1374,14 @@
       impHide();
       reportExportError(e, exportCfg('full'));
     });
+  };
+  // v3.3x.x：#355b 备份提醒条「单独备份聊天」专用入口——只导出聊天记录（CHAT_KEY_RE 键），
+  // 体积小、无需弹「选备份范围」；不写 __last-backup（部分备份，仍提示整体备份）。
+  // 复用 doExport('chat')，内部已兜住异常并收遮罩。
+  window.runChatExport = function () {
+    try { if (window.chatFlushSave) window.chatFlushSave(); } catch (e) {}
+    toast('正在导出聊天记录，请稍候…');
+    return doExport('chat');
   };
   const exportRow = document.getElementById('row-export');
   if (exportRow) {

@@ -52,6 +52,8 @@
 
   // ---- 抽取（供 chat.js 调用；触发成功返回 {content, group}，否则 null）----
   window.tryTaMoodShare = function () {
+    // #365 #319 锁定补口：TA的心情分享内容是系统预设字卡库——未解锁时不抽
+    if (window.cardLockOpen && !window.cardLockOpen()) return null;
     if (!enabled()) return null;
     // 总冷却：触发后至少间隔若干条正常聊天；冷却中每次调用递减
     let cd = getCd();

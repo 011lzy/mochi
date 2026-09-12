@@ -200,8 +200,9 @@
       return null;
     } catch (e) { return null; }
   };
-  // 造句结果入库（#324 分库规则）：多联系人时 80% 进公用库、20% 进当前联系人专属库；
-  // 只有一个桌面联系人时 100% 进专属库（公用库没有分享对象，全部留专属）。
+  // 造句结果入库（#324 分库规则 / #364 概率可调）：多联系人时按回复设置 mjf-pub
+  // （存公用库概率，默认 80%）进公用库、其余进当前联系人专属库；
+  // 只有一个桌面联系人时 100% 进专属库（公用库没有分享对象，全部留专属），不受该设置影响。
   // 写 cc-groups 的 mjfree 分类「梦角自由造句」分组（chatcard.js window.ccAppendCards，
   // 写守卫/去重/持久化复用；scope 'public'|'own' 双作用域）
   window.dreamFreeSave = function (txt) {
@@ -215,7 +216,13 @@
         (window.getContacts && window.getContacts() || []).forEach(c => { if (c && c.id) set.add(c.id); });
         cids = set.size;
       } catch (e) { cids = 1; }
-      const usePublic = cids > 1 && Math.random() < 0.8;
+      let pubProb = 80;
+      try {
+        const c = window.replyCfg && window.replyCfg();
+        const n = c ? Number(c['mjf-pub']) : NaN;
+        if (c && c['mjf-pub'] != null && c['mjf-pub'] !== '' && Number.isFinite(n)) pubProb = Math.max(0, Math.min(100, n));
+      } catch (e) {}
+      const usePublic = cids > 1 && Math.random() * 100 < pubProb;
       return !!window.ccAppendCards('mjfree', '梦角自由造句', [v], usePublic ? 'public' : 'own');
     } catch (e) { return false; }
   };

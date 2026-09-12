@@ -721,7 +721,10 @@
   }
 
   // ---- 保存 / 恢复对局（localStorage，每联系人独立） ----
-  const SAVE_KEY = (window.activePrefix && window.activePrefix() || 'xy-home-v2') + ':pong-saved';
+  // FIX 2026-09-12 #349 存档键曾冻结在【页面加载时】的桌面 cid——加载后在别的桌面开乒乓，
+  // 继续/保存读写的还是加载时那个桌面的存档（跨桌面串档，任何机型必现）。
+  // 改为每次读写动态取（同本文件 statsKey 的做法）。
+  function saveKey() { return (window.activePrefix && window.activePrefix() || 'xy-home-v2') + ':pong-saved'; }
   let paused = false;
   function canSave(s) {
     // 对局已经开始（有比分或球已发）才保存；纯倒计时/已结束不保存
@@ -729,26 +732,26 @@
   }
   function saveGame() {
     try {
-      if (!canSave(state)) { localStorage.removeItem(SAVE_KEY); return; }
+      if (!canSave(state)) { localStorage.removeItem(saveKey()); return; }
       const s = state;
       // 清除时间相对字段（恢复时重置）
       const clone = JSON.parse(JSON.stringify(s));
       clone.countdownAt = 0; clone.scorePauseUntil = 0;
       clone.opponent.aiNextAt = 0; clone.opponent.reactUntil = 0;
       clone._cdLen = null;
-      localStorage.setItem(SAVE_KEY, JSON.stringify(clone));
+      localStorage.setItem(saveKey(), JSON.stringify(clone));
     } catch (e) {}
   }
   function loadSaved() {
     try {
-      const raw = localStorage.getItem(SAVE_KEY);
+      const raw = localStorage.getItem(saveKey());
       if (!raw) return null;
       const s = JSON.parse(raw);
       if (!s || s.status === 'ended') return null;
       return s;
     } catch (e) { return null; }
   }
-  function clearSaved() { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} }
+  function clearSaved() { try { localStorage.removeItem(saveKey()); } catch (e) {} }
   function resumeGame() {
     const s = loadSaved();
     if (!s) return false;

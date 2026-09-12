@@ -418,6 +418,35 @@
     })).catch(() => false);
   };
 
+  // 真删库（应用内「清除本地数据」用）：关闭现有连接后 deleteDatabase 彻底删除
+  // mochi-db（连文件一起移除）。比 idbClearAll（仅 clear store）更彻底：
+  // 数据量大/连接挂起时 clear 事务可能静默失败（返回 false 或超时），只剩
+  // localStorage 被清、IndexedDB 残留，启动时 idbRestore 又把残留全量回填——
+  // 手机端「清除本地数据等于没清除」（用户反馈专属字卡没了但其余内容复活）。
+  // 删库成功后 reopen 会经 onupgradeneeded 重建空 store，idbRestore 无可回填。
+  window.idbDestroy = function () {
+    return new Promise((resolve) => {
+      let settled = false;
+      const fin = (ok) => { if (settled) return; settled = true; resolve(ok); };
+      try {
+        // 关闭并释放现有连接，否则 deleteDatabase 会因连接占用阻塞（onblocked 永不落地）
+        if (dbPromise) {
+          dbPromise.then(d => { try { d.close(); } catch (e1) {} }).catch(() => {});
+          dbPromise = null;
+        }
+        if (!window.indexedDB) { fin(false); return; }
+        const req = indexedDB.deleteDatabase(DB_NAME);
+        req.onsuccess = () => fin(true);
+        req.onerror = () => fin(false);
+        // onblocked = 仍被其它进程连接占用（旧标签页/旧 SW 也在开本库）。不设为失败，
+        // 交给下方超时兜底，让调用方有时间清完其它标签页后本请求落地。
+        req.onblocked = () => {};
+        // 兜底：blocked/挂起时最长等 6s，之后判失败交由调用方退回 idbClearAll
+        setTimeout(() => fin(false), 6000);
+      } catch (e) { fin(false); }
+    });
+  };
+
   // v3.6.x：原子替换全部键（导入备份用）——单事务内 clear() + 批量 put()。
   // 事务成功 = 全部替换完成；任一步失败/中止 → 整个事务回滚，store 保持事务开始前的
   // 旧数据。这取代「先 idbClearAll 清空、再逐条 idbSet」的导入流程——原流程清空与写入

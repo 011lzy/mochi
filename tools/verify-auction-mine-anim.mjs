@@ -145,11 +145,11 @@ check('M4 通关结算延迟弹出（先演涟漪再弹层）', m5.over && !m4.o
   'over=' + m5.over + ' early=' + m4.ovShownEarly + ' late=' + m5.ovShownLate);
 check('M5 结果浮层在显且子元素带入场动画', m5.ovShownLate);
 
-// M6~M9 踩雷：埋雷 [0,1,2] 连踩三颗 → 震屏 + 大爆炸脸 + 三命尽时结果层延迟（640ms）出现
+// M6~M9 踩雷：埋雷 [0,1,2,7] 连踩三颗 → 震屏 + 大爆炸脸 + 三命尽时结果层延迟出现（7 号雷留给 N3 揭雷断言）
 await page.evaluate(() => {
   const d = window.__msDebug;
   d.setDiff('easy'); d.newGame();
-  const mines = new Array(25).fill(0); mines[0] = 1; mines[1] = 1; mines[2] = 1;
+  const mines = new Array(25).fill(0); mines[0] = 1; mines[1] = 1; mines[2] = 1; mines[7] = 1;
   d.forceMap(mines);
 });
 await sleep(150);
@@ -159,6 +159,7 @@ for (let k = 0; k < 3; k++) {
   boomSeq.push(await page.evaluate(() => ({
     quake: document.getElementById('ms-board').classList.contains('ms-quake'),
     boomFace: (document.querySelector('#ms-board .ms-cell.ms-boom .ms-face') || {}).textContent || '',
+    hurt: document.getElementById('ms-lives').classList.contains('ms-hurt'),
     ovShown: !document.getElementById('ms-overlay').hidden,
     over: window.__msDebug.st().over
   })));
@@ -166,11 +167,19 @@ for (let k = 0; k < 3; k++) {
 }
 check('M6 踩雷棋盘震屏（ms-quake）', boomSeq.some((s) => s.quake));
 check('M7 爆炸格 💥 大爆炸动画脸（ms-boom + pop 载体）', boomSeq[0].boomFace === '💥');
-check('M8 三命尽：结果层延迟出现（640ms 窗口内不可见）', boomSeq[2].over && !boomSeq[2].ovShown,
+check('M8 三命尽：结果层延迟出现（揭雷+兜底窗内不可见）', boomSeq[2].over && !boomSeq[2].ovShown,
   'over=' + boomSeq[2].over + ' ovShown@t0=' + boomSeq[2].ovShown);
 await sleep(700);
 const m9 = await page.evaluate(() => !document.getElementById('ms-overlay').hidden);
 check('M9 延迟窗后结果层正常弹出（守卫未吞）', m9);
+
+// N3 失败揭雷：没踩过的 7 号雷在结算延迟窗内逐颗亮出（读板须在 M10 newGame 重置前）
+const n3 = await page.evaluate(() => {
+  const cell = document.querySelectorAll('#ms-board .ms-cell')[7];
+  return { face: (cell.querySelector('.ms-face') || {}).textContent || '', reveal: cell.classList.contains('ms-reveal') };
+});
+check('N3 失败揭雷：未挖的雷延迟亮出 💣（ms-reveal）', n3.face === '💣' && n3.reveal, JSON.stringify(n3));
+check('N4 掉心脉冲（ms-hearts 加 ms-hurt）', boomSeq[0].hurt === true);
 
 // M10 旗子弹出动画
 await page.evaluate(() => { const d = window.__msDebug; d.stopTa(); d.unlock(); d.newGame(); d.toggleFlag(7, 1); });
@@ -180,6 +189,42 @@ const m10 = await page.evaluate(() => {
   return { txt: face.textContent, pop: face.classList.contains('ms-pop') };
 });
 check('M10 插旗 🚩 带 ms-pop 弹出', m10.txt === '🚩' && m10.pop, JSON.stringify(m10));
+
+// ================= #349 二批：开局发牌 / 宝物特效 =================
+// N1 开局对角波次发牌：ms-born 全量 + delay 对角递增 + 动画结束自清
+await page.evaluate(() => { const d = window.__msDebug; d.setDiff('normal'); d.newGame(); });
+await sleep(60);
+const n1 = await page.evaluate(() => {
+  const cells = Array.from(document.querySelectorAll('#ms-board .ms-cell'));
+  return {
+    total: cells.length,
+    born: cells.filter((c) => c.classList.contains('ms-born')).length,
+    d0: parseInt(cells[0].style.animationDelay, 10) || 0,
+    dLast: parseInt(cells[cells.length - 1].style.animationDelay, 10) || 0
+  };
+});
+await sleep(1400);
+const n1b = await page.evaluate(() => Array.from(document.querySelectorAll('#ms-board .ms-cell')).filter((c) => c.classList.contains('ms-born')).length);
+check('N1 开局对角波次发牌（ms-born 全量+对角 delay 递增）', n1.born === n1.total && n1.dLast > n1.d0,
+  'born=' + n1.born + '/' + n1.total + ' d0=' + n1.d0 + 'ms dN=' + n1.dLast + 'ms');
+check('N1b 发牌动画结束自清（class/内联 delay 移除，不拖慢后续动画）', n1b === 0, 'left=' + n1b);
+
+// N2 宝物格 🪙 金色旋转弹出（mstreasure + 光晕）
+await page.evaluate(() => {
+  const d = window.__msDebug;
+  const mines = new Array(36).fill(0); mines[0] = 1;
+  d.forceMap(mines);
+  d.setContent(12, 'coin');
+  d.stopTa(); d.unlock();
+  d.dig(12, true);
+});
+await sleep(80);
+const n2 = await page.evaluate(() => {
+  const cell = document.querySelectorAll('#ms-board .ms-cell')[12];
+  const face = cell.querySelector('.ms-face');
+  return { txt: face.textContent, tr: cell.classList.contains('ms-tr'), anim: getComputedStyle(face).animationName };
+});
+check('N2 宝物格 🪙 金色旋转弹出（mstreasure+光晕）', n2.txt === '🪙' && n2.tr && n2.anim === 'mstreasure', JSON.stringify(n2));
 
 // ================= 拍卖会 =================
 await page.evaluate(() => { window.openAuctionPanel(); });

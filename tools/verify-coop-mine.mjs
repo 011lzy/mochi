@@ -182,9 +182,14 @@ await evalJs("(function(){var d=window.__msDebug;d.setDiff('easy');d.newGame();d
 await sleep(120);
 r = J(await evalJs("(function(){var d=window.__msDebug;d.dig(0,true);var s=d.st();return JSON.stringify({openN:s.open.filter(Boolean).length,over:s.over});})()"));
 check('B4 数字0连锁展开：无雷图挖一角直接清盘获胜（>20 格一次打开）', r.openN > 20 && r.over === true, JSON.stringify(r));
-// 覆盖层应显示胜利结算
-r = J(await evalJs("(function(){return JSON.stringify({title:(document.getElementById('ms-ov-title')||{}).textContent||'',body:(document.getElementById('ms-ov-body')||{}).textContent||''});})()"));
-check('B4b 胜利覆盖层：合作完成 + 探索统计 + 心意币行', /合作完成|清理完成/.test(r.title || '') && /你探索/.test(r.body || '') && /心意币/.test(r.body || ''), JSON.stringify(r));
+// 覆盖层应显示胜利结算（#343 起结算延迟到涟漪演完再弹——fast 模式 ≈14ms，轮询等它换内容，防读到上一局的旧浮层）
+let r4 = null;
+for (let i = 0; i < 15; i++) {
+  r4 = J(await evalJs("(function(){return JSON.stringify({title:(document.getElementById('ms-ov-title')||{}).textContent||'',body:(document.getElementById('ms-ov-body')||{}).textContent||''});})()"));
+  if (/合作完成/.test(r4.title || '')) break;
+  await sleep(100);
+}
+check('B4b 胜利覆盖层：合作完成 + 探索统计 + 心意币行', /合作完成|清理完成/.test(r4.title || '') && /你探索/.test(r4.body || '') && /心意币/.test(r4.body || ''), JSON.stringify(r4));
 // 关闭覆盖层继续下一组用例
 await evalJs("(function(){document.getElementById('ms-btn-start').click();return true;})()");
 await sleep(200);
@@ -249,10 +254,16 @@ r = J(await evalJs("(function(){var d=window.__msDebug;d.placeTaFlag(0);d.dig(0,
 check('B8a 踞第一颗雷：共用生命 3→2、状态含「TA 的旗没错」',
   r.lives === 2 && (r.hearts || '').indexOf('🖤') >= 0 && /旗没错/.test(r.status || ''), JSON.stringify(r));
 // 剩余两颗雷由玩家连踩（停 TA 计时器+解锁后直挖，绕开回合交替做确定性失败）
-r = J(await evalJs("(function(){var d=window.__msDebug;d.stopTa();d.unlock();d.dig(1,true);d.stopTa();d.unlock();d.dig(2,true);var s=d.st();return JSON.stringify({lives:s.lives,over:s.over});})()"));
-r = J(await evalJs("(function(){var s=window.__msDebug.st();return JSON.stringify({lives:s.lives,over:s.over,title:(document.getElementById('ms-ov-title')||{}).textContent||'',body:(document.getElementById('ms-ov-body')||{}).textContent||'',againBtn:(document.getElementById('ms-btn-start')||{}).textContent||''});})()"));
+await evalJs("(function(){var d=window.__msDebug;d.stopTa();d.unlock();d.dig(1,true);d.stopTa();d.unlock();d.dig(2,true);return true;})()");
+// #343 起失败结算延迟弹出（震屏/揭雷演完再弹，fast 模式 ≈32ms）——轮询等它换内容，防读到上一局的旧浮层
+let r8 = null;
+for (let i = 0; i < 15; i++) {
+  r8 = J(await evalJs("(function(){var s=window.__msDebug.st();return JSON.stringify({lives:s.lives,over:s.over,title:(document.getElementById('ms-ov-title')||{}).textContent||'',body:(document.getElementById('ms-ov-body')||{}).textContent||'',againBtn:(document.getElementById('ms-btn-start')||{}).textContent||''});})()"));
+  if (/差一点/.test(r8.title || '')) break;
+  await sleep(100);
+}
 check('B8b 三颗❤耗尽：失败结算（踩到太多雷/还差一点/再来一次），不搞惩罚文案',
-  r.lives <= 0 && r.over === true && /差一点/.test(r.title || '') && /还差一点/.test(r.body || '') && /再来一次/.test(r.againBtn || ''), JSON.stringify(r));
+  r8.lives <= 0 && r8.over === true && /差一点/.test(r8.title || '') && /还差一点/.test(r8.body || '') && /再来一次/.test(r8.againBtn || ''), JSON.stringify(r8));
 let failChat = '';
 for (let i = 0; i < 10 && !failChat; i++) {
   await sleep(400);

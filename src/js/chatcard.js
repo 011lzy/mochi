@@ -1643,15 +1643,34 @@
   const mcBtn = document.getElementById('cc-manage-cards');
   if (mcBtn) mcBtn.addEventListener('click', () => { if (manageMode) exitManage(); else enterManage(); });
 
-  // ================= 去重复字卡（同一分组内内容完全相同的字卡只保留 1 张） =================
+  // ================= 去重复字卡 =================
+  // #360：跨分组去重——seen 集合按「分类」建、不按「分组」建，同分类下换了分组也能清出重复；
+  // 对象型字卡（表情包/图片/语音）按稳定序列化内容判重（原 new Set(arr) 按引用比较，对象永远判不出）。
+  function ccCardDupKey(cat, c) {
+    if (typeof c === 'string') return cat + '|s|' + c;
+    try {
+      return cat + '|o|' + JSON.stringify(c, (k, v) => {
+        if (v && typeof v === 'object' && !Array.isArray(v)) {
+          const o = {};
+          Object.keys(v).sort().forEach(k2 => { o[k2] = v[k2]; });
+          return o;
+        }
+        return v;
+      });
+    } catch (e) { return cat + '|r|' + Math.random(); } // 序列化失败宁可不删
+  }
   const ccDedupe = document.getElementById('cc-dedupe');
   if (ccDedupe) {
     ccDedupe.addEventListener('click', () => {
       // 先统计重复数量（不修改数据），确认后才真正删除
       let dup = 0;
       Object.keys(groups).forEach(cat => {
-        (groups[cat] || []).forEach(([gname, arr]) => {
-          dup += (arr || []).length - new Set(arr || []).size;
+        const seen = new Set();
+        (groups[cat] || []).forEach(([, arr]) => {
+          (arr || []).forEach(c => {
+            const k = ccCardDupKey(cat, c);
+            if (seen.has(k)) dup++; else seen.add(k);
+          });
         });
       });
       if (!dup) { toast('没有发现重复字卡'); return; }
@@ -1659,12 +1678,13 @@
         window.openModal('去重 ' + dup + ' 张重复字卡？', '', () => {
           let removed = 0;
           Object.keys(groups).forEach(cat => {
-            (groups[cat] || []).forEach(([gname, arr]) => {
+            const seen = new Set();
+            (groups[cat] || []).forEach(([, arr]) => {
               const kept = [];
-              const seen = new Set();
               (arr || []).forEach(c => {
-                if (seen.has(c)) { removed++; return; }
-                seen.add(c); kept.push(c);
+                const k = ccCardDupKey(cat, c);
+                if (seen.has(k)) { removed++; return; }
+                seen.add(k); kept.push(c);
               });
               arr.length = 0;
               arr.push.apply(arr, kept);
@@ -1676,7 +1696,7 @@
           toast('已去除 ' + removed + ' 张重复字卡');
         }, {
           noInput: true,
-          staticText: '将删除同一分组内内容完全相同的重复字卡（每种内容只保留 1 张），并同步清理各分组的数量显示。'
+          staticText: '将删除当前字卡库内同分类各分组中内容完全相同的重复字卡（跨分组也计重复，每种内容只保留 1 张，保留最先出现的那张），并同步清理各分组的数量显示。'
         });
       }
     });
@@ -2872,6 +2892,8 @@
     if (playingAudio) {
       try { playingAudio.pause(); } catch (e) {}
       try { playingAudio.removeAttribute('src'); playingAudio.load(); } catch (e) {}
+      // FIX 2026-09-12 #359：与挂载对称，停播即卸——end/end-error/连点切播三路都经 stopPlay 收口
+      try { if (playingAudio.parentNode) playingAudio.parentNode.removeChild(playingAudio); } catch (e) {}
       playingAudio = null;
     }
     if (playingBtn) { playingBtn.classList.remove('playing'); playingBtn = null; }
@@ -2892,6 +2914,12 @@
     } catch (err) {
       stopPlay(); toast('该语音无法播放'); return;
     }
+    // FIX 2026-09-12 #359 字卡库语音点播无声：把 Audio 挂到 DOM 再播——部分安卓内核
+    // （荣耀X50 Edge/雨见等 Chromium 系）对未挂载的 Audio 静默空放，play() 走完不出声，
+    // 多机型同现。与聊天语音气泡（chat.js playVoiceInChat #358）、录音试听
+    //（toggleVoicePlay）同款加固：挂载后再 play，走标准解码管线；停播即卸（见 stopPlay）。
+    nextAudio.style.display = 'none';
+    document.body.appendChild(nextAudio);
     stopPlay();
     playingAudio = nextAudio;
     playingBtn = btn;
@@ -3533,13 +3561,15 @@
     // v3.32.x：三大入口 tab 分区隔离——「其他互动功能字卡」入口只显示 13 个功能分类，
     // 公用/专属入口只显示 7 个基础分类（用户反馈：功能页不应看到基础分类，且三入口
     // 要分开）。hidden 每次进页重建，入口互不残留
-    // #317：mjfree（梦角自由造句）例外——用户要求在【可自定义字卡】（公用/专属入口）
-    // 也能看到它，两个入口都显示该 tab
+    // #317→#353：mjfree（梦角自由造句）只在【可自定义字卡】（公用/专属大分类）显示；
+    // 【其他互动功能字卡】入口不再展示（用户反馈与大分类重复），数据仍存 cc-groups
+    // 的 mjfree 字段，dream-free.js 写入/抽取不受影响
     const ccFuncOnly = CC_FUNC_KEYS.indexOf(cur) >= 0;
     tabsWrap.querySelectorAll('.cc-tab').forEach(t => {
       const isFunc = CC_FUNC_KEYS.indexOf(t.dataset.type) >= 0;
+      const isMjfree = t.dataset.type === 'mjfree';
       t.classList.toggle('sel', t.dataset.type === cur);
-      t.hidden = ccFuncOnly ? !isFunc : (isFunc && t.dataset.type !== 'mjfree');
+      t.hidden = ccFuncOnly ? (!isFunc || isMjfree) : (isFunc && !isMjfree);
     });
     document.querySelectorAll('.page').forEach(p => p.hidden = true);
     const ccPage = document.getElementById('page-custom-cards');
@@ -3616,6 +3646,22 @@
       });
     });
   });
+
+  // #319 系统预设分区锁状态说明：锁定＝联系人与各功能取不到系统预设字卡，需开屏输二级密码解锁；
+  // 解锁/上锁都只发生在开屏卡（clock.js），这里只读状态展示，随 mochi-cardlock-* 事件实时刷新
+  (function ccPresetLockHint() {
+    const el = document.getElementById('cc-preset-lock-hint');
+    if (!el || !window.cardLockOpen) return;
+    function render() {
+      const open = window.cardLockOpen();
+      el.textContent = open
+        ? '当前状态：系统预设字卡已解锁（二级验证已通过），联系人回复与各功能可正常取用。'
+        : '当前状态：系统预设字卡已全部锁定（防未成年人保护），联系人回复与各功能均取不到；如已成年，请回开屏公告区点「输入密码解锁」输入二级验证密码，解锁后刷新生效。';
+    }
+    render();
+    document.addEventListener('mochi-cardlock-open', render);
+    document.addEventListener('mochi-cardlock-locked', render);
+  })();
 
   // v3.15.x：顶部两大分类 tab 显示字卡总数徽标——
   // 汇总各自分区里全部条目的 .t 计数。各模块（quote-cards/p2-features/ta-ask/

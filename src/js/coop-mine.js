@@ -316,6 +316,19 @@
       cell.appendChild(face);
       boardEl.appendChild(cell);
     }
+    // #349 开局波次发牌：按对角圈层 stagger 浮现；动画结束自清 class/内联延迟（防残留 delay 拖慢后续 ms-shake）
+    for (let i = 0; i < N(); i++) {
+      const r = Math.floor(i / st.n), c = i % st.n;
+      const cell = boardEl.children[i];
+      cell.classList.add('ms-born');
+      cell.style.animationDelay = Math.min((r + c) * 26, 480) + 'ms';
+      cell.addEventListener('animationend', function h(e) {
+        if (e.target !== cell || e.animationName !== 'msborn') return;
+        cell.classList.remove('ms-born');
+        cell.style.animationDelay = '';
+        cell.removeEventListener('animationend', h);
+      });
+    }
     fitBoard();
   }
   function fitBoard() {
@@ -456,6 +469,8 @@
       // #343 踩雷：棋盘震屏（CSS ms-quake），局面若终局让爆炸看完再弹结果
       boardEl.classList.remove('ms-quake'); void boardEl.offsetWidth; boardEl.classList.add('ms-quake');
       updateHud();
+      // #349 掉心脉冲：❤️ 行缩放闪一下
+      if (livesEl) { livesEl.classList.remove('ms-hurt'); void livesEl.offsetWidth; livesEl.classList.add('ms-hurt'); }
       sfxBoom();
       const who = byYou ? '你' : T('TA');
       let msg = '💥 ' + who + '踩到了雷！' + heartsStr();
@@ -613,12 +628,33 @@
     }
     if (s.coinEarned > 0) body += '<div class="pong-end-stat">🪙 我的心意币 +¥' + (s.coinEarned / 100).toFixed(2) + '</div>';
     body += '<div class="pong-end-stat ms-quote">「' + (win ? pick(['一起找完了。', '我们配合得不错嘛。', '全部清完啦，开心。']) : pick(['差一点点而已，再来！', '下次小心一点就好。'])) + '」</div>';
+    let showDelay = overlayDelay || 0;
+    if (!win) {
+      // #349 失败揭雷：没挖出的雷逐颗亮出 💣（纯显示层，不动 st.mine/open 逻辑态；正确插旗的雷保持 🚩）
+      const gen = st;
+      let rvN = 0, rvMax = 0;
+      for (let i = 0; i < N(); i++) {
+        if (!s.mine[i] || s.boom[i] || s.open[i] || s.flag[i]) continue;
+        const dly = 140 + rvN * 90;
+        rvN++; if (dly > rvMax) rvMax = dly;
+        setTimeout(() => {
+          if (st !== gen) return;
+          const cell = cellAt(i);
+          if (!cell) return;
+          cell.classList.add('ms-reveal');
+          const face = cell.firstChild;
+          face.textContent = '💣';
+          face.classList.remove('ms-pop'); void face.offsetWidth; face.classList.add('ms-pop');
+        }, Math.round(dly * fastMul()));
+      }
+      if (rvN) showDelay = Math.max(showDelay, rvMax + 280);
+    }
     const showResult = function () {
       // 延迟窗内可能已关面板/再来一局（st 被换/未 over）——此时不再弹结果
       if (!st || !st.over || panel.hidden) return;
       showOverlay(win ? '💣 合作完成' : '💥 差一点', body, '再来一次');
     };
-    if (overlayDelay) setTimeout(showResult, Math.round(overlayDelay * fastMul()));
+    if (showDelay) setTimeout(showResult, Math.round(showDelay * fastMul()));
     else showResult();
     if (startBtn) startBtn.textContent = '再来一次';
     if (endBtn) endBtn.hidden = false;

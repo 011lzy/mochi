@@ -2278,11 +2278,23 @@
     bgResumeTimers.forEach(clearTimeout);
     bgResumeTimers = [];
   }
+  // v3.3x（后台停播韧性·全机型通用）：后台补播不再「12 秒四档即弃」——尾档每 12s 续下一轮
+  // 补播轨道，对齐 bg-keep 保活音频的无限退避。切后台时音乐被系统/浏览器暂停、页面又未完全
+  // 冻结（保活 WebRTC 回环 + wakeLock 双豁免下定时器仍在走），原「四档 12s 耗尽后再无人拉起」
+  // 正是「十几秒~1 分钟才停」的主因；续轨即可在更长后台窗口内持续拉起。死循环/无限拉取仍由
+  // tryResumePlayback 现有 bgResumeFails>=6 + bgResumeFailAt 60s 冷却封顶兜底；音乐真出声
+  // （onplay→clearBgResume）或用户主动停/来电 hold（clearBgResume）都会自然断轨停止续排。
+  function keepBgResumeAlive() {
+    if (!wantPlay || callHoldPending) return;
+    scheduleBgResume();
+  }
   function scheduleBgResume() {
     clearBgResume();
     [300, 1500, 5000, 12000].forEach(function (d) {
       bgResumeTimers.push(setTimeout(function () { tryResumePlayback(); }, d));
     });
+    // v3.3x：续轨——12s 后再开下一轮（对齐第 4 档 12s，覆盖更长的后台暂停窗口）
+    bgResumeTimers.push(setTimeout(keepBgResumeAlive,12000));
   }
   function tryResumePlayback() {
     if (!wantPlay || callHoldPending) return;

@@ -247,14 +247,37 @@
     } while (findMatches(grid) || allMoves(grid).length === 0);
     return grid;
   }
+  // 死锁洗牌动画：值连同棋子一起换位——棋子滑到新格（滑行中轻微缩一下），不再整盘瞬跳重绘
   function reshuffle() {
     let flat = [];
-    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) flat.push(st.grid[r][c]);
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) flat.push({ v: st.grid[r][c], id: pidGrid[r][c] });
     for (let tries = 0; tries < 80; tries++) {
       shuffle(flat);
-      const g = [];
-      for (let r = 0; r < N; r++) g.push(flat.slice(r * N, (r + 1) * N));
-      if (!findMatches(g) && allMoves(g).length > 0) { st.grid = g; renderBoard(); return true; }
+      const g = [], ids = [];
+      for (let r = 0; r < N; r++) {
+        g.push(flat.slice(r * N, (r + 1) * N).map((x) => x.v));
+        ids.push(flat.slice(r * N, (r + 1) * N).map((x) => x.id));
+      }
+      if (!findMatches(g) && allMoves(g).length > 0) {
+        st.grid = g;
+        for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+          const id = ids[r][c];
+          pidGrid[r][c] = id;
+          const p = pieces.get(id);
+          if (p) {
+            p.el.style.transitionDuration = '0.32s';
+            p.el.style.transitionTimingFunction = 'cubic-bezier(.45,.05,.35,1.2)';
+            layoutTile(p.el, r, c);
+            const gl = p.el._g;
+            if (gl) { gl.classList.remove('m3-shuf'); void gl.offsetWidth; gl.classList.add('m3-shuf'); }
+          }
+        }
+        setTimeout(() => {
+          pieces.forEach((p) => { p.el.style.transitionDuration = ''; p.el.style.transitionTimingFunction = ''; });
+        }, animMs(360));
+        updateInfo();
+        return true;
+      }
     }
     renderBoard();
     return false;
@@ -295,7 +318,7 @@
     el.style.height = cellPx + 'px';
     el.style.fontSize = Math.round(cellPx * 0.54) + 'px';
     el.style.transform = 'translate(' + (c * (cellPx + GAP)) + 'px,' + ((fromRow != null ? fromRow : r) * (cellPx + GAP)) + 'px)';
-    if (fallDist) el.style.transitionDuration = fallSec(fallDist) + 's';
+    if (fallDist) { el.style.transitionDuration = fallSec(fallDist) + 's'; el.style.transitionTimingFunction = 'cubic-bezier(.55,0,.75,.45)'; }
     el._r = r; el._c = c;
     boardEl.appendChild(el);
     pieces.set(id, { v: v, el: el });
@@ -338,8 +361,8 @@
     const ia = pidGrid[a[0]][a[1]], ib = pidGrid[b[0]][b[1]];
     pidGrid[a[0]][a[1]] = ib; pidGrid[b[0]][b[1]] = ia;
     const pa = pieces.get(ia), pb = pieces.get(ib);
-    if (pa) { pa.el.style.transitionDuration = ''; layoutTile(pa.el, b[0], b[1]); }
-    if (pb) { pb.el.style.transitionDuration = ''; layoutTile(pb.el, a[0], a[1]); }
+    if (pa) { pa.el.style.transitionDuration = ''; pa.el.style.transitionTimingFunction = 'cubic-bezier(.3,1.35,.55,1)'; layoutTile(pa.el, b[0], b[1]); }
+    if (pb) { pb.el.style.transitionDuration = ''; pb.el.style.transitionTimingFunction = 'cubic-bezier(.3,1.35,.55,1)'; layoutTile(pb.el, a[0], a[1]); }
   }
   // 消除动画：棋子缩放爆开后移除（模型已在调用前置 -1）
   function popClear(cells) {
@@ -355,6 +378,25 @@
       p.el.classList.add('m3-pop');
       setTimeout(((el) => () => { if (el.parentNode) el.parentNode.removeChild(el); })(p.el), animMs(POP_MS) + 60);
     }
+  }
+  // 消除飘分：在消除质心冒出 +N 上浮淡出
+  function floatScore(cells, pts) {
+    if (!cells || !cells.length || !pts) return;
+    let sr = 0, sc = 0;
+    cells.forEach((p) => { sr += p[0]; sc += p[1]; });
+    const el = document.createElement('div');
+    el.className = 'm3-float';
+    el.textContent = '+' + pts;
+    el.style.left = ((sc / cells.length + 0.5) * (cellPx + GAP)) + 'px';
+    el.style.top = ((sr / cells.length + 0.5) * (cellPx + GAP)) + 'px';
+    el.style.fontSize = Math.max(14, Math.round(cellPx * 0.42)) + 'px';
+    boardEl.appendChild(el);
+    setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, animMs(780));
+  }
+  // 炸弹引爆：棋盘短促震动
+  function quakeBoard() {
+    boardEl.classList.remove('m3-quake'); void boardEl.offsetWidth; boardEl.classList.add('m3-quake');
+    setTimeout(() => { boardEl.classList.remove('m3-quake'); }, animMs(380));
   }
   // 重力下落动画：现有棋子按距离滑到新位，顶部空位生成新棋子从棋盘上方落进；返回本段最大下落距离
   function collapseAnimated() {
@@ -372,6 +414,7 @@
               const dist = write - r;
               if (dist > maxDist) maxDist = dist;
               p.el.style.transitionDuration = fallSec(dist) + 's';
+              p.el.style.transitionTimingFunction = 'cubic-bezier(.55,0,.75,.45)';
               layoutTile(p.el, write, c);
             }
           }
@@ -432,6 +475,19 @@
     buildBoard();
     fitBoard();
     updateInfo();
+    // 开局发牌动画：对角波次出生，防整盘瞬现（期间锁输入）
+    st.lock = true;
+    boardEl.querySelectorAll('.m3-tile').forEach((el) => {
+      const gl = el._g;
+      if (gl) { gl.style.animationDelay = ((el._r + el._c) * 35) + 'ms'; gl.classList.add('m3-deal'); }
+    });
+    setTimeout(() => {
+      boardEl.querySelectorAll('.m3-tile').forEach((el) => {
+        const gl = el._g;
+        if (gl) { gl.classList.remove('m3-deal'); gl.style.animationDelay = ''; }
+      });
+      st.lock = false;
+    }, animMs(35 * (2 * N - 2) + 260));
     st.turn = 1;
     setStatus(dot(1) + '你的回合：点一格再点相邻一格交换');
   }
@@ -498,6 +554,7 @@
       st.score += pts;
       if (byMe) st.myScore += pts; else st.taScore += pts;
       popClear(kept ? cells.filter((p) => p[0] !== kept[0] || p[1] !== kept[1]) : cells);
+      floatScore(cells, pts);
       if (kept) {
         // 生成特殊棋子：原格变身 + 出生弹跳
         const el = tileAt(kept[0], kept[1]);
@@ -506,7 +563,7 @@
           el.classList.remove('m3-born'); void el.offsetWidth; el.classList.add('m3-born');
         }
       }
-      if (hadBoom) sfxBoom();
+      if (hadBoom) { sfxBoom(); quakeBoard(); }
       sfxClear(chain);
       if (chain >= 3) taSay('连锁 ×' + chain + (byMe ? '，好强！' : '，我也行吧'));
       setTimeout(() => {
@@ -545,6 +602,7 @@
     st.score += pts;
     if (byMe) st.myScore += pts; else st.taScore += pts;
     popClear(cells);
+    floatScore(cells, pts);
     setTimeout(() => {
       const maxDist = collapseAnimated();
       setTimeout(() => {
@@ -854,6 +912,7 @@
     allMoves: allMoves,
     simulateClear: simulateClear,
     clearWithSpecials: clearWithSpecials,
+    reshuffle: reshuffle,
     colorOf: colorOf,
     BOMB_BASE: BOMB_BASE,
     RAINBOW: RAINBOW,

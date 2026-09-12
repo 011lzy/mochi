@@ -514,15 +514,20 @@
     if (!src) return;
     // 令牌 resilient：池令牌（现仅图片，语音日后若入池）内存命中即展开为真实地址
     try { const ex = window.mochiMediaExpand && window.mochiMediaExpand(src); if (ex) src = ex; } catch (e) {}
-    if (gcVoiceBtn === btn) { try { gcVoiceAudio.pause(); } catch (e) {} gcVoiceAudio = null; if (gcVoiceBtn) gcVoiceBtn.classList.remove('playing'); gcVoiceBtn = null; return; }
-    if (gcVoiceBtn) { try { gcVoiceAudio.pause(); } catch (e) {} gcVoiceBtn.classList.remove('playing'); }
+    if (gcVoiceBtn === btn) { try { gcVoiceAudio.pause(); } catch (e) {} try { if (gcVoiceAudio && gcVoiceAudio.parentNode) gcVoiceAudio.parentNode.removeChild(gcVoiceAudio); } catch (e) {} gcVoiceAudio = null; if (gcVoiceBtn) gcVoiceBtn.classList.remove('playing'); gcVoiceBtn = null; return; }
+    if (gcVoiceBtn) { try { gcVoiceAudio.pause(); } catch (e) {} try { if (gcVoiceAudio && gcVoiceAudio.parentNode) gcVoiceAudio.parentNode.removeChild(gcVoiceAudio); } catch (e) {} gcVoiceBtn.classList.remove('playing'); }
     const a = new Audio(src);
+    // FIX 2026-09-12 #359 群聊语音无声：把 Audio 挂到 DOM 再播——部分安卓内核（Edge/雨见等
+    // Chromium 系）对未挂载的 Audio 静默空放，与字卡库/聊天气泡同根因，同款加固；停播即卸。
+    a.style.display = 'none';
+    document.body.appendChild(a);
     gcVoiceAudio = a; gcVoiceBtn = btn;
     btn.classList.add('playing');
     // v3.12.x：播完/出错即卸掉 src——data: 音频的解码缓冲随元素存活，显式释放
     // 不等 GC（长时间群聊里每条语音一个 Audio，软滞留会在低内存安卓上累积）
     const stop = () => {
       try { a.removeAttribute('src'); a.load(); } catch (e) {}
+      try { if (a.parentNode) a.parentNode.removeChild(a); } catch (e) {}
       if (gcVoiceBtn) gcVoiceBtn.classList.remove('playing');
       gcVoiceBtn = null; gcVoiceAudio = null;
     };

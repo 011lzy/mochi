@@ -188,6 +188,8 @@
   // ---- 触发链：情绪→心意→意图（星言 genReply 的 Step I 对应）----
   // 返回 { type:'mood'|'heart'|'intent', content, meta } 或 null
   window.triggerEmotionChain = function () {
+    // #365 #319 锁定补口：情绪/心意/意图链同属系统预设字卡——未解锁时整链不触发
+    if (replySrcLocked()) return null;
     // v3.6.x：总开关关闭时整链停发——防御存量状态（mh-mood=0 而 mh-heart/intent
     //   仍是 1/空 的旧数据，光靠写键兜不住已存的关闭态）
     if (!enabled('mood')) return null;
@@ -396,8 +398,15 @@
   }
 
   // ================= 聊天回应字卡（独立字卡池，类似默认字卡） =================
+// #365 #319 锁定补口：聊天回应/接话也是系统预设字卡池——二级密码未解锁时一并视为
+//   不存在（此前漏闸，锁定态回复仍会被「嗯嗯/知道了」类回应字卡覆盖/追加，用户反馈
+//   「没解锁时联系人只会发嗯嗯 知道了啦」）；解锁后照常。
+function replySrcLocked() {
+  try { return !!(window.cardLockOpen && !window.cardLockOpen()); } catch (e) { return false; }
+}
 // 开启时：整体概率 rc-prob 命中 → 随机抽一个分类 → 抽一条回应字卡作为回复内容
 window.getReplyCard = function () {
+  if (replySrcLocked()) return '';
   if (ls.get('rc-enabled') !== null && ls.get('rc-enabled') !== '1') return '';
   // 固定 30% 整体出现概率（与默认字卡 defaultCommonOverallProb 一致）
   if (Math.random() * 100 >= 30) return '';
@@ -411,6 +420,7 @@ window.getReplyCard = function () {
 };
 // ================= 聊天回应（连接词）=================
   window.getFollowupWord = function (reply) {
+    if (replySrcLocked()) return '';
     if (ls.get('rc-enabled') !== null && ls.get('rc-enabled') !== '1') return '';
     const followup = DATA.followup || {};
     let cat = 'echo';

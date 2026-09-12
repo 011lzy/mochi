@@ -9258,9 +9258,16 @@ transition-duration: .01ms !important;
             <p class="splash-item">建议先全部打开使用，再根据个人适应情况调整。</p>
           </div>
           <div class="splash-sec-wrap">
-            <p class="splash-sec">【九、关于网站是否建议使用】</p>
+            <p class="splash-sec">【十、关于网站是否建议使用】</p>
             <p class="splash-item">mochi字卡内测时反馈很好，但实际效果因人而异。各家情况不一样，内置功能多，不一定都适应。可以留一点适应时间，自己和梦角沟通要不要用。</p>
             <p class="splash-item">适应本身就需要时间。刚开始有不顺的地方是正常的，各家情况不同，梦角不一定24小时在线，字卡也不容易控制，换了新字卡自己也要适应，何况梦角那边。</p>
+          </div>
+          <div class="splash-sec-wrap">
+            <p class="splash-sec">【关于使用过程中的更新提醒】</p>
+            <p class="splash-bullet">不同设备的服务器节点可能还没更新。如果设备没同步到最新版本，可以用流量多刷新几次，或者晚几个小时再试。</p>
+            <p class="splash-bullet">刚刷完新版的时候，新旧版本正在交接，也可能重复提醒一次。</p>
+            <p class="splash-bullet">如果不想现在更新，可以点「稍后」。下次重新打开网页会自动同步，这个提醒只是提示刷新用的。</p>
+            <p class="splash-bullet">频繁更新是因为真的每天一直在更新，不用奇怪</p>
           </div>
         </div>
       </div>
@@ -9269,9 +9276,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1789184182770">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.610</b></span>
-        <span class="sv-deploy">部署于 2026-09-12 11:36<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1789187761559">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.611</b></span>
+        <span class="sv-deploy">部署于 2026-09-12 12:36<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -10462,7 +10469,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.610</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.611</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10757,7 +10764,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.610</span>
+              <span class="lic-ver">v3.26.611</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -45369,6 +45376,7 @@ if (!picked) return null;
 return { content: picked.content, group: grp.group, emoji: grp.emoji, rarity: picked.rarity };
 };
 window.triggerEmotionChain = function () {
+if (replySrcLocked()) return null;
 if (!enabled('mood')) return null;
 const out = [];
 const mood = window.getMoodCard();
@@ -45549,7 +45557,11 @@ if (home) home.hidden = false;
 });
 }
 }
+function replySrcLocked() {
+try { return !!(window.cardLockOpen && !window.cardLockOpen()); } catch (e) { return false; }
+}
 window.getReplyCard = function () {
+if (replySrcLocked()) return '';
 if (ls.get('rc-enabled') !== null && ls.get('rc-enabled') !== '1') return '';
 if (Math.random() * 100 >= 30) return '';
 const followup = DATA.followup || {};
@@ -45560,6 +45572,7 @@ const pool = followup[cat].filter(t => !isCardOff('rc-off-' + cat, t));
 return pool[Math.floor(Math.random() * pool.length)];
 };
 window.getFollowupWord = function (reply) {
+if (replySrcLocked()) return '';
 if (ls.get('rc-enabled') !== null && ls.get('rc-enabled') !== '1') return '';
 const followup = DATA.followup || {};
 let cat = 'echo';
@@ -45876,6 +45889,7 @@ return Array.isArray(v) ? v.slice(-3) : [];
 } catch (e) { return []; }
 }
 window.tryTaMoodShare = function () {
+if (window.cardLockOpen && !window.cardLockOpen()) return null;
 if (!enabled()) return null;
 let cd = getCd();
 if (cd > 0) {
@@ -90105,4 +90119,4 @@ lastHeal: his
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mtxu2ewi -->
+<!-- __MOCHI_EOF__ mtxw74bb -->

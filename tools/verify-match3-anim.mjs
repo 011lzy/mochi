@@ -34,6 +34,11 @@ await page.evaluate(() => {
 await page.evaluate(() => { document.getElementById('m3-btn-start').click(); });
 await page.waitForFunction(() => window.__m3Debug && window.__m3Debug.st() && window.__m3Debug.st().started, null, { timeout: 5000 });
 
+// A4 开局发牌波次：棋子字形带 m3-deal（animation backwards 填充=延迟格先隐形、对角波次出现）
+const dealN = await page.evaluate(() => document.querySelectorAll('#m3-board .m3-glyph.m3-deal').length);
+check('A4 开局发牌带对角波次动画（m3-deal）', dealN === 64, 'deal tiles=' + dealN);
+await page.waitForFunction(() => window.__m3Debug.st() && !window.__m3Debug.st().lock, null, { timeout: 8000 });
+
 // A 布局形态：棋子绝对定位 + 过渡（动画载体）
 const shape = await page.evaluate(() => {
   const b = document.getElementById('m3-board');
@@ -59,7 +64,7 @@ const mv = await page.evaluate(() => {
 });
 check('B0 棋盘存在可消步', !!mv);
 
-let sawPop = false, sawBorn = false;
+let sawPop = false, sawBorn = false, sawFloat = false;
 if (mv) {
   await page.evaluate((mv) => {
     const st = window.__m3Debug.st();
@@ -76,15 +81,18 @@ if (mv) {
   while (Date.now() - t0 < 1200) {
     const s = await page.evaluate(() => ({
       pop: !!document.querySelector('.m3-tile.m3-pop'),
-      born: !!document.querySelector('.m3-tile.m3-born')
+      born: !!document.querySelector('.m3-tile.m3-born'),
+      float: !!document.querySelector('.m3-float')
     }));
     if (s.pop) sawPop = true;
     if (s.born) sawBorn = true;
-    if (sawPop && sawBorn) break;
+    if (s.float) sawFloat = true;
+    if (sawPop && sawBorn && sawFloat) break;
     await page.waitForTimeout(60);
   }
   check('B1 消除段出现爆开动画（m3-pop）', sawPop);
   check('B2 下落补位出现新子出生动画（m3-born）', sawBorn);
+  check('B2b 消除出现飘分（+N，m3-float）', sawFloat);
   // 等整条动画链走完且回到玩家回合（TA 可能已接续走完一手）
   await page.waitForFunction(() => {
     const st = window.__m3Debug.st();
@@ -169,6 +177,27 @@ if (pair) {
   });
   check('C1 无效交换后解锁且记失误', !inv.lock && inv.misPicks >= 1, JSON.stringify(inv));
 }
+
+// C2 死锁洗牌滑动动画：直接调 reshuffle，棋子滑到新位（m3-shuf 缩一下 + 过渡滑行），落定 64/64
+const shuf = await page.evaluate(() => {
+  const ok = window.__m3Debug.reshuffle();
+  const durs = [...document.querySelectorAll('#m3-board .m3-tile')].filter((x) => x.style.transitionDuration).length;
+  return { ok: ok, durs: durs };
+});
+let sawShuf = false;
+const t2 = Date.now();
+while (Date.now() - t2 < 500) {
+  if (await page.evaluate(() => !!document.querySelector('.m3-glyph.m3-shuf'))) { sawShuf = true; break; }
+  await page.waitForTimeout(50);
+}
+await page.waitForTimeout(700);
+const afterShuf = await page.evaluate(() => {
+  const tiles = [...document.querySelectorAll('#m3-board .m3-tile')];
+  return { n: tiles.length, uniq: new Set(tiles.map((x) => x._r + ',' + x._c)).size };
+});
+check('C2a 洗牌滑动触发（成功+棋子带过渡时长）', shuf.ok === true && shuf.durs > 0, JSON.stringify(shuf));
+check('C2b 洗牌缩放动画出现（m3-shuf）', sawShuf);
+check('C2c 洗牌落定 64/64 不重叠', afterShuf.n === 64 && afterShuf.uniq === 64, JSON.stringify(afterShuf));
 
 // D TA 回合动画链不卡死：等 TA 走完仍 64 颗、无重叠
 await page.waitForFunction(() => {

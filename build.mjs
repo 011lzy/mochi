@@ -1062,6 +1062,9 @@ const FIX_SENTINELS = [
   { name: '#361 字卡库语音点播挂载后播（删挂载即回归安卓 Chromium 系点播静默空放）', file: 'js/chatcard.js', needle: 'playingAudio = nextAudio' },
   { name: '#361 字卡库语音停播即卸（与挂载对称，删卸载行＝挂载的 Audio 元素滞留 DOM 泄漏）', file: 'js/chatcard.js', needle: 'try { if (playingAudio.parentNode) playingAudio.parentNode.removeChild(playingAudio); } catch (e) {}' },
   { name: '#361 群聊语音挂载后播（删挂载即回归群聊语音安卓无声）', file: 'js/group-chat.js', needle: 'gcVoiceAudio = a; gcVoiceBtn = btn;' },
+  // ==== 2026-09-12 #365 #319 锁定补口：聊天回应/接话/情绪链/TA的心情都是系统预设字卡源，此前未接二级密码锁——锁定态回复仍被「嗯嗯/知道了」类回应字卡覆盖或追加（用户反馈「没解锁时联系人只会发嗯嗯 知道了啦」）；修复=四处统一接 cardLockOpen 闸，解锁后照常 ====
+  { name: '#365 回应字卡锁闸·replySrcLocked 判定（删闸＝锁定态联系人仍发嗯嗯/知道了等系统预设回应字卡）', file: 'js/mood-reply-cards.js', needle: 'return !!(window.cardLockOpen && !window.cardLockOpen())' },
+  { name: '#365 TA的心情分享锁闸（删闸＝锁定态仍主动发系统预设心情字卡）', file: 'js/ta-mood.js', needle: 'if (window.cardLockOpen && !window.cardLockOpen()) return null;' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

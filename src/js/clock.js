@@ -127,7 +127,7 @@
     const open = window.cardLockOpen();
     if (tip) tip.textContent = open
       ? '系统内置字卡已解锁（成年人验证已通过）。如需恢复未成年人保护，可重新上锁。'
-      : '系统内置字卡已全部锁定，这是面向未成年人的保护措施。如你已成年，可输入二级验证密码解锁使用。';
+      : '系统内置字卡已全部锁定，这是面向未成年人的保护措施。如你已成年，可输入二级验证密码解锁使用。密码非常简单，答案就在开屏里可以找到；解开密码请勿二传（不要告诉别人），一旦有人二传，密码就会被重新设置。';
     actions.innerHTML = '';
     const state = document.createElement('div');
     state.className = 'cardlock-state';
@@ -165,7 +165,7 @@
           state.textContent = '验证通过，页面即将刷新…';
           if (mo) { try { mo.disconnect(); } catch (e) {} }
           setTimeout(function () { location.reload(); }, 900);
-        }, { inputmode: 'numeric', placeholder: '输入二级验证密码' });
+        }, { inputmode: 'numeric', placeholder: '输入二级验证密码', staticText: '密码非常简单，答案就在开屏里可以找到。解开密码请勿二传（不要告诉别人），一旦有人二传，密码就会被重新设置。' });
       });
       actions.appendChild(unlock);
     }

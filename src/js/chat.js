@@ -691,6 +691,14 @@ function dupGapMs(m) {
   if (!m) return DUP_GAP_TEXT;
   if (m.img || m.voice || m.special) return DUP_GAP_MEDIA;
   if ((m.type === 'sticker' || m.type === 'image' || m.type === 'voice') && (m.side || '') === 'in') return DUP_GAP_MEDIA;
+  // FIX 2026-09-12 #359 发送侧媒体消息（表情包/图片/语音字卡）去重窗口 2500ms→8000ms：
+  // 低端安卓长任务 100~270ms、点完表情面板无即时反馈，用户 2.5~8s 内补点同一条＝「发一遍
+  // 出现 2 个」且刷新也不收敛（归一化同窗口放行）（摩托罗拉 G100 / 华为 P50E Edge 多机型，
+  // 无头实证：150ms 双派发被吞、3.6s 重发成 2 条永久入库）。收件侧 60000ms 不变；发件侧
+  // 8000ms 只吞 8 秒内同内容重发，#256「人为连发不吞」的口径仅从 2.5s 放宽到此。
+  if (m.type === 'sticker' || m.type === 'image' || m.type === 'voice') return 8000;
+  // parts 型纯图片消息（相册发送，text 为空/说明文字）同窗口
+  if (Array.isArray(m.parts) && m.parts.some(p => p && p.k === 'img') && (m.side || '') === 'out') return 8000;
   return DUP_GAP_TEXT;
 }
 function normCollapseRange(from, to) {
@@ -888,6 +896,31 @@ if (!isMiss) { scheduleIdbRetry(); return; }
 let _ledN = 0;
 try { _ledN = chatLedger[myPrefix] || 0; } catch (e) {}
 if (_ledN > 0) { scheduleIdbRetry(); return; }
+// FIX 2026-09-12 #358 空库二次复核（账本缺失时的最后防线）：TASKS #133 探测层在冷启动
+// 早期窗口对已存在的键会同时谎报 idbGet undefined + idbHasKey false，账本缺失（chat-meta
+// 未写入/读取失败）时上面的矛盾守卫失效——单次探测说「空库」就把 LS 有损快照（折半弃旧，
+// 只有尾部）晋升为权威＝老历史永久被顶掉（实证：真机诊断 LS 与 IDB chat-msgs 同为 2.2MB）。
+// 2.5s 后（避开冷启动争抢窗口）hasKey+idbGet 双复核，任一翻案都按读取失败重试；
+// 两次都确认没有才进空库分支。
+setTimeout(function () {
+try { if (window.activePrefix() !== myPrefix) return; } catch (e) {}
+const reprobe = window.idbHasKey
+? window.idbHasKey(idbKey)
+: Promise.resolve(null);
+Promise.resolve(reprobe).then(function (has2) {
+try { if (window.activePrefix() !== myPrefix) return; } catch (e) {}
+if (has2 === true) { scheduleIdbRetry(); return; }
+window.idbGet(idbKey).then(function (v2) {
+try { if (window.activePrefix() !== myPrefix) return; } catch (e) {}
+if (v2 !== undefined && v2 !== null) { scheduleIdbRetry(); return; }
+enterConfirmedEmpty();
+}).catch(function () { scheduleIdbRetry(); });
+}).catch(function () { scheduleIdbRetry(); });
+}, 2500);
+return;
+});
+// v3.26.x #88：到达这里＝第一轮探测已确认空库（isMiss false 或已重试），原空库分支
+function enterConfirmedEmpty() {
 chatDbReady = true;
 idbRetryCount = 0;
 authLoadedPrefix = myPrefix;
@@ -910,7 +943,7 @@ writeLsSnapshot(msgs, myPrefix, true);
 // #90：已确认库里没有 chat-msgs，账本随之对齐真实状态（过期的高账本不该再拦正常保存）
 try { chatLedgerSave(myPrefix, (msgs && msgs.length) || 0, msgsBytes(msgs)); } catch (e) {}
 try { chatTailMerge(); } catch (e) {} // #180：确认空库也回放尾巴日志（本会话/上次会话未落盘部分）
-});
+}
 return;
 }
 try {
@@ -1538,7 +1571,12 @@ return d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日
 let chatVoiceAudio = null;
 let chatVoiceBtn = null;
 function stopChatVoice() {
-if (chatVoiceAudio) { try { chatVoiceAudio.pause(); } catch (e) {} chatVoiceAudio = null; }
+if (chatVoiceAudio) {
+try { chatVoiceAudio.pause(); } catch (e) {}
+// FIX 2026-09-12：与播放时挂载对称，停播即卸——data: 音频解码缓冲随元素存活，显式释放不等 GC
+try { if (chatVoiceAudio.parentNode) chatVoiceAudio.parentNode.removeChild(chatVoiceAudio); } catch (e) {}
+chatVoiceAudio = null;
+}
 if (chatVoiceBtn) { chatVoiceBtn.classList.remove('playing'); chatVoiceBtn = null; }
 }
 function playVoiceInChat(btn, src) {
@@ -1546,12 +1584,18 @@ if (!src) { toast('语音数据缺失'); return; }
 if (chatVoiceBtn === btn) { stopChatVoice(); return; }
 stopChatVoice();
 const a = new Audio(src);
+// FIX 2026-09-12 #358 语音气泡/收藏语音播放：把 Audio 挂到 DOM 再播——部分安卓 WebView
+// （雨见等）对未挂载的 Audio 会静默空放/直接 failure（「桌面收藏里联系人收藏的我的语音
+// 点播放显示播放失败」，多机型同现；与聊天内语音气泡同链路）。与语音录制试听同款加固
+// （见 toggleVoicePlay 的 document.body.appendChild(a)）。挂载后再 play，走标准解码管线。
+if (!a.parentNode) { a.style.display = 'none'; document.body.appendChild(a); }
+const detachA = () => { try { if (a.parentNode) a.parentNode.removeChild(a); } catch (e) {} };
 chatVoiceAudio = a;
 chatVoiceBtn = btn;
 btn.classList.add('playing');
-a.addEventListener('ended', stopChatVoice);
-a.addEventListener('error', () => { stopChatVoice(); toast('语音播放失败'); });
-a.play().catch(() => { stopChatVoice(); toast('语音播放失败'); });
+a.addEventListener('ended', () => { detachA(); stopChatVoice(); });
+a.addEventListener('error', () => { detachA(); stopChatVoice(); toast('语音播放失败'); });
+a.play().then(() => {}).catch(() => { detachA(); stopChatVoice(); toast('语音播放失败'); });
 }
 function voicePartsOf(text) {
 const p = String(text || '').split('|||');
@@ -3283,6 +3327,25 @@ window.chatAddGift = function (rec) { if (!rec.ts) rec.ts = Date.now(); return a
 // ② 非当前桌面先读后写，读到的 undefined 先用 idbGetAllKeys 复核是「确认无历史」
 //    还是「这次读取失败」——失败则 1.5s 后重试（最多 3 次），仍失败放弃写入：
 //    宁可丢一条系统提示，绝不冒覆盖整个聊天记录的风险。
+// FIX 2026-09-12 #358 跨桌面投递「确认空库」账本矛盾守卫（两条 append 路径共用）：
+// idbHasKey/idbGetAllKeys 在冷启动早期窗口会对已存在的键谎报「不存在」（TASKS #133），
+// 此刻 writeArr([一条]) 会把该联系人全部历史覆盖成一条＝「翻旧记录丢了一大半，媒体型
+// 字卡还被 #206 日志拒收回放，最后只剩互动卡片」（摩托罗拉 G100 Edge 等多机型报障）。
+// 探测说空库、而条数账本小键 <prefix>:chat-meta（几百字节，大键读失败时它几乎不会读失败）
+// 说有历史＝探测在说谎：按读取失败重试，绝不覆盖。账本也确认没有（真无历史）才放行写入。
+function deskAppendMissGuard(cid, tries, onRetry, writeOne) {
+  const ledKey = 'xy-home-v2:' + cid + ':chat-meta';
+  window.idbGet(ledKey).then(function (lv) {
+    let ledN = 0;
+    try {
+      const o = typeof lv === 'string' ? JSON.parse(lv) : lv;
+      if (o && typeof o.n === 'number') ledN = o.n;
+    } catch (e) {}
+    try { ledN = Math.max(ledN, chatLedger['xy-home-v2:' + cid] || 0); } catch (e) {}
+    if (ledN > 0) { if (tries < 5) setTimeout(onRetry, 2000); return; }
+    writeOne();
+  }).catch(function () { if (tries < 3) setTimeout(onRetry, 1500); });
+}
 window.chatAppendToDeskMsg = function (cid, text, opts) {
 opts = opts || {};
 const cur = window.__activeCid || 'default';
@@ -3324,8 +3387,10 @@ return !(keys || []).some(function (k) { return k === key; });
 }).catch(function () { return false; })
 : Promise.resolve(true));
 confirmMiss.then(function (isMiss) {
-if (isMiss) writeArr([{ side: 'in', special: opts.special || 'poke', text: text, ts: Date.now(), mailNotice: !!opts.mailNotice }]);
-else if (tries < 3) setTimeout(attempt, 1500);
+if (!isMiss) { if (tries < 3) setTimeout(attempt, 1500); return; }
+deskAppendMissGuard(cid, tries, attempt, function () {
+writeArr([{ side: 'in', special: opts.special || 'poke', text: text, ts: Date.now(), mailNotice: !!opts.mailNotice }]);
+});
 });
 }).catch(function () { if (tries < 3) setTimeout(attempt, 1500); });
 };
@@ -3374,8 +3439,8 @@ window.chatAppendDeskRec = function (cid, rec) {
             }).catch(function () { return false; })
           : Promise.resolve(true));
       confirmMiss.then(function (isMiss) {
-        if (isMiss) writeArr([rec]);
-        else if (tries < 3) setTimeout(attempt, 1500);
+        if (!isMiss) { if (tries < 3) setTimeout(attempt, 1500); return; }
+        deskAppendMissGuard(cid, tries, attempt, function () { writeArr([rec]); });
       });
     }).catch(function () { if (tries < 3) setTimeout(attempt, 1500); });
   };
@@ -3835,7 +3900,9 @@ if (lastMineText && Math.random() * 100 < _favProbMsg) {
 const fav = getFav();
 // v3.26.x：只与 TA 自己的收藏判重——「我」收藏过同一条不应挡住 TA 的自动收藏（两个 tab 独立）
 if (!fav.some(f => f.by === 'ta' && f.side === 'out' && f.text === lastMineText)) {
-let favType = lastMineText.indexOf('data:') === 0 ? 'image' : 'text';
+// FIX 2026-09-12 #356 媒体池令牌也是图片载荷：TA 自动收藏落库时 text 已可能被令牌化为
+// @@m:hash，旧判定只认 data: 开头→存成 type:text，收藏页把令牌串当文字直出
+let favType = (lastMineText.indexOf('data:image/') === 0 || (window.mochiMediaIsToken && window.mochiMediaIsToken(lastMineText))) ? 'image' : 'text';
 let favParts = undefined;
 for (let i = msgs.length - 1; i >= 0; i--) {
 const mm = msgs[i];
@@ -7323,7 +7390,9 @@ const FAV_KIND_LABEL = {
 function favTextHtml(s) {
 const str = String(s || '');
 let html = '';
-const re = /((?:sticker|image):)?(data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+)/g;
+// FIX 2026-09-12 #356 收藏令牌化后媒体池令牌 @@m:hash 也是图片载荷——信件/朋友圈收藏
+// 文本里夹令牌时按图片渲染（文档级观察器解析成池数据），否则令牌串被当文字直出＝不明代码
+const re = /((?:sticker|image):)?(data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+|@@m:[0-9a-f]{32})/g;
 let last = 0, mm;
 while ((mm = re.exec(str))) {
 html += escTxt(str.slice(last, mm.index));
@@ -7392,10 +7461,15 @@ if (window.viewChatImage) window.viewChatImage(img.src);
 });
 });
 } else {
-// FIX 2026-09-10 #283 收藏语音识别加令牌形态（名称|||@@m:hash——收藏落库时语音已令牌化）
+// FIX 2026-09-12 #356 收藏令牌化收口：favImgPass 会把收藏里的 data:image / data:audio
+// 换成媒体池令牌 @@m:hash（与聊天记录同池），渲染端必须与聊天同口径——令牌=图片载荷
+// （文档级观察器解析），绝不能掉进文本分支把 @@m:串 当文字直出（=「不明代码」报障，
+// 摩托罗拉 G100 Edge 等多机型复现，与设备无关）。bare data:audio（无 ||| 名称段的
+// 旧存量）也归语音，避免被当 <img> 塞音频数据。
 const isVoice = f.type === 'voice' || (typeof f.text === 'string' &&
-(f.text.indexOf('|||data:audio/') > 0 || /(?:^|\|\|\|)@@m:[0-9a-f]{32}$/.test(f.text)));
-const isImg = f.type === 'sticker' || f.type === 'image' || (typeof f.text === 'string' && f.text.indexOf('data:') === 0);
+(f.text.indexOf('|||data:audio/') > 0 || /^data:audio\//.test(f.text) || /(?:^|\|\|\|)@@m:[0-9a-f]{32}$/.test(f.text)));
+const isImg = f.type === 'sticker' || f.type === 'image' || (typeof f.text === 'string' &&
+(f.text.indexOf('data:image/') === 0 || (window.mochiMediaIsToken && window.mochiMediaIsToken(f.text))));
 if (isVoice) {
 b.style.padding = '8px 10px';
 fillVoiceBubble(b, f.text);
