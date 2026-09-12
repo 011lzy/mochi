@@ -644,7 +644,9 @@ function normCell(r) {
       const t = r.text.replace(/✉️\s*/g, '').replace(/✉\s*/g, '');
       if (t !== r.text) { r.text = ICON_ENV + t; c = true; }
     }
-    if ((r.type === 'text' || !r.type) && typeof r.text === 'string' && r.text.indexOf('data:image/') === 0) { r.type = 'image'; c = true; }
+    if ((r.type === 'text' || !r.type) && typeof r.text === 'string' && (r.text.indexOf('data:image/') === 0 || (window.mochiMediaIsToken && window.mochiMediaIsToken(r.text)))) { r.type = 'image'; c = true; }
+// FIX 2026-09-12 #383 存量乱码自愈：#383 前令牌卡曾以 type:text 入库（气泡直出 @@m:hash 串），
+// 归一化补认裸令牌→type='image'（与上行 data:image 升级同口径），刷新后历史乱码消息变回图片
 // FIX 2026-09-10 #283 语音型归一：裸 data:audio 文本与「|||@@m:令牌」（pass 令牌化后的无主
 // 名称形态）补 type='voice'，走语音气泡渲染（名称缺省「语音消息」），不再当纯文本直出
 if ((r.type === 'text' || !r.type) && typeof r.text === 'string' &&
@@ -1378,6 +1380,10 @@ cards.forEach(c => {
 if (pokeSet && pokeSet.has(c)) return; // 拍一拍字卡不进普通回复池
 if (typeof c === 'string' && c.indexOf('data:') === 0) return; // dataURL 已按媒体分类
 if (typeof c === 'string' && c.indexOf('|||') >= 0) return;
+// FIX 2026-09-12 #383 媒体池令牌卡不进文字池——#377 巨型库令牌化后 >64KB 贴纸/图片卡在
+// 回复池里是裸 @@m:hash（无 |||、非 data:），旧两道守卫全漏过＝令牌卡被当文字卡入池，
+// 抽中即把令牌串当文字直出（「联系人消息乱码 @@m:…」，公用库共享故多机型全现）
+if (typeof c === 'string' && window.mochiMediaIsToken && window.mochiMediaIsToken(c)) return;
 if (/[\uD800-\uDBFF]/.test(c) || /^[😀-🙏🌀-🫿]/u.test(c)) emoji.push(c);
 else if (/[\(（｡◕(◕)(づ｡(¬)]/.test(c) && /[\)）】)]/.test(c)) kaomoji.push(c);
 else text.push(c);
