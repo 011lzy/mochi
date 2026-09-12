@@ -9286,9 +9286,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1789207911770">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.615</b></span>
-        <span class="sv-deploy">部署于 2026-09-12 18:11<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1789212603566">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.616</b></span>
+        <span class="sv-deploy">部署于 2026-09-12 19:30<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -10510,7 +10510,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.615</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.616</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10805,7 +10805,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.615</span>
+              <span class="lic-ver">v3.26.616</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -16039,13 +16039,14 @@ try { URL.revokeObjectURL(url); } catch (e2) {}
 return true;
 } catch (e) { return false; }
 }
-function diagExportDocx(text, basePrefix, failToast) {
+function diagExportDocx(text, basePrefix, failMsg, toastFn) {
 const fname = (basePrefix || 'mochi-diag-') + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.docx';
+const tf = (typeof toastFn === 'function') ? toastFn : diagToast;
 const legacy = function () {
 const okDl = exportDocx(text, basePrefix);
-(failToast || diagToast)(okDl
+tf(okDl
 ? '已开始下载 docx 文件（见浏览器下载列表）'
-: (failToast ? '当前内核不支持下载，请长按报告手动复制。' : '当前内核不支持下载，请用【复制】复制'));
+: (failMsg || '当前内核不支持下载，请用【复制】复制'));
 };
 if (typeof window.mochiExportBlob !== 'function') { legacy(); return; }
 let blob = null;
@@ -16055,6 +16056,7 @@ window.mochiExportBlob(blob, fname, 'mochi 诊断报告', [
 { description: 'Word 文档', accept: { 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'] } }
 ]).then(function (res) { if (res === 'fail') legacy(); });
 }
+window.mochiDiagExportDocx = diagExportDocx;
 const SEEN_KEY = 'xy-home-v2:__diag-errs-seen';
 function badgeEl() {
 const row = document.getElementById('row-diagnostics');
@@ -16673,7 +16675,7 @@ noInput: true, textarea: true, textareaRows: 16, big: true,
 exportBtn: {
 label: '导出docx',
 fn: function (c) {
-diagExportDocx(c ? c.text() : r.text, 'mochi-screen-diag-',
+(window.mochiDiagExportDocx || function () {})(c ? c.text() : r.text, 'mochi-screen-diag-',
 '当前内核不支持下载，请长按报告手动复制。', sdToast);
 }
 }
@@ -27343,7 +27345,7 @@ if (r.special === 'poke' && typeof r.text === 'string') {
 const t = r.text.replace(/✉️\s*/g, '').replace(/✉\s*/g, '');
 if (t !== r.text) { r.text = ICON_ENV + t; c = true; }
 }
-if ((r.type === 'text' || !r.type) && typeof r.text === 'string' && r.text.indexOf('data:image/') === 0) { r.type = 'image'; c = true; }
+if ((r.type === 'text' || !r.type) && typeof r.text === 'string' && (r.text.indexOf('data:image/') === 0 || (window.mochiMediaIsToken && window.mochiMediaIsToken(r.text)))) { r.type = 'image'; c = true; }
 if ((r.type === 'text' || !r.type) && typeof r.text === 'string' &&
 (r.text.indexOf('data:audio/') === 0 || (r.text.indexOf('|||') === 0 && window.mochiMediaIsToken && window.mochiMediaIsToken(r.text.slice(3))))) { r.type = 'voice'; c = true; }
 if (r.special === 'poke' && typeof r.text === 'string' && r.text.indexOf('&lt;svg class=&quot;st-ico&quot;') === 0) {
@@ -27953,6 +27955,7 @@ cards.forEach(c => {
 if (pokeSet && pokeSet.has(c)) return; // 拍一拍字卡不进普通回复池
 if (typeof c === 'string' && c.indexOf('data:') === 0) return; // dataURL 已按媒体分类
 if (typeof c === 'string' && c.indexOf('|||') >= 0) return;
+if (typeof c === 'string' && window.mochiMediaIsToken && window.mochiMediaIsToken(c)) return;
 if (/[\uD800-\uDBFF]/.test(c) || /^[😀-🙏🌀-🫿]/u.test(c)) emoji.push(c);
 else if (/[\(（｡◕(◕)(づ｡(¬)]/.test(c) && /[\)）】)]/.test(c)) kaomoji.push(c);
 else text.push(c);
@@ -90621,4 +90624,4 @@ lastHeal: his
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mty870be -->
+<!-- __MOCHI_EOF__ mtyazkj2 -->

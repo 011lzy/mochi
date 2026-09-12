@@ -1764,13 +1764,18 @@
   // 再以裸 a[download]（exportDocx）兜底。此前只裸 a[download]+blob URL：荣耀畅玩80Pro
   // 自带浏览器（多机型同族）对合成 a.click() 静默忽略，点「导出docx」毫无反应；
   // 分享面板是该类壳浏览器唯一可靠通道（同 data-backup.js #172 的结论）。
-  function diagExportDocx(text, basePrefix, failToast) {
+  // #382 形参收窄：failMsg=失败提示文案（字符串）、toastFn=提示函数——旧版单形参
+  // failToast 同时被当「函数调用」和「文案判断」用，屏幕适配诊断调用方传 4 参
+  // （第3参=文案串、第4参=sdToast 被丢弃），一旦走 legacy 分支必抛
+  // 「failToast is not a function」且被按钮 try/catch 吞掉＝导出静默失败。
+  function diagExportDocx(text, basePrefix, failMsg, toastFn) {
     const fname = (basePrefix || 'mochi-diag-') + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.docx';
+    const tf = (typeof toastFn === 'function') ? toastFn : diagToast;
     const legacy = function () {
       const okDl = exportDocx(text, basePrefix);
-      (failToast || diagToast)(okDl
+      tf(okDl
         ? '已开始下载 docx 文件（见浏览器下载列表）'
-        : (failToast ? '当前内核不支持下载，请长按报告手动复制。' : '当前内核不支持下载，请用【复制】复制'));
+        : (failMsg || '当前内核不支持下载，请用【复制】复制'));
     };
     if (typeof window.mochiExportBlob !== 'function') { legacy(); return; }
     let blob = null;
@@ -1780,6 +1785,10 @@
       { description: 'Word 文档', accept: { 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'] } }
     ]).then(function (res) { if (res === 'fail') legacy(); });
   }
+  // #382：跨闭包导出——本 IIFE 与「屏幕适配诊断」IIFE（#209/#176 域）是两个独立闭包，
+  // 那边直接写 diagExportDocx 会 ReferenceError（点【导出docx】被 openModal 按钮的
+  // try/catch 吞掉＝毫无反应，多机型 Chrome/壳浏览器全现）。挂 window 供其调用。
+  window.mochiDiagExportDocx = diagExportDocx;
   // ===== v3.25.x：诊断入口角标 =====
   // 报障的人不知道去哪拿诊断数据：采集到新错误后，「复制诊断信息」行上挂
   // 红色数字角标（未看过的错误数），点开诊断后归零，把报障动线推到眼前。
@@ -2608,8 +2617,10 @@ window.mochiViewportForm = function (sig) {
               exportBtn: {
                 label: '导出docx',
                 fn: function (c) {
-                  // #333：三级降级链（分享面板→保存框→确认下载），裸下载只作兜底
-                  diagExportDocx(c ? c.text() : r.text, 'mochi-screen-diag-',
+                  // #333：三级降级链（分享面板→保存框→确认下载），裸下载只作兜底。
+                  // #382：diagExportDocx 在主诊断闭包里、本闭包不可见，跨闭包必须走 window 挂载；
+                  // 此前直接引用恒 ReferenceError 被吞＝点导出毫无反应（多机型必现）。
+                  (window.mochiDiagExportDocx || function () {})(c ? c.text() : r.text, 'mochi-screen-diag-',
                     '当前内核不支持下载，请长按报告手动复制。', sdToast);
                 }
               }

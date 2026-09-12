@@ -1093,6 +1093,12 @@ const FIX_SENTINELS = [
   { name: '#378 单聊轻点不杀跟底（位移<10px 且贴底=回钉，点气泡不再永久解钉）', file: 'js/chat.js', needle: 'const dy = Math.abs(e.changedTouches[0].clientY - chatUnpinTsY);' },
   { name: '#378 群聊跟底闸改按接管标记（同单聊距离闸问题）', file: 'js/group-chat.js', needle: 'if (!force && gcUserGcScrollTouched) return;' },
   { name: '#378 群聊轻点不杀跟底 + 滚回贴底解除接管', file: 'js/group-chat.js', needle: 'if (dy < 10 && nearGcBottom()) gcUserGcScrollTouched = false;' },
+  // ==== 2026-09-12 #382 屏幕适配诊断报告「导出docx」点了毫无反应（iQOO neo10pro Chrome 报障，多机型全现）——#333 时 diagExportDocx 在主诊断闭包、屏幕适配诊断闭包跨 IIFE 引用恒 ReferenceError 被 openModal 按钮 try/catch 吞掉；同调用 4 参对 3 形参 legacy 分支必抛 failToast is not a function ====
+  { name: '#382 诊断导出跨闭包挂载 window.mochiDiagExportDocx（删则屏幕适配诊断导出恒 ReferenceError 静默失败）', file: 'js/device.js', needle: 'window.mochiDiagExportDocx = diagExportDocx;' },
+  { name: '#382 屏幕适配诊断导出改走 window 挂载 + 形参收窄（failMsg,toastFn）', file: 'js/device.js', needle: "(window.mochiDiagExportDocx || function () {})(c ? c.text() : r.text, 'mochi-screen-diag-'" },
+  // ==== 2026-09-12 #383 联系人消息乱码直出 @@m:hash（华为畅享70Pro Chrome 报障，多机型全现）——#377 巨型库令牌化后裸 @@m:hash 卡体无 |||、非 data:，getPool 旧两道守卫全漏过＝令牌卡入文字池被当文字直出；normCell 补认裸令牌让存量乱码刷新自愈回图片 ====
+  { name: '#383 getPool 媒体令牌卡不进文字池（删则令牌卡再入池被当文字发出）', file: 'js/chat.js', needle: 'window.mochiMediaIsToken && window.mochiMediaIsToken(c)) return;' },
+  { name: '#383 归一化裸令牌 text 补 type=image（删则存量乱码消息永停留文字气泡）', file: 'js/chat.js', needle: 'window.mochiMediaIsToken && window.mochiMediaIsToken(r.text)))) { r.type = '+"'image'"+'; c = true; }' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
