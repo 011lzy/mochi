@@ -537,6 +537,7 @@
     s.combo = 0;
     s.rallyHits = 0;
     sfxLose();
+    s.shakeUntil = now + 300; s.shakeMag = 5;   // 丢命震屏（render 内 300ms 线性衰减随机位移）
     // 失误方侧的低概率短句（左半场掉=梦角侧，也含「差点」语义池）
     if (b.x <= W / 2) trySay(s, 'nearmiss', 0.22, now);
     if (s.lives <= 0) {
@@ -614,6 +615,11 @@
   function render(s, now) {
     ctx.save();
     ctx.clearRect(0, 0, W, H);
+    // 丢命震屏：300ms 随机位移线性衰减（在 clearRect 之后 translate，背景随之下扩边防露底）
+    if (now < (s.shakeUntil || 0)) {
+      const _sk = (s.shakeUntil - now) / 300 * (s.shakeMag || 5);
+      ctx.translate((Math.random() * 2 - 1) * _sk, (Math.random() * 2 - 1) * _sk);
+    }
     // 背景：纵向深空渐变 + 呼吸星点
     if (!_bgGrad) {
       _bgGrad = ctx.createLinearGradient(0, 0, 0, H);
@@ -622,7 +628,7 @@
       _bgGrad.addColorStop(1, '#161e34');
     }
     ctx.fillStyle = _bgGrad;
-    ctx.fillRect(0, 0, W, H);
+    ctx.fillRect(-9, -9, W + 18, H + 18);
     ctx.fillStyle = '#cfe0ff';
     for (const st of STARS) {
       ctx.globalAlpha = 0.2 + 0.16 * Math.sin(now * st.s + st.p);

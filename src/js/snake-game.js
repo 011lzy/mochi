@@ -10,10 +10,16 @@
   const FS_CELL = 21;                  // 全屏地图目标格子尺寸（逻辑 px）——偏小让地图更大
   const INIT_LEN = 3;
   const FOOD_TARGET = 2;
-  const PREFIX = (window.activePrefix && window.activePrefix()) || 'xy-home-v2';
-  const KEY = PREFIX + ':snake-score';
-  const SAVE_KEY = PREFIX + ':snake-saved';
-  const PARTNER_KEY = PREFIX + ':lbl-partner';
+  // FIX 2026-09-12 #349 多桌面串名串档根因：此前的 PREFIX/KEY/SAVE_KEY/BEST_KEY/PARTNER_KEY
+  // 是【模块加载时冻结】的桌面命名空间——页面加载时在 A 桌面，之后切到 B 桌面开贪吃蛇，
+  // 标题昵称/战绩/最高分/存档读写的仍是 A 桌面的键（跨桌面串数据，任何机型浏览器必现）。
+  // 改为每次读写动态取 activePrefix()（同 gomoku/linkup/match3 等面板的 prefix() 模式）；
+  // 战绩/最高分读侧保留无 cid 的顶层遗留键回退（最早版本数据不丢），写侧只写动态键。
+  function prefix() { return (window.activePrefix && window.activePrefix()) || 'xy-home-v2'; }
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function keyScore() { return prefix() + ':snake-score'; }
+  function keySaved() { return prefix() + ':snake-saved'; }
+  function keyBest() { return prefix() + ':snake-best'; }
 
   // 难度：tick 间隔(ms)按时间段 [0-30s, 30-60s, 60-90s, 90s+]
   // 配合 rAF 插值渲染，蛇身视觉连续滑动；逻辑步进间隔可适当放慢以保持可操作性
@@ -49,7 +55,6 @@
   let pauseAt = 0;
   let cssW = 360, cssH = 360, dpr = 1;   // 画布 CSS 尺寸（全屏由 setupCanvas 按剩余空间计算）
   let particles = [], floaters = [], renderLastTime = 0;
-  const BEST_KEY = PREFIX + ':snake-best';
 
   // 当前生效的地图格数：进行中对局用自己的尺寸，空闲/下一局用视口推算的 GW/GH
   function gW() { return (state && state.gw) || GW; }
@@ -76,15 +81,15 @@
     win: function () { beep(660, 0.12); setTimeout(function () { beep(880, 0.14); }, 130); }
   };
 
-  function readScore() { try { return JSON.parse(localStorage.getItem(KEY) || '{"w":0,"l":0,"d":0}'); } catch (e) { return { w: 0, l: 0, d: 0 }; } }
-  function writeScore(s) { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {} }
+  function readScore() { const raw = lsGet(keyScore()) || lsGet('xy-home-v2:snake-score'); try { return JSON.parse(raw || '{"w":0,"l":0,"d":0}'); } catch (e) { return { w: 0, l: 0, d: 0 }; } }
+  function writeScore(s) { try { localStorage.setItem(keyScore(), JSON.stringify(s)); } catch (e) {} }
   function renderScore() {
     if (!scoreEl) return;
     const s = readScore();
     scoreEl.textContent = '胜 ' + s.w + ' · 负 ' + s.l + ' · 平 ' + s.d;
   }
-  function readBest() { try { return JSON.parse(localStorage.getItem(BEST_KEY) || '{}'); } catch (e) { return {}; } }
-  function writeBest(b) { try { localStorage.setItem(BEST_KEY, JSON.stringify(b)); } catch (e) {} }
+  function readBest() { const raw = lsGet(keyBest()) || lsGet('xy-home-v2:snake-best'); try { return JSON.parse(raw || '{}'); } catch (e) { return {}; } }
+  function writeBest(b) { try { localStorage.setItem(keyBest(), JSON.stringify(b)); } catch (e) {} }
   function renderBest() {
     if (!bestEl) return;
     const b = readBest();
@@ -353,6 +358,7 @@
     if (safeBtn) safeBtn.classList.toggle('on', state.flags.safe);
     behavior = { current: null, until: 0, stepLeft: 0, cooldowns: {}, targetFood: null, speedUp: false, speedUpUntil: 0 };
     particles = []; floaters = [];
+    if (canvas) canvas.classList.remove('snk-die', 'snk-die-red');   // 清上一局死亡反馈
     maintainFood();
   }
 
@@ -754,8 +760,21 @@
     updateBest(result);
     renderScore();
     renderBest();
-    showResult(d);
+    // 死亡瞬间先演再结算（#341 五子棋「结果浮层延迟弹出」同款）：冻结的最后一帧画布用
+    // CSS 类抖动（我方死加红光外晕），约 700ms 后再弹结算浮层；分数落盘/聊天分享不延迟，
+    // 数据照旧先落。700ms 内重开/换局（state 换新或 status 离开 over）则放弃弹层。
+    try {
+      canvas.classList.remove('snk-die', 'snk-die-red');
+      void canvas.offsetWidth;
+      canvas.classList.add('snk-die');
+      if (!state.player.alive) canvas.classList.add('snk-die-red');
+    } catch (e) {}
     if (window.sendSnakeResult) window.sendSnakeResult(d);
+    const _endState = state;
+    setTimeout(function () {
+      if (state !== _endState || _endState.status !== 'over') return;
+      showResult(d);
+    }, 700);
   }
 
   function showResult(d) {
@@ -907,8 +926,8 @@
   function canSave(s) { return s && s.status === 'playing'; }
   function saveGame() {
     try {
-      if (!canSave(state)) { localStorage.removeItem(SAVE_KEY); return; }
-      localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+      if (!canSave(state)) { localStorage.removeItem(keySaved()); return; }
+      localStorage.setItem(keySaved(), JSON.stringify(state));
     } catch (e) {}
   }
   function validCoord(p, w, h) { return p && p.x >= 0 && p.x < w && p.y >= 0 && p.y < h; }
@@ -924,7 +943,7 @@
   }
   function loadSaved() {
     try {
-      const raw = localStorage.getItem(SAVE_KEY);
+      const raw = lsGet(keySaved());
       if (!raw) return null;
       const s = JSON.parse(raw);
       if (!s || s.status !== 'playing') return null;
@@ -932,7 +951,7 @@
       return s;
     } catch (e) { return null; }
   }
-  function clearSaved() { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} }
+  function clearSaved() { try { localStorage.removeItem(keySaved()); } catch (e) {} }
   function resumeGame() {
     const s = loadSaved();
     if (!s) return false;
@@ -963,7 +982,16 @@
     if (window.closeAvlib) window.closeAvlib();
     const mp = $('chat-more-panel'); if (mp) mp.hidden = true;
     const nameEl = $('snake-partner-name');
-    if (nameEl) nameEl.textContent = (typeof localStorage !== 'undefined' && localStorage.getItem(PARTNER_KEY)) || 'TA';
+    // FIX 2026-09-12 #349 标题名与全部其他游戏面板同链：activeStore 动态命名空间
+    // （cs-lbl-partner || lbl-partner）——曾裸读加载时冻结的 PARTNER_KEY，切桌面后串名
+    if (nameEl) {
+      let pname = 'TA';
+      try {
+        const nst = window.activeStore && window.activeStore();
+        pname = (nst && (nst.get('cs-lbl-partner') || nst.get('lbl-partner'))) || pname;
+      } catch (e) {}
+      nameEl.textContent = pname;
+    }
     // 先显示面板再切全屏：隐藏状态下量不到布局尺寸，setupCanvas 会拿到 0
     panel.hidden = false;
     renderScore();
