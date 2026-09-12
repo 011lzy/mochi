@@ -9075,7 +9075,7 @@ transition-duration: .01ms !important;
              纯静态卡骨架，状态文案/按钮/交互由 clock.js 接线渲染（card-lock.js 提供闸门），在线 notice.json 不影响此处 -->
         <div class="splash-alert splash-cardlock" data-anti-scam="l" id="splash-cardlock">
           <div class="splash-alert-t">防未成年人 · 系统内置字卡已锁定</div>
-          <p id="splash-cardlock-tip">系统内置字卡已全部锁定，这是面向未成年人的保护措施。如你已成年，可输入二级验证密码解锁使用。</p>
+          <p id="splash-cardlock-tip">系统内置字卡已全部锁定，这是面向未成年人的保护措施。如你已成年，可输入二级验证密码解锁使用。密码非常简单，答案就在开屏里可以找到；解开密码请勿二传（不要告诉别人），一旦有人二传，密码就会被重新设置。</p>
           <div class="cardlock-actions" id="splash-cardlock-actions"></div>
         </div>
         <!-- v3.27.x：防骗置顶声明——最顶部固定展示，防收费诈骗；静态 DOM，在线 notice.json 覆盖只改公告列表，不影响此处 -->
@@ -9257,6 +9257,11 @@ transition-duration: .01ms !important;
             <p class="splash-item">虽然 Mochi字卡相比我做的第一个星言字卡传讯已经是简约了一点的版本，实际功能还是设置得比较复杂，并不是一个非常简单的字卡传讯。</p>
             <p class="splash-item">建议先全部打开使用，再根据个人适应情况调整。</p>
           </div>
+          <div class="splash-sec-wrap">
+            <p class="splash-sec">【九、关于网站是否建议使用】</p>
+            <p class="splash-item">mochi字卡内测时反馈很好，但实际效果因人而异。各家情况不一样，内置功能多，不一定都适应。可以留一点适应时间，自己和梦角沟通要不要用。</p>
+            <p class="splash-item">适应本身就需要时间。刚开始有不顺的地方是正常的，各家情况不同，梦角不一定24小时在线，字卡也不容易控制，换了新字卡自己也要适应，何况梦角那边。</p>
+          </div>
         </div>
       </div>
     </div>
@@ -9264,9 +9269,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1789176293919">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.609</b></span>
-        <span class="sv-deploy">部署于 2026-09-12 09:24<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1789184182770">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.610</b></span>
+        <span class="sv-deploy">部署于 2026-09-12 11:36<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -9654,6 +9659,8 @@ transition-duration: .01ms !important;
       </div>
       <div class="cc-sect-body" id="cc-sect-preset" hidden>
       <div class="sm-set-hint" style="padding:2px 16px 10px">说明：本站「系统预设字卡」均为自搓字卡（AI 辅助设计），按分类/分组展示，可逐张开启或关闭。</div>
+      <!-- #319 锁状态说明：锁定/解锁两种状态都明示（解锁入口在开屏公告区，此处只读不操作） -->
+      <div class="sm-set-hint" id="cc-preset-lock-hint" style="padding:0 16px 10px"></div>
       <div class="chat-item glass" id="li-default-cards">
         <div class="av"><svg viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.7 5.5 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1L3.2 9.4l6.1-.9z"/></svg></div>
         <div class="ci"><div class="n">默认聊天字卡</div><div class="m">日常默认回复字卡（自搓）</div></div>
@@ -10455,7 +10462,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.609</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.610</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10750,7 +10757,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.609</span>
+              <span class="lic-ver">v3.26.610</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -11308,7 +11315,9 @@ transition-duration: .01ms !important;
             <div class="gs-row"><span>梦角自由造句</span><label class="toggle"><input type="checkbox" id="mjf-en"><span class="tk"></span></label></div>
             <div class="gs-row"><span>触发概率</span><div class="stepper" data-k="mjf-prob" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="mjf-prob-val" readonly><button class="stp-max">+</button></div></div>
             <div class="gs-row"><span>造句手法（0语气词/1撤回/2换字卡）</span><div class="stepper" data-k="mjf-style" data-min="0" data-max="2" data-step="1"><button class="stp-min">−</button><input class="stp-val" id="mjf-style-val" readonly><button class="stp-max">+</button></div></div>
-            <div class="gs-sub">自由选择开关（默认关）：开启后梦角（联系人）说话按「触发概率」随机重造句，气泡下带「梦角自由造句」小标签。造句手法三选一（上方数字 0/1/2），效果举例（源句「今天也要好好爱自己，晚安哦」）：<br>· 0 语气词式：截掉一个词补个语气词 →「今天也要好好想你了」，或句尾加语气字 →「…晚安哦呀」，也可能词间加逗号/空格、删句尾字；<br>· 1 撤回式（默认）：像撤回消息一样把后半句撤回，留下的前缀就是新句子 →「今天也要好好爱自己」；<br>· 2 换字卡内容式：截掉一个词、从你别的字卡里挑一个词补上 →「今天也要好好看日落」。<br>造出的新句自动存进 字卡库→自定义聊天字卡→梦角自由造句 分类，可在那里查看/删除，也会作为语料被再次抽用。语料来自你自建的聊天字卡（至少 4 个汉字的文本卡）。概率 0 = 不触发</div>
+            <!-- #364 存库概率：多桌面联系人时新句按此概率进公用库、其余进专属库；仅 1 个联系人固定进专属库 -->
+            <div class="gs-row"><span>存公用库概率（多联系人）</span><div class="stepper" data-k="mjf-pub" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="mjf-pub-val" readonly><button class="stp-max">+</button></div></div>
+            <div class="gs-sub">自由选择开关（默认关）：开启后梦角（联系人）说话按「触发概率」随机重造句，气泡下带「梦角自由造句」小标签。造句手法三选一（上方数字 0/1/2），效果举例（源句「今天也要好好爱自己，晚安哦」）：<br>· 0 语气词式：截掉一个词补个语气词 →「今天也要好好想你了」，或句尾加语气字 →「…晚安哦呀」，也可能词间加逗号/空格、删句尾字；<br>· 1 撤回式（默认）：像撤回消息一样把后半句撤回，留下的前缀就是新句子 →「今天也要好好爱自己」；<br>· 2 换字卡内容式：截掉一个词、从你别的字卡里挑一个词补上 →「今天也要好好看日落」。<br>造出的新句自动存进 字卡库→自定义聊天字卡→梦角自由造句 分类，可在那里查看/删除，也会作为语料被再次抽用。语料来自你自建的聊天字卡（至少 4 个汉字的文本卡）。概率 0 = 不触发。<br>「存公用库概率」：有多个桌面联系人时，造出的新句按该概率进公用字卡、其余进专属字卡；只有一个桌面联系人时固定进专属字卡</div>
           </div>
           <div class="gs-title">主动发送（联系人找你）</div>
           <div class="set-group glass">
@@ -14583,6 +14592,7 @@ transition-duration: .01ms !important;
   <div class="ver-update-bar" id="backup-remind-bar" hidden>
     <span class="vub-txt" id="backup-remind-txt">建议导出数据备份</span>
     <span class="vub-act" id="backup-remind-go">去备份</span>
+    <span class="vub-act" id="backup-remind-chat">备份聊天</span>
     <span class="vub-act vub-close" id="backup-remind-close" style="background:transparent;color:#ccc;border:1px solid rgba(255,255,255,.3)">稍后</span>
   </div>
 
@@ -18816,7 +18826,7 @@ onLink: function (act) { if (act === 'skipqa') qaSkipAsk(items, i, afterAll); }
 }
 function qaSkipAsk(items, i, afterAll) {
 textAsk({
-title: '跳过开屏问答', sub: '暗号是 99 + mochi 字卡生日的 4 位数字，一共 6 个数字。输入暗号后，这台设备以后每次打开都不再问答（不再显示问答层）。提示：时间就在开屏里可以找到，非常简单，解出请勿二传，这么简单真没必要二传。不输入暗号也不影响正常使用。',
+title: '跳过开屏问答', sub: '暗号是 99 + mochi 字卡生日的 4 位数字，一共 6 个数字。输入暗号后，这台设备以后每次打开都不再问答（不再显示问答层）。提示：时间就在开屏里可以找到，非常简单。警告：一旦有人把密码二传（告诉别人），发现后密码就会被重新设置，请不要外传。不输入暗号也不影响正常使用。',
 placeholder: '输暗号', maxlen: 12, okLabel: '确定', cancelLabel: '返回',
 onSubmit: function (v) {
 if (String(v || '').trim() === QA_SKIP_CODE) {
@@ -19481,7 +19491,7 @@ if (!actions) return;
 const open = window.cardLockOpen();
 if (tip) tip.textContent = open
 ? '系统内置字卡已解锁（成年人验证已通过）。如需恢复未成年人保护，可重新上锁。'
-: '系统内置字卡已全部锁定，这是面向未成年人的保护措施。如你已成年，可输入二级验证密码解锁使用。';
+: '系统内置字卡已全部锁定，这是面向未成年人的保护措施。如你已成年，可输入二级验证密码解锁使用。密码非常简单，答案就在开屏里可以找到；解开密码请勿二传（不要告诉别人），一旦有人二传，密码就会被重新设置。';
 actions.innerHTML = '';
 const state = document.createElement('div');
 state.className = 'cardlock-state';
@@ -19516,7 +19526,7 @@ if (!r.ok) { ctl.hint(r.msg || '密码不对'); ctl.stay(); return; }
 state.textContent = '验证通过，页面即将刷新…';
 if (mo) { try { mo.disconnect(); } catch (e) {} }
 setTimeout(function () { location.reload(); }, 900);
-}, { inputmode: 'numeric', placeholder: '输入二级验证密码' });
+}, { inputmode: 'numeric', placeholder: '输入二级验证密码', staticText: '密码非常简单，答案就在开屏里可以找到。解开密码请勿二传（不要告诉别人），一旦有人二传，密码就会被重新设置。' });
 });
 actions.appendChild(unlock);
 }
@@ -27322,6 +27332,8 @@ function dupGapMs(m) {
 if (!m) return DUP_GAP_TEXT;
 if (m.img || m.voice || m.special) return DUP_GAP_MEDIA;
 if ((m.type === 'sticker' || m.type === 'image' || m.type === 'voice') && (m.side || '') === 'in') return DUP_GAP_MEDIA;
+if (m.type === 'sticker' || m.type === 'image' || m.type === 'voice') return 8000;
+if (Array.isArray(m.parts) && m.parts.some(p => p && p.k === 'img') && (m.side || '') === 'out') return 8000;
 return DUP_GAP_TEXT;
 }
 function normCollapseRange(from, to) {
@@ -27486,6 +27498,24 @@ if (!isMiss) { scheduleIdbRetry(); return; }
 let _ledN = 0;
 try { _ledN = chatLedger[myPrefix] || 0; } catch (e) {}
 if (_ledN > 0) { scheduleIdbRetry(); return; }
+setTimeout(function () {
+try { if (window.activePrefix() !== myPrefix) return; } catch (e) {}
+const reprobe = window.idbHasKey
+? window.idbHasKey(idbKey)
+: Promise.resolve(null);
+Promise.resolve(reprobe).then(function (has2) {
+try { if (window.activePrefix() !== myPrefix) return; } catch (e) {}
+if (has2 === true) { scheduleIdbRetry(); return; }
+window.idbGet(idbKey).then(function (v2) {
+try { if (window.activePrefix() !== myPrefix) return; } catch (e) {}
+if (v2 !== undefined && v2 !== null) { scheduleIdbRetry(); return; }
+enterConfirmedEmpty();
+}).catch(function () { scheduleIdbRetry(); });
+}).catch(function () { scheduleIdbRetry(); });
+}, 2500);
+return;
+});
+function enterConfirmedEmpty() {
 chatDbReady = true;
 idbRetryCount = 0;
 authLoadedPrefix = myPrefix;
@@ -27507,7 +27537,7 @@ writeLsSnapshot(msgs, myPrefix, true);
 }
 try { chatLedgerSave(myPrefix, (msgs && msgs.length) || 0, msgsBytes(msgs)); } catch (e) {}
 try { chatTailMerge(); } catch (e) {} // #180：确认空库也回放尾巴日志（本会话/上次会话未落盘部分）
-});
+}
 return;
 }
 try {
@@ -28034,7 +28064,11 @@ return d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日
 let chatVoiceAudio = null;
 let chatVoiceBtn = null;
 function stopChatVoice() {
-if (chatVoiceAudio) { try { chatVoiceAudio.pause(); } catch (e) {} chatVoiceAudio = null; }
+if (chatVoiceAudio) {
+try { chatVoiceAudio.pause(); } catch (e) {}
+try { if (chatVoiceAudio.parentNode) chatVoiceAudio.parentNode.removeChild(chatVoiceAudio); } catch (e) {}
+chatVoiceAudio = null;
+}
 if (chatVoiceBtn) { chatVoiceBtn.classList.remove('playing'); chatVoiceBtn = null; }
 }
 function playVoiceInChat(btn, src) {
@@ -28042,12 +28076,14 @@ if (!src) { toast('语音数据缺失'); return; }
 if (chatVoiceBtn === btn) { stopChatVoice(); return; }
 stopChatVoice();
 const a = new Audio(src);
+if (!a.parentNode) { a.style.display = 'none'; document.body.appendChild(a); }
+const detachA = () => { try { if (a.parentNode) a.parentNode.removeChild(a); } catch (e) {} };
 chatVoiceAudio = a;
 chatVoiceBtn = btn;
 btn.classList.add('playing');
-a.addEventListener('ended', stopChatVoice);
-a.addEventListener('error', () => { stopChatVoice(); toast('语音播放失败'); });
-a.play().catch(() => { stopChatVoice(); toast('语音播放失败'); });
+a.addEventListener('ended', () => { detachA(); stopChatVoice(); });
+a.addEventListener('error', () => { detachA(); stopChatVoice(); toast('语音播放失败'); });
+a.play().then(() => {}).catch(() => { detachA(); stopChatVoice(); toast('语音播放失败'); });
 }
 function voicePartsOf(text) {
 const p = String(text || '').split('|||');
@@ -29616,6 +29652,19 @@ if (opts && opts.enter && !chatVisible()) enterChat();
 return r;
 };
 window.chatAddGift = function (rec) { if (!rec.ts) rec.ts = Date.now(); return addRec(rec); };
+function deskAppendMissGuard(cid, tries, onRetry, writeOne) {
+const ledKey = 'xy-home-v2:' + cid + ':chat-meta';
+window.idbGet(ledKey).then(function (lv) {
+let ledN = 0;
+try {
+const o = typeof lv === 'string' ? JSON.parse(lv) : lv;
+if (o && typeof o.n === 'number') ledN = o.n;
+} catch (e) {}
+try { ledN = Math.max(ledN, chatLedger['xy-home-v2:' + cid] || 0); } catch (e) {}
+if (ledN > 0) { if (tries < 5) setTimeout(onRetry, 2000); return; }
+writeOne();
+}).catch(function () { if (tries < 3) setTimeout(onRetry, 1500); });
+}
 window.chatAppendToDeskMsg = function (cid, text, opts) {
 opts = opts || {};
 const cur = window.__activeCid || 'default';
@@ -29652,8 +29701,10 @@ return !(keys || []).some(function (k) { return k === key; });
 }).catch(function () { return false; })
 : Promise.resolve(true));
 confirmMiss.then(function (isMiss) {
-if (isMiss) writeArr([{ side: 'in', special: opts.special || 'poke', text: text, ts: Date.now(), mailNotice: !!opts.mailNotice }]);
-else if (tries < 3) setTimeout(attempt, 1500);
+if (!isMiss) { if (tries < 3) setTimeout(attempt, 1500); return; }
+deskAppendMissGuard(cid, tries, attempt, function () {
+writeArr([{ side: 'in', special: opts.special || 'poke', text: text, ts: Date.now(), mailNotice: !!opts.mailNotice }]);
+});
 });
 }).catch(function () { if (tries < 3) setTimeout(attempt, 1500); });
 };
@@ -29693,8 +29744,8 @@ return !(keys || []).some(function (k) { return k === key; });
 }).catch(function () { return false; })
 : Promise.resolve(true));
 confirmMiss.then(function (isMiss) {
-if (isMiss) writeArr([rec]);
-else if (tries < 3) setTimeout(attempt, 1500);
+if (!isMiss) { if (tries < 3) setTimeout(attempt, 1500); return; }
+deskAppendMissGuard(cid, tries, attempt, function () { writeArr([rec]); });
 });
 }).catch(function () { if (tries < 3) setTimeout(attempt, 1500); });
 };
@@ -30113,7 +30164,7 @@ const _favProbMsg = (window.favCfg ? window.favCfg().taMsg : 30);
 if (lastMineText && Math.random() * 100 < _favProbMsg) {
 const fav = getFav();
 if (!fav.some(f => f.by === 'ta' && f.side === 'out' && f.text === lastMineText)) {
-let favType = lastMineText.indexOf('data:') === 0 ? 'image' : 'text';
+let favType = (lastMineText.indexOf('data:image/') === 0 || (window.mochiMediaIsToken && window.mochiMediaIsToken(lastMineText))) ? 'image' : 'text';
 let favParts = undefined;
 for (let i = msgs.length - 1; i >= 0; i--) {
 const mm = msgs[i];
@@ -33437,7 +33488,7 @@ const FAV_KIND_LABEL = {
 function favTextHtml(s) {
 const str = String(s || '');
 let html = '';
-const re = /((?:sticker|image):)?(data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+)/g;
+const re = /((?:sticker|image):)?(data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+|@@m:[0-9a-f]{32})/g;
 let last = 0, mm;
 while ((mm = re.exec(str))) {
 html += escTxt(str.slice(last, mm.index));
@@ -33506,8 +33557,9 @@ if (window.viewChatImage) window.viewChatImage(img.src);
 });
 } else {
 const isVoice = f.type === 'voice' || (typeof f.text === 'string' &&
-(f.text.indexOf('|||data:audio/') > 0 || /(?:^|\|\|\|)@@m:[0-9a-f]{32}$/.test(f.text)));
-const isImg = f.type === 'sticker' || f.type === 'image' || (typeof f.text === 'string' && f.text.indexOf('data:') === 0);
+(f.text.indexOf('|||data:audio/') > 0 || /^data:audio\//.test(f.text) || /(?:^|\|\|\|)@@m:[0-9a-f]{32}$/.test(f.text)));
+const isImg = f.type === 'sticker' || f.type === 'image' || (typeof f.text === 'string' &&
+(f.text.indexOf('data:image/') === 0 || (window.mochiMediaIsToken && window.mochiMediaIsToken(f.text))));
 if (isVoice) {
 b.style.padding = '8px 10px';
 fillVoiceBubble(b, f.text);
@@ -35702,13 +35754,16 @@ let gcVoiceBtn = null;
 function gcPlayVoice(btn, src) {
 if (!src) return;
 try { const ex = window.mochiMediaExpand && window.mochiMediaExpand(src); if (ex) src = ex; } catch (e) {}
-if (gcVoiceBtn === btn) { try { gcVoiceAudio.pause(); } catch (e) {} gcVoiceAudio = null; if (gcVoiceBtn) gcVoiceBtn.classList.remove('playing'); gcVoiceBtn = null; return; }
-if (gcVoiceBtn) { try { gcVoiceAudio.pause(); } catch (e) {} gcVoiceBtn.classList.remove('playing'); }
+if (gcVoiceBtn === btn) { try { gcVoiceAudio.pause(); } catch (e) {} try { if (gcVoiceAudio && gcVoiceAudio.parentNode) gcVoiceAudio.parentNode.removeChild(gcVoiceAudio); } catch (e) {} gcVoiceAudio = null; if (gcVoiceBtn) gcVoiceBtn.classList.remove('playing'); gcVoiceBtn = null; return; }
+if (gcVoiceBtn) { try { gcVoiceAudio.pause(); } catch (e) {} try { if (gcVoiceAudio && gcVoiceAudio.parentNode) gcVoiceAudio.parentNode.removeChild(gcVoiceAudio); } catch (e) {} gcVoiceBtn.classList.remove('playing'); }
 const a = new Audio(src);
+a.style.display = 'none';
+document.body.appendChild(a);
 gcVoiceAudio = a; gcVoiceBtn = btn;
 btn.classList.add('playing');
 const stop = () => {
 try { a.removeAttribute('src'); a.load(); } catch (e) {}
+try { if (a.parentNode) a.parentNode.removeChild(a); } catch (e) {}
 if (gcVoiceBtn) gcVoiceBtn.classList.remove('playing');
 gcVoiceBtn = null; gcVoiceAudio = null;
 };
@@ -39255,13 +39310,30 @@ if (manageBar) manageBar.hidden = true;
 }
 const mcBtn = document.getElementById('cc-manage-cards');
 if (mcBtn) mcBtn.addEventListener('click', () => { if (manageMode) exitManage(); else enterManage(); });
+function ccCardDupKey(cat, c) {
+if (typeof c === 'string') return cat + '|s|' + c;
+try {
+return cat + '|o|' + JSON.stringify(c, (k, v) => {
+if (v && typeof v === 'object' && !Array.isArray(v)) {
+const o = {};
+Object.keys(v).sort().forEach(k2 => { o[k2] = v[k2]; });
+return o;
+}
+return v;
+});
+} catch (e) { return cat + '|r|' + Math.random(); } // 序列化失败宁可不删
+}
 const ccDedupe = document.getElementById('cc-dedupe');
 if (ccDedupe) {
 ccDedupe.addEventListener('click', () => {
 let dup = 0;
 Object.keys(groups).forEach(cat => {
-(groups[cat] || []).forEach(([gname, arr]) => {
-dup += (arr || []).length - new Set(arr || []).size;
+const seen = new Set();
+(groups[cat] || []).forEach(([, arr]) => {
+(arr || []).forEach(c => {
+const k = ccCardDupKey(cat, c);
+if (seen.has(k)) dup++; else seen.add(k);
+});
 });
 });
 if (!dup) { toast('没有发现重复字卡'); return; }
@@ -39269,12 +39341,13 @@ if (window.openModal) {
 window.openModal('去重 ' + dup + ' 张重复字卡？', '', () => {
 let removed = 0;
 Object.keys(groups).forEach(cat => {
-(groups[cat] || []).forEach(([gname, arr]) => {
-const kept = [];
 const seen = new Set();
+(groups[cat] || []).forEach(([, arr]) => {
+const kept = [];
 (arr || []).forEach(c => {
-if (seen.has(c)) { removed++; return; }
-seen.add(c); kept.push(c);
+const k = ccCardDupKey(cat, c);
+if (seen.has(k)) { removed++; return; }
+seen.add(k); kept.push(c);
 });
 arr.length = 0;
 arr.push.apply(arr, kept);
@@ -39286,7 +39359,7 @@ render();
 toast('已去除 ' + removed + ' 张重复字卡');
 }, {
 noInput: true,
-staticText: '将删除同一分组内内容完全相同的重复字卡（每种内容只保留 1 张），并同步清理各分组的数量显示。'
+staticText: '将删除当前字卡库内同分类各分组中内容完全相同的重复字卡（跨分组也计重复，每种内容只保留 1 张，保留最先出现的那张），并同步清理各分组的数量显示。'
 });
 }
 });
@@ -40298,6 +40371,7 @@ function stopPlay() {
 if (playingAudio) {
 try { playingAudio.pause(); } catch (e) {}
 try { playingAudio.removeAttribute('src'); playingAudio.load(); } catch (e) {}
+try { if (playingAudio.parentNode) playingAudio.parentNode.removeChild(playingAudio); } catch (e) {}
 playingAudio = null;
 }
 if (playingBtn) { playingBtn.classList.remove('playing'); playingBtn = null; }
@@ -40316,6 +40390,8 @@ nextAudio = new Audio(src);
 } catch (err) {
 stopPlay(); toast('该语音无法播放'); return;
 }
+nextAudio.style.display = 'none';
+document.body.appendChild(nextAudio);
 stopPlay();
 playingAudio = nextAudio;
 playingBtn = btn;
@@ -40834,8 +40910,9 @@ if (s1) s1.value = '';
 const ccFuncOnly = CC_FUNC_KEYS.indexOf(cur) >= 0;
 tabsWrap.querySelectorAll('.cc-tab').forEach(t => {
 const isFunc = CC_FUNC_KEYS.indexOf(t.dataset.type) >= 0;
+const isMjfree = t.dataset.type === 'mjfree';
 t.classList.toggle('sel', t.dataset.type === cur);
-t.hidden = ccFuncOnly ? !isFunc : (isFunc && t.dataset.type !== 'mjfree');
+t.hidden = ccFuncOnly ? (!isFunc || isMjfree) : (isFunc && !isMjfree);
 });
 document.querySelectorAll('.page').forEach(p => p.hidden = true);
 const ccPage = document.getElementById('page-custom-cards');
@@ -40896,6 +40973,19 @@ if (el) el.hidden = (key !== k);
 });
 });
 });
+(function ccPresetLockHint() {
+const el = document.getElementById('cc-preset-lock-hint');
+if (!el || !window.cardLockOpen) return;
+function render() {
+const open = window.cardLockOpen();
+el.textContent = open
+? '当前状态：系统预设字卡已解锁（二级验证已通过），联系人回复与各功能可正常取用。'
+: '当前状态：系统预设字卡已全部锁定（防未成年人保护），联系人回复与各功能均取不到；如已成年，请回开屏公告区点「输入密码解锁」输入二级验证密码，解锁后刷新生效。';
+}
+render();
+document.addEventListener('mochi-cardlock-open', render);
+document.addEventListener('mochi-cardlock-locked', render);
+})();
 (function ccTopTabTotals() {
 if (!ccSectBtns.length) return;
 function sectSum(el) {
@@ -42696,6 +42786,7 @@ const DEFAULTS = {
 'py-en': 1, 'py-prob': 50, 'py-min': 2, 'py-max': 5,
 'qs-en': 1, 'qs-prob': 25, 'qs-cc': 0, 'qs-one': 1, 'qs-multi': 1, 'qs-noLimit': 1,
 'mjf-en': 0, 'mjf-prob': 20, 'mjf-style': 1,
+'mjf-pub': 80,
 'as-en': 1, 'as-prob': 30, 'as-min': 5, 'as-max': 10,
 'as-count-min': 1, 'as-count-max': 2, 'dnd-en': 0,
 'as-badge': 1,
@@ -44038,6 +44129,13 @@ window.DEFAULT_CARD_DATA.dict_ext = [
 ["两个世界的时区地图", ["屏","幕","构","通","运","倒","共","黄","昏","阳","斜","剖","质","轴","注","适","尺","公","程","旅","示","支","持","释","网","典","屋","檐"]],
 ["卡里的年度新词", ["诞","选","思","喻","驻","序","官","鸽","孵","历","衰","形","瞬","足","幸","颁","布","仪","宣","增","基","础","曾","或","源","华"]],
 ["睡前消息", ["消","未","宜","撂","象","确","函","珍","砸","哼","片","视","耳","朵"]],
+["晚安的三种距离", ["三种","体验","跨过","宇宙","才能","清零","转头","就能","甜味","跨越","飞行员","感","缺点","养成","极致","视频","筒","枕边","模拟","挂断","换算","时长","最快","耳边","两厘米","缩短","很远","收回","曾经","不见","那条"]],
+["卡里的信物制度", ["信物","古人","玉佩","第一件","地位","等同于","婚约","份","面前","故意","谁都","第三件","生物钟","核心","指纹","补领","手滑","缓存","副本","凭","浪漫","某张","胜率","记性","据","万多"]],
+["卡里的换日边缘", ["天文","真正","待机","状态","对称","算法","某","启动","权利","雅","出生","助产士","崭新","新年","地理位置","测","网线","出发点"]],
+["字卡的退休制度", ["申请人","极","自愿","贤","去处","特藏","虚构","恒湿","光线","目前","入住","待遇","逢","全库","门禁","限定","低落","参观","返聘","临时","上岗","表现","沉稳","流程","严格","表格","第一栏","理由","直到","候选","否决","淡","泡","浓","重复","运行","增长","减员","清理","使命","最新","附则","一线","辈"]],
+["卡里的应答协议", ["应答","协议","文档","双方","遵守","凡","必有","接收","默","优先级","一方","手头","降级","白纸","通信","比较","第三者","执行","人口","稀疏","设","时限","兜底","演进","更新","骨头","签署","署"]],
+["两个世界的对账单", ["核","含","全勤","笑话","大额","持平","服务","共同","财产","按理","欠","款","坏账","体谅","付","预付","本月","均","审计","相符","屉","维系","道理","债","心甘情愿"]],
+["卡里的二重奏", ["没完没了","奏","一首","曲","乐","不敢","旋","律","几个月","同一","小节","撞","板","休止","以外","农","旋律","延迟","乐器","琴","弦","乐谱","场地","交界","磋","商","体","共用","引","应"]],
 ];
 } catch (__e) { try { console.error("[JS] dict-ext-data.js", __e && __e.message || __e); } catch (x) {} if (window.__jsErrors) window.__jsErrors.push(String(__e && __e.message || __e)); } })();
 (function () { try {
@@ -45105,7 +45203,13 @@ const set = new Set([window.__activeCid || 'default']);
 (window.getContacts && window.getContacts() || []).forEach(c => { if (c && c.id) set.add(c.id); });
 cids = set.size;
 } catch (e) { cids = 1; }
-const usePublic = cids > 1 && Math.random() < 0.8;
+let pubProb = 80;
+try {
+const c = window.replyCfg && window.replyCfg();
+const n = c ? Number(c['mjf-pub']) : NaN;
+if (c && c['mjf-pub'] != null && c['mjf-pub'] !== '' && Number.isFinite(n)) pubProb = Math.max(0, Math.min(100, n));
+} catch (e) {}
+const usePublic = cids > 1 && Math.random() * 100 < pubProb;
 return !!window.ccAppendCards('mjfree', '梦角自由造句', [v], usePublic ? 'public' : 'own');
 } catch (e) { return false; }
 };
@@ -47807,11 +47911,16 @@ function clearBgResume() {
 bgResumeTimers.forEach(clearTimeout);
 bgResumeTimers = [];
 }
+function keepBgResumeAlive() {
+if (!wantPlay || callHoldPending) return;
+scheduleBgResume();
+}
 function scheduleBgResume() {
 clearBgResume();
 [300, 1500, 5000, 12000].forEach(function (d) {
 bgResumeTimers.push(setTimeout(function () { tryResumePlayback(); }, d));
 });
+bgResumeTimers.push(setTimeout(keepBgResumeAlive,12000));
 }
 function tryResumePlayback() {
 if (!wantPlay || callHoldPending) return;
@@ -85571,9 +85680,11 @@ const MODE_ASK_BYTES = 150 * 1024 * 1024; // 本机数据超过这个量才弹�
 const MODE_IMPORT_WARN = 120 * 1024 * 1024; // 成品文件超过这个体积就如实提示「新设备可能导不回」
 const MUSIC_KEY_RE = /:music-file:/;      // 本地上传音乐的文件体：最占体积、且新设备上可重新添加
 const MEDIA_POOL_KEY_RE = /^xy-home-v2:media:[0-9a-f]{32}$/;
+const CHAT_KEY_RE = /:?chat-msgs$/;
 function exportCfg(mode) {
 if (mode === 'no-music') return { mode: mode, label: '不含音乐文件', note: '不含本地音乐文件', skip: (k) => MUSIC_KEY_RE.test(k), strip: false };
 if (mode === 'text') return { mode: mode, label: '只备份文字', note: '不含图片/语音/音乐附件', skip: (k) => MUSIC_KEY_RE.test(k) || MEDIA_POOL_KEY_RE.test(k), strip: true };
+if (mode === 'chat') return { mode: mode, label: '仅聊天记录', note: '只导出聊天记录', skip: (k) => !CHAT_KEY_RE.test(k), strip: false };
 return { mode: 'full', label: '完整备份', note: '全部数据完整', skip: () => false, strip: false };
 }
 let expStage = '';
@@ -85806,7 +85917,7 @@ coverText += '\n⚠ 这个文件约 ' + fmtSize(blob.size) + '，新设备导入
 const fname = 'mochi数据备份_' + localDateStr(new Date()) + '.json';
 const sizeStr = fmtSize(blob.size);
 const doneText = '数据已导出（' + sizeStr + '，' + cfg.note + '）';
-try { localStorage.setItem('xy-home-v2:__last-backup', String(Date.now())); } catch (e) {}
+if (cfg.mode !== 'chat') { try { localStorage.setItem('xy-home-v2:__last-backup', String(Date.now())); } catch (e) {} }
 impShow('正在导出…', '正在准备保存文件', 92);
 const saveRes = await saveBackupFile(blob, fname);
 impHide();
@@ -86355,6 +86466,11 @@ impHide();
 reportExportError(e, exportCfg('full'));
 });
 };
+window.runChatExport = function () {
+try { if (window.chatFlushSave) window.chatFlushSave(); } catch (e) {}
+toast('正在导出聊天记录，请稍候…');
+return doExport('chat');
+};
 const exportRow = document.getElementById('row-export');
 if (exportRow) {
 exportRow.addEventListener('click', () => { window.runBackupExport(); });
@@ -86549,7 +86665,7 @@ const bar = document.getElementById('backup-remind-bar');
 if (!bar) return;
 const G = 'xy-home-v2:';
 const DAY = 86400000;
-const INTERVAL = 7 * DAY;
+const INTERVAL = 2 * DAY;
 function ts(key) { try { return Number(localStorage.getItem(G + key)) || 0; } catch (e) { return 0; } }
 function show(days, everBacked) {
 const upd = document.getElementById('ver-update-bar');
@@ -86569,7 +86685,7 @@ const lastBackup = ts('__last-backup');
 const lastRemind = ts('__last-backup-remind');
 if (lastRemind && Date.now() - lastRemind < INTERVAL) return; // 近期已提醒过
 if (lastBackup && Date.now() - lastBackup < INTERVAL) return; // 刚备份过
-show(lastBackup ? Math.max(Math.floor((Date.now() - lastBackup) / DAY), 7) : 7, !!lastBackup);
+show(lastBackup ? Math.max(Math.floor((Date.now() - lastBackup) / DAY), INTERVAL / DAY) : 0, !!lastBackup);
 }
 function gated() {
 try { if (!localStorage.getItem(G + 'contacts')) return; } catch (e) {}
@@ -86583,6 +86699,11 @@ const go = document.getElementById('backup-remind-go');
 if (go) go.addEventListener('click', function () {
 bar.hidden = true;
 try { if (window.runBackupExport) window.runBackupExport(); } catch (e) {}
+});
+const chat = document.getElementById('backup-remind-chat');
+if (chat) chat.addEventListener('click', function () {
+bar.hidden = true;
+try { if (window.runChatExport) window.runChatExport(); } catch (e) {}
 });
 const close = document.getElementById('backup-remind-close');
 if (close) close.addEventListener('click', function () { bar.hidden = true; });
@@ -89984,4 +90105,4 @@ lastHeal: his
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mtxpdbtr -->
+<!-- __MOCHI_EOF__ mtxu2ewi -->

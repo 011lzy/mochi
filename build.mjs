@@ -219,6 +219,15 @@ const FIX_SENTINELS = [
   { name: '#127 群聊点发送不收输入法（同单聊）', file: 'js/group-chat.js', needle: "sendBtn.addEventListener('mousedown', (e) => { e.preventDefault(); });" },
   { name: '定期备份提醒条存在（backup-remind-bar，受保护产品功能，见 AGENTS.md 数据与存储约定）', file: 'js/pwa.js', needle: "getElementById('backup-remind-bar')" },
   { name: '定期备份提醒条锚点存在（template.html）', file: 'template.html', needle: 'backup-remind-bar' },
+  { name: '备份提醒冷却收短到 2 天（每 2-3 天弹一次；改动 INTERVAL 即消失，防被 7 天冷却静默压制）', file: 'js/pwa.js', needle: 'const INTERVAL = 2 * DAY;' },
+  { name: '#355b 备份提醒条「单独备份聊天」按钮存在（template.html）', file: 'template.html', needle: 'id="backup-remind-chat"' },
+  { name: '#355b 仅聊天记录导出不更新全量备份时间（data-backup.js cfg.mode!==chat 守卫，逻辑锚）', file: 'js/data-backup.js', needle: "if (cfg.mode !== 'chat')" },
+  { name: '#356 收藏页媒体池令牌渲染（收藏令牌化后 @@m:hash 按图片出，不再把令牌串当文字直出＝不明代码；判定表达式改掉即消失）', file: 'js/chat.js', needle: "f.text.indexOf('data:image/') === 0 || (window.mochiMediaIsToken && window.mochiMediaIsToken(f.text))" },
+  { name: '#357 语音播放挂载 DOM（playVoiceInChat 挂到 body 再 play、停播即卸；删则安卓 WebView 未挂载 Audio 静默空放/播放失败，收藏与聊天语音同链路复发）', file: 'js/chat.js', needle: "if (!a.parentNode) { a.style.display = 'none'; document.body.appendChild(a); }" },
+  { name: '#358 跨桌面投递空库账本矛盾守卫（探测说谎时 writeArr([一条]) 会把该联系人全部历史覆盖成一条＝旧记录只剩互动卡片；守卫函数删掉即消失）', file: 'js/chat.js', needle: 'function deskAppendMissGuard(cid, tries, onRetry, writeOne)' },
+  { name: '#358 loadMsgs 空库二次复核（账本缺失时单次探测说谎会把 LS 有损快照晋升为权威顶掉老历史；2.5s 双复核删掉即消失）', file: 'js/chat.js', needle: 'function enterConfirmedEmpty() {' },
+  { name: '#359 发送侧媒体消息去重窗口 8s（表情包/图片发一遍出 2 个＝无反馈补点，2500ms 窗漏放且刷新不收敛；改回 2500 即消失）', file: 'js/chat.js', needle: "if (m.type === 'sticker' || m.type === 'image' || m.type === 'voice') return 8000;" },
+  { name: '#360 字卡去重跨分组判重（seen 按分类建不按分组建+对象卡稳定序列化判重；退回「每组各建 seen 按引用比较」即换分组清不出重复，公用/专属两作用域同源复发）', file: 'js/chatcard.js', needle: 'function ccCardDupKey(cat, c) {' },
   { name: '诊断采集与设置页 DOM 解耦（row 在使用处按需判空，错误/环境/长任务/轨迹不因入口 DOM 缺失而失效）', file: 'js/device.js', needle: 'if (!row) return null;' },
   { name: '诊断复制不再 focus 隐藏 textarea（防手机弹输入法+灰屏，ta.focus 删除型守护；needle 收窄到 device.js copyText 的 appendChild(ta);ta.focus(); 上下文——裸 ta.focus(); 在 chat.js/decision.js/divination.js/group-decision.js 合法存在会误报）', file: 'js/device.js', needle: 'appendChild(ta);ta.focus();', absent: true },
   { name: '诊断电量 getBattery 废弃显式降级（不支持时输出一行而非静默消失）', file: 'js/device.js', needle: '无 getBattery 接口' },
@@ -950,7 +959,7 @@ const FIX_SENTINELS = [
   { name: '#329 造句手法三选一·mjf-style 语气词式/撤回式/换字卡内容式（删则手法选择失效＝三模式不可切，回退固定撤回式）', file: 'js/dream-free.js', needle: "const style = Math.max(0, Math.min(2, Number(c['mjf-style']) || 1));" },
   { name: '#326 词边界来源·内置词典正向最大匹配切词（删则插入点随机＝可能截在词中间出病句）', file: 'js/dream-free.js', needle: 'if (dict.has(str.slice(i, i + L))) { len = L; break; }' },
   { name: '#317/324 造句入库·ccAppendCards 双作用域写 mjfree 分类（删则新句不进「梦角自由造句」字卡分类；#324 加 scope 分库参数）', file: 'js/chatcard.js', needle: "window.ccAppendCards = function (type, group, cards, scope) {" },
-  { name: '#324 造句分库·dreamFreeSave 80% 公用/20% 专属、单联系人 100% 专属（删则全部写专属＝多桌面公用库不再积累梦角语料）', file: 'js/dream-free.js', needle: "const usePublic = cids > 1 && Math.random() < 0.8;" },
+  { name: '#324/#364 造句分库·dreamFreeSave 按 mjf-pub 概率分库、单联系人 100% 专属（删则全部写专属＝多桌面公用库不再积累梦角语料）', file: 'js/dream-free.js', needle: "const usePublic = cids > 1 && Math.random() * 100 < pubProb;" },
   { name: '#317 replyOnce 接线·dreamFreePick 命中替换回复+入库（删则开关存在但永不生效）', file: 'js/chat.js', needle: 'window.dreamFreePick && window.dreamFreePick(c)' },
   { name: '#301 词典自建词条并入词典分类（删则自建语录/词不再进词典 tab 与拼字引擎）', file: 'js/default-cards.js', needle: "const gw = base.find(g => g[0].indexOf('词库') === 0)" },
   // ==== 2026-09-11 #306 小游戏 UI 收口（连连看/消消乐棋盘 gap 溢出截断、头部标题被挤竖排、拍卖会「不拍了」白字白底隐形）+ 全部小游戏通用全屏 .game-fs ====
@@ -1044,6 +1053,15 @@ const FIX_SENTINELS = [
   // ==== 2026-09-12 canvas 手感批（用户「都要优化」）：打砖块丢命震屏 + 贪吃蛇死亡先演后弹 ====
   { name: '#352 打砖块丢命震屏（删则丢命无任何画布反馈＝手感批回归）', file: 'js/breakout.js', needle: 's.shakeUntil = now + 300; s.shakeMag = 5;' },
   { name: '#352 贪吃蛇死亡先演后弹（删则结算浮层回到立刻弹出＝死亡瞬间被跳过，#341 同族回归）', file: 'js/snake-game.js', needle: "if (state !== _endState || _endState.status !== 'over') return;" },
+  // ==== 2026-09-12 #353 应用内「清除本地数据」没清干净（红米 K70/多机型）：数据双写 LS+IDB，旧逻辑只 idbClearAll（clear store）且用 ||Promise.resolve(true) 掩盖失败＝清库事务失败时只清 LS、IDB 残留，启动 idbRestore 全量回填＝专属字卡（LS-only）真丢、其余内容全复活。修复：idb.js 新增 idbDestroy（deleteDatabase 真删库，回填无源）+ personalize.js 优先真删库、失败退回 idbClearAll ====
+  { name: '#353 真删库函数 idbDestroy 在位（删则清除数据只 clear store、失败即从 IDB 回填复活）', file: 'js/idb.js', needle: 'indexedDB.deleteDatabase(DB_NAME)' },
+  { name: '#353 清除数据优先真删库（删则退回只 idbClearAll、依赖||true 掩盖失败＝清不干净）', file: 'js/personalize.js', needle: "const destroy = (window.idbDestroy && window.idbDestroy()) || Promise.resolve(false);" },
+  // ==== 2026-09-12 音乐后台停播韧性（多机型/全浏览器：切后台十几秒~1分钟才停、回前台才恢复）：原后台补播 scheduleBgResume 只排 [300,1500,5000,12000] 四档、约 12 秒耗尽后再无人拉起——保活 WebRTC 回环+wakeLock 双豁免下页面通常未完全冻结，音乐只被临时暂停时补播窗口太短＝十几秒~1 分钟停播主因。修复=加 keepBgResumeAlive 尾档每 12s 续下一轮（对齐 bg-keep 无限退避）；死循环仍由 tryResumePlayback 现有 bgResumeFails>=6 + bgResumeFailAt 60s 冷却封顶，音乐真出声/用户停/来电 hold 都 clearBgResume 自然断轨 ====
+  { name: '音乐后台补播持续续轨（keepBgResumeAlive 尾档 12s 续轮；删则后台补播回到 12s 四档即弃＝切后台十几秒~1 分钟停播复发）', file: 'js/music-player.js', needle: 'bgResumeTimers.push(setTimeout(keepBgResumeAlive,12000));' },
+  // ==== 2026-09-12 #361 语音点播无声（多机型：荣耀X50 Edge 等安卓 Chromium 系内核对未挂载 DOM 的 Audio 静默空放，play() 走完不出声）：字卡库点播与群聊语音仍是 new Audio() 裸播，与已修的聊天气泡(#358)/录音试听同根因；修复=挂进 document.body 再 play，停播/播完/出错即卸 ====
+  { name: '#361 字卡库语音点播挂载后播（删挂载即回归安卓 Chromium 系点播静默空放）', file: 'js/chatcard.js', needle: 'playingAudio = nextAudio' },
+  { name: '#361 字卡库语音停播即卸（与挂载对称，删卸载行＝挂载的 Audio 元素滞留 DOM 泄漏）', file: 'js/chatcard.js', needle: 'try { if (playingAudio.parentNode) playingAudio.parentNode.removeChild(playingAudio); } catch (e) {}' },
+  { name: '#361 群聊语音挂载后播（删挂载即回归群聊语音安卓无声）', file: 'js/group-chat.js', needle: 'gcVoiceAudio = a; gcVoiceBtn = btn;' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
