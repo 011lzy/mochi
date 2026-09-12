@@ -773,7 +773,7 @@ const FIX_SENTINELS = [
   { name: '#250 切桌面卡死·群聊切换按可见性重渲（group-chat.js 隐藏态挂起 gcSwitchDirty 不整窗重渲 200 条——删则重度群聊设备每次切换白耗主线程；成员名随联系人改名变化由 enterGroupChat 全量重建保证）', file: 'js/group-chat.js', needle: 'const pageVisible = page && !page.hidden;' },
   { name: '#250 切桌面卡死·卡片背景恒等跳过（personalize.js applyCardBg 值变才写——赋同值=浏览器作废已解码位图重新解码，MB 级 dataURL 真机切换瞬间整屏重解码）', file: 'js/personalize.js', needle: 'if (el.style.backgroundImage === next) return;' },
   { name: '#251 群聊对齐聊天设置·回车发送开关（keydown 读 cs-enter-send===\'off\' 放行换行——删则群聊回车强制发送，关不掉）', file: 'js/group-chat.js', needle: "if (window.activeStore().get('cs-enter-send') === 'off') return;" },
-  { name: '#251 群聊对齐聊天设置·数据导出导入（导出流式拼接 Blob 防超长+导入兼容三结构确认覆盖——删则群聊记录无备份/恢复通道）', file: 'js/group-chat.js', needle: "const parts = ['{\"app\":\"mochi-zika-group-chat\"" },
+  { name: '#251 群聊对齐聊天设置·数据导出导入（导出流式拼接 Blob 防超长+导入兼容三结构确认覆盖——删则群聊记录无备份/恢复通道；#375 导出改令牌展开后 needle 随 const head 行更新）', file: 'js/group-chat.js', needle: "const head = '{\"app\":\"mochi-zika-group-chat\"" },
   { name: '#253 字卡导入全局崩溃修复·提取袋提升函数作用域（const bag 原声明在备份提取分支块内、函数尾部 #139 守卫读它必抛 ReferenceError=所有格式导入成功解析后必崩机型无关[华为Pro70+Edge 实证]；声明挪回分支块内此锚消失）', file: 'js/chatcard.js', needle: 'let bag = {}; // v3.26.x #253：从备份提取分支块内提升到函数作用域（仅备份分支填充，尾部 #139 守卫要读）' },
   { name: '#253 字卡导入全局崩溃修复·兜底标记提升函数作用域（fromPubFallback 同上提升，#139 专属页兜底置位语义不变）', file: 'js/chatcard.js', needle: 'let fromPubFallback = false; // v3.26.x #253：同上提升' },
   { name: '#254 音乐「去除VIP歌曲」改 meting 播放同源逐首探测（原 proxy.cors.sh 域名 DNS 已注销+allorigins 522=所有机型点击必失败；探测失败不计账绝不误删，与播放同依赖面不再有独立死点——判据锚随「可播/不可播」记账语义走）', file: 'js/music-player.js', needle: 'playable ? 0 : 1' },
@@ -1076,9 +1076,23 @@ const FIX_SENTINELS = [
   // ==== 2026-09-12 #370 词典拼字两件（用户定稿：①词典全部分组字卡都进抽卡池，不再只取「语录*」前缀组；②形态概率——单气泡拼字为主，qs-multi 逐条连发降为 20% 小概率，multi 关=不能连发，双形态全关兜底单气泡不再兜底连发）====
   { name: '#370 词典拼字抽卡池放开到词典全部分组（原「语录*」前缀过滤删除=词库/常用词/自建词都能抽）', file: 'js/quote-spell.js', needle: "if (typeof q === 'string') quotes.push(q);" },
   { name: '#370 逐条连发降小概率（双开 80/20 单气泡为主；multi 关=one 恒 true 不能连发）', file: 'js/quote-spell.js', needle: 'if (multiOn) one = oneOn ? Math.random() >= 0.2 : false;' },
+  { name: '#370 词典拼字链路自检行（五道静默闸门任一被关=永不发词典字卡且零提示；删则用户设备上被哪道闸挡住无从知晓）', file: 'js/reply-settings.js', needle: "if (!useOk && !blocked) blocked = '词典「聊天使用」被关（系统预设字卡→词典独立页里打开）';" },
   // ==== 2026-09-12 #371 群聊跟底三连写（红米 K80 Chrome 等多机型报「群聊联系人发消息不自动滚到最新，要手动滑」；单聊 #162 同根因同修法：移动内核丢弃一次性 scrollTop 写入/迟到布局顶开，group-chat.js 只写一次从未跟进）====
   { name: '#371 群聊跟底复写闸（触摸/滚轮接管判断；内核丢弃首写时视口离底>150px 会被 nearGcBottom 误判，复写不能只看 nearGcBottom）', file: 'js/group-chat.js', needle: 'if (!gcUserGcScrollTouched) scrollToBottom();' },
   { name: '#371 进群 renderAll 滚底走三连写（进页不贴底同一内核问题）', file: 'js/group-chat.js', needle: 'followGcBottom(true); // #371：进页滚底同走三连写' },
+  // ==== 2026-09-12 #379 连续送心愿单礼物第二件起闪一下就消失（小米15 Pro Chrome 等多机型）====
+  { name: '#379 礼物消息去重签名用礼物自身字段（原误用鲜花字段=任意两件礼物签名恒等，60s 窗口内第二件被当相邻重复删）', file: 'js/chat.js', needle: "String(m.giftId || '') + '|' + String(m.giftName || '')" },
+  // ==== 2026-09-12 #380 装修换页「今日备忘/心情」刷新回第三页（v3.13.x 一次性迁移写成了每次启动无条件迁移，用户手动换页被打回；小米15 Pro 等多机型）====
+  { name: '#380 memo-row 有布局一律尊重不迁移（删则 v3.13.x 强迁逻辑复活=每次启动把用户手动换页打回第三页）', file: 'js/personalize.js', needle: 'if (lay) return;' },
+  // ==== 2026-09-12 #381 拍卖会背包/记录浮层显示不全（浮层 absolute 随 .au-stage，未开局 stage 仅 ~30px 列表被裁成一条缝；全机型）====
+  { name: '#381 背包/记录浮层转全屏开关（删则浮层又缩回 30px 高的 stage 里显示不全）', file: 'js/auction.js', needle: "overlayEl.classList.toggle('au-ov-fs', !!fs)" },
+  { name: '#381 全屏浮层 hidden 救援（.pong-overlay 的 display:flex 压掉 UA [hidden]，#331 同因；删则关不掉全屏背包/记录）', file: 'css/chat-pages.css', needle: '#au-overlay.au-ov-fs[hidden] { display:none; }' },
+  // ==== 2026-09-12 #378 聊天+群聊跟底闸改钉住标记 + 轻点不杀跟底（红米 K80 Chrome 单聊/群聊同报「联系人发消息不自动滚到最新，要手动滑」；①旧 nearGcBottom/chatNearBottom 距离闸在内核丢弃首写/图片迟到解码顶开后把后续每条来消息都误判成在看历史永不跟底；②轻点消息区（点气泡）即解钉且无法回钉，自动跟底被一次轻点永久杀死）====
+  { name: '#378 单聊来消息跟底闸改按钉住标记（距离闸在首写被丢弃后永不跟底）', file: 'js/chat.js', needle: 'if (!out && !chatPinnedBottom) return;' },
+  { name: '#378 单聊手动滚回贴底回钉（解钉后自动跟底可恢复）', file: 'js/chat.js', needle: 'else if (!chatPinnedBottom && body.scrollHeight - body.scrollTop - body.clientHeight < 120)' },
+  { name: '#378 单聊轻点不杀跟底（位移<10px 且贴底=回钉，点气泡不再永久解钉）', file: 'js/chat.js', needle: 'const dy = Math.abs(e.changedTouches[0].clientY - chatUnpinTsY);' },
+  { name: '#378 群聊跟底闸改按接管标记（同单聊距离闸问题）', file: 'js/group-chat.js', needle: 'if (!force && gcUserGcScrollTouched) return;' },
+  { name: '#378 群聊轻点不杀跟底 + 滚回贴底解除接管', file: 'js/group-chat.js', needle: 'if (dy < 10 && nearGcBottom()) gcUserGcScrollTouched = false;' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

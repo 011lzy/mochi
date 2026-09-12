@@ -800,7 +800,8 @@ else if (sp === 'ask-choose') extra = String(m.choiceQuestion || '') + '|' + JSO
 else if (sp === 'ask-curious') extra = String(m.curiousQuestion || '') + '|' + JSON.stringify(m.curiousQuick || []) + '|' + String(m.curiousCat || '');
 else if (sp === 'ask-roast') extra = String(m.roastText || '') + '|' + String(m.roastCat || '');
 else if (sp === 'invite') extra = String(m.inviteContent || m.text || '');
-else if (sp === 'gift') extra = String(m.flName || '') + '|' + String(m.flEmoji || '') + '|' + String(m.flWish || '');
+else if (sp === 'gift') extra = String(m.giftId || '') + '|' + String(m.giftName || '') + '|' + String(m.giftEmoji || '') + '|' + String(m.giftWish || '') + '|' + String(m.giftPrice == null ? '' : m.giftPrice); // FIX 2026-09-12 #379 礼物签名误用鲜花字段（flName/flEmoji/flWish 礼物记录里全 undefined）→ 任意两件礼物签名恒等，60s 窗口内第二件被当重复删＝「连续送心愿单礼物第一件之外全闪一下就消失」；改用礼物自己的字段（dish 菜肴同理），不同礼物签名必然不同
+else if (sp === 'dish') extra = String(m.dishName || '') + '|' + String(m.dishEmoji || '') + '|' + String(m.dishWish || '') + '|' + String(m.dishPrice == null ? '' : m.dishPrice); // FIX #379 同上：菜肴消息字段与鲜花不同，此前也恒等签名
 else if (sp === 'flower') extra = String(m.flName || '') + '|' + String(m.flEmoji || '') + '|' + String(m.flWish || '');
 } catch (e) {}
 const normT = (m.type === 'text' || !m.type) ? '' : String(m.type || '');
@@ -1315,7 +1316,11 @@ return;
 }
 if (!chatVisible()) return;
 const out = side === 'out';
-if (!out && !chatNearBottom()) return;
+// FIX #378（红米 K80 Chrome 等多机型报「联系人发消息不自动滚到最新」）：来消息跟底闸
+// 改按钉住标记——内核丢弃首写/图片迟到解码顶开后，视口离底会超 120px，旧 nearGcBottom
+// 闸把后续每条来消息都误判成「在看历史」永不跟底；用户手动接管（触摸/滚轮解钉）与
+// 搜索/引用跳转定位（#334）本就解除钉住，chatPinnedBottom 已完整表达「别打扰」
+if (!out && !chatPinnedBottom) return;
 scrollChatBottom();
 if (out) {
 requestAnimationFrame(scrollChatBottom);
@@ -2308,11 +2313,29 @@ loadOlderIncremental();
 } else if (renderEnd < msgs.length && body.scrollHeight - body.scrollTop - body.clientHeight < TOP_THRESHOLD) {
 loadNewerIncremental();
 }
+// FIX #378：解钉后用户手动滚回贴底＝回钉，自动跟底恢复——旧口径解钉后只有自己发
+// 一条消息才会重新钉住，期间联系人来消息全部不跟底（表现「不自动滚到最新」）
+else if (!chatPinnedBottom && body.scrollHeight - body.scrollTop - body.clientHeight < 120) {
+scrollChatBottom();
+}
 }, 100);
 }, { passive: true });
 // FIX #162：用户手动触摸/滚轮滚动＝解除贴底钉住，之后的自动复写不再抢滚动权
 // FIX #316：解钉同时开回浏览器滚动锚定（见上方 unpinChatAndAnchor 注释）
-body.addEventListener('touchstart', unpinChatAndAnchor, { passive: true, capture: true });
+// FIX #378：解钉只认「真实滚动意图」——轻点消息区（点气泡/长按入口，位移<10px）且
+// 仍贴底时回钉，自动跟底不再被一次轻点永久杀死；拖动/惯性滚动仍正常解钉，滚回贴底
+// 由下方 scroll 监听回钉
+let chatUnpinTsY = 0;
+body.addEventListener('touchstart', function (e) {
+try { chatUnpinTsY = e.touches[0].clientY; } catch (err) { chatUnpinTsY = 0; }
+unpinChatAndAnchor();
+}, { passive: true, capture: true });
+body.addEventListener('touchend', function (e) {
+try {
+const dy = Math.abs(e.changedTouches[0].clientY - chatUnpinTsY);
+if (dy < 10 && chatNearBottom()) scrollChatBottom();
+} catch (err) {}
+}, { passive: true });
 body.addEventListener('wheel', unpinChatAndAnchor, { passive: true });
 // FIX #162：消息图片是 loading=lazy，加载完成晚于滚底，加载后内容长高会把视图从底部顶开
 //（iPadOS 26 Safari 尤其明显＝「回一条滑一次」）——钉住期间任何消息图片 onload 后回到底部

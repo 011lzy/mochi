@@ -344,6 +344,72 @@
       });
     }
   });
+  // #370：词典拼字链路自检——五道闸门（二级锁/词典分类/词典聊天使用/总开关/概率/抽卡池）
+  //   任一被关都是「联系人永不发词典字卡、永不出现词典 tag」且零提示（用户多设备实报，
+  //   干净环境全链路验证通过=存量状态差异）。这里把每道闸的实时状态摆进设置页，
+  //   卡在哪道闸、去哪打开，任何机型打开设置一眼可见；零机型分支。
+  (function () {
+    const diagEl = document.getElementById('qs-diag');
+    if (!diagEl) return;
+    function qsDiagRender() {
+      try {
+        const c = window.replyCfg ? window.replyCfg() : {};
+        const parts = [];
+        let blocked = null;
+        // ① 二级锁（锁定=系统预设字卡整体不存在，词典抽卡池为空）
+        const lockOk = !(window.cardLockOpen && !window.cardLockOpen());
+        parts.push((lockOk ? '✓' : '✗') + '二级锁' + (lockOk ? '已解锁' : '未解锁'));
+        if (!lockOk && !blocked) blocked = '二级锁未解锁（开屏公告区的锁定卡里输入密码解锁）';
+        // ② 词典分类开关（字卡库→系统预设字卡→分类「词典」）
+        const catOk = !(window.defaultCardCat && window.defaultCardCat('dict') === false);
+        parts.push((catOk ? '✓' : '✗') + '词典分类开');
+        if (!catOk && !blocked) blocked = '词典分类被关（字卡库→系统预设字卡→分类开关里打开「词典」）';
+        // ③ 词典页「聊天使用」+ 概率（词典独立页）
+        const useOk = !(window.dictUse && window.dictUse('chat') === false);
+        const ov = window.dictOverall ? window.dictOverall('chat') : 100;
+        parts.push((useOk ? '✓' : '✗') + '词典聊天使用' + (useOk ? '开（' + ov + '%）' : '关'));
+        if (!useOk && !blocked) blocked = '词典「聊天使用」被关（系统预设字卡→词典独立页里打开）';
+        if (useOk && ov <= 0 && !blocked) blocked = '词典「聊天使用概率」为 0（词典独立页调回 100%）';
+        // ④ 拼字总开关/概率（本页）
+        const enOk = c['qs-en'] === 1;
+        const prob = Number(c['qs-prob']);
+        parts.push((enOk ? '✓' : '✗') + '拼字总开关' + (enOk ? '开（' + (isFinite(prob) ? prob : 0) + '%）' : '关'));
+        if (!enOk && !blocked) blocked = '「词典拼字」总开关被关（本组第一行打开）';
+        if (enOk && !(isFinite(prob) && prob > 0) && !blocked) blocked = '「拼字概率」为 0（本组第二行调回 25% 以上）';
+        // ⑤ 抽卡池条数（词典全部分组，剔除逐张关闭/空卡）
+        let poolN = 0;
+        try {
+          const grps = (window.getDefaultCardGroups && window.getDefaultCardGroups('dict')) || [];
+          grps.forEach(g => { (g[1] || []).forEach(q => {
+            if (typeof q !== 'string' || !q.trim()) return;
+            if (window.isDefaultCardOff && window.isDefaultCardOff('dict', q)) return;
+            poolN++;
+          }); });
+        } catch (e) {}
+        parts.push((poolN > 0 ? '✓' : '✗') + '抽卡池 ' + poolN + ' 张');
+        if (poolN <= 0 && !blocked) blocked = '词典抽卡池为空（词典独立页里把字卡逐张打开）';
+        if (blocked) {
+          diagEl.textContent = '链路自检：' + parts.join(' · ') + '——被挡住：' + blocked;
+          diagEl.style.color = '#c0392b';
+        } else {
+          diagEl.textContent = '链路自检：' + parts.join(' · ') + '——正常，联系人每条回复约 ' + (isFinite(prob) ? prob : 0) + '% 概率变成词典拼字';
+          diagEl.style.color = 'var(--muted,#888)';
+        }
+      } catch (e) {
+        try { diagEl.textContent = '链路自检暂不可用'; } catch (e2) {}
+      }
+    }
+    qsDiagRender();
+    // 状态变化即刷新：本组任一开关/词典页场景开关/二级锁解锁与重锁事件
+    ['qs-en', 'qs-one', 'qs-multi', 'qs-cc'].forEach(k => {
+      const el = document.getElementById(k);
+      if (el) el.addEventListener('change', () => setTimeout(qsDiagRender, 50));
+    });
+    document.addEventListener('mochi-cardlock-open', qsDiagRender);
+    document.addEventListener('mochi-cardlock-locked', qsDiagRender);
+    document.addEventListener('contact-switched', qsDiagRender);
+    window.__qsDiagRender = qsDiagRender;
+  })();
   // v3.5.101：关闭「主动发送」时明确提示（否则 TA 永不主动发消息且无任何提醒）
   const asEnEl = document.getElementById('as-en');
   if (asEnEl) {

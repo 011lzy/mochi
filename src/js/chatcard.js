@@ -84,6 +84,38 @@
   // 解析公用键（带缓存：回复池每次发消息都会取合并池，不能反复 JSON.parse 大库）
   let pubCache = null;
   function pubInvalidate() { pubCache = null; }
+  // v3.26.x #377 巨型公用库内存瘦身（修 iOS 独立 PWA「用一会自动退回开屏」OOM 家族）：
+  // 重度用户公用库单键可达 45~189MB（贴纸/图片卡整份 dataURL），pubGroupsRaw 解析出的
+  // pubCache 连同原始串双份常驻（tmp-pool-mem 实测：179MB 种子→进桌面 371MB→开聊天
+  // 730MB 且永不回落），iOS WebKit 渲染进程被 jetsam 杀掉＝整页重载回开屏。
+  // 这里在缓存构建后对超大媒体卡做【内存内】令牌化：卡体换成 @@m:hash 令牌（内容寻址，
+  // 池键落 IDB 由 media-pool 托管、渲染/发送端令牌链路 #142/#283 已全通），原始库键
+  // 一个字节不动（字卡库页面/备份/编辑仍读写原始 dataURL，零数据风险）。
+  // · 只动 sticker/image 两类、单卡体 >64KB 的卡——小卡保持原文（朋友圈 onlyData 等
+  //   只认 data: 的消费端对小卡行为零变化，见 FIX-REGRESSION #373 说明）；
+  // · noCache:true=池命中/新写都不进 media-pool map 热缓存（否则令牌化省下的内存被
+  //   map 原样吃回），渲染时走 resolveImg 懒解析按需驻留；
+  // · 身份守卫：异步落令牌回写前核对卡原文未变（编辑/失效竞态不覆盖新内容）；
+  // · 每次会话重做（哈希内容寻址幂等）：池键若被 GC 清理，下次构建时重新落池即可。
+  const CC_MEDIA_TOKEN_THRESHOLD = 64 * 1024;
+  function ccTokenizeGiantMedia(g) {
+    if (!window.mochiMediaTokenize) return;
+    ['sticker', 'image'].forEach(function (t) {
+      (g[t] || []).forEach(function (grp) {
+        if (!Array.isArray(grp) || !Array.isArray(grp[1])) return;
+        grp[1].forEach(function (card, i) {
+          if (typeof card !== 'string' || card.indexOf('@@m:') >= 0) return;
+          const bar = card.indexOf('|||');
+          const body = bar >= 0 ? card.slice(bar + 3) : card;
+          if (body.length < CC_MEDIA_TOKEN_THRESHOLD || body.indexOf('data:image/') !== 0) return;
+          Promise.resolve(window.mochiMediaTokenize(body, { noCache: true })).then(function (tok) {
+            if (!tok || grp[1][i] !== card) return;
+            grp[1][i] = bar >= 0 ? (card.slice(0, bar + 3) + tok) : tok;
+          }).catch(function () {});
+        });
+      });
+    });
+  }
   function pubGroupsRaw() {
     if (!pubCache) {
       pubCache = buildGroupsFrom(pubStore().get(PUB_KEY));
@@ -93,6 +125,7 @@
         try { pubStore().set(PUB_KEY, JSON.stringify(pubCache)); } catch (e) {}
         notifyVoiceHeal(_vhp.fixed, _vhp.removed);
       }
+      ccTokenizeGiantMedia(pubCache);
     }
     return pubCache;
   }
@@ -2995,7 +3028,10 @@
   // v3.11.x：链接导入的 http(s) 图片字卡同样放行（聊天气泡按 type 渲染 <img src>，
   // 对远程链接天然兼容；仅信件正文嵌入/朋友圈配图等「拼进文本」的场景仍只收 dataURL）
   function isMediaImg(c) {
-    return typeof c === 'string' && (c.indexOf('data:image') === 0 || /^https?:\/\/[^\s"'<>]+$/i.test(c));
+    // #377：补认媒体池令牌 @@m:hash——大库内存瘦身令牌化后（pubGroupsRaw），超大贴纸卡
+    // 在回复池里以令牌形态存在，渲染端 media-pool 观察器会解回真图；不补认则令牌卡被
+    // 本过滤器整个剔出表情包/图片池＝令牌化的卡再也不会被抽到（行为回退）
+    return typeof c === 'string' && (c.indexOf('data:image') === 0 || /^https?:\/\/[^\s"'<>]+$/i.test(c) || (c.indexOf('@@m:') === 0 && window.mochiMediaIsToken && window.mochiMediaIsToken(c)));
   }
   window.getMediaCards = function (type) {
     maybeHydrateReplyPool();
@@ -3656,7 +3692,7 @@
       const open = window.cardLockOpen();
       el.textContent = open
         ? '当前状态：系统预设字卡已解锁（二级验证已通过），联系人回复与各功能可正常取用。'
-        : '当前状态：系统预设字卡已全部锁定（防未成年人保护），联系人回复与各功能均取不到；如已成年，请回开屏公告区点「输入密码解锁」输入二级验证密码，解锁后刷新生效。';
+        : '当前状态：系统预设字卡已全部锁定（防未成年人保护，不是 bug），联系人回复与各功能均取不到系统预设字卡。不输密码也能正常使用，密码只管两件事：解锁系统预设字卡、跳过开屏的 2 个问答；如已成年，请回开屏公告区点「输入密码解锁」输入二级验证密码，解锁后刷新生效。注意：锁定时若自定义字卡（含 mj 字卡）一张都没添加，回复会只能重复发兜底内容（如「嗯嗯」），先在自定义字卡里添加几张即可。';
     }
     render();
     document.addEventListener('mochi-cardlock-open', render);

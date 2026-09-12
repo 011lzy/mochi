@@ -6329,6 +6329,12 @@ gap:12px; padding:22px 18px; background:rgba(12,16,26,.92);
 }
 #au-help { z-index:1330; }
 #au-intro[hidden], #au-help[hidden] { display:none; }
+#au-overlay.au-ov-fs {
+position:fixed; inset:0; z-index:1325; border-radius:0;
+padding:max(env(safe-area-inset-top, 0px), 22px) 18px max(env(safe-area-inset-bottom, 0px), 22px);
+}
+#au-overlay.au-ov-fs .pong-overlay-body { flex:1; min-height:0; overflow-y:auto; }
+#au-overlay.au-ov-fs[hidden] { display:none; }
 .au-intro-title { font-size:19px; font-weight:800; color:#fff; letter-spacing:.5px; }
 .au-intro-steps { width:100%; max-width:340px; text-align:left; font-size:13.5px; line-height:2; color:rgba(255,255,255,.93); max-height:58vh; overflow-y:auto; padding:0 4px; box-sizing:border-box; }
 .au-intro-steps b { color:#ffd479; }
@@ -9280,9 +9286,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1789198895694">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.614</b></span>
-        <span class="sv-deploy">部署于 2026-09-12 15:41<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1789207911770">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.615</b></span>
+        <span class="sv-deploy">部署于 2026-09-12 18:11<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -10504,7 +10510,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.614</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.615</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10799,7 +10805,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.614</span>
+              <span class="lic-ver">v3.26.615</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -11350,7 +11356,10 @@ transition-duration: .01ms !important;
             <div class="gs-row"><span>单气泡拼字</span><label class="toggle"><input type="checkbox" id="qs-one"><span class="tk"></span></label></div>
             <div class="gs-row"><span>多回复逐卡连发</span><label class="toggle"><input type="checkbox" id="qs-multi"><span class="tk"></span></label></div>
             <div class="gs-row"><span>逐卡连发不受条数限制</span><label class="toggle"><input type="checkbox" id="qs-noLimit"><span class="tk"></span></label></div>
-            <div class="gs-sub">开启后联系人回复按「拼字概率」随机变成拼字：从词典语录（系统预设字卡→词典，可逐张关闭）抽语录字卡整卡，效果举例：命中拼字时 TA 会连着发几条词典里的短句（如「想你了」「晚安哦」），像打字很快连着发消息一样。<br>发送形态二选一（两个都开＝每次命中各一半概率随机，两个都关＝按逐卡连发）：<br>· 「单气泡拼字」＝几张字卡用空格拼成【一条】消息发在一个气泡里（如「今天也要好好爱自己 晚安」），气泡下 tag 是「词典」（全是长句时）或「词典拼字」（含一两个字的短卡时）；<br>· 「多回复逐卡连发」＝每张字卡单独一条气泡一条一条发出来，每条气泡下 tag 是「词典逐卡连发」；连发条数跟随上方「每条消息使用多字卡回复」的最少/最多条数（默认 2~5 条）；<br>· 「逐卡连发不受条数限制」默认开＝连发条数不受「回复条数最多」约束（想连发 5 条就发 5 条）；关掉＝连发最多不超过「回复条数最多」（默认 2 条）。<br>两个形态都能在没开「多字卡回复」的情况下触发。开启「混用自定义字卡」时你的字卡库文本也会进抽卡池（可能把你的普通字卡抽去拼字，默认关），关闭则只用词典语录。概率 0 = 不触发</div>
+            <!-- #370：词典拼字链路自检——五道闸门（二级锁/词典分类/词典聊天使用/总开关/概率/抽卡池）
+                 任一被关都是零提示零 tag，这行把每道闸实时状态摆出来，任何机型一眼看到卡在哪 -->
+            <div class="gs-sub" id="qs-diag" style="color:var(--muted,#888)">链路自检中…</div>
+            <div class="gs-sub">开启后联系人回复按「拼字概率」随机变成拼字：从词典（系统预设字卡→词典，语录/词库/常用词全部分组都可抽，可逐张关闭）抽字卡整卡，效果举例：命中拼字时 TA 会连着发几条词典里的短句（如「想你了」「晚安哦」），像打字很快连着发消息一样。<br>发送形态：单气泡拼字为主，「多回复逐卡连发」开着时每次命中另按 20% 小概率变成逐条连发；「多回复逐卡连发」关＝不能连发（只发单气泡拼字）。<br>· 「单气泡拼字」＝几张字卡用空格拼成【一条】消息发在一个气泡里（如「今天也要好好爱自己 晚安」），气泡下 tag 是「词典」（全是长句时）或「词典拼字」（含短卡时）；<br>· 「多回复逐卡连发」＝每张字卡单独一条气泡一条一条发出来，每条气泡下 tag 是「词典逐卡连发」；连发条数跟随上方「每条消息使用多字卡回复」的最少/最多条数（默认 2~5 条）；<br>· 「逐卡连发不受条数限制」默认开＝连发条数不受「回复条数最多」约束（想连发 5 条就发 5 条）；关掉＝连发最多不超过「回复条数最多」（默认 2 条）。<br>两个形态都能在没开「多字卡回复」的情况下触发；两个形态开关都关时兜底发单气泡拼字。开启「混用自定义字卡」时你的字卡库文本也会进抽卡池（可能把你的普通字卡抽去拼字，默认关）。概率 0 = 不触发</div>
           </div>
           <div class="gs-title">梦角自由造句（截字重造句）</div>
           <div class="set-group glass">
@@ -19214,14 +19223,14 @@ if (document.visibilityState === 'hidden') window.mochiMediaFlush();
 } catch (e) {}
 const lookupQueue = new Map();    // hash -> { data, cbs:[] }
 let lookupT = null;
-window.mochiMediaTokenize = function (dataUrl) {
+window.mochiMediaTokenize = function (dataUrl, opts) {
 return new Promise(function (resolve) {
 if (typeof dataUrl !== 'string' || dataUrl.length < 1024 ||
 (dataUrl.indexOf('data:image/') !== 0 && dataUrl.indexOf('data:audio/') !== 0)) { resolve(null); return; }
 sha256Hex(dataUrl).then(function (h) {
 if (map.has(h)) { resolve(TOK + h); return; }
 let q = lookupQueue.get(h);
-if (!q) { q = { data: dataUrl, cbs: [] }; lookupQueue.set(h, q); }
+if (!q) { q = { data: dataUrl, cbs: [], nc: !!(opts && opts.noCache) }; lookupQueue.set(h, q); }
 q.cbs.push(resolve);
 if (!lookupT) lookupT = setTimeout(runLookups, 60);
 }).catch(function () { resolve(null); });
@@ -19240,8 +19249,9 @@ try { vals = (await window.idbGetMany(slice.map(function (e) { return FULL + e[0
 slice.forEach(function (e) {
 const v = vals[FULL + e[0]];
 const isImg = e[1].data.indexOf('data:image/') === 0;
-if (typeof v === 'string') { if (isImg) map.set(e[0], v); }          // 池里已有（跨会话/桌面重复）→ 不重写
-else { if (isImg) map.set(e[0], e[1].data); writeBuf.push({ k: FULL + e[0], v: e[1].data }); dirty = true; }
+const nc = !!e[1].nc;
+if (typeof v === 'string') { if (isImg && !nc) map.set(e[0], v); }          // 池里已有（跨会话/桌面重复）→ 不重写
+else { if (isImg && !nc) map.set(e[0], e[1].data); writeBuf.push({ k: FULL + e[0], v: e[1].data }); dirty = true; }
 e[1].cbs.forEach(function (cb) { try { cb(TOK + e[0]); } catch (e2) {} });
 });
 await new Promise(function (r) { setTimeout(r, 0); }); // 分批让出主线程
@@ -19539,7 +19549,7 @@ if (!actions) return;
 const open = window.cardLockOpen();
 if (tip) tip.textContent = open
 ? '系统内置字卡已解锁（成年人验证已通过）。如需恢复未成年人保护，可重新上锁。'
-: '系统内置字卡已全部锁定，这是面向未成年人的保护措施。如你已成年，可输入二级验证密码解锁使用。密码非常简单，答案就在开屏里可以找到；解开密码请勿二传（不要告诉别人），一旦有人二传，密码就会被重新设置。';
+: '系统内置字卡已全部锁定，这是面向未成年人的保护措施，不是 bug。不输密码也能正常使用全部功能，密码只管两件事：解锁系统内置字卡、跳过开屏的 2 个问答。注意：锁定时若自定义字卡（含 mj 字卡）一张都没添加，回复会只能重复发兜底内容（如「嗯嗯」），自己在自定义字卡里添加几张即可。密码非常简单，答案就在开屏里可以找到；解开密码请勿二传（不要告诉别人），一旦有人二传，密码就会被重新设置。';
 actions.innerHTML = '';
 const state = document.createElement('div');
 state.className = 'cardlock-state';
@@ -24295,23 +24305,8 @@ if (grid && grid.parentNode === p3) p3.insertBefore(node, grid);
 else p3.appendChild(node);
 }
 };
-if (!lay) {
+if (lay) return;
 if (node.closest('.page-slide') !== p3) placeUnderPeriod();
-return;
-}
-const at = lay.findIndex(page => (page || []).indexOf('memo-row') >= 0);
-if (at === 2) return; // 已在第三页（顺序由 applyDeskLayout 按存储维护）
-if (at < 0) return;   // 不在任何页 = 用户已移除进池，不找回
-lay[at] = (lay[at] || []).filter(w => w !== 'memo-row');
-const p3w = (lay[2] || []).slice();
-const dpAt = p3w.indexOf('desk-period');
-if (dpAt >= 0) p3w.splice(dpAt + 1, 0, 'memo-row');
-else p3w.unshift('memo-row');
-while (lay.length < 3) lay.push([]);
-lay[2] = p3w;
-store.set('desk-layout', JSON.stringify(lay));
-placeUnderPeriod();
-try { window.applyDeskLayout(); } catch (e) {} // 重跑一次布局应用刷新各页提示与顺序
 }
 ensureMemoRowP3();
 setTimeout(ensureMemoRowP3, 150); // 等 buildDeskPages 的 setTimeout(ensureP3) 补齐第三页后兜底一次
@@ -27471,7 +27466,8 @@ else if (sp === 'ask-choose') extra = String(m.choiceQuestion || '') + '|' + JSO
 else if (sp === 'ask-curious') extra = String(m.curiousQuestion || '') + '|' + JSON.stringify(m.curiousQuick || []) + '|' + String(m.curiousCat || '');
 else if (sp === 'ask-roast') extra = String(m.roastText || '') + '|' + String(m.roastCat || '');
 else if (sp === 'invite') extra = String(m.inviteContent || m.text || '');
-else if (sp === 'gift') extra = String(m.flName || '') + '|' + String(m.flEmoji || '') + '|' + String(m.flWish || '');
+else if (sp === 'gift') extra = String(m.giftId || '') + '|' + String(m.giftName || '') + '|' + String(m.giftEmoji || '') + '|' + String(m.giftWish || '') + '|' + String(m.giftPrice == null ? '' : m.giftPrice); // FIX 2026-09-12 #379 礼物签名误用鲜花字段（flName/flEmoji/flWish 礼物记录里全 undefined）→ 任意两件礼物签名恒等，60s 窗口内第二件被当重复删＝「连续送心愿单礼物第一件之外全闪一下就消失」；改用礼物自己的字段（dish 菜肴同理），不同礼物签名必然不同
+else if (sp === 'dish') extra = String(m.dishName || '') + '|' + String(m.dishEmoji || '') + '|' + String(m.dishWish || '') + '|' + String(m.dishPrice == null ? '' : m.dishPrice); // FIX #379 同上：菜肴消息字段与鲜花不同，此前也恒等签名
 else if (sp === 'flower') extra = String(m.flName || '') + '|' + String(m.flEmoji || '') + '|' + String(m.flWish || '');
 } catch (e) {}
 const normT = (m.type === 'text' || !m.type) ? '' : String(m.type || '');
@@ -27902,7 +27898,7 @@ return;
 }
 if (!chatVisible()) return;
 const out = side === 'out';
-if (!out && !chatNearBottom()) return;
+if (!out && !chatPinnedBottom) return;
 scrollChatBottom();
 if (out) {
 requestAnimationFrame(scrollChatBottom);
@@ -28785,9 +28781,22 @@ loadOlderIncremental();
 } else if (renderEnd < msgs.length && body.scrollHeight - body.scrollTop - body.clientHeight < TOP_THRESHOLD) {
 loadNewerIncremental();
 }
+else if (!chatPinnedBottom && body.scrollHeight - body.scrollTop - body.clientHeight < 120) {
+scrollChatBottom();
+}
 }, 100);
 }, { passive: true });
-body.addEventListener('touchstart', unpinChatAndAnchor, { passive: true, capture: true });
+let chatUnpinTsY = 0;
+body.addEventListener('touchstart', function (e) {
+try { chatUnpinTsY = e.touches[0].clientY; } catch (err) { chatUnpinTsY = 0; }
+unpinChatAndAnchor();
+}, { passive: true, capture: true });
+body.addEventListener('touchend', function (e) {
+try {
+const dy = Math.abs(e.changedTouches[0].clientY - chatUnpinTsY);
+if (dy < 10 && chatNearBottom()) scrollChatBottom();
+} catch (err) {}
+}, { passive: true });
 body.addEventListener('wheel', unpinChatAndAnchor, { passive: true });
 body.addEventListener('load', (e) => {
 const t = e.target;
@@ -35974,12 +35983,21 @@ function nearGcBottom() {
 try { return body.scrollHeight - body.scrollTop - body.clientHeight < 150; } catch (e) { return true; }
 }
 let gcUserGcScrollTouched = false;
-body.addEventListener('touchstart', () => { gcUserGcScrollTouched = true; }, { passive: true });
+let gcUnpinTsY = 0;
+body.addEventListener('touchstart', (e) => {
+try { gcUnpinTsY = e.touches[0].clientY; } catch (err) { gcUnpinTsY = 0; }
+gcUserGcScrollTouched = true;
+}, { passive: true });
+body.addEventListener('touchend', (e) => {
+try {
+const dy = Math.abs(e.changedTouches[0].clientY - gcUnpinTsY);
+if (dy < 10 && nearGcBottom()) gcUserGcScrollTouched = false;
+} catch (err) {}
+}, { passive: true });
 body.addEventListener('wheel', () => { gcUserGcScrollTouched = true; }, { passive: true });
 function followGcBottom(force) {
 try {
-const stick = force || nearGcBottom();
-if (!stick) return;
+if (!force && gcUserGcScrollTouched) return;
 scrollToBottom();
 const rewrite = () => {
 try { if (!gcUserGcScrollTouched) scrollToBottom(); } catch (e) {}
@@ -35989,6 +36007,9 @@ setTimeout(rewrite, 150);
 gcUserGcScrollTouched = false;
 } catch (e) {}
 }
+body.addEventListener('scroll', () => {
+if (gcUserGcScrollTouched && nearGcBottom()) gcUserGcScrollTouched = false;
+}, { passive: true });
 const GC_DOM_WINDOW = 400, GC_DOM_CUT = 320;
 function pruneGcDom() {
 try {
@@ -36945,17 +36966,73 @@ gFlushPersistNow();
 const n = msgs.length;
 if (!n) { toast('没有聊天记录可导出'); return; }
 toast('正在导出，请稍候…');
-const parts = ['{"app":"mochi-zika-group-chat","version":"1.0","gid":"' + attrEsc(curGid) + '","exportTime":"' + new Date().toISOString() + '","msgs":['];
-for (let i = 0; i < n; i++) { if (i) parts.push(','); parts.push(JSON.stringify(msgs[i])); }
+const expMap = {};
+const toks = {};
+const isTok = (s) => typeof s === 'string' && window.mochiMediaIsToken && window.mochiMediaIsToken(s);
+const scanStr = (s) => {
+if (typeof s !== 'string') return;
+if (isTok(s)) toks[s] = 1;
+else if (s.indexOf('|||') >= 0) s.split('|||').forEach(p => { if (isTok(p)) toks[p] = 1; });
+};
+msgs.forEach(r => {
+if (!r || typeof r !== 'object') return;
+scanStr(r.text);
+(r.parts || []).forEach(p => { if (p && p.k === 'img') scanStr(p.v); });
+if (r.quote) {
+if (typeof r.quote === 'string') scanStr(r.quote);
+else if (Array.isArray(r.quote.imgs)) r.quote.imgs.forEach(scanStr);
+}
+});
+const repStr = (s) => {
+if (typeof s !== 'string') return s;
+if (expMap[s]) return expMap[s];
+if (s.indexOf('|||') < 0) return s; // 语音「名称|||音频」令牌段替换
+let ch = false;
+const ps = s.split('|||').map(p => { const e2 = expMap[p]; if (e2) { ch = true; return e2; } return p; });
+return ch ? ps.join('|||') : s;
+};
+const head = '{"app":"mochi-zika-group-chat","version":"1.0","gid":"' + attrEsc(curGid) + '","exportTime":"' + new Date().toISOString() + '","msgs":[';
+const writeOut = () => {
+const hasExp = Object.keys(expMap).length > 0;
+const parts = [head];
+for (let i = 0; i < n; i++) {
+if (i) parts.push(',');
+let r = msgs[i];
+if (hasExp) {
+try {
+r = JSON.parse(JSON.stringify(r));
+if (r && typeof r === 'object') {
+if (typeof r.text === 'string') r.text = repStr(r.text);
+if (Array.isArray(r.parts)) r.parts = r.parts.map(p => (p && p.k === 'img') ? { k: 'img', v: repStr(p.v), sub: p.sub } : p);
+if (typeof r.quote === 'string') r.quote = repStr(r.quote);
+else if (r.quote && Array.isArray(r.quote.imgs)) r.quote = Object.assign({}, r.quote, { imgs: r.quote.imgs.map(repStr) });
+}
+} catch (e) { r = msgs[i]; }
+}
+parts.push(JSON.stringify(r));
+}
 parts.push(']}');
 const blob = new Blob(parts, { type: 'application/json;charset=utf-8' });
 const a = document.createElement('a');
 a.href = URL.createObjectURL(blob);
-a.download = curGroupName + '_聊天记录_' + new Date().toISOString().slice(0, 10) + '.json';
+const d = new Date(); const p2 = (x) => (x < 10 ? '0' : '') + x;
+const safeName = String(curGroupName).replace(/[\\/:*?"<>|]/g, '_').trim() || '群聊';
+a.download = safeName + '_聊天记录_' + d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + '.json';
 document.body.appendChild(a);
 a.click();
 setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
 toast('已导出 ' + n + ' 条聊天记录');
+};
+const tk = Object.keys(toks);
+if (!tk.length) { writeOut(); return; }
+let left = tk.length, fin = false;
+const done = () => { if (fin) return; fin = true; writeOut(); };
+setTimeout(done, 8000);
+tk.forEach(k => {
+try {
+window.mochiMediaExpandAsync(k, (d) => { if (d) expMap[k] = d; if (--left === 0) done(); });
+} catch (e) { if (--left === 0) done(); }
+});
 } catch (e) { toast('导出失败：' + (e && e.message || '未知错误')); }
 }));
 settingsBody.appendChild(gcDataLink('导入聊天记录', '从 JSON 文件导入并覆盖当前群聊记录', false, () => {
@@ -36973,7 +37050,8 @@ if (!data || typeof data !== 'object') { toast('无效的聊天记录文件'); r
 let arr = Array.isArray(data) ? data : null;
 if (!arr && data.msgs && Array.isArray(data.msgs)) arr = data.msgs;
 if (!arr && data.ls && typeof data.ls === 'object') {
-const raw = (data.idb && data.idb[MSG_KEY]) || data.ls[MSG_KEY];
+const ck = groupMsgKey(curGid);
+const raw = (data.idb && data.idb[ck]) || data.ls[ck] || (data.idb && data.idb[MSG_KEY]) || data.ls[MSG_KEY];
 try { arr = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch (e) { arr = null; }
 }
 if (!Array.isArray(arr) || !arr.length) { toast('文件里没有聊天记录数据'); return; }
@@ -37308,6 +37386,7 @@ const s = getGcSchemes()[idx];
 if (!s || !window.openModal) return;
 const ctl = window.openModal('应用方案「' + s.name + '」？', '', (v) => {
 if (v !== 'ok') return;
+GC_BEAUTY_KEYS.forEach(k => { if (!(s.data && s.data[k] !== undefined)) { try { gcBeautySet(k, ''); } catch (e) {} } });
 applyGcBeautyData(s.data || {});
 hideGcSchemeModal(m);
 toast('已应用「' + s.name + '」，群聊立即生效');
@@ -37439,7 +37518,8 @@ return bar;
 }
 function gcStartPreview(s, m) {
 if (!s) return;
-gcPreviewBackup = collectGcBeauty();
+gcPreviewBackup = {};
+GC_BEAUTY_KEYS.forEach(k => { gcPreviewBackup[k] = gcBeautyStored[k] !== undefined ? gcBeautyStored[k] : ''; });
 hideGcSchemeModal(m);
 applyGcBeautyData(s.data || {});
 const bar = gcPreviewBarEl();
@@ -37585,8 +37665,8 @@ box.appendChild(close);
 m.appendChild(box);
 m.style.display = 'flex'; m.hidden = false;
 }
-if (settingsClose) settingsClose.addEventListener('click', () => { if (settingsPanel) settingsPanel.hidden = true; });
-if (settingsPanel) settingsPanel.addEventListener('click', (e) => { if (e.target === settingsPanel) settingsPanel.hidden = true; });
+if (settingsClose) settingsClose.addEventListener('click', () => { gcBeautyView = false; if (settingsPanel) settingsPanel.hidden = true; });
+if (settingsPanel) settingsPanel.addEventListener('click', (e) => { if (e.target === settingsPanel) { gcBeautyView = false; settingsPanel.hidden = true; } });
 function renderAtPanel() {
 if (!atBody) return;
 atBody.innerHTML = '';
@@ -38077,6 +38157,25 @@ return out;
 }
 let pubCache = null;
 function pubInvalidate() { pubCache = null; }
+const CC_MEDIA_TOKEN_THRESHOLD = 64 * 1024;
+function ccTokenizeGiantMedia(g) {
+if (!window.mochiMediaTokenize) return;
+['sticker', 'image'].forEach(function (t) {
+(g[t] || []).forEach(function (grp) {
+if (!Array.isArray(grp) || !Array.isArray(grp[1])) return;
+grp[1].forEach(function (card, i) {
+if (typeof card !== 'string' || card.indexOf('@@m:') >= 0) return;
+const bar = card.indexOf('|||');
+const body = bar >= 0 ? card.slice(bar + 3) : card;
+if (body.length < CC_MEDIA_TOKEN_THRESHOLD || body.indexOf('data:image/') !== 0) return;
+Promise.resolve(window.mochiMediaTokenize(body, { noCache: true })).then(function (tok) {
+if (!tok || grp[1][i] !== card) return;
+grp[1][i] = bar >= 0 ? (card.slice(0, bar + 3) + tok) : tok;
+}).catch(function () {});
+});
+});
+});
+}
 function pubGroupsRaw() {
 if (!pubCache) {
 pubCache = buildGroupsFrom(pubStore().get(PUB_KEY));
@@ -38085,6 +38184,7 @@ if (_vhp.fixed || _vhp.removed) {
 try { pubStore().set(PUB_KEY, JSON.stringify(pubCache)); } catch (e) {}
 notifyVoiceHeal(_vhp.fixed, _vhp.removed);
 }
+ccTokenizeGiantMedia(pubCache);
 }
 return pubCache;
 }
@@ -40503,7 +40603,7 @@ window.getPokeGroups = function () {
 return (replyPoolGroups()['poke'] || []).slice();
 };
 function isMediaImg(c) {
-return typeof c === 'string' && (c.indexOf('data:image') === 0 || /^https?:\/\/[^\s"'<>]+$/i.test(c));
+return typeof c === 'string' && (c.indexOf('data:image') === 0 || /^https?:\/\/[^\s"'<>]+$/i.test(c) || (c.indexOf('@@m:') === 0 && window.mochiMediaIsToken && window.mochiMediaIsToken(c)));
 }
 window.getMediaCards = function (type) {
 maybeHydrateReplyPool();
@@ -41041,7 +41141,7 @@ function render() {
 const open = window.cardLockOpen();
 el.textContent = open
 ? '当前状态：系统预设字卡已解锁（二级验证已通过），联系人回复与各功能可正常取用。'
-: '当前状态：系统预设字卡已全部锁定（防未成年人保护），联系人回复与各功能均取不到；如已成年，请回开屏公告区点「输入密码解锁」输入二级验证密码，解锁后刷新生效。';
+: '当前状态：系统预设字卡已全部锁定（防未成年人保护，不是 bug），联系人回复与各功能均取不到系统预设字卡。不输密码也能正常使用，密码只管两件事：解锁系统预设字卡、跳过开屏的 2 个问答；如已成年，请回开屏公告区点「输入密码解锁」输入二级验证密码，解锁后刷新生效。注意：锁定时若自定义字卡（含 mj 字卡）一张都没添加，回复会只能重复发兜底内容（如「嗯嗯」），先在自定义字卡里添加几张即可。';
 }
 render();
 document.addEventListener('mochi-cardlock-open', render);
@@ -43068,6 +43168,62 @@ try { if (window.applyContinueSayUI) window.applyContinueSayUI(); } catch (e) {}
 });
 }
 });
+(function () {
+const diagEl = document.getElementById('qs-diag');
+if (!diagEl) return;
+function qsDiagRender() {
+try {
+const c = window.replyCfg ? window.replyCfg() : {};
+const parts = [];
+let blocked = null;
+const lockOk = !(window.cardLockOpen && !window.cardLockOpen());
+parts.push((lockOk ? '✓' : '✗') + '二级锁' + (lockOk ? '已解锁' : '未解锁'));
+if (!lockOk && !blocked) blocked = '二级锁未解锁（开屏公告区的锁定卡里输入密码解锁）';
+const catOk = !(window.defaultCardCat && window.defaultCardCat('dict') === false);
+parts.push((catOk ? '✓' : '✗') + '词典分类开');
+if (!catOk && !blocked) blocked = '词典分类被关（字卡库→系统预设字卡→分类开关里打开「词典」）';
+const useOk = !(window.dictUse && window.dictUse('chat') === false);
+const ov = window.dictOverall ? window.dictOverall('chat') : 100;
+parts.push((useOk ? '✓' : '✗') + '词典聊天使用' + (useOk ? '开（' + ov + '%）' : '关'));
+if (!useOk && !blocked) blocked = '词典「聊天使用」被关（系统预设字卡→词典独立页里打开）';
+if (useOk && ov <= 0 && !blocked) blocked = '词典「聊天使用概率」为 0（词典独立页调回 100%）';
+const enOk = c['qs-en'] === 1;
+const prob = Number(c['qs-prob']);
+parts.push((enOk ? '✓' : '✗') + '拼字总开关' + (enOk ? '开（' + (isFinite(prob) ? prob : 0) + '%）' : '关'));
+if (!enOk && !blocked) blocked = '「词典拼字」总开关被关（本组第一行打开）';
+if (enOk && !(isFinite(prob) && prob > 0) && !blocked) blocked = '「拼字概率」为 0（本组第二行调回 25% 以上）';
+let poolN = 0;
+try {
+const grps = (window.getDefaultCardGroups && window.getDefaultCardGroups('dict')) || [];
+grps.forEach(g => { (g[1] || []).forEach(q => {
+if (typeof q !== 'string' || !q.trim()) return;
+if (window.isDefaultCardOff && window.isDefaultCardOff('dict', q)) return;
+poolN++;
+}); });
+} catch (e) {}
+parts.push((poolN > 0 ? '✓' : '✗') + '抽卡池 ' + poolN + ' 张');
+if (poolN <= 0 && !blocked) blocked = '词典抽卡池为空（词典独立页里把字卡逐张打开）';
+if (blocked) {
+diagEl.textContent = '链路自检：' + parts.join(' · ') + '——被挡住：' + blocked;
+diagEl.style.color = '#c0392b';
+} else {
+diagEl.textContent = '链路自检：' + parts.join(' · ') + '——正常，联系人每条回复约 ' + (isFinite(prob) ? prob : 0) + '% 概率变成词典拼字';
+diagEl.style.color = 'var(--muted,#888)';
+}
+} catch (e) {
+try { diagEl.textContent = '链路自检暂不可用'; } catch (e2) {}
+}
+}
+qsDiagRender();
+['qs-en', 'qs-one', 'qs-multi', 'qs-cc'].forEach(k => {
+const el = document.getElementById(k);
+if (el) el.addEventListener('change', () => setTimeout(qsDiagRender, 50));
+});
+document.addEventListener('mochi-cardlock-open', qsDiagRender);
+document.addEventListener('mochi-cardlock-locked', qsDiagRender);
+document.addEventListener('contact-switched', qsDiagRender);
+window.__qsDiagRender = qsDiagRender;
+})();
 const asEnEl = document.getElementById('as-en');
 if (asEnEl) {
 asEnEl.addEventListener('change', () => {
@@ -84086,7 +84242,7 @@ const body = bag.length
 '<div class="pong-end-stat au-bag-row">' + it.ico + ' ' + it.name + ' · ' + (it.from === 'ta' ? T('TA') + ' 寄来的' : yuan(it.fen)) +
 (it.from === 'ta' ? '' : ' <button class="pong-overlay-btn au-send-btn" data-i="' + i + '" type="button">送' + T('TA') + '</button>') + '</div>').join('')
 : '<div class="pong-end-stat">还什么都没拍到</div>';
-showOverlay('🎒 拍品收藏（' + bag.length + '）', body, '返回');
+showOverlay('🎒 拍品收藏（' + bag.length + '）', body, '返回', '', true);
 if (startBtn) startBtn.textContent = '返回'; // #346 统一返回语义：场次中回竞价、结算后回本场汇总
 if (endBtn) endBtn.hidden = !(st && st.started && !st.over);
 }
@@ -84098,7 +84254,7 @@ const cls = (r) => r === 'SSR' ? 'au-r2' : r === '稀有' ? 'au-r1' : 'au-r0';
 const body = h.length
 ? h.map((it) => '<div class="pong-end-stat au-hist-row"><span class="au-rare ' + cls(it.rarity) + '">' + (it.rarity || '普通') + '</span> ' + it.ico + ' ' + it.name + ' · ' + (it.who === 'pass' ? '流拍' : yuan(it.price)) + ' · ' + (whoTxt[it.who] || '') + ' · ' + fmt(it.t) + '</div>').join('')
 : '<div class="pong-end-stat">还没拍过任何东西</div>';
-showOverlay('📜 拍卖记录（' + h.length + '）', body, '返回');
+showOverlay('📜 拍卖记录（' + h.length + '）', body, '返回', '', true);
 if (startBtn) startBtn.textContent = '返回';
 if (endBtn) endBtn.hidden = !(st && st.started && !st.over);
 }
@@ -84158,13 +84314,14 @@ try { if (window.chatAddIn) window.chatAddIn(pick(['收下啦！超喜欢', '你
 }, 900);
 showBag();
 }
-function showOverlay(title, body, btnText, mood) {
+function showOverlay(title, body, btnText, mood, fs) {
 if (!overlayEl) return;
 if (ovTitleEl) ovTitleEl.innerHTML = title || '';
 if (ovBodyEl) ovBodyEl.innerHTML = body || '';
 if (startBtn && btnText) startBtn.textContent = btnText;
 overlayEl.classList.remove('au-ov-win', 'au-ov-ta', 'au-ov-pass');
 if (mood) overlayEl.classList.add('au-ov-' + mood);
+overlayEl.classList.toggle('au-ov-fs', !!fs);
 overlayEl.hidden = false;
 updateBidBtns();
 }
@@ -84187,7 +84344,7 @@ showIntro();
 hideOverlay(); // 半框覆盖层平时不显示（开场/成交才由流程显示）
 setStatus('全屏读玩法：点下方「开始拍卖」，或「详细玩法」');
 }
-function hideOverlay() { if (overlayEl) overlayEl.hidden = true; bagOpen = false; }
+function hideOverlay() { if (overlayEl) { overlayEl.hidden = true; overlayEl.classList.remove('au-ov-fs'); } bagOpen = false; }
 if (startBtn) startBtn.addEventListener('click', (e) => {
 e.stopPropagation();
 if (overlayEl && !overlayEl.hidden) {
@@ -89108,7 +89265,21 @@ if (initV) box.textContent = initV;
 try { if (!isIOS) initCeAll(); } catch (e) {}
 try {
 if (!isIOS) {
-var ceMo = new MutationObserver(function () { initCeAll(); });
+var CE_SCAN_SEL = 'input:not([type]), input[type="text"], input[type="search"], input[type="number"], textarea';
+var ceMo = new MutationObserver(function (muts) {
+for (var mi = 0; mi < muts.length; mi++) {
+var added = muts[mi].addedNodes;
+for (var ai = 0; ai < added.length; ai++) {
+var n = added[ai];
+if (!n || n.nodeType !== 1) continue;
+try {
+if (n.matches(CE_SCAN_SEL)) ceConvert(n);
+var sub = n.querySelectorAll(CE_SCAN_SEL);
+for (var si = 0; si < sub.length; si++) ceConvert(sub[si]);
+} catch (e) {}
+}
+}
+});
 ceMo.observe(document.body, { childList: true, subtree: true });
 }
 } catch (e) {}
@@ -90450,4 +90621,4 @@ lastHeal: his
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mty2trgu -->
+<!-- __MOCHI_EOF__ mty870be -->

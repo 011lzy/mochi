@@ -720,12 +720,25 @@
   // 是否已手动接管滚动，未接管才补写（内核丢弃写入时视口离底 >150px，nearGcBottom
   // 会误判为「在看历史」，所以复写不能只看 nearGcBottom）；用户已滚动则不抢滚动权。
   let gcUserGcScrollTouched = false;
-  body.addEventListener('touchstart', () => { gcUserGcScrollTouched = true; }, { passive: true });
+  let gcUnpinTsY = 0;
+  // FIX #378：解钉只认「真实滚动意图」——轻点（位移<10px）且仍贴底时解除接管；
+  // 拖动/惯性滚动保持接管，滚回贴底由 scroll 监听解除
+  body.addEventListener('touchstart', (e) => {
+    try { gcUnpinTsY = e.touches[0].clientY; } catch (err) { gcUnpinTsY = 0; }
+    gcUserGcScrollTouched = true;
+  }, { passive: true });
+  body.addEventListener('touchend', (e) => {
+    try {
+      const dy = Math.abs(e.changedTouches[0].clientY - gcUnpinTsY);
+      if (dy < 10 && nearGcBottom()) gcUserGcScrollTouched = false;
+    } catch (err) {}
+  }, { passive: true });
   body.addEventListener('wheel', () => { gcUserGcScrollTouched = true; }, { passive: true });
   function followGcBottom(force) {
     try {
-      const stick = force || nearGcBottom();
-      if (!stick) return;
+      // FIX #378：跟底闸只看「用户是否手动接管滚动」——内核丢弃首写/迟到解码顶开后
+      // 视口离底>150px，旧 nearGcBottom 闸会把后续每条来消息都误判成在看历史永不跟底
+      if (!force && gcUserGcScrollTouched) return;
       scrollToBottom();
       const rewrite = () => {
         try { if (!gcUserGcScrollTouched) scrollToBottom(); } catch (e) {}
@@ -735,6 +748,10 @@
       gcUserGcScrollTouched = false;
     } catch (e) {}
   }
+  // FIX #378：用户手动滚回贴底＝解除接管，自动跟底恢复（旧口径解钉后无法恢复）
+  body.addEventListener('scroll', () => {
+    if (gcUserGcScrollTouched && nearGcBottom()) gcUserGcScrollTouched = false;
+  }, { passive: true });
   // v3.12.x：停留页内实时追加的 DOM 窗口上限——renderAll 只在进页时收窄到 RENDER_MAX，
   // 之后每条收发都走 renderMsg 直接 append，长时间泡在群里 DOM（含每条一个 dataURL 头像
   // img 的位图）无界增长 → 安卓 Chrome 渲染进程 OOM「网页崩溃」。超过窗口硬上限时从最早端
@@ -1819,17 +1836,80 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
         const n = msgs.length;
         if (!n) { toast('没有聊天记录可导出'); return; }
         toast('正在导出，请稍候…');
-        const parts = ['{"app":"mochi-zika-group-chat","version":"1.0","gid":"' + attrEsc(curGid) + '","exportTime":"' + new Date().toISOString() + '","msgs":['];
-        for (let i = 0; i < n; i++) { if (i) parts.push(','); parts.push(JSON.stringify(msgs[i])); }
-        parts.push(']}');
-        const blob = new Blob(parts, { type: 'application/json;charset=utf-8' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = curGroupName + '_聊天记录_' + new Date().toISOString().slice(0, 10) + '.json';
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-        toast('已导出 ' + n + ' 条聊天记录');
+        // FIX 2026-09-12 #375 导出前展开媒体池令牌：#245 令牌化后消息里图片/表情存的是
+        // @@m:hash，原样导出＝JSON 只有令牌没有图，导入到他机或清数据后的本机全部坏图。
+        // 深扫 text/parts/quote 收集令牌 → 异步取回 dataURL → 按原位替换后流式写出
+        //（保留原分段流式构建防超长；取不回的令牌原样保留不阻塞导出，8s 兜底放行）
+        const expMap = {};
+        const toks = {};
+        const isTok = (s) => typeof s === 'string' && window.mochiMediaIsToken && window.mochiMediaIsToken(s);
+        const scanStr = (s) => {
+          if (typeof s !== 'string') return;
+          if (isTok(s)) toks[s] = 1;
+          else if (s.indexOf('|||') >= 0) s.split('|||').forEach(p => { if (isTok(p)) toks[p] = 1; });
+        };
+        msgs.forEach(r => {
+          if (!r || typeof r !== 'object') return;
+          scanStr(r.text);
+          (r.parts || []).forEach(p => { if (p && p.k === 'img') scanStr(p.v); });
+          if (r.quote) {
+            if (typeof r.quote === 'string') scanStr(r.quote);
+            else if (Array.isArray(r.quote.imgs)) r.quote.imgs.forEach(scanStr);
+          }
+        });
+        const repStr = (s) => {
+          if (typeof s !== 'string') return s;
+          if (expMap[s]) return expMap[s];
+          if (s.indexOf('|||') < 0) return s; // 语音「名称|||音频」令牌段替换
+          let ch = false;
+          const ps = s.split('|||').map(p => { const e2 = expMap[p]; if (e2) { ch = true; return e2; } return p; });
+          return ch ? ps.join('|||') : s;
+        };
+        const head = '{"app":"mochi-zika-group-chat","version":"1.0","gid":"' + attrEsc(curGid) + '","exportTime":"' + new Date().toISOString() + '","msgs":[';
+        const writeOut = () => {
+          const hasExp = Object.keys(expMap).length > 0;
+          const parts = [head];
+          for (let i = 0; i < n; i++) {
+            if (i) parts.push(',');
+            let r = msgs[i];
+            if (hasExp) {
+              try {
+                r = JSON.parse(JSON.stringify(r));
+                if (r && typeof r === 'object') {
+                  if (typeof r.text === 'string') r.text = repStr(r.text);
+                  if (Array.isArray(r.parts)) r.parts = r.parts.map(p => (p && p.k === 'img') ? { k: 'img', v: repStr(p.v), sub: p.sub } : p);
+                  if (typeof r.quote === 'string') r.quote = repStr(r.quote);
+                  else if (r.quote && Array.isArray(r.quote.imgs)) r.quote = Object.assign({}, r.quote, { imgs: r.quote.imgs.map(repStr) });
+                }
+              } catch (e) { r = msgs[i]; }
+            }
+            parts.push(JSON.stringify(r));
+          }
+          parts.push(']}');
+          const blob = new Blob(parts, { type: 'application/json;charset=utf-8' });
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          // FIX 2026-09-12 #375 文件名两处修正：群名清洗非法字符（\/:*?"<>| → _，防下载
+          // 失败/被系统改名）；日期改本地时区（toISOString 是 UTC，凌晨导出文件名日期
+          // 会是前一天——同 chat-settings #172 已修的同族问题，这里补齐）
+          const d = new Date(); const p2 = (x) => (x < 10 ? '0' : '') + x;
+          const safeName = String(curGroupName).replace(/[\\/:*?"<>|]/g, '_').trim() || '群聊';
+          a.download = safeName + '_聊天记录_' + d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + '.json';
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+          toast('已导出 ' + n + ' 条聊天记录');
+        };
+        const tk = Object.keys(toks);
+        if (!tk.length) { writeOut(); return; }
+        let left = tk.length, fin = false;
+        const done = () => { if (fin) return; fin = true; writeOut(); };
+        setTimeout(done, 8000);
+        tk.forEach(k => {
+          try {
+            window.mochiMediaExpandAsync(k, (d) => { if (d) expMap[k] = d; if (--left === 0) done(); });
+          } catch (e) { if (--left === 0) done(); }
+        });
       } catch (e) { toast('导出失败：' + (e && e.message || '未知错误')); }
     }));
     // 导入：读取 JSON → 预览确认 → 覆盖当前群记录（兼容单聊导出/裸数组/整份备份）
@@ -1849,7 +1929,13 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
           let arr = Array.isArray(data) ? data : null;
           if (!arr && data.msgs && Array.isArray(data.msgs)) arr = data.msgs;
           if (!arr && data.ls && typeof data.ls === 'object') {
-            const raw = (data.idb && data.idb[MSG_KEY]) || data.ls[MSG_KEY];
+            // FIX 2026-09-12 #374 整份备份兜底先取当前群自己的消息键：原实现只认默认群键
+            //（xy-home-v2:group-chat-msgs），在自定义群里导入整份备份＝把默认群消息灌进
+            // 自定义群并覆盖其原记录（串群）；自定义群消息键为 gc-msgs-<gid>。
+            // 优先级＝同键跨段先比完（IDB 权威值优先 LS，与备份路由一致：≤20KB 小键进
+            // ls 段、大键进 idb 段），当前群键两个段都没有再回落默认群键
+            const ck = groupMsgKey(curGid);
+            const raw = (data.idb && data.idb[ck]) || data.ls[ck] || (data.idb && data.idb[MSG_KEY]) || data.ls[MSG_KEY];
             try { arr = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch (e) { arr = null; }
           }
           if (!Array.isArray(arr) || !arr.length) { toast('文件里没有聊天记录数据'); return; }
@@ -2216,6 +2302,10 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
     if (!s || !window.openModal) return;
     const ctl = window.openModal('应用方案「' + s.name + '」？', '', (v) => {
       if (v !== 'ok') return;
+      // FIX 2026-09-12 #373 应用方案改为真覆盖：方案数据里没有的键（壁纸/字体/CSS 等
+      // 默认空值键）先清回默认再应用——原实现只合并不清理，旧壁纸/旧字体残留，
+      // 与弹窗「将覆盖全部联系人桌面的群聊美化设置」的承诺不符
+      GC_BEAUTY_KEYS.forEach(k => { if (!(s.data && s.data[k] !== undefined)) { try { gcBeautySet(k, ''); } catch (e) {} } });
       applyGcBeautyData(s.data || {});
       hideGcSchemeModal(m);
       toast('已应用「' + s.name + '」，群聊立即生效');
@@ -2349,7 +2439,12 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
   }
   function gcStartPreview(s, m) {
     if (!s) return;
-    gcPreviewBackup = collectGcBeauty();
+    // FIX 2026-09-12 #373 预览备份改全量快照（未设键存 ''）：collectGcBeauty 会漏掉
+    // 当前为空值的 bg/font/css——预览带壁纸/字体/CSS 的方案后点「还原」，这三类残留
+    // 不退（还原只覆盖备份里存在的键）。全量快照 + applyGcBeautyData（'' 值=删键回
+    // 默认）可精确还原到预览前原状；存原始存储值（非主题回显值），深浅主题下都对
+    gcPreviewBackup = {};
+    GC_BEAUTY_KEYS.forEach(k => { gcPreviewBackup[k] = gcBeautyStored[k] !== undefined ? gcBeautyStored[k] : ''; });
     hideGcSchemeModal(m);
     applyGcBeautyData(s.data || {});
     const bar = gcPreviewBarEl();
@@ -2495,8 +2590,10 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
     m.appendChild(box);
     m.style.display = 'flex'; m.hidden = false;
   }
-  if (settingsClose) settingsClose.addEventListener('click', () => { if (settingsPanel) settingsPanel.hidden = true; });
-  if (settingsPanel) settingsPanel.addEventListener('click', (e) => { if (e.target === settingsPanel) settingsPanel.hidden = true; });
+  // FIX 2026-09-12 #376 关闭面板时复位美化子视图：在「美化聊天」子视图里关掉面板后
+  // 重开，原实现直接落在美化视图而非群聊设置主页（gcBeautyView 残留未复位）
+  if (settingsClose) settingsClose.addEventListener('click', () => { gcBeautyView = false; if (settingsPanel) settingsPanel.hidden = true; });
+  if (settingsPanel) settingsPanel.addEventListener('click', (e) => { if (e.target === settingsPanel) { gcBeautyView = false; settingsPanel.hidden = true; } });
 
   // ---- @提及面板 ----
   function renderAtPanel() {

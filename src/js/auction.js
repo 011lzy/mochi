@@ -550,7 +550,7 @@
           '<div class="pong-end-stat au-bag-row">' + it.ico + ' ' + it.name + ' · ' + (it.from === 'ta' ? T('TA') + ' 寄来的' : yuan(it.fen)) +
           (it.from === 'ta' ? '' : ' <button class="pong-overlay-btn au-send-btn" data-i="' + i + '" type="button">送' + T('TA') + '</button>') + '</div>').join('')
       : '<div class="pong-end-stat">还什么都没拍到</div>';
-    showOverlay('🎒 拍品收藏（' + bag.length + '）', body, '返回');
+    showOverlay('🎒 拍品收藏（' + bag.length + '）', body, '返回', '', true);
     if (startBtn) startBtn.textContent = '返回'; // #346 统一返回语义：场次中回竞价、结算后回本场汇总
     if (endBtn) endBtn.hidden = !(st && st.started && !st.over);
   }
@@ -563,7 +563,7 @@
     const body = h.length
       ? h.map((it) => '<div class="pong-end-stat au-hist-row"><span class="au-rare ' + cls(it.rarity) + '">' + (it.rarity || '普通') + '</span> ' + it.ico + ' ' + it.name + ' · ' + (it.who === 'pass' ? '流拍' : yuan(it.price)) + ' · ' + (whoTxt[it.who] || '') + ' · ' + fmt(it.t) + '</div>').join('')
       : '<div class="pong-end-stat">还没拍过任何东西</div>';
-    showOverlay('📜 拍卖记录（' + h.length + '）', body, '返回');
+    showOverlay('📜 拍卖记录（' + h.length + '）', body, '返回', '', true);
     if (startBtn) startBtn.textContent = '返回';
     if (endBtn) endBtn.hidden = !(st && st.started && !st.over);
   }
@@ -628,13 +628,18 @@
 
   // ---- 覆盖层 ----
   // #343 mood：win=落槌成交（砸下回弹）/ ta=TA抱走（左右挣扎）/ pass=流拍（褪色下沉）
-  function showOverlay(title, body, btnText, mood) {
+  function showOverlay(title, body, btnText, mood, fs) {
     if (!overlayEl) return;
     if (ovTitleEl) ovTitleEl.innerHTML = title || '';
     if (ovBodyEl) ovBodyEl.innerHTML = body || '';
     if (startBtn && btnText) startBtn.textContent = btnText;
     overlayEl.classList.remove('au-ov-win', 'au-ov-ta', 'au-ov-pass');
     if (mood) overlayEl.classList.add('au-ov-' + mood);
+    // FIX 2026-09-12 #381 背包/记录是列表浮层，弹在 .au-stage 里（absolute inset:0 随
+    // stage 高度）——未开局时 stage 只有 ~30px，浮层被裁成一条缝＝「打开显示不全」。
+    // 列表型浮层转全屏（自带标题/返回按钮，与 #au-intro 同族）；竞价掂量/结算等
+    // stage 有内容时的浮层保持原位不动。
+    overlayEl.classList.toggle('au-ov-fs', !!fs);
     overlayEl.hidden = false;
     updateBidBtns();
   }
@@ -658,7 +663,7 @@
     hideOverlay(); // 半框覆盖层平时不显示（开场/成交才由流程显示）
     setStatus('全屏读玩法：点下方「开始拍卖」，或「详细玩法」');
   }
-  function hideOverlay() { if (overlayEl) overlayEl.hidden = true; bagOpen = false; }
+  function hideOverlay() { if (overlayEl) { overlayEl.hidden = true; overlayEl.classList.remove('au-ov-fs'); } bagOpen = false; }
 
   // ---- 输入 ----
   if (startBtn) startBtn.addEventListener('click', (e) => {

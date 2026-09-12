@@ -79,7 +79,7 @@
   // 池探测队列：同一哈希的多次 tokenize 合并成一次 idbGetMany（跨记录重复表情只查/写一次）
   const lookupQueue = new Map();    // hash -> { data, cbs:[] }
   let lookupT = null;
-  window.mochiMediaTokenize = function (dataUrl) {
+  window.mochiMediaTokenize = function (dataUrl, opts) {
     return new Promise(function (resolve) {
       // FIX 2026-09-10 #283 放行 data:audio/（语音令牌化）；<1024 小载荷不进池
       if (typeof dataUrl !== 'string' || dataUrl.length < 1024 ||
@@ -87,7 +87,7 @@
       sha256Hex(dataUrl).then(function (h) {
         if (map.has(h)) { resolve(TOK + h); return; }
         let q = lookupQueue.get(h);
-        if (!q) { q = { data: dataUrl, cbs: [] }; lookupQueue.set(h, q); }
+        if (!q) { q = { data: dataUrl, cbs: [], nc: !!(opts && opts.noCache) }; lookupQueue.set(h, q); }
         q.cbs.push(resolve);
         if (!lookupT) lookupT = setTimeout(runLookups, 60);
       }).catch(function () { resolve(null); });
@@ -107,9 +107,12 @@
         const v = vals[FULL + e[0]];
         // FIX 2026-09-10 #283 只有图片进 map 热缓存；音频内容唯一且体积大（一次语音迁移
         // 可达几十 MB），缓存=把令牌化省下的内存原样吃回，只写池/查池不缓存
+        // #377 noCache 选项：字卡库大库内存瘦身令牌化用——池命中/新写都不进 map 热缓存，
+        // 渲染时走下方 resolveImg 懒解析按需进 map（只驻留真正显示过的图）
         const isImg = e[1].data.indexOf('data:image/') === 0;
-        if (typeof v === 'string') { if (isImg) map.set(e[0], v); }          // 池里已有（跨会话/桌面重复）→ 不重写
-        else { if (isImg) map.set(e[0], e[1].data); writeBuf.push({ k: FULL + e[0], v: e[1].data }); dirty = true; }
+        const nc = !!e[1].nc;
+        if (typeof v === 'string') { if (isImg && !nc) map.set(e[0], v); }          // 池里已有（跨会话/桌面重复）→ 不重写
+        else { if (isImg && !nc) map.set(e[0], e[1].data); writeBuf.push({ k: FULL + e[0], v: e[1].data }); dirty = true; }
         e[1].cbs.forEach(function (cb) { try { cb(TOK + e[0]); } catch (e2) {} });
       });
       await new Promise(function (r) { setTimeout(r, 0); }); // 分批让出主线程

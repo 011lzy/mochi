@@ -442,7 +442,27 @@
   try { if (!isIOS) initCeAll(); } catch (e) {}
   try {
     if (!isIOS) {
-      var ceMo = new MutationObserver(function () { initCeAll(); });
+      // v3.26.x 性能修复（prof-mobile-lag 实测归因）：旧实现任何 body childList 变动
+      // （聊天每插一条消息/每开一个面板都会触发）都全文档重扫一遍 input 选择器——
+      // 大 DOM（1 万+节点）上单次 3~10ms，切 4 次桌面累计 550ms+ 长任务，是安卓
+      // 「点击迟钝/切桌面卡」的实测主因。改为只扫本批新增节点的子树：
+      // ceConvert 幂等（dataset.ceDone），新节点里没有输入框时子树查询近零开销。
+      // 启动全量已由上方 initCeAll 覆盖，观察器只补动态新增，语义不变。
+      var CE_SCAN_SEL = 'input:not([type]), input[type="text"], input[type="search"], input[type="number"], textarea';
+      var ceMo = new MutationObserver(function (muts) {
+        for (var mi = 0; mi < muts.length; mi++) {
+          var added = muts[mi].addedNodes;
+          for (var ai = 0; ai < added.length; ai++) {
+            var n = added[ai];
+            if (!n || n.nodeType !== 1) continue;
+            try {
+              if (n.matches(CE_SCAN_SEL)) ceConvert(n);
+              var sub = n.querySelectorAll(CE_SCAN_SEL);
+              for (var si = 0; si < sub.length; si++) ceConvert(sub[si]);
+            } catch (e) {}
+          }
+        }
+      });
       ceMo.observe(document.body, { childList: true, subtree: true });
     }
   } catch (e) {}

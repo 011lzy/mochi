@@ -4507,9 +4507,11 @@ try {
   setTimeout(ensureDeskPeriodP3Order, 600);
   document.addEventListener('contact-switched', ensureDeskPeriod);
   // v3.13.x：今日备忘/心情卡默认位置改为第三页「经期倒计时」下方（template 已移）。
-  // 老用户 desk-layout 里 memo-row 在第一/二页的自动迁到第三页经期卡下方，其余布局不动；
-  // 已在第三页的不动；用户手动移除过（隐藏池）的尊重不找回。每联系人桌面独立迁移
-  //（desk-layout 按桌面命名空间存储，切联系人时各自触发）。
+  // 老用户 desk-layout 里 memo-row 在第一/二页的自动迁到第三页经期卡下方。
+  // FIX 2026-09-12 #380 迁移只在发布时跑一次的语义早已达成（v3.13.x 时代上线，活跃用户
+  // 早已迁完），如今存量为 0/1 页的 desk-layout 只可能是用户手动换页的结果——再无条件
+  // 迁移＝每次启动/切桌面都把「今日备忘/心情」强制打回第三页（小米15 Pro 等多机型反馈
+  // 「换去第二页刷新又回第三页」）。改为有布局一律尊重，只保留无布局时的 DOM 兜底。
   function ensureMemoRowP3() {
     const node = document.querySelector('[data-desk-widget="memo-row"]');
     if (!node || !pagesBox) return;
@@ -4526,25 +4528,11 @@ try {
         else p3.appendChild(node);
       }
     };
-    if (!lay) {
-      // 未装修：模板默认就在第三页经期卡下方；被删页等流程挪走/进池则移回
-      if (node.closest('.page-slide') !== p3) placeUnderPeriod();
-      return;
-    }
-    const at = lay.findIndex(page => (page || []).indexOf('memo-row') >= 0);
-    if (at === 2) return; // 已在第三页（顺序由 applyDeskLayout 按存储维护）
-    if (at < 0) return;   // 不在任何页 = 用户已移除进池，不找回
-    // 从原页数组摘除，插入第三页数组（经期卡后一位；无则放最前）
-    lay[at] = (lay[at] || []).filter(w => w !== 'memo-row');
-    const p3w = (lay[2] || []).slice();
-    const dpAt = p3w.indexOf('desk-period');
-    if (dpAt >= 0) p3w.splice(dpAt + 1, 0, 'memo-row');
-    else p3w.unshift('memo-row');
-    while (lay.length < 3) lay.push([]);
-    lay[2] = p3w;
-    store.set('desk-layout', JSON.stringify(lay));
-    placeUnderPeriod();
-    try { window.applyDeskLayout(); } catch (e) {} // 重跑一次布局应用刷新各页提示与顺序
+    // FIX 2026-09-12 #380 有布局一律尊重、不再迁移——memo-row 在第一/二页＝用户手动换页
+    // 的结果（v3.13.x 的一次性迁移对存量早已完成），再强迁＝「换去第二页刷新又回第三页」(#380)
+    if (lay) return;
+    // 无布局（未装修）：模板默认就在第三页经期卡下方；被删页等流程挪走/进池则移回
+    if (node.closest('.page-slide') !== p3) placeUnderPeriod();
   }
   ensureMemoRowP3();
   setTimeout(ensureMemoRowP3, 150); // 等 buildDeskPages 的 setTimeout(ensureP3) 补齐第三页后兜底一次
