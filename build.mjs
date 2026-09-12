@@ -1039,6 +1039,9 @@ const FIX_SENTINELS = [
   { name: '#351 跨页图标启动归位（删则退出重进图标回原位——顺序数组跨网格认领+非默认页裁决）', file: 'js/personalize.js', needle: 'owner[k] === ICON_HOME_GRID[k] && gid !== ICON_HOME_GRID[k]' },
   { name: '#351 跨页拖动清源页顺序数组（删则源页脏条目残留→启动认领回原位）', file: 'js/personalize.js', needle: "store.set('app-icon-order-' + srcGrid.dataset.app" },
   { name: '#351 新页自带图标网格（删则新页图标只能独立竖排、无排版不可调位）', file: 'js/personalize.js', needle: "pgGrid.setAttribute('data-desk-widget', 'pg' + i)" },
+  // ==== 2026-09-12 canvas 手感批（用户「都要优化」）：打砖块丢命震屏 + 贪吃蛇死亡先演后弹 ====
+  { name: '#352 打砖块丢命震屏（删则丢命无任何画布反馈＝手感批回归）', file: 'js/breakout.js', needle: 's.shakeUntil = now + 300; s.shakeMag = 5;' },
+  { name: '#352 贪吃蛇死亡先演后弹（删则结算浮层回到立刻弹出＝死亡瞬间被跳过，#341 同族回归）', file: 'js/snake-game.js', needle: "if (state !== _endState || _endState.status !== 'over') return;" },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
