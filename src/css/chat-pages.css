@@ -3032,6 +3032,10 @@ body.mail-emoji-mode #emoji-panel { bottom: calc(64px + var(--mochi-safe-bottom,
 .feed-cover::after {
   content:''; position:absolute; top:-30px; right:-20px; width:120px; height:120px;
   border:1px solid rgba(255,255,255,.15); border-radius:50%;
+  /* FIX 2026-09-26 #1311：纯装饰的圆环不吃命中——它按「最后一个子节点」绘制，压在封面那张
+     「真·可点 input 层」上方（absolute 定位层），右上 120×120 那块点下去会被它接住、转交封面自己的
+     合成腿＝iOS 上「点了没反应」的那条老路。让路后这一整块仍是那张层。 */
+  pointer-events:none;
 }
 .feed-cover.has-bg { background-size:cover; background-position:center; }
 .feed-cover-av {
@@ -3040,7 +3044,9 @@ body.mail-emoji-mode #emoji-panel { bottom: calc(64px + var(--mochi-safe-bottom,
   display:flex; align-items:center; justify-content:center;
 }
 .feed-cover-av img { width:100%; height:100%; object-fit:cover; display:block; }
-.feed-cover-name { font-size:16px; font-weight:700; color:#fff; letter-spacing:1px; text-shadow:0 1px 3px rgba(0,0,0,.4); }
+/* FIX 2026-09-26 #1311：昵称抬到封面那张「真·可点 input 层」之上（按 #821 桌面昵称同一口径）。
+   它是静态流内元素，绘制与命中都排在定位层之后＝不抬会被整层盖住＝点昵称变成选图片。 */
+.feed-cover-name { position:relative; z-index:1; font-size:16px; font-weight:700; color:#fff; letter-spacing:1px; text-shadow:0 1px 3px rgba(0,0,0,.4); }
 .feed-post {
   background:rgba(255,255,255,.92); border:1px solid rgba(0,0,0,.1);
   border-radius:14px; padding:14px; margin-bottom:12px;

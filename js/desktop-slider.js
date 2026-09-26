@@ -104,8 +104,12 @@ if (maxB > stopAt) return maxB; // 已经证明「有看得见的内容越过可
 return maxB;
 }
 const verdicts = new WeakMap();
-let timer = null, retries = 0;
-function later(ms, force) { clearTimeout(timer); timer = setTimeout(function () { run(force); }, ms); }
+let timer = null, retries = 0, forceQueued = false;
+function later(ms, force) {
+if (force) forceQueued = true;
+clearTimeout(timer);
+timer = setTimeout(function () { const f = forceQueued; forceQueued = false; run(f); }, ms);
+}
 function run(force) {
 const slides = getSlides();
 let skipped = false;
@@ -139,8 +143,17 @@ pages.addEventListener('scroll', () => pageScrollGuard.later(300), true);
 pages.addEventListener('load', () => pageScrollGuard.later(400), true);
 window.addEventListener('resize', () => pageScrollGuard.later(120, true));
 document.addEventListener('visibilitychange', () => { if (!document.hidden) pageScrollGuard.later(80); });
+const textOnlyChurn = function (muts) {
+if (!muts || !muts.length) return false;
+for (let i = 0; i < muts.length; i++) {
+const m = muts[i];
+for (let j = 0; j < m.addedNodes.length; j++) if (m.addedNodes[j].nodeType !== 3) return false;
+for (let j = 0; j < m.removedNodes.length; j++) if (m.removedNodes[j].nodeType !== 3) return false;
+}
+return true;
+};
 try {
-new MutationObserver(() => pageScrollGuard.later(400, true)).observe(pages, { childList: true, subtree: true });
+new MutationObserver((muts) => pageScrollGuard.later(400, !textOnlyChurn(muts))).observe(pages, { childList: true, subtree: true });
 } catch (e) {}
 try { document.addEventListener('mochi-restore-done', () => pageScrollGuard.later(400, true)); } catch (e) {}
 pageScrollGuard.later(900, true);

@@ -4424,7 +4424,7 @@ const FIX_SENTINELS = [
   { name: '#1201a 按页记忆化裁决（删＝每次滚动落定/切回桌面又回到整棵子树重扫，「切页·滑动最卡」原样回来）', file: 'js/desktop-slider.js', needle: 'if (!force && seen && seen.sh === sh && seen.ch === ch) {' },
   { name: '#1201b 裁决随该页几何写回（缺＝没有可复用的上次结论，记忆化形同虚设）', file: 'js/desktop-slider.js', needle: 'verdicts.set(sl, { sh: sh, ch: ch, blind: blind });' },
   { name: '#1201c inkBottom 早退（删＝已经证明真溢出仍要把整棵子树扫完；改回无条件遍历即失效）', file: 'js/desktop-slider.js', needle: 'if (maxB > stopAt) return maxB;' },
-  { name: '#1201d 结构变更档＝强制重扫（删成 later(400)＝组件增删/图标注入后照抄旧裁决，#989/#1013 都可能被旧结论钉死）', file: 'js/desktop-slider.js', needle: 'new MutationObserver(() => pageScrollGuard.later(400, true))' },
+  { name: '#1201d 结构变更档＝强制重扫（删成 later(400)＝组件增删/图标注入后照抄旧裁决，#989/#1013 都可能被旧结论钉死）', file: 'js/desktop-slider.js', needle: 'if (force) forceQueued = true;' },
   { name: '#1201e resize 档＝强制重扫（几何随视口变，缓存必须作废；删成 later(120)＝转屏/收起键盘后沿用旧裁决）', file: 'js/desktop-slider.js', needle: "window.addEventListener('resize', () => pageScrollGuard.later(120, true));" },
   { name: '#1201f 只有真扫子树才打点（删＝下份 perfcheck 里「desk-guard ×N」失准，无法分辨护栏是否在咬人）', file: 'js/desktop-slider.js', needle: "window.__mochiPhase('desk-guard')" },
   /* ==== 2026-09-21 #994 听歌邀请「同意后没小框也没播放」第二次实报（红米 K80 Chrome PWA；接受链路静默死亡出口再收口） ==== */
@@ -5270,6 +5270,15 @@ const FIX_SENTINELS = [
   { name: "#1219c 贴纸写入接上媒体池令牌升级（池确认落盘才让引用落库、失败原样退回内联＝旧行为不更坏；删这条＝贴纸继续把 16 万字符塞进权威键，一发顶过大键线、LS 副本被剥）", file: "js/feed.js", needle: "function feedStickerTokUpgrade(pid, rec) {" },
   { name: "#1219d 合并时贴纸走并集（整组覆盖＝权威侧或快照侧任一侧把自己的格子抹掉，剥空的那格盖掉带载荷的那格；纯 HEAD 实测两侧各 1 格时合出来 stkImg=0）", file: "js/feed.js", needle: "out.stickers = stkUnion;" },
   { name: "#1219e 同格认人用 ts+身份+落点+emoji、认别串刻意不含 src，载荷择优取带得回图的那一版（把 src 放进 key 会让同一格算两格＝贴纸翻倍；删这行＝剥空侧照样盖回）", file: "js/feed.js", needle: "if (!prev.src && s.src) prev.src = s.src;" },
+  { name: '#1311a 桌面结构观察只对「真换了节点」强制重扫（改成恒 true＝音乐/时钟每 500ms 写 textContent 把 #1201 那把按页记忆化整层绕过，每半秒一次全量走树＝perfcheck 里 desk-guard ×59 紧邻前台冻结；改成恒 false＝组件增删后照抄旧裁决，#989/#1013 复发）', file: 'js/desktop-slider.js', needle: 'new MutationObserver((muts) => pageScrollGuard.later(400, !textOnlyChurn(muts)))' },
+  { name: '#1311b 纯文本滴答的判据＝这一批变异里有没有非文本节点（只问「动没动结构」、不问「是哪个组件」＝零组件名白名单分支；删掉＝退化成逐个点名，下一个每半秒重写自己读数的控件又来一遍）', file: 'js/desktop-slider.js', needle: 'if (m.addedNodes[j].nodeType !== 3) return false;' },
+  { name: '#1311c 朋友圈封面背景入口铺「真·可点 input 层」（本文件六个图片入口都有、唯独这条没有＝只剩 JS 合成腿；iOS 26/多家壳内核对合成激活静默拒绝且不抛异常，实报「朋友圈壁纸无法添加」那张诊断单只有 leg:fire＋fb:onscreen、一条 files=N 都没有）', file: 'js/feed.js', needle: "armCoverLayer(cover, 'dev-feed-cover-tap', 'dev-feed-cover-bg', !!bg);" },
+  { name: '#1311d 全部朋友圈页封面同一层（同族「逐入口手抄必漏」正是这一族反复复发的结构性原因，两处一起收口才算收口）', file: 'js/feed.js', needle: "armCoverLayer(cover, 'dev-feed-all-cover-tap', 'mochi-feed-cover-pick', !!bg);" },
+  { name: '#1311e 已有背景时那层让路（改成恒 auto＝点封面再也开不出「更换背景／恢复默认」面板＝产品功能丢一半；恒 none＝本批症状原样留着）', file: 'js/feed.js', needle: "try { layer.style.pointerEvents = hasBg ? 'none' : 'auto'; } catch (e) {}" },
+  { name: '#1311f 层挪成第一个子节点（appendChild＝absolute 层压在静态流内的昵称/头像之上，点头像变成换背景＝#821 同形；删这行＝把别的动作吞掉）', file: 'js/feed.js', needle: 'try { if (layer.parentNode === el && el.firstChild !== layer) el.insertBefore(layer, el.firstChild); } catch (e) {}' },
+  { name: '#1311g 封面昵称抬到层之上（按 #821 桌面昵称同一口径；删＝点昵称那一块被整层接住＝改昵称这条路上前台被吃掉）', file: 'index.html', needle: '.feed-cover-name { position:relative; z-index:1;' },
+  { name: '#1311h 封面右上角装饰圆环不吃命中（::after 按最后子节点绘制、压在这张层上，那块 120×120 点下去又走回合成腿＝修复留下盲区）', file: 'index.html', needle: "border:1px solid rgba(255,255,255,.15); border-radius:50%;\npointer-events:none;" },
+  { name: '#1311i 合成腿当场留证「这个入口有没有那张真·可点层」（srf:0＝只有合成腿、该铺层；srf:≥1＝层在但没被这一下命中；两种修法完全不同，旧诊断单两笔 leg:fire 只能让人猜）', file: 'index.html', needle: "'srf:' + window.mochiFilePickSurfaceAll(input).length" },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

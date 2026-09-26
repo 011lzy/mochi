@@ -704,6 +704,7 @@ cover.classList.add('has-bg');
 cover.style.backgroundImage = '';
 cover.classList.remove('has-bg');
 }
+armCoverLayer(cover, 'dev-feed-cover-tap', 'dev-feed-cover-bg', !!bg);
 }
 }
 function compressImage(file, cb) {
@@ -1943,6 +1944,14 @@ toast('朋友圈背景已更新');
 }
 });
 }
+function armCoverLayer(el, layerId, ownerId, hasBg) {
+if (!el || !window.mochiFilePickSurface) return;
+var layer = null;
+try { layer = window.mochiFilePickSurface(el, { id: layerId, accept: 'image/*', owner: ownerId }); } catch (e) {}
+if (!layer) return;
+try { if (layer.parentNode === el && el.firstChild !== layer) el.insertBefore(layer, el.firstChild); } catch (e) {}
+try { layer.style.pointerEvents = hasBg ? 'none' : 'auto'; } catch (e) {}
+}
 if (coverEl) {
 coverEl.addEventListener('click', (e) => {
 if (e.target === coverAvEl || coverAvEl && coverAvEl.contains(e.target)) return;
@@ -2239,6 +2248,7 @@ if (!cover) return;
 const bg = feedAllBg();
 if (bg) { cover.style.backgroundImage = 'url("' + bg + '")'; cover.classList.add('has-bg'); }
 else { cover.style.backgroundImage = ''; cover.classList.remove('has-bg'); }
+armCoverLayer(cover, 'dev-feed-all-cover-tap', 'mochi-feed-cover-pick', !!bg);
 if (feedAllWho === 'me') {
 if (avEl) { const mav = feedUserAv(); avEl.innerHTML = mav ? '<img src="' + attrEsc(mav) + '" alt="">' : ''; }
 if (nameEl) nameEl.textContent = feedUserName();

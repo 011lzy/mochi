@@ -991,6 +991,8 @@
         cover.style.backgroundImage = '';
         cover.classList.remove('has-bg');
       }
+      // #1311：封面「真·可点层」在渲染处幂等补挂＋按背景开关可命中性（定义与理由见下方 armCoverLayer）
+      armCoverLayer(cover, 'dev-feed-cover-tap', 'dev-feed-cover-bg', !!bg);
     }
   }
   // 压缩图片（最长边 800px，JPEG 0.82，避免撑爆 localStorage 配额）
@@ -2501,6 +2503,37 @@ if (comInput) comInput.addEventListener('keydown', (e) => { if (e.key === 'Enter
       }
     });
   }
+  // FIX 2026-09-26 #1311（iPhone 17 Pro Max / iOS 26.6.1「添加到桌面」实报「朋友圈壁纸无法添加」；
+  // 本张诊断单的文件选择取证只有两笔——dev-feed-cover-bg/leg:fire ＋ dev-feed-cover-bg/fb:onscreen，
+  // 一条 files=N 都没有＝选择器根本没回来过）：本文件其余图片入口（封面头像 feed-myav-tap、评论图
+  // feed-com-tap、发布配图 feed-pick-tap、各桌面头像 feed-allav-tap…）都在绑定/渲染处铺了
+  // #991/#1002 的「真·可点 input 层」，唯独封面背景这一路没有＝它只剩「JS 合成激活」一条腿。
+  // 而本族七波（#677→#717→#738→#755→#920→#1002→#1230）在真机上量到的事实是：合成腿
+  // （showPicker / click()）会被内核静默拒绝（不抛异常＝JS 探不到失败），拿到过 files=1 回执的只有
+  // 「手指物理落在真层上、由浏览器原生默认动作弹出」这一条。所以这不是机型问题，是这个入口从没接进
+  // 本族唯一被真机验证过的那条路——逐入口手抄必漏，同族因此反复复发。
+  // 铺层要解决三件事，缺一件就把别的动作吞掉（旧台账据此判「封面容器不铺层」，见下收窄）：
+  //   ① 画序：这层是 position:absolute + z-index:0，而同级的头像/昵称是静态流内元素 ⇒ 绝对定位层
+  //      压在它们之上（#821 同形），点头像会变成换背景。故 a) 把层挪成第一个子节点（头像那层自身被
+  //      mochiFilePickSurface 补过 position:relative，同为定位层时后画者在上＝头像仍命中自己），
+  //      b) 昵称与封面右上角的装饰圆环在 chat-pages.css 里抬层/让路。
+  //   ② 已有背景时那一下点按要开的是「更换背景／恢复默认」面板，原生层若常驻会把面板抢掉＝产品功能
+  //      丢一半 ⇒ pointer-events 按「有没有背景」开关，且挂在渲染处（renderCover / renderFeedAllCover）
+  //      随每次刷新复核，恢复默认后自动回到「直接添加」。
+  //   ③ 双开：手指落在层上时 click 仍冒泡到封面容器 ⇒ 入口自己的 mochiFilePick 会再激活一次。
+  //      #1002 的「同一手势时间戳」判定（mochiFilePickSurfaceTap 一次性消费）本就把它让掉了，
+  //      而这一步同时把 onFiles 管线补给层指向的宿主（#1230），选完文件才有地方交。
+  // owner 写统一入口那个常驻 input 的 id：铺层这一拍 mochiFilePickBindHost 会把它预建出来并回头解析
+  // 成元素 ⇒ 入口原有的 compressImage→set→render 管线一字不用改。层自带 surf:hit / surf:files=N 取证，
+  // 下一张诊断单能直接分辨「没点到 / 点了没弹 / 选完没回来」。
+  function armCoverLayer(el, layerId, ownerId, hasBg) {
+    if (!el || !window.mochiFilePickSurface) return;
+    var layer = null;
+    try { layer = window.mochiFilePickSurface(el, { id: layerId, accept: 'image/*', owner: ownerId }); } catch (e) {}
+    if (!layer) return;
+    try { if (layer.parentNode === el && el.firstChild !== layer) el.insertBefore(layer, el.firstChild); } catch (e) {}
+    try { layer.style.pointerEvents = hasBg ? 'none' : 'auto'; } catch (e) {}
+  }
   // 点封面背景 → 更换/恢复
   if (coverEl) {
     coverEl.addEventListener('click', (e) => {
@@ -2883,6 +2916,8 @@ if (comInput) comInput.addEventListener('keydown', (e) => { if (e.key === 'Enter
     const bg = feedAllBg();
     if (bg) { cover.style.backgroundImage = 'url("' + bg + '")'; cover.classList.add('has-bg'); }
     else { cover.style.backgroundImage = ''; cover.classList.remove('has-bg'); }
+    // #1311：这一页的封面也补同一层（幂等＋按背景开关可命中性，理由见主封面处的 armCoverLayer 批注）
+    armCoverLayer(cover, 'dev-feed-all-cover-tap', 'mochi-feed-cover-pick', !!bg);
     // #811 我的个人页：封面即主朋友圈「我」的身份（当前桌面 feed-user-*，回退聊天身份）
     if (feedAllWho === 'me') {
       if (avEl) { const mav = feedUserAv(); avEl.innerHTML = mav ? '<img src="' + attrEsc(mav) + '" alt="">' : ''; }
@@ -2991,8 +3026,9 @@ if (comInput) comInput.addEventListener('keydown', (e) => { if (e.key === 'Enter
   const feedAllAv = document.getElementById('feed-all-av');
   const feedAllName = document.getElementById('feed-all-name');
   // FIX 2026-09-21 #1002：全部朋友圈页头像铺真·可点 input 层（owner＝统一入口那个 input id；
-  // 该 input 点按时才建，这里只登记 id）。注意封面容器 #feed-all-cover 内还有头像与昵称两个可点元素，
-  // 不给它铺层（铺了会吞掉头像/昵称的点击）——只铺头像本身。
+  // 该 input 点按时才建，这里只登记 id）。
+  // FIX 2026-09-26 #1311：这一页的封面容器同样补上那层（旧结论「容器里还有头像/昵称就不铺」已收窄，
+  // 理由与三件事见主封面处的 armCoverLayer 批注）——铺层＋挪画序在 renderFeedAllCover 里随每次进页复核。
   if (feedAllAv && window.mochiFilePickSurface) window.mochiFilePickSurface(feedAllAv, { id: 'feed-allav-tap', accept: 'image/*', owner: 'mochi-feed-allav-pick' });
   if (feedAllCover) {
     feedAllCover.addEventListener('click', (e) => {

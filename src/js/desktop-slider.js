@@ -202,8 +202,15 @@
     //   完成/restore/resize 这些**内容真的到位**的触发点带 force 强制重扫（见下方接线）。
     //   #989（残留滚动量复位）与 #1013（真溢出一律可滚）的判据一字未动。
     const verdicts = new WeakMap();
-    let timer = null, retries = 0;
-    function later(ms, force) { clearTimeout(timer); timer = setTimeout(function () { run(force); }, ms); }
+    let timer = null, retries = 0, forceQueued = false;
+    // #1311：force 要能跨「多次 later() 叠在一起」存活一次——旧写法 clearTimeout 后把上一次的
+    // force 一起丢了（组件刚增删、图片刚解码完，紧接着一次文本滴答就把那趟必做的全量扫描降级）。
+    // 排队时置位、run 取用即清，非强制的那次不得吃掉已排队的强制那次。
+    function later(ms, force) {
+      if (force) forceQueued = true;
+      clearTimeout(timer);
+      timer = setTimeout(function () { const f = forceQueued; forceQueued = false; run(f); }, ms);
+    }
     function run(force) {
       const slides = getSlides();
       let skipped = false;
@@ -256,8 +263,29 @@
   window.addEventListener('resize', () => pageScrollGuard.later(120, true));
   document.addEventListener('visibilitychange', () => { if (!document.hidden) pageScrollGuard.later(80); });
   // 组件增删/图标注入/切桌面重建都会动 DOM，统一在这里复核（拖动组件期间每帧多次也只在停手后跑一次）
+  // FIX 2026-09-26 #1311（iPhone 17 Pro Max / iOS 26.6.1 实报「听音乐时整体卡顿」，同批 perfcheck：
+  //   掉帧 88/119 帧集中在「手机桌面」、前台冻结 91 次、冻结前序操作 desk-guard ×59（距冻结起点中位
+  //   2ms＝紧邻高危））：桌面音乐组件每 500ms 写一次 `mw-cur`/`mw-dur` 的 textContent，而 `el.textContent
+  //   = 字符串` 是「删掉旧文本节点＋插入新文本节点」＝一次 childList 变异，落进下面这个 observer 就被
+  //   当成「结构变了」带 force 重扫——#1201 那把按页记忆化的闸（几何没变就照抄上次裁决、不碰子树）
+  //   被这种纯文本滴答整层绕过，每半秒一次全量走树（每元素 getBoundingClientRect ＋ 候选节点
+  //   getComputedStyle；#1201 实测默认小桌面一趟就 380 次 computedStyle／356 次 rect，桌面越满越贵）。
+  //   同一形态的滴答源不止音乐：桌面时钟/计时器/任何每秒重写自己读数的组件都算，而这条 observer 是
+  //   `subtree:true` 收整棵桌面子树，所以判据只能问「这一批变异到底动没动结构」，不能问「是哪个组件」。
+  //   裁决依旧安全：文本换了行（两行↔一行）会让该页 scrollHeight 变，下面 run 里的记忆化 key 就是
+  //   (sh, ch)，key 一变照样全量重扫；scroll/resize/visibilitychange 这些非强制触发点本来就是同一口径。
+  const textOnlyChurn = function (muts) {
+    if (!muts || !muts.length) return false;
+    for (let i = 0; i < muts.length; i++) {
+      const m = muts[i];
+      // addedNodes/removedNodes 里有任何一个非文本节点（元素、注释＝#comment 也算结构）＝结构变了
+      for (let j = 0; j < m.addedNodes.length; j++) if (m.addedNodes[j].nodeType !== 3) return false;
+      for (let j = 0; j < m.removedNodes.length; j++) if (m.removedNodes[j].nodeType !== 3) return false;
+    }
+    return true;
+  };
   try {
-    new MutationObserver(() => pageScrollGuard.later(400, true)).observe(pages, { childList: true, subtree: true });
+    new MutationObserver((muts) => pageScrollGuard.later(400, !textOnlyChurn(muts))).observe(pages, { childList: true, subtree: true });
   } catch (e) {}
   // 开屏消失/数据回填/图标注入都不动 #desktop-pages 的子节点（开屏是它的兄弟），补两个启动期
   // 复核点：数据就绪事件 + 两次定时（开屏收起后各设备快慢不一，早跑那次会因整页不可见被跳过）

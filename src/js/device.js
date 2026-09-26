@@ -4655,6 +4655,14 @@ window.mochiFilePickFire = function (input, opts) {
   var o = opts || {};
   // #1014 取证：走到这里＝本次手势走的是程序化两腿（showPicker → click）
   if (window.mochiPickLog) window.mochiPickLog((input && input.id) || 'pick', 'leg:fire');
+  // FIX 2026-09-26 #1311 取证：光有 leg:fire 分不出「这个入口压根没铺真·可点层」和「层在、这一下没落在
+  // 层上」——前一种是合成腿被内核静默拒绝（不抛异常＝JS 探不到失败，用户所见「点了没反应」），后一种是
+  // 命中被别的元素接走／那层当下不可命中，两种的修法完全不同，而旧诊断单只能让人猜。手指真落在层上时
+  // 下一行的 surfaceTap 会直接 return，所以走到这里每一发都数一次层计数是零额外成本的：
+  // srf:0 ＝这个入口只剩合成腿（该铺层），srf:≥1 ＝层在但没被这一下命中（该查画序/开关/遮挡）。
+  if (window.mochiPickLog && input && window.mochiFilePickSurfaceAll) {
+    try { window.mochiPickLog((input && input.id) || 'pick', 'srf:' + window.mochiFilePickSurfaceAll(input).length); } catch (e) {}
+  }
   // FIX 2026-09-21 #991（第九波）：本次手势若是「手指物理点按入口上铺的真 input」（surface 层），
   // 那台选择器已由浏览器原生默认动作弹出——这里只登记、不再补腿（补＝另一个 input 再弹一次＝双开）。
   if (window.mochiFilePickSurfaceTap && window.mochiFilePickSurfaceTap()) return true;
