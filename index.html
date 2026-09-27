@@ -10706,9 +10706,9 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
       <!-- #570：第三行开屏新版检测（ver-check.js 渲染）：检测中 / ✓已是最新 / ⇩有新版本可点更新 -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1790512969722">
+      <div class="splash-ver" id="splash-ver" data-build-ts="1790513606712">
         <span class="sv-app">Mochi 字卡传讯 <b>v8.45</b></span>
-        <span class="sv-deploy">部署于 2026-09-27 20:42<span id="splash-ver-live"></span></span>
+        <span class="sv-deploy">部署于 2026-09-27 20:53<span id="splash-ver-live"></span></span>
         <span class="sv-check" id="splash-ver-check" hidden></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
@@ -18677,6 +18677,14 @@ L.push('文件选择取证（旧→新）：(无——本页还没点过「选�
 }
 } catch (e) {}
 try {
+if (window.mochiPickDoorCensus) {
+var _dc = window.mochiPickDoorCensus();
+L.push('选图门台账：在册 ' + _dc.total + ' 扇 · 此刻真铺着层 ' + _dc.armed + ' 扇'
++ (_dc.bad ? ' · 口径不一致已剔除 ' + _dc.bad + ' 扇' : '')
++ (_dc.total > _dc.armed ? '（差值＝这一页刚被重画过，下一次点按当场补装）' : ''));
+}
+} catch (e) {}
+try {
 var _il = window.__mochiImportLog || [];
 if (_il.length) {
 var _is = [];
@@ -18841,6 +18849,34 @@ if (list[i].complete && list[i].naturalWidth === 0) brokenImgs++;
 let chatN = 0;
 try { if (typeof window.getChatMsgs === 'function') chatN = (window.getChatMsgs() || []).length; } catch (e) {}
 L.push('【内存体检】DOM 节点=' + nodes + ' · img 元素=' + imgs + '（data: ' + dataImgs + ' / blob: ' + blobImgs + (brokenImgs ? ' / 坏图 ' + brokenImgs : '') + '）' + (chatN ? ' · 内存聊天条数=' + chatN : ''));
+try {
+const cens = [];
+const measure = (el) => {
+const kids = el.getElementsByTagName('*');
+const im = el.getElementsByTagName('img');
+let di = 0;
+for (let i = 0; i < im.length; i++) { const s = im[i].currentSrc || im[i].src || ''; if (s.indexOf('data:') === 0) di++; }
+return { n: kids.length, di: di };
+};
+const pageEls = [].slice.call(document.querySelectorAll('.page'));
+pageEls.forEach((p) => { const m = measure(p); if (m.n > 150) cens.push({ k: (p.id || 'page') + (p.hidden ? '' : '*'), n: m.n, di: m.di }); });
+const hosts = [document.body];
+const ph = document.getElementById('phone') || document.querySelector('.phone');
+if (ph) hosts.push(ph);
+hosts.forEach((h) => {
+[].slice.call(h.children).forEach((el) => {
+if (pageEls.indexOf(el) >= 0) return;
+if (el.querySelector && el.querySelector('.page')) return; // 装着页面的那层容器不单独计（会把页面算两遍）
+const m = measure(el);
+if (m.n > 150) cens.push({ k: (el.id || String(el.className || '').slice(0, 18) || el.tagName.toLowerCase()) + (el.hidden ? '' : '*'), n: m.n, di: m.di });
+});
+});
+const top = cens.sort((a, b) => b.n - a.n).slice(0, 8);
+if (top.length) {
+const acc = top.reduce((s, c) => s + c.n, 0);
+L.push('· 节点分解（*=这一份此刻在屏上可见；img 只数 data:）：' + top.map((c) => c.k + ' ' + c.n + (c.di ? '·图' + c.di : '')).join('、') + '；未计入=' + Math.max(0, nodes - acc));
+}
+} catch (e) {}
 const memo = (typeof window.idbMemoStats === 'function') ? window.idbMemoStats(6) : null;
 if (memo && memo.n) {
 L.push('· 内存驻留键 ' + memo.n + ' 个 ≈' + Math.round(memo.bytes / 1024) + 'KB（字符串按长度、数组按写入时估算；iOS 无堆读数，这是近似账）');
@@ -20934,6 +20970,197 @@ if (rec && (rec.owner === input || (typeof rec.owner === 'string' && rec.owner =
 } catch (e) {}
 return out;
 };
+var PICK_DOOR_KEY = 'xy-home-v2:__pick-doors';
+var _pickDoorAutoSeq = 0; // A 档（当场换门）生成的层 id 计数
+var PICK_DOOR_MAX = 40; // 台账上限（每条约 60B＝共 2.4KB）；超出按最久没点过的门淘汰
+var _pickDoors = null;
+function pickDoorLoad() {
+if (_pickDoors) return _pickDoors;
+_pickDoors = {};
+try {
+var o = JSON.parse(localStorage.getItem(PICK_DOOR_KEY) || '{}');
+if (o && typeof o === 'object' && !Array.isArray(o)) _pickDoors = o;
+} catch (e) { _pickDoors = {}; }
+return _pickDoors;
+}
+var _pickDoorSaveT = 0;
+function pickDoorDirty() {
+try {
+if (_pickDoorSaveT) return;
+_pickDoorSaveT = setTimeout(function () {
+_pickDoorSaveT = 0;
+try { localStorage.setItem(PICK_DOOR_KEY, JSON.stringify(_pickDoors || {})); } catch (e) {}
+}, 600);
+} catch (e2) {}
+}
+function pickDoorTrim(d) {
+try {
+var ks = Object.keys(d || {});
+if (ks.length <= PICK_DOOR_MAX) return;
+ks.sort(function (a, b) { return (Number(d[a] && d[a].t) || 0) - (Number(d[b] && d[b].t) || 0); });
+for (var i = 0; i < ks.length - PICK_DOOR_MAX; i++) delete d[ks[i]];
+} catch (e) {}
+}
+function pickDoorHasLayer(el) {
+try {
+var kids = el.children || [];
+for (var i = 0; i < kids.length; i++) {
+if (kids[i].getAttribute && kids[i].getAttribute('data-file-pick-surface') === '1') return true;
+}
+} catch (e) {}
+return false;
+}
+window.mochiFilePickDoor = function (el, o) {
+try {
+o = o || {};
+if (!el || !el.appendChild || !window.mochiFilePickSurface) return null;
+var owner = o.owner;
+var host = typeof owner === 'string' ? document.getElementById(owner) : owner;
+if (typeof owner === 'string' && !host && window.mochiFilePickBindHost) host = window.mochiFilePickBindHost(owner);
+if (!host && typeof o.onFiles !== 'function') return null;
+var lid = o.id || ('mochi-door-' + (el.id || ''));
+var layer = window.mochiFilePickSurface(el, {
+id: lid, accept: o.accept || (host && host.accept) || 'image/*',
+multiple: typeof o.multiple === 'boolean' ? o.multiple : !!(host && host.multiple),
+owner: host || owner, onFiles: o.onFiles
+});
+if (!layer) return null;
+try { if (layer.parentNode === el && el.firstChild !== layer) el.insertBefore(layer, el.firstChild); } catch (e0) {}
+var rec = layer.__mochiSurface;
+if (rec) {
+if (o.veto) rec.veto = 1;
+}
+return layer;
+} catch (e) { return null; }
+};
+function pickDoorClimb(node) {
+try {
+for (var cur = node, i = 0; i < 6 && cur && cur.nodeType === 1; i++, cur = cur.parentElement) {
+if (cur.namespaceURI && cur.namespaceURI !== 'http://www.w3.org/1999/xhtml') continue;
+var tag = cur.tagName;
+if (tag === 'BUTTON' || tag === 'A') return cur;   // label 不算：它自己就是转发层，再塞 input 进去＝两条转发路叠在一格
+if (!cur.children || cur.children.length === 0) return cur;
+}
+} catch (e) {}
+return null;
+}
+window.mochiFilePickLearnDoor = function (input) {
+try {
+var ev = window.event;
+if (!ev || !ev.isTrusted || ev.type !== 'click') return; // 程序化／延时补腿不记（只认手指那一下）
+if (ev.timeStamp && typeof performance !== 'undefined' && performance.now && performance.now() - ev.timeStamp > 400) return;
+var surfAt = window.__mochiSurfaceTapAt || 0;
+if (surfAt && Date.now() - surfAt < 400) return;         // 本次手势落在真层上＝别重复记
+var raw = ev.target;
+if (!raw || raw.nodeType !== 1 || raw.__mochiSurface) return;   // 落点本身就是某张层＝这一发已由原生腿负责，不再记
+var tgt = pickDoorClimb(raw);                                    // 往上找铺得安全的那一格（见上）
+if (!tgt) return;
+if (!input || !input.id || !input.accept) return;        // 宿主没有 accept＝无法保证重建时口径一致（音频/文件门不自动学）
+var cur = ev.currentTarget;
+if (cur && cur !== document && typeof cur.contains === 'function' && !cur.contains(tgt)) return;
+if (tgt.appendChild) {
+try {
+var _had = null, _kids = tgt.children || [];
+for (var _ki = 0; _ki < _kids.length; _ki++) {
+if (_kids[_ki].getAttribute && _kids[_ki].getAttribute('data-file-pick-surface') === '1') { _had = _kids[_ki]; break; }
+}
+if (_had) tgt.__mochiDoorId = _had.id;
+else if (!tgt.__mochiDoorId) tgt.__mochiDoorId = 'mochi-door-x-' + (++_pickDoorAutoSeq);
+var _justArmed = !_had;
+if (window.mochiFilePickDoor(tgt, { id: tgt.__mochiDoorId, owner: input, veto: _had ? undefined : 1 }) && _justArmed && window.mochiPickLog) {
+window.__mochiDoorPendingLog = 1; // 由下面的 B 档决定这一笔的名字：落得了盘就叫 door:learn
+}
+} catch (eA) {}
+}
+var _bstat = '';
+try {
+if (tgt.id && tgt.isConnected) {
+var d = pickDoorLoad();
+var k = String(tgt.id).slice(0, 40);
+var want = { owner: String(input.id).slice(0, 40), accept: String(input.accept).slice(0, 40), multiple: !!input.multiple, t: Date.now() };
+var old = d[k];
+if (old && old.bad) { /* 已被判过「口径不一致」＝永久裁决，不再自动铺 */ }
+else if (old && (old.owner !== want.owner || old.accept !== want.accept || !!old.multiple !== want.multiple)) {
+d[k] = { bad: 1, t: want.t }; // 同一格在不同状态下选的东西不一样＝自动铺层必然选错类型＝剔除
+pickDoorDirty();
+_bstat = 'variant';
+} else if (old) { old.t = want.t; }
+else { d[k] = want; pickDoorTrim(d); pickDoorDirty(); _bstat = 'learn'; }
+}
+} catch (eB) {}
+try {
+if (window.__mochiDoorPendingLog || _bstat === 'variant') {
+window.__mochiDoorPendingLog = 0;
+if (window.mochiPickLog) {
+window.mochiPickLog(_bstat === 'learn' || _bstat === 'variant' ? (tgt.id || 'door') : (input.id || 'pick'),
+_bstat === 'variant' ? 'door:variant' : (_bstat === 'learn' ? 'door:learn' : 'door:now'));
+}
+}
+} catch (eLg) {}
+} catch (e) {}
+};
+var _pickSweepAt = 0;
+window.mochiPickDoorSweep = function (force) {
+try {
+var now = Date.now();
+if (!force && now - _pickSweepAt < 250) return 0;
+_pickSweepAt = now;
+var d = pickDoorLoad(), n = 0;
+for (var k in d) {
+if (!Object.prototype.hasOwnProperty.call(d, k)) continue;
+var r = d[k];
+if (!r || r.bad || !r.owner) continue;
+var el = document.getElementById(k);
+if (!el || !el.appendChild) continue;
+if (pickDoorHasLayer(el)) continue;
+window.mochiFilePickDoor(el, { owner: r.owner, accept: r.accept, multiple: r.multiple, veto: 1 });
+n++;
+}
+return n;
+} catch (e) { return 0; }
+};
+function pickDoorDisable(node) {
+try {
+var door = node && node.parentElement;
+if (node && node.parentNode) node.parentNode.removeChild(node);
+if (door && door.id) {
+var d = pickDoorLoad();
+d[String(door.id).slice(0, 40)] = { bad: 1, t: Date.now() };
+pickDoorTrim(d);
+pickDoorDirty();
+}
+} catch (e) {}
+}
+try {
+document.addEventListener('click', function (e) {
+try {
+var t = e && e.target;
+var rec = t && t.__mochiSurface;
+if (!rec || !rec.veto) return;
+if (window.__mochiPickAskSeq === window.__mochiGestureSeq) {
+var oh = (rec.owner && rec.owner.id) || rec.ownerId || '';
+if (!oh || oh === window.__mochiPickAskHost) return;
+}
+e.preventDefault(); // 没人认领这一发＝它不该弹选择器，原样交回入口逻辑（开面板／开抽屉）
+if (window.mochiPickLog) window.mochiPickLog(t.id || 'door', 'door:veto');
+} catch (e2) {}
+}, false);
+} catch (e3) {}
+try { setTimeout(function () { window.mochiPickDoorSweep(true); }, 0); } catch (e4) {}
+window.mochiPickDoorCensus = function () {
+var d = pickDoorLoad(), total = 0, armed = 0, bad = 0;
+try {
+for (var k in d) {
+if (!Object.prototype.hasOwnProperty.call(d, k)) continue;
+total++;
+var r = d[k];
+if (!r || r.bad) { bad++; continue; }
+var el = document.getElementById(k);
+if (el && pickDoorHasLayer(el)) armed++;
+}
+} catch (e) {}
+return { total: total, armed: armed, bad: bad };
+};
 window.mochiTapOn = function (el, fn) {
 if (!el || typeof fn !== 'function') return false;
 var tDown = null;   // touch 路布点
@@ -20984,6 +21211,8 @@ window.__mochiLastTap = { x: 0, y: 0, t: 0 };
 (function () {
 var mark = function (ev) {
 try {
+window.__mochiGestureSeq = (window.__mochiGestureSeq || 0) + 1;
+if (window.mochiPickDoorSweep) window.mochiPickDoorSweep();
 var p = (ev.touches && ev.touches[0]) || (ev.changedTouches && ev.changedTouches[0]) || ev;
 if (typeof p.clientX !== 'number') return;
 if (p.target && p.target.id === 'mochi-file-pick-fallback') return;
@@ -21074,6 +21303,8 @@ if (window.mochiPickLog) window.mochiPickLog((input && input.id) || 'pick', 'leg
 if (window.mochiPickLog && input && window.mochiFilePickSurfaceAll) {
 try { window.mochiPickLog((input && input.id) || 'pick', 'srf:' + window.mochiFilePickSurfaceAll(input).length); } catch (e) {}
 }
+try { window.__mochiPickAskSeq = window.__mochiGestureSeq; window.__mochiPickAskHost = (input && input.id) || ''; } catch (eAsk) {}
+try { if (window.mochiFilePickLearnDoor) window.mochiFilePickLearnDoor(input); } catch (eL) {}
 if (window.mochiFilePickSurfaceTap && window.mochiFilePickSurfaceTap()) return true;
 var tap = (window.__mochiLastTap && (Date.now() - window.__mochiLastTap.t) < 1200) ? window.__mochiLastTap : null;
 var touchable = false;
@@ -21139,6 +21370,16 @@ if (!srec.owner) srec.owner = input;
 var activate = function () {
 window.mochiFilePickFire(input, { onFail: function () { if (o.onError) { try { o.onError(); } catch (x) {} } } });
 };
+if (!o.noClick) { try { window.__mochiPickAskSeq = window.__mochiGestureSeq; window.__mochiPickAskHost = input.id || id; } catch (eA) {} }
+try {
+var _lt = window.event && window.event.target;
+var _lrec = _lt && _lt.__mochiSurface;
+if (_lrec && _lrec.veto && _lt !== input && _lrec.owner !== input && (_lrec.ownerId || '') !== id && typeof pickDoorDisable === 'function') {
+window.__mochiSurfaceTapAt = 0;
+pickDoorDisable(_lt);
+if (window.mochiPickLog) window.mochiPickLog(id || 'pick', 'door:mix');
+}
+} catch (eM) {}
 if (!o.noClick && window.mochiFilePickSurfaceTap && window.mochiFilePickSurfaceTap()) {
 if (window.mochiFilePickGuard) window.mochiFilePickGuard(input, function () {}); // 仍登记一次武装（诊断口径 seq 不变）
 return input;
@@ -22107,4 +22348,4 @@ window.__mochiBootRetry = function () { try { location.reload(); } catch (e) {} 
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mujt6xh6 -->
+<!-- __MOCHI_EOF__ mujtkkzc -->

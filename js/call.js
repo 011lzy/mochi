@@ -71,6 +71,12 @@ toast(msg || '通话背景已设置');
 }
 const callBgRow = document.getElementById('call-bg-row');
 if (callBgRow) callBgRow.addEventListener('click', () => pickCallBg(CALL_BG_KEY));
+if (window.mochiFilePickDoor) {
+['call-bg-row', 'call-bg-edit-row', 'call-half-bg-row', 'call-half-bg-edit-row'].forEach(function (rid) {
+const door = document.getElementById(rid);
+if (door) window.mochiFilePickDoor(door, { owner: 'mochi-call-bg-pick', accept: 'image/*' });
+});
+}
 const callAvEditRow = document.getElementById('call-av-edit-row');
 if (callAvEditRow) {
 callAvEditRow.addEventListener('click', () => {

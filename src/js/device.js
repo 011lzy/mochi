@@ -1439,6 +1439,17 @@
         L.push('文件选择取证（旧→新）：(无——本页还没点过「选择文件」类入口)');
       }
     } catch (e) {}
+    // #1323：选图门自学台账出账——上一环只有 6 格且活在内存里，回收一次就清零（#1272 同一课）。
+    // 这一行读的是落盘台账：在册＝这台设备历史上走过合成腿的门有几扇，当前有层＝其中此刻真铺着真
+    // file input 的有几扇（整块重画会把层带走，靠下一次点按补装）。两个数拉开＝自愈在干活。
+    try {
+      if (window.mochiPickDoorCensus) {
+        var _dc = window.mochiPickDoorCensus();
+        L.push('选图门台账：在册 ' + _dc.total + ' 扇 · 此刻真铺着层 ' + _dc.armed + ' 扇'
+          + (_dc.bad ? ' · 口径不一致已剔除 ' + _dc.bad + ' 扇' : '')
+          + (_dc.total > _dc.armed ? '（差值＝这一页刚被重画过，下一次点按当场补装）' : ''));
+      }
+    } catch (e) {}
     // #1272：数据导入回执出账——上一环活在内存里、随页面回收清零（这批设备一次诊断实测回收 25 次，
     // 四份报告的取证行全是空）；导入链路的关键动作已持久在 mochiImportLog，这里随报告带出（旧→新）。
     try {
@@ -1651,6 +1662,38 @@
       let chatN = 0;
       try { if (typeof window.getChatMsgs === 'function') chatN = (window.getChatMsgs() || []).length; } catch (e) {}
       L.push('【内存体检】DOM 节点=' + nodes + ' · img 元素=' + imgs + '（data: ' + dataImgs + ' / blob: ' + blobImgs + (brokenImgs ? ' / 坏图 ' + brokenImgs : '') + '）' + (chatN ? ' · 内存聊天条数=' + chatN : ''));
+      // #1323 节点分解：上面这个总数（真机实测两万台）到今天为止都只是**一个数**——谁也答不出「谁占的」，
+      // 所以 iOS 卡顿那几批（#1295/#1300/#1301/#1311）每轮都只能对着总数猜一处脚本削一刀。判据只取事实：
+      // 每个页面容器、每个「关掉也留在渲染树」的常驻浮层（#907 那一族），各自有多少节点、多少 data: 图。
+      // 只在用户主动点【诊断】时跑一次（与整段体检同窗），不参与任何渲染路径。
+      try {
+        const cens = [];
+        const measure = (el) => {
+          const kids = el.getElementsByTagName('*');
+          const im = el.getElementsByTagName('img');
+          let di = 0;
+          for (let i = 0; i < im.length; i++) { const s = im[i].currentSrc || im[i].src || ''; if (s.indexOf('data:') === 0) di++; }
+          return { n: kids.length, di: di };
+        };
+        const pageEls = [].slice.call(document.querySelectorAll('.page'));
+        pageEls.forEach((p) => { const m = measure(p); if (m.n > 150) cens.push({ k: (p.id || 'page') + (p.hidden ? '' : '*'), n: m.n, di: m.di }); });
+        const hosts = [document.body];
+        const ph = document.getElementById('phone') || document.querySelector('.phone');
+        if (ph) hosts.push(ph);
+        hosts.forEach((h) => {
+          [].slice.call(h.children).forEach((el) => {
+            if (pageEls.indexOf(el) >= 0) return;
+            if (el.querySelector && el.querySelector('.page')) return; // 装着页面的那层容器不单独计（会把页面算两遍）
+            const m = measure(el);
+            if (m.n > 150) cens.push({ k: (el.id || String(el.className || '').slice(0, 18) || el.tagName.toLowerCase()) + (el.hidden ? '' : '*'), n: m.n, di: m.di });
+          });
+        });
+        const top = cens.sort((a, b) => b.n - a.n).slice(0, 8);
+        if (top.length) {
+          const acc = top.reduce((s, c) => s + c.n, 0);
+          L.push('· 节点分解（*=这一份此刻在屏上可见；img 只数 data:）：' + top.map((c) => c.k + ' ' + c.n + (c.di ? '·图' + c.di : '')).join('、') + '；未计入=' + Math.max(0, nodes - acc));
+        }
+      } catch (e) {}
       const memo = (typeof window.idbMemoStats === 'function') ? window.idbMemoStats(6) : null;
       if (memo && memo.n) {
         L.push('· 内存驻留键 ' + memo.n + ' 个 ≈' + Math.round(memo.bytes / 1024) + 'KB（字符串按长度、数组按写入时估算；iOS 无堆读数，这是近似账）');
@@ -4467,6 +4510,272 @@ window.mochiFilePickSurfaceAll = function (input) {
   return out;
 };
 
+// ===== FIX 2026-09-27 #1323 「门＝层」：把铺层从「逐入口各自记得」换成共用模具 ＋ 现场自学台账 =====
+// 需求（iPhone17ProMax / iOS 26.6.1 桌面 PWA 实报「从苹果自带浏览器添加到桌面——大部分照片无法添加，
+// 包括朋友圈壁纸、通话壁纸；朋友圈壁纸也无法上传图片、更换图片」，并明说其他设备型号也有出现、要求
+// 不要覆盖式修补）：这一族十一波（#603→#717→#738→#755→#920→#991→#1002→#1230→#1311）修的一直是
+// 「同一个模具的下一个入口」。#755 自己的注释就写着「每修一处，下次用户就在另一处报同一个症状＝反复
+// 出现的结构性原因」，可铺层到今天仍是**每个入口各自**在绑定/渲染处再调一次 mochiFilePickSurface：
+// 统一入口 mochiFilePick 激活的仍是那个 sr-only clip 的常驻 input（＝合成腿）。于是「正确」依赖几十个
+// 入口各自不遗漏，漏一个＝那一格永久静默失败（iOS 26 对合成激活不弹也不抛异常＝JS 探不到），用户所见
+// 就是「大部分照片无法添加」。同一份诊断单里现成的同设备 A/B：00:03:25 avlib-upload 手指落在真层上＝
+// surf:hit＋surf:files=1（成功），00:03:15 与 00:03:35 mochi-call-bg-pick 两发只有 leg:fire＋fb:onscreen
+// （＝只剩合成腿，一条 files=N 都没回来）。⇒ 问题从来不是机型，是「这扇门有没有真层」被写成了可选项。
+// 本批换掉问题本身，判据只剩一条事实：**手指这一下落在的是不是一个真 file input**（零机型／零 UA 分支）。
+//   ① window.mochiFilePickDoor(el, opts)＝铺层的唯一模具：#1311 那三件事（幂等复核／画序＝挪成第一个
+//      子节点／可命中性）在这里做一遍，新入口只调一行，不必再手抄模具（手抄必漏＝本族十一波的公因式）。
+//   ② 自学台账（全局键落盘）＝防复发的正解：任何一格只要发生过一次「手指点它 → 走了合成腿」，就把它记
+//      下来，下一次由 pointerdown 复核补装成真层。记的是**从 `window.event.target` 爬出来的那一格**（见
+//      下面的 pickDoorClimb：只认 button/a 与叶子，容器与 SVG 一律不自动铺），且要求它落在本次 handler 的
+//      `currentTarget` 之内＝层铺上去之后点按仍旧冒泡回原逻辑，不吃入口自己的分支。落盘是因为 iOS 每隔
+//      几分钟回收一次页面（本机诊断实证「本页被系统回收过 148 次」），不落盘＝每次回收后每扇门都要重新
+//      丢一发点按。这条覆盖**今后任何新入口**：谁都不用记得改代码。
+//   ③ 闸（veto）＝自愈的安全前提：这一格被点到底是不是要选图，只有入口自己的逻辑知道（#1311 的「已有
+//      背景时点封面＝开『更换背景／恢复默认』面板」就是同款形态，恒铺层会把它吃掉）。file input 的原生
+//      默认动作在**事件冒泡结束之后**才执行 ⇒ 在 document 冒泡阶段只问一句「本次手势里有没有人真的请求
+//      过选择器、请求的是不是这一层绑的那个宿主」（mochiFilePick／Fire 进门按「手势序号＋宿主」盖的戳），
+//      没有＝preventDefault 取消原生弹层、把这一发原样交回入口逻辑。**只收自学装上的层**（带 veto 的）＝
+//      全站既有 20 扇人工铺好的门行为逐字不变。
+var PICK_DOOR_KEY = 'xy-home-v2:__pick-doors';
+var _pickDoorAutoSeq = 0; // A 档（当场换门）生成的层 id 计数
+var PICK_DOOR_MAX = 40; // 台账上限（每条约 60B＝共 2.4KB）；超出按最久没点过的门淘汰
+var _pickDoors = null;
+function pickDoorLoad() {
+  if (_pickDoors) return _pickDoors;
+  _pickDoors = {};
+  try {
+    var o = JSON.parse(localStorage.getItem(PICK_DOOR_KEY) || '{}');
+    if (o && typeof o === 'object' && !Array.isArray(o)) _pickDoors = o;
+  } catch (e) { _pickDoors = {}; }
+  return _pickDoors;
+}
+var _pickDoorSaveT = 0;
+function pickDoorDirty() {
+  try {
+    if (_pickDoorSaveT) return;
+    _pickDoorSaveT = setTimeout(function () {
+      _pickDoorSaveT = 0;
+      try { localStorage.setItem(PICK_DOOR_KEY, JSON.stringify(_pickDoors || {})); } catch (e) {}
+    }, 600);
+  } catch (e2) {}
+}
+function pickDoorTrim(d) {
+  try {
+    var ks = Object.keys(d || {});
+    if (ks.length <= PICK_DOOR_MAX) return;
+    ks.sort(function (a, b) { return (Number(d[a] && d[a].t) || 0) - (Number(d[b] && d[b].t) || 0); });
+    for (var i = 0; i < ks.length - PICK_DOOR_MAX; i++) delete d[ks[i]];
+  } catch (e) {}
+}
+// 这扇门上此刻有没有那张层（只看直接子节点：层永远铺在门自己身上，门整块被重画＝这里判「没有」）。
+// 认「任意一张层」而不是认 id＝A 档那层的 id 是临时号，认 id 会让 B 档在同一格上再叠一层。
+function pickDoorHasLayer(el) {
+  try {
+    var kids = el.children || [];
+    for (var i = 0; i < kids.length; i++) {
+      if (kids[i].getAttribute && kids[i].getAttribute('data-file-pick-surface') === '1') return true;
+    }
+  } catch (e) {}
+  return false;
+}
+// ① 模具：入口＝门，门上永远铺着一张真 file input（#991/#1002/#1311 三代的口径收在这一个函数里）
+//   opts.owner    宿主 input（或其 id）＝选完文件交回入口原有管线；opts.onFiles 直连回调（二选一必填，
+//                 两者都没有＝选完图没地方交＝宁可不动手，也不铺一张「弹了选择器、选完静默丢掉」的层）
+//   opts.veto     1＝本次手势若没被入口认领，取消原生默认动作（自学装上来的层一律带，人工铺的不带）
+window.mochiFilePickDoor = function (el, o) {
+  try {
+    o = o || {};
+    if (!el || !el.appendChild || !window.mochiFilePickSurface) return null;
+    var owner = o.owner;
+    var host = typeof owner === 'string' ? document.getElementById(owner) : owner;
+    // 宿主还没被建出来（统一入口那个 input 是第一次点按钮时才建的）＝按 #1230 同一口径预建（noClick，
+    // 绝不在这里激活选择器）。**不传 btn**：传了会给这扇门再插一张 label 覆盖层，而 label 是后插的、
+    // 画序压在本层的上面（#1002 那条「label 必须插在 surface 之前」只在先有层后有 label 时成立）＝
+    // 手指落在 label 上而不是真 input 上，本批要的那条原生路径就白铺了。
+    if (typeof owner === 'string' && !host && window.mochiFilePickBindHost) host = window.mochiFilePickBindHost(owner);
+    if (!host && typeof o.onFiles !== 'function') return null;
+    var lid = o.id || ('mochi-door-' + (el.id || ''));
+    var layer = window.mochiFilePickSurface(el, {
+      id: lid, accept: o.accept || (host && host.accept) || 'image/*',
+      multiple: typeof o.multiple === 'boolean' ? o.multiple : !!(host && host.multiple),
+      owner: host || owner, onFiles: o.onFiles
+    });
+    if (!layer) return null;
+    // 画序（#1311 同一判据）：absolute＋z-index:0 已经高过静态流内的文字图标，但入口内**另有定位兄弟**
+    // （自带 position/z-index 的那些）会按 DOM 顺序压在层上面＝那几块点下去又走回合成腿。挪成第一个子
+    // 节点＝层永远在最下、原有可点元素永远在上，两件事都不偷。
+    try { if (layer.parentNode === el && el.firstChild !== layer) el.insertBefore(layer, el.firstChild); } catch (e0) {}
+    var rec = layer.__mochiSurface;
+    if (rec) {
+      if (o.veto) rec.veto = 1;
+    }
+    return layer;
+  } catch (e) { return null; }
+};
+// ② 记门：只有「这一下真的走了合成腿」才记（手指落在已有层上的那一发原生已经在管事，不该再动）
+// 从「手指真正落到的那一格」向上找到**铺层安全**的那一格（≤6 层）：
+//   · SVG／mathml 节点跳过——往 `<svg>` 里塞 `<input>` 不渲染，等于白铺还留个游离节点；
+//   · `<button>`／`<a>`／`<label>` 整格覆盖安全：规范就不允许它们内部再放可交互元素，
+//     铺满也不会盖掉谁的按钮；
+//   · 其余 HTML 元素只认**叶子**（没有元素子节点）：层的盒子＝这一格的盒子，兄弟一格都盖不到。
+//     非叶子的容器一律不自动铺——一张 100%×100% 的透明 input 浮在静态流内的孩子之上，
+//     会把这一格里本来要点别的孩子的动作整个接走（＝本批最不该犯的那件事：修一处、吃掉另一处）。
+function pickDoorClimb(node) {
+  try {
+    for (var cur = node, i = 0; i < 6 && cur && cur.nodeType === 1; i++, cur = cur.parentElement) {
+      if (cur.namespaceURI && cur.namespaceURI !== 'http://www.w3.org/1999/xhtml') continue;
+      var tag = cur.tagName;
+      if (tag === 'BUTTON' || tag === 'A') return cur;   // label 不算：它自己就是转发层，再塞 input 进去＝两条转发路叠在一格
+      if (!cur.children || cur.children.length === 0) return cur;
+    }
+  } catch (e) {}
+  return null;
+}
+window.mochiFilePickLearnDoor = function (input) {
+  try {
+    var ev = window.event;
+    if (!ev || !ev.isTrusted || ev.type !== 'click') return; // 程序化／延时补腿不记（只认手指那一下）
+    if (ev.timeStamp && typeof performance !== 'undefined' && performance.now && performance.now() - ev.timeStamp > 400) return;
+    var surfAt = window.__mochiSurfaceTapAt || 0;
+    if (surfAt && Date.now() - surfAt < 400) return;         // 本次手势落在真层上＝别重复记
+    var raw = ev.target;
+    if (!raw || raw.nodeType !== 1 || raw.__mochiSurface) return;   // 落点本身就是某张层＝这一发已由原生腿负责，不再记
+    var tgt = pickDoorClimb(raw);                                    // 往上找铺得安全的那一格（见上）
+    if (!tgt) return;
+    if (!input || !input.id || !input.accept) return;        // 宿主没有 accept＝无法保证重建时口径一致（音频/文件门不自动学）
+    var cur = ev.currentTarget;
+    if (cur && cur !== document && typeof cur.contains === 'function' && !cur.contains(tgt)) return;
+    // A 档·当场换：把用户**这一下真正落到的那一格**换成真层（不认 id、不留盘——重画与页面回收都会
+    // 带走它，但同一张列表里的第二下立刻可用）。iOS 上「点了没反应」的用户第一反应就是再点一次
+    // （这份诊断单里 mochi-call-bg-pick 那两发相隔 20 秒＝同一形状），A 档让那第二下走原生腿。
+    // 铺的是 ev.target 本身＝必在 currentTarget 之内（上面已校验），点按照旧冒泡回原 handler；
+    // 入口这一发若并不想弹选择器，③ 那道闸会把原生默认动作取消掉＝不吃入口自己的分支。
+    // 每次请求都重新过一遍模具＝同一格若在不同状态下选不同类型的文件（image/→audio/），层跟着改口径，
+    // 不会留下「按下去弹出错类型」的旧层（mochiFilePickSurface 按 id 复用、accept/multiple/owner 每次重写）。
+    if (tgt.appendChild) {
+      try {
+        // 这格已经有层（起手扫装补的 B 档层、或人工铺好的门）＝沿用它的 id 复用，绝不再叠第二层，
+        // 也**不给它换 veto**（人工门的语义不因这一发被改走）；没有层才新建一张带闸的自学层。
+        var _had = null, _kids = tgt.children || [];
+        for (var _ki = 0; _ki < _kids.length; _ki++) {
+          if (_kids[_ki].getAttribute && _kids[_ki].getAttribute('data-file-pick-surface') === '1') { _had = _kids[_ki]; break; }
+        }
+        if (_had) tgt.__mochiDoorId = _had.id;
+        else if (!tgt.__mochiDoorId) tgt.__mochiDoorId = 'mochi-door-x-' + (++_pickDoorAutoSeq);
+        // 取证只留一笔：A 档「当场换」与 B 档「落账」是同一次动作的两半，各记一笔会把 #1014 那口
+        // 只有 6 格的环挤掉——实测挤掉过 verify-1230 的 B1d（leg:fire 被自己的新观测顶出环＝邻居假红）。
+        var _justArmed = !_had;
+        if (window.mochiFilePickDoor(tgt, { id: tgt.__mochiDoorId, owner: input, veto: _had ? undefined : 1 }) && _justArmed && window.mochiPickLog) {
+          window.__mochiDoorPendingLog = 1; // 由下面的 B 档决定这一笔的名字：落得了盘就叫 door:learn
+        }
+      } catch (eA) {}
+    }
+    // B 档·落盘：有 id 才留得下（无 id＝重画之后找不到回这格的路＝不学，A 档那一层仍然当场有效）。
+    // 留盘记录的是「这格 → 哪个宿主、什么口径」，供起手/启动那两次扫装按原样补回。
+    var _bstat = '';
+    try {
+      if (tgt.id && tgt.isConnected) {
+        var d = pickDoorLoad();
+        var k = String(tgt.id).slice(0, 40);
+        var want = { owner: String(input.id).slice(0, 40), accept: String(input.accept).slice(0, 40), multiple: !!input.multiple, t: Date.now() };
+        var old = d[k];
+        if (old && old.bad) { /* 已被判过「口径不一致」＝永久裁决，不再自动铺 */ }
+        else if (old && (old.owner !== want.owner || old.accept !== want.accept || !!old.multiple !== want.multiple)) {
+          d[k] = { bad: 1, t: want.t }; // 同一格在不同状态下选的东西不一样＝自动铺层必然选错类型＝剔除
+          pickDoorDirty();
+          _bstat = 'variant';
+        } else if (old) { old.t = want.t; }
+        else { d[k] = want; pickDoorTrim(d); pickDoorDirty(); _bstat = 'learn'; }
+      }
+    } catch (eB) {}
+    // 取证收尾：这一次点按**最多留一笔**。#1014 那口环只有 6 格而且是全站共享的——A 档、B 档各记
+    // 一笔就会把邻居入口的 leg:fire 顶出环（实测顶掉过 verify-1230 的 B1d＝邻居假红）。
+    try {
+      if (window.__mochiDoorPendingLog || _bstat === 'variant') {
+        window.__mochiDoorPendingLog = 0;
+        if (window.mochiPickLog) {
+          window.mochiPickLog(_bstat === 'learn' || _bstat === 'variant' ? (tgt.id || 'door') : (input.id || 'pick'),
+            _bstat === 'variant' ? 'door:variant' : (_bstat === 'learn' ? 'door:learn' : 'door:now'));
+        }
+      }
+    } catch (eLg) {}
+  } catch (e) {}
+};
+// 补装：整块重画会把层带走（这是常态而不是异常——#1313/#1314 一族量的就是「这一格被交了几次图」），
+// 所以每次点按起手先按台账复核一遍。代价＝台账条数（≤40）各一次 getElementById ＋ 直接子节点比对，
+// 只在**真的缺**那一格才 appendChild（absolute 层不动静态布局），250ms 地板防快速滑动时重复扫。
+var _pickSweepAt = 0;
+window.mochiPickDoorSweep = function (force) {
+  try {
+    var now = Date.now();
+    if (!force && now - _pickSweepAt < 250) return 0;
+    _pickSweepAt = now;
+    var d = pickDoorLoad(), n = 0;
+    for (var k in d) {
+      if (!Object.prototype.hasOwnProperty.call(d, k)) continue;
+      var r = d[k];
+      if (!r || r.bad || !r.owner) continue;
+      var el = document.getElementById(k);
+      if (!el || !el.appendChild) continue;
+      if (pickDoorHasLayer(el)) continue;
+      window.mochiFilePickDoor(el, { owner: r.owner, accept: r.accept, multiple: r.multiple, veto: 1 });
+      n++;
+    }
+    return n;
+  } catch (e) { return 0; }
+};
+// 拆掉一扇猜不出该选什么的门：同一格在不同状态下把请求发给**不同宿主**（选图片 vs 选音频 vs 另一条
+// 管线）＝自动铺层没有信息可以替用户决定，留着一层＝必然猜错。宁可退回本批之前的合成腿，也不弹错
+// 类型的选择器（错类型＝用户在相册里翻半天找不到那个文件，比「点了没反应」更难报障）。
+function pickDoorDisable(node) {
+  try {
+    var door = node && node.parentElement;
+    if (node && node.parentNode) node.parentNode.removeChild(node);
+    if (door && door.id) {
+      var d = pickDoorLoad();
+      d[String(door.id).slice(0, 40)] = { bad: 1, t: Date.now() };
+      pickDoorTrim(d);
+      pickDoorDirty();
+    }
+  } catch (e) {}
+}
+// ③ 闸：只收「自学装上的层」——既有 20 扇人工铺好的门行为逐字不变（它们不带 veto）
+try {
+  document.addEventListener('click', function (e) {
+    try {
+      var t = e && e.target;
+      var rec = t && t.__mochiSurface;
+      if (!rec || !rec.veto) return;
+      if (window.__mochiPickAskSeq === window.__mochiGestureSeq) {
+        // 放行还得对得上宿主：本次请求发给别的宿主＝这格在两种状态间切，交回入口自己的管线（上面
+        // 那条 disable），这里绝不能替它弹——两层都放行＝错类型的选择器盖在用户手指上。
+        var oh = (rec.owner && rec.owner.id) || rec.ownerId || '';
+        if (!oh || oh === window.__mochiPickAskHost) return;
+      }
+      e.preventDefault(); // 没人认领这一发＝它不该弹选择器，原样交回入口逻辑（开面板／开抽屉）
+      if (window.mochiPickLog) window.mochiPickLog(t.id || 'door', 'door:veto');
+    } catch (e2) {}
+  }, false);
+} catch (e3) {}
+// 启动补装一次：静态锚（template.html 里那些行）在 deferred 脚本跑完就已存在，不必等用户先丢一发
+// 点按当学费；JS 现渲的门此刻还不在，交给下一次点按起手的 sweep（同一把尺子，两条路都通）。
+try { setTimeout(function () { window.mochiPickDoorSweep(true); }, 0); } catch (e4) {}
+// 台账出账（诊断单用）：共几扇、当前真装着几扇、被剔掉几扇——证明这条自愈线在真机上到底咬合过没有
+window.mochiPickDoorCensus = function () {
+  var d = pickDoorLoad(), total = 0, armed = 0, bad = 0;
+  try {
+    for (var k in d) {
+      if (!Object.prototype.hasOwnProperty.call(d, k)) continue;
+      total++;
+      var r = d[k];
+      if (!r || r.bad) { bad++; continue; }
+      var el = document.getElementById(k);
+      if (el && pickDoorHasLayer(el)) armed++;
+    }
+  } catch (e) {}
+  return { total: total, armed: armed, bad: bad };
+};
+
 // ===== #1273 「轻点」共用绑定原语：touch 路 ＋ pointer 路 ＋ click 兜底，三路共用防重入 =====
 // 需求/根因（用户 2026-09-25 直派「开屏的二级密码【点击密码解锁】的功能，还是有手机型号点击不了，
 // 这个问题其他设备型号也有出现」；零机型／零 UA 分支＝判据只取事件形态，不认内核名字）：那颗按钮只绑
@@ -4557,6 +4866,10 @@ window.__mochiLastTap = { x: 0, y: 0, t: 0 };
 (function () {
   var mark = function (ev) {
     try {
+      // #1323：① 手势序号＝「本次手势」的身份（Fire 盖的请求戳与那道闸比对都按它，不拿时间窗猜），
+      // ②起手按台账补装缺的层（整块重画把层带走是常态），地板在 sweep 内部（250ms）。
+      window.__mochiGestureSeq = (window.__mochiGestureSeq || 0) + 1;
+      if (window.mochiPickDoorSweep) window.mochiPickDoorSweep();
       var p = (ev.touches && ev.touches[0]) || (ev.changedTouches && ev.changedTouches[0]) || ev;
       if (typeof p.clientX !== 'number') return;
       // 点在自己这层上＝同一次点按的后续派发，不更新（避免自己把自己挪走）
@@ -4673,6 +4986,10 @@ window.mochiFilePickFire = function (input, opts) {
   if (window.mochiPickLog && input && window.mochiFilePickSurfaceAll) {
     try { window.mochiPickLog((input && input.id) || 'pick', 'srf:' + window.mochiFilePickSurfaceAll(input).length); } catch (e) {}
   }
+  // #1323：走到这里＝本次手势要弹选择器。给「本次手势」盖一个请求戳（闸据此放行原生默认动作），
+  // 并把这扇门记进自学台账——上面那条 srf:0 从此不再只是一句取证，它当场变成下一发的真层。
+  try { window.__mochiPickAskSeq = window.__mochiGestureSeq; window.__mochiPickAskHost = (input && input.id) || ''; } catch (eAsk) {}
+  try { if (window.mochiFilePickLearnDoor) window.mochiFilePickLearnDoor(input); } catch (eL) {}
   // FIX 2026-09-21 #991（第九波）：本次手势若是「手指物理点按入口上铺的真 input」（surface 层），
   // 那台选择器已由浏览器原生默认动作弹出——这里只登记、不再补腿（补＝另一个 input 再弹一次＝双开）。
   if (window.mochiFilePickSurfaceTap && window.mochiFilePickSurfaceTap()) return true;
@@ -4791,6 +5108,24 @@ window.mochiFilePick = function (opts) {
   var activate = function () {
     window.mochiFilePickFire(input, { onFail: function () { if (o.onError) { try { o.onError(); } catch (x) {} } } });
   };
+  // #1323：走到这里＝入口在**这一发手势里**要弹选择器（noClick 只是登记宿主，不算请求）。这一戳是
+  // 那道闸唯一的放行依据：自学铺上去的层默认会把用户的点按直接交给原生选择器，若入口自己这一发并不
+  // 想弹（同格在不同状态下开面板／开抽屉），就得被 preventDefault 取消掉。注意它必须落在下面那条
+  // surfaceTap 早退之前——已有层的入口正是在那里让路，Fire 根本不会被调到。
+  if (!o.noClick) { try { window.__mochiPickAskSeq = window.__mochiGestureSeq; window.__mochiPickAskHost = input.id || id; } catch (eA) {} }
+  // #1323：手指底下那张自学层绑的是**别的宿主**＝这一格在两种状态间切（选图片／选音频／走另一条管线），
+  // 铺层没有信息可以替用户决定选哪个＝当场拆层＋记 bad＋把这一发原样交回入口自己的管线（清掉「本次
+  // 手势落在层上」那枚戳，下面 #1002 那条早退自然不成立）。闸同一发也会 preventDefault＝双层保险，
+  // 绝不会把错类型的选择器盖在用户手指上。人工铺的门不带 veto＝不进这条。
+  try {
+    var _lt = window.event && window.event.target;
+    var _lrec = _lt && _lt.__mochiSurface;
+    if (_lrec && _lrec.veto && _lt !== input && _lrec.owner !== input && (_lrec.ownerId || '') !== id && typeof pickDoorDisable === 'function') {
+      window.__mochiSurfaceTapAt = 0;
+      pickDoorDisable(_lt);
+      if (window.mochiPickLog) window.mochiPickLog(id || 'pick', 'door:mix');
+    }
+  } catch (eM) {}
   // #1002：本次手势若正是点在这层 surface 上（入口已铺），远端已由浏览器原生弹出选择器——
   // 不再补腿，避免与 surface 各弹一次。判据同上（同一手势时间戳，一次性消费）。
   if (!o.noClick && window.mochiFilePickSurfaceTap && window.mochiFilePickSurfaceTap()) {

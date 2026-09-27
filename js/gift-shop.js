@@ -1568,6 +1568,7 @@ bindGmImgRow();
 function bindGmImgRow() {
 const pick = document.getElementById('gm-img-pick');
 if (pick) pick.addEventListener('click', function () { window.mochiFilePickFire(gmImgInput, { onFail: function () { toast('无法打开相册，请重试'); } }); });
+if (pick && window.mochiFilePickDoor) window.mochiFilePickDoor(pick, { owner: gmImgInput });
 const clr = document.getElementById('gm-img-clear');
 if (clr) clr.addEventListener('click', function () { gmImg = ''; renderGmImgRow(); });
 }

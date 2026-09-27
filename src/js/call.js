@@ -94,6 +94,18 @@
   }
   const callBgRow = document.getElementById('call-bg-row');
   if (callBgRow) callBgRow.addEventListener('click', () => pickCallBg(CALL_BG_KEY));
+  // FIX 2026-09-27 #1323：这四行是那份 iPhone 诊断单里唯一还留着「只剩合成腿」的照片门——00:03:15 与
+  // 00:03:35 两发都只有 leg:fire＋fb:onscreen、一条 files=N 都没回来，而同一分钟里头像库那扇铺了真层
+  // 的门 surf:hit＋surf:files=1 当场成功＝同一台设备、同一次会话的 A/B，与机型无关（判据只有「手指
+  // 这一下落在的是不是一个真 file input」）。四行都在 template.html 里静态存在、不随渲染重建＝当场铺
+  // 一次长期有效；共用同一个宿主 mochi-call-bg-pick，管线仍走上面 pickCallBg 那一条（模具见 device.js
+  // #1323，选完图由 surface 交回宿主、按最后一次点按的闭包写各自的键，两把键不会串）。
+  if (window.mochiFilePickDoor) {
+    ['call-bg-row', 'call-bg-edit-row', 'call-half-bg-row', 'call-half-bg-edit-row'].forEach(function (rid) {
+      const door = document.getElementById(rid);
+      if (door) window.mochiFilePickDoor(door, { owner: 'mochi-call-bg-pick', accept: 'image/*' });
+    });
+  }
   // v3.12.x：聊天页「更多功能→通话」半框内直接修改联系人头像 / 通话卡片背景图片
   //   - 联系人头像行 → 收起通话半框，打开「头像互动」半框（上传/点选即换，写 cs-avatar-partner）
   //   - 通话背景图片行 → 与设置页同款上传流程

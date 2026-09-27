@@ -1867,6 +1867,9 @@
     const pick = document.getElementById('gm-img-pick');
     // FIX 2026-09-20 #920：激活腿改走全站统一三腿（showPicker→click；小米系对合成 click 静默不弹）
     if (pick) pick.addEventListener('click', function () { window.mochiFilePickFire(gmImgInput, { onFail: function () { toast('无法打开相册，请重试'); } }); });
+    // FIX 2026-09-27 #1323：这颗按钮全站只有「合成腿」一条路（连 label 都没有），而它每次重渲都重新
+    // 绑一遍＝正适合在绑定处幂等补装真层（模具见 device.js #1323；宿主就是上面那个常驻 input）。
+    if (pick && window.mochiFilePickDoor) window.mochiFilePickDoor(pick, { owner: gmImgInput });
     const clr = document.getElementById('gm-img-clear');
     if (clr) clr.addEventListener('click', function () { gmImg = ''; renderGmImgRow(); });
   }
