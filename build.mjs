@@ -5436,6 +5436,21 @@ const FIX_SENTINELS = [
   { name: '#1326f 到期判据只取「承诺过期了没有」（改成无条件收表＝砍掉设定里诚实的等待；改回凭 typingOn＝谎报复发）', file: 'js/chat.js', needle: 'if (!typingOn || !typingDueAt || Date.now() < typingDueAt) return false;' },
   { name: '#1326g 进聊天页先复核承诺（删＝每次重进都把那句过期的「正在输入」重新点亮，正是用户口径的「退出再进来还是不动」）', file: 'js/chat.js', needle: "chatTypingReconcile('enter');" },
   { name: '#1326h 回前台通道复核（冻结期连自家看门狗一起冻住，只挂 setTimeout 等于没挂）', file: 'js/chat.js', needle: "document.addEventListener('mochi-fg-resume', function () { chatTypingReconcile('fg'); });" },
+  // ==== 2026-09-27 #1325 vivo X200s／安卓 Edge 实报「音乐里点击【导出数据】，我只有一个联系人，但是桌面说
+  //   『本桌面暂无数据』」＋「不要覆盖修改导致不同型号设备浏览器的 bug 反复出现、这个问题其他设备型号也有出现」；
+  //   用户另问「其他所有功能的导出导入有没有错」——同尺穷举后一并收在本批。零机型／零 UA 分支＝判据只取
+  //   「这一格键落在哪个命名空间」与「这一发值到底读没读到」两个事实。 ====
+  { name: '#1325a 本站「所有桌面共用一份」有两个落点，判据一把量完（顶层根键＋登记表点名的那一格；旧写法把 global 直接等同顶层，音乐那种硬用默认桌面命名空间当公共库的共享数据就永久隐形）', file: 'js/feature-data.js', needle: 'function isSharedNs(f, info) { return info.cid === null || (!!f.anchor && info.cid === f.anchor); }' },
+  { name: '#1325b global 分支走这把尺（删＝退回「isTop 才算全局」，音乐那一发报障原样复发）', file: 'js/feature-data.js', needle: "if (f.scope === 'global') { if (isSharedNs(f, info)) return f; continue; }" },
+  { name: '#1325c 共享落点由登记表 anchor 说了算（缺省顶层＝其余功能一字不变；写死 G ＝导入永远灌进模块读不到的那一格）', file: 'js/feature-data.js', needle: "function sharedNsOf(f) { return f.anchor ? G + ':' + f.anchor : G; }" },
+  { name: '#1325d 音乐登记的锚点＝默认桌面命名空间（music-player.js:10 MUSIC_PREFIX 与 :11 store=storeFor（default 命名空间） 那条事实搬进登记表；删掉＝计数／导出／清空三扇门再度看不见全部音乐数据）', file: 'js/feature-data.js', needle: "scope: 'global', anchor: 'default'" },
+  { name: '#1325e 导入落点走锚点（旧写法把共享键一律改写进顶层＝模块读不到、toast 却报「已导入，正在刷新…」＝第二次静默丢数据）', file: 'js/feature-data.js', needle: "if (f.scope === 'global' || (f.scope === 'both' && info.cid === null)) return { ns: sharedNsOf(f), suffix: info.suffix };" },
+  { name: '#1325f 二进制文件体不内联（IDB 里存 Blob 的项字符串化只剩一个空壳对象＝一句假数据混进备份；音频文件体按家族记账并当场说清带不走）', file: 'js/feature-data.js', needle: "if (typeof Blob !== 'undefined' && v instanceof Blob) { bin.push(k); binBytes += v.size || 0; return; }" },
+  { name: '#1325g 取值分批＋缺项记账（一次 idbGetMany 读全部＝4s+4s 超时只回部分映射，缺的键被当「没有」静默丢掉而导出照报成功；批量与 data-backup 的 measureProject 同尺）', file: 'js/feature-data.js', needle: "Object.defineProperty(out, 'missing', { value: missing, enumerable: false });" },
+  { name: '#1325h 一项值都没读到就不出具文件（#1162 同一课：读不到 ≠ 没有；旧写法会签一份看起来成功的空备份）', file: 'js/feature-data.js', needle: '这次一项值都没读到（本机数据库正被大项占用时会出现），没有出具文件' },
+  { name: '#1325i audit() 两把尺在场（nobody＝任何桌面视角都没人认领／stranded＝换个桌面才认领＝scope 与模块真实命名空间脱节的指纹；没有这个口，下一批脱节只能靠人肉记得）', file: 'js/feature-data.js', needle: 'return { total: keys.length, nobody: nobody, stranded: fromDefault, cid: cur, incomplete: keys.incomplete };' },
+  { name: '#1325j 删除型：「global＝顶层根键」那条等式不得回流（判据是键落在哪＋登记的锚点，不是 scope 反推命名空间；本行为何不重复那段代码文本＝删除型哨兵连注释也不许出现裸文本）', file: 'js/feature-data.js', needle: "if (f.scope === 'global') { if (isTop) return f; continue; }", absent: true },
+
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
