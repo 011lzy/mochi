@@ -2011,8 +2011,22 @@
         function _aPanComp() {
           try {
             var o = Math.round(_aVV.offsetTop || 0);
+            // FIX 2026-09-27 #1330a（荣耀50se／雨见浏览器实报「主页面的状态栏会连带着页面一起
+            //   掉下来」，用户明说其他设备型号也有出现、要求不要覆盖式修补）：这一发补偿成立的
+            //   前提是「内核只平移了视觉视口、布局视口一动没动」——我们发的 meta 是
+            //   interactive-widget=resizes-visual，Chromium 下 innerHeight 恒等于无键盘基线 _aIH
+            //   （#141 注释里那句「innerHeight 即布局视口高，不随键盘收缩」就是这个假设的原文）。
+            //   但这台机的内核把**布局视口**一起缩掉了（同一份诊断单的环境变化实测：inner
+            //   915→595、836→544，缩幅恰是键盘高度；报警现场 phone底=595 已 ==inner=595），
+            //   此时壳本就贴着可视顶、没有缝要填，再往上叠一个 top:o 不是填缝而是把整页——
+            //   连 .phone 第一行那个状态栏——往下推 o 像素＝用户看到的「掉下来」（diff=320 与
+            //   键盘高度同值即此发）。判据只取「这一发键盘缩的是布局视口还是视觉视口」这一个
+            //   几何事实，零机型／零 UA 分支，且与 syncAndroidKb 的键盘判据同一把尺子
+            //   （_aIH - innerHeight > 60）：布局视口自己已经矮下去＝无缝可补，连同旧残留一起
+            //   摘掉；归零浏览器平移仍由 _aPinPan 的 scrollTo 那几路负责，此处一字未动。
+            var _voidPan = (_aIH - (window.innerHeight || 0)) > 60;
             // 1) .phone（主内容）补偿：relative 平移，恰好填满可视区
-            if (o > 0) {
+            if (o > 0 && !_voidPan) {
               if (_aPhone.style.position !== 'relative') _aPhone.style.position = 'relative';
               if (_aPhone.style.top !== o + 'px') _aPhone.style.top = o + 'px';
             } else {

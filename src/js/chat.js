@@ -11838,6 +11838,21 @@ let lastQuote = null;     // 待引用内容
 //   串桌面教训）；本地优先、库里其次＝保住 #456/iOS「IDB 落后不许把最新收藏回滚成旧快照」语义。
 const favAuth = {};      // cid → 'pending'＝这一键权威未回话（写闸关着）／'ok'＝回过话或按旧语义放行
 const favPending = {};   // cid → 权威回话前用户写进来的整包收藏（只在内存，绝不落盘）
+// FIX 2026-09-27 #1330b（荣耀50se／雨见＋多机型复报「收藏几百条被突然清空」）：
+//   #1309 那把闸只看「本次权威读回没回话」，回话之后本地那一包到底是什么没人核。
+//   两条真实形态都不需要任何读故障：① 权威读还没落地，restore-done／45s 兜底先把
+//   favDrainAll 的闸放掉，favDrain 拿到的 idbRaw 恒为 null ⇒ baseRaw 退成「本地快照」，
+//   而本地快照在 LS 整域写满（这台实测 4127 键 ≈10.0MB＝Gecko 系单源配额）的机器上
+//   就是最后一次**同步写成功**的旧包（诊断单同键两个读数 9.1KB／4.3KB＝两侧已经不一致）；
+//   ② 15838 那条补灌刻意「只在本地无收藏时补」，于是「本地有但比库里少」这一格永不修复
+//   ——用户视角就是收藏凭空少掉几百条，而下一次 saveFav 把这一包整份 idbSet 回库，
+//   库里那份全量当场没了＝不可追回。两格同源：对收藏这种「读-改-写整包」的数据，
+//   「本地读到 N 条」从来不等价于「库里只有 N 条」。
+//   判据只取「两边各有多少条」这一个事实（与 #172 表情包那把「内容更多才覆盖」同尺），
+//   零机型／零 UA 分支；本会话用户自己写过（含批量删除／主动清空＝verify-1309 C2 的契约）
+//   即永不再补＝修的是「没读到当成没有」，不是「删掉的又活过来」。
+const favAuthRaw = {};   // cid → 任何一路权威读回到的库里原值（drain 时不再抓 null）
+const favTouched = {};   // cid → 本会话本地写过收藏，此后不再拿库里的更多条目补回
 let favAuthTries = 0;
 const FAV_AUTH_BACKOFF = [800, 2000, 5000, 12000, 25000];
 function favCid() { return window.__activeCid || 'default'; }
@@ -11851,6 +11866,29 @@ function favUnion(base, extra) {
   });
   return out;
 }
+function favCountOf(raw) {
+  try { const a = JSON.parse(raw); return Array.isArray(a) ? a.length : -1; } catch (e) { return -1; }
+}
+// 库里这一包比本地多 ⇒ 本地是残缺快照：按 favItemKey 并集落盘（条目只增不减、幂等），
+// 并完确实更多才写（本地已最新＝零写入零抖动）。主动写过收藏的桌面永不补＝C2 契约。
+function favAdoptRicher(cid, idbRaw) {
+  if (favTouched[cid] || !idbRaw || idbRaw.length <= 2) return false;
+  try {
+    const cs = cid === favCid() ? store : (window.storeFor ? window.storeFor(cid) : store);
+    let localRaw = null;
+    try { localRaw = cs.get('fav-msgs'); } catch (e) { return false; }
+    const ii = favCountOf(idbRaw);
+    let li = -1;
+    try { li = localRaw ? favCountOf(localRaw) : -1; } catch (e) { return false; }
+    if (ii < 0 || (li >= 0 && ii <= li)) return false;
+    let ia = null, la = [];
+    try { ia = JSON.parse(idbRaw); } catch (e) { return false; }
+    try { la = localRaw ? (JSON.parse(localRaw) || []) : []; } catch (e) { la = []; }
+    cs.set('fav-msgs', JSON.stringify(favUnion(Array.isArray(ia) ? ia : [], Array.isArray(la) ? la : [])));
+    try { if (window.__mochiPhase) window.__mochiPhase('fav-adopt:' + ii); } catch (e) {}
+    return true;
+  } catch (e) { return false; }
+}
 function favDrain(cid, idbRaw) {
   const pend = favPending[cid];
   if (!pend) return;
@@ -11860,18 +11898,34 @@ function favDrain(cid, idbRaw) {
     const cs = cid === favCid() ? store : (window.storeFor ? window.storeFor(cid) : store);
     let localRaw = null;
     try { localRaw = cs.get('fav-msgs'); } catch (e) {}
-    const baseRaw = (localRaw && localRaw.length > 2) ? localRaw : ((idbRaw && idbRaw.length > 2) ? idbRaw : '[]');
-    let cur = [];
-    try { cur = JSON.parse(baseRaw); } catch (e) { cur = []; }
-    cs.set('fav-msgs', JSON.stringify(favUnion(Array.isArray(cur) ? cur : [], pend)));
+    // #1330b：库里那一包只要回过话就用回过的，不再拿 null 当「库里没有」
+    // 基包取「本地 ∪ 库里」而不是「本地优先」：pend 是用户在自己**看得见**的那包上改出来
+    // 的，库里多出来的条目此刻根本没上过屏＝本会话不可能删过它，并进基包不会复活用户删掉
+    // 的东西（同 #172 表情包保存闸门那把「取回全量与内存新增按分组去重合并」的尺子）。
+    const raw = idbRaw || favAuthRaw[cid] || null;
+    let cur = [], curLib = [];
+    try { cur = (localRaw && localRaw.length > 2) ? JSON.parse(localRaw) : []; } catch (e) { cur = []; }
+    try { curLib = (raw && raw.length > 2) ? JSON.parse(raw) : []; } catch (e) { curLib = []; }
+    if (!Array.isArray(cur)) cur = [];
+    if (!Array.isArray(curLib)) curLib = [];
+    cs.set('fav-msgs', JSON.stringify(favUnion(favUnion(cur, curLib), pend)));
+    // 只有「带权威基包落过盘」的这一发才算用户写过＝此后不再拿库里的更多条目补回；
+    // blind（库里从没回过话）那一放本身就是一次读故障，留待迟到回话时再修（#1330b）
+    if (raw) favTouched[cid] = true;
     try { scheduleFavImgPass(2500); } catch (e) {}
   } catch (e) {}
 }
-function favSeal(cid, idbRaw) { favAuth[cid] = 'ok'; favDrain(cid, idbRaw); }
-function favDrainAll() { Object.keys(favPending).forEach(function (c) { favAuth[c] = 'ok'; favDrain(c, null); }); }
+function favSeal(cid, idbRaw) {
+  if (typeof idbRaw === 'string' && idbRaw.length > 2) favAuthRaw[cid] = idbRaw;
+  favAuth[cid] = 'ok';
+  favAdoptRicher(cid, favAuthRaw[cid] || null);
+  favDrain(cid, favAuthRaw[cid] || null);
+}
+function favDrainAll() { Object.keys(favPending).forEach(function (c) { favAuth[c] = 'ok'; favDrain(c, favAuthRaw[c] || null); }); }
 // 权威回话登记：v＝库里这一键的原值；info.ambiguous＝这一发没读到（≠库里没有）
 function favNoteAuth(v, info) {
   const cid = favCid();
+  if (typeof v === 'string' && v.length > 2) favAuthRaw[cid] = v;
   if (info && info.ambiguous) {
     if (!window.idbHasKey) { favAuthDelay(); return; }
     const myPrefix = window.activePrefix();
@@ -11935,6 +11989,7 @@ function saveFav(list) {
     try { if (window.__mochiPhase) window.__mochiPhase('fav-hold:' + ((list || []).length)); } catch (e) {}
     return;
   }
+  favTouched[cid] = true; // #1330b：闸已开＝这一发是用户在自己看得见的列表上写的，此后不再补
   store.set('fav-msgs', JSON.stringify(list));
   try { scheduleFavImgPass(2500); } catch (e) {}
 }

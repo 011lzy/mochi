@@ -1138,7 +1138,8 @@ try { return window.scrollY || document.documentElement.scrollTop || document.bo
 function _aPanComp() {
 try {
 var o = Math.round(_aVV.offsetTop || 0);
-if (o > 0) {
+var _voidPan = (_aIH - (window.innerHeight || 0)) > 60;
+if (o > 0 && !_voidPan) {
 if (_aPhone.style.position !== 'relative') _aPhone.style.position = 'relative';
 if (_aPhone.style.top !== o + 'px') _aPhone.style.top = o + 'px';
 } else {

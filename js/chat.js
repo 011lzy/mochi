@@ -9406,6 +9406,8 @@ let activeSide = 'in';    // 当前操作消息方向
 let lastQuote = null;     // 待引用内容
 const favAuth = {};      // cid → 'pending'＝这一键权威未回话（写闸关着）／'ok'＝回过话或按旧语义放行
 const favPending = {};   // cid → 权威回话前用户写进来的整包收藏（只在内存，绝不落盘）
+const favAuthRaw = {};   // cid → 任何一路权威读回到的库里原值（drain 时不再抓 null）
+const favTouched = {};   // cid → 本会话本地写过收藏，此后不再拿库里的更多条目补回
 let favAuthTries = 0;
 const FAV_AUTH_BACKOFF = [800, 2000, 5000, 12000, 25000];
 function favCid() { return window.__activeCid || 'default'; }
@@ -9419,6 +9421,27 @@ arr.forEach(function (x) { if (!x) return; const k = favItemKey(x); if (seen[k])
 });
 return out;
 }
+function favCountOf(raw) {
+try { const a = JSON.parse(raw); return Array.isArray(a) ? a.length : -1; } catch (e) { return -1; }
+}
+function favAdoptRicher(cid, idbRaw) {
+if (favTouched[cid] || !idbRaw || idbRaw.length <= 2) return false;
+try {
+const cs = cid === favCid() ? store : (window.storeFor ? window.storeFor(cid) : store);
+let localRaw = null;
+try { localRaw = cs.get('fav-msgs'); } catch (e) { return false; }
+const ii = favCountOf(idbRaw);
+let li = -1;
+try { li = localRaw ? favCountOf(localRaw) : -1; } catch (e) { return false; }
+if (ii < 0 || (li >= 0 && ii <= li)) return false;
+let ia = null, la = [];
+try { ia = JSON.parse(idbRaw); } catch (e) { return false; }
+try { la = localRaw ? (JSON.parse(localRaw) || []) : []; } catch (e) { la = []; }
+cs.set('fav-msgs', JSON.stringify(favUnion(Array.isArray(ia) ? ia : [], Array.isArray(la) ? la : [])));
+try { if (window.__mochiPhase) window.__mochiPhase('fav-adopt:' + ii); } catch (e) {}
+return true;
+} catch (e) { return false; }
+}
 function favDrain(cid, idbRaw) {
 const pend = favPending[cid];
 if (!pend) return;
@@ -9428,17 +9451,27 @@ try {
 const cs = cid === favCid() ? store : (window.storeFor ? window.storeFor(cid) : store);
 let localRaw = null;
 try { localRaw = cs.get('fav-msgs'); } catch (e) {}
-const baseRaw = (localRaw && localRaw.length > 2) ? localRaw : ((idbRaw && idbRaw.length > 2) ? idbRaw : '[]');
-let cur = [];
-try { cur = JSON.parse(baseRaw); } catch (e) { cur = []; }
-cs.set('fav-msgs', JSON.stringify(favUnion(Array.isArray(cur) ? cur : [], pend)));
+const raw = idbRaw || favAuthRaw[cid] || null;
+let cur = [], curLib = [];
+try { cur = (localRaw && localRaw.length > 2) ? JSON.parse(localRaw) : []; } catch (e) { cur = []; }
+try { curLib = (raw && raw.length > 2) ? JSON.parse(raw) : []; } catch (e) { curLib = []; }
+if (!Array.isArray(cur)) cur = [];
+if (!Array.isArray(curLib)) curLib = [];
+cs.set('fav-msgs', JSON.stringify(favUnion(favUnion(cur, curLib), pend)));
+if (raw) favTouched[cid] = true;
 try { scheduleFavImgPass(2500); } catch (e) {}
 } catch (e) {}
 }
-function favSeal(cid, idbRaw) { favAuth[cid] = 'ok'; favDrain(cid, idbRaw); }
-function favDrainAll() { Object.keys(favPending).forEach(function (c) { favAuth[c] = 'ok'; favDrain(c, null); }); }
+function favSeal(cid, idbRaw) {
+if (typeof idbRaw === 'string' && idbRaw.length > 2) favAuthRaw[cid] = idbRaw;
+favAuth[cid] = 'ok';
+favAdoptRicher(cid, favAuthRaw[cid] || null);
+favDrain(cid, favAuthRaw[cid] || null);
+}
+function favDrainAll() { Object.keys(favPending).forEach(function (c) { favAuth[c] = 'ok'; favDrain(c, favAuthRaw[c] || null); }); }
 function favNoteAuth(v, info) {
 const cid = favCid();
+if (typeof v === 'string' && v.length > 2) favAuthRaw[cid] = v;
 if (info && info.ambiguous) {
 if (!window.idbHasKey) { favAuthDelay(); return; }
 const myPrefix = window.activePrefix();
@@ -9499,6 +9532,7 @@ try { favPending[cid] = (list || []).slice(); } catch (e) {}
 try { if (window.__mochiPhase) window.__mochiPhase('fav-hold:' + ((list || []).length)); } catch (e) {}
 return;
 }
+favTouched[cid] = true; // #1330b：闸已开＝这一发是用户在自己看得见的列表上写的，此后不再补
 store.set('fav-msgs', JSON.stringify(list));
 try { scheduleFavImgPass(2500); } catch (e) {}
 }
