@@ -3192,7 +3192,10 @@ const FIX_SENTINELS = [
   { name: '#663i 【送 TA】点击接线（删＝点按钮打不开购买弹窗）', file: 'js/chat.js', needle: 'window.giftBuyFromWishCard(wRec, function () {' },
   // #1316 重锚：成交回调不再改「点击时捕获的那个节点」，改为报出「这件心愿兑现了」这个事实、由聊天按新数据逐张重画
   { name: '#663j 成交后卡片就地转「已送出」（删＝买完卡片还挂着【送 TA】，看着像没生效、还可能被重复买）', file: 'js/chat.js', needle: "window.giftBuyFromWishCard(wRec, function () { chatWishSettled(wRec.wishGiftId); });" },
-  { name: '#663k TA 心愿卡并入「值得提醒」消息（删＝心愿只静静躺在聊天里，未读角标与桌面横幅都不提）', file: 'js/chat.js', needle: "rec.special === 'gift' || rec.special === 'wish'" },
+  // #1347 重锚（同名换 needle＝合法重锚，不是缩尺）：#663k 当年把 wish 补进【卡片类型名白名单】，
+  // 本批把那层名单整撤了、换成结构判据（in 侧内容 − 纯状态回声），心愿卡由这条更宽的判据包住。针
+  // 随之指向新判据那一行——名单复活（＝名单外的卡片又装死）时这一行消失，照样拦得住。
+  { name: '#663k TA 心愿卡并入「值得提醒」消息（删＝心愿只静静躺在聊天里，未读角标与桌面横幅都不提；#1347 起这条契约由整类结构判据承接，needle 随之换锚）', file: 'js/chat.js', needle: "const notable = rec.side === 'in' && rec.special !== 'read';" },
   { name: '#663l 收藏快照覆盖心愿卡（删＝卡片心形点了没反应，同 #v3.28.x 那批漏网）', file: 'js/chat.js', needle: "else if (special === 'wish') { q = (rec.wishGiftName" },
   { name: '#663m 心愿卡按钮样式（删＝【送 TA】退化成浏览器默认按钮）', file: 'css/market.css', needle: '.msg-wish-buy {' },
   { name: '#663n 心愿卡深色适配（删＝深色下标签/已送出小字对比度不足）', file: 'css/market.css', needle: '[data-theme="dark"] .msg-wish-tag' },
@@ -5485,6 +5488,14 @@ const FIX_SENTINELS = [
   { name: '#1343f 无 id 的门按结构锚落盘（#1323 的 B 档要求 tgt.id＝JS 现渲的图片格子基本没 id，iOS 每回收一次页面就重交一发学费）', file: 'index.html', needle: "'fp:' + _anchor.root + '>' + (_anchor.idx || []).join('/')" },
   { name: '#1343g 补装时锚解析到别处就什么都不铺（拿猜错的格子铺门＝把别的入口变成死层，比不铺更糟）', file: 'index.html', needle: 'if (_f && !el.contains(_f)) _f = null;' },
   { name: '#1343h 台账把「命得中」与「命不中」分开数（armed 只数有盒子的层，dead 单列＝下一批不再靠猜哪扇门是假的）', file: 'index.html', needle: 'if (b && b.width && b.height) armed++; else dead++;' },
+  // ==== 2026-09-27 #1347 桌面【聊天】角标与桌面横幅按「卡片类型名白名单」挑收件（OPPO 一加12
+  // PJD110／Chrome 153 桌面 PWA 实报「主动发的消息在桌面消息（软件内部的消息）弹出有问题，主动发的
+  // 消息桌面的【聊天】角标会不显示数字」＋「其他设备型号也有出现，不要覆盖式修补」）====
+  // 判据换成记录自身的两个事实（in 侧内容 − 纯状态回声），预览说不出内容时补一句通用文案。
+  // #663k 那支（心愿卡进角标/横幅）随之重锚到新的结构判据行。行为断言＝tools/verify-1347-badge-covers-cards.mjs。
+  { name: '#1347a 未读角标与桌面横幅同由这一条判据驱动（脱钩＝角标涨了而桌面永远不吭声，或反之）', file: 'js/chat.js', needle: "if (notable && !rec.silent && (!chatVisible() || document.visibilityState === 'hidden')) {" },
+  { name: '#1347b 卡片预览说不出内容时的通用兜底句（删＝红包/礼物/送花这类正文不住在 rec.text 里的卡片又回到「屏上多一张卡而横幅与系统通知都不弹」）', file: 'js/chat.js', needle: "if (!text && !img && rec.special && rec.special !== 'read') text = '发来一条新消息，点开看看';" },
+  { name: '#1347c 删除型：按卡片类型名挑收件的那层白名单不得回流（名单一复活＝名单外的卡片形态重新装死，正是本批报障本体；本行不重复那段代码文本＝删除型哨兵连注释也不许出现裸文本）', file: 'js/chat.js', needle: "(!rec.special || rec.special === 'poke'", absent: true },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

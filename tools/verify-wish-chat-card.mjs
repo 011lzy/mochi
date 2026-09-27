@@ -56,7 +56,11 @@ console.log('S 层：源码口径');
   // ⚠️ #1316 重锚：成交换装不再抓「点击时捕获的那个节点」（中途任何一次整窗重画都会让补丁落在脱离文档
   //   的旧节点上＝静默失效，只有刷新才好），改为报出「这件心愿兑现了」＋按新数据逐张就地换装（仍不整窗重建）。
   ok(/if \(acts\) acts\.outerHTML = wishDoneHtml\(\);/.test(cj) && /window\.giftBuyFromWishCard\(wRec, function \(\) \{ chatWishSettled\(wRec\.wishGiftId\); \}\);/.test(cj), 'S19 成交后按新数据逐张就地转已送出（不整窗重建，#1316 重锚）');
-  ok(/'gift' \|\| rec\.special === 'wish'\);/.test(cj), 'S20 TA 心愿卡并入「值得提醒」消息（未读角标/桌面横幅）');
+  // ⚠️ #1347 重锚：#660 当年这条抓的是【卡片类型名白名单】的尾巴（'gift' || rec.special === 'wish'），
+  // 而那层名单本批整撤了换成结构判据（in 侧内容 − 纯状态回声）——心愿卡的契约由这条更宽的判据承接，
+  // 断言随之改成认新判据（不是放宽：名单复活时这一行消失＝照样红）。行为面另有
+  // tools/verify-1347-badge-covers-cards.mjs 的 A11 真投递断言守着，不只靠文本锚。
+  ok(/const notable = rec\.side === 'in' && rec\.special !== 'read';/.test(cj), 'S20 TA 心愿卡并入「值得提醒」消息（未读角标/桌面横幅；#1347 起由整类结构判据承接）');
   ok(/else if \(special === 'wish'\) \{ q = \(rec\.wishGiftName/.test(cj), 'S21 收藏快照覆盖心愿卡（心形不是点了没反应）');
   ok(/\.msg-wish-buy \{/.test(css), 'S22 卡片按钮样式在位');
   ok(/TA 心愿发到聊天概率/.test(gs), 'S23 使用说明/行标题点明概率可调');

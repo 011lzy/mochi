@@ -4848,6 +4848,7 @@ if (rec.type === 'voice') {
 const vname = String(text || '').split('|||')[0] || '';
 text = vname.replace(/\.[^.]+$/, '').trim() || '语音消息';
 }
+if (!text && !img && rec.special && rec.special !== 'read') text = '发来一条新消息，点开看看';
 return { text: text, img: img, imgSub: imgSub };
 }
 function showDeskMsg(rec) {
@@ -5071,7 +5072,7 @@ return true;
 return false;
 };
 saveMsgs();
-const notable = rec.side === 'in' && (!rec.special || rec.special === 'poke' || rec.special === 'gift' || rec.special === 'wish');
+const notable = rec.side === 'in' && rec.special !== 'read';
 if (notable && !rec.silent && (!chatVisible() || document.visibilityState === 'hidden')) {
 if (!chatVisible()) incChatUnread();
 showDeskMsg(rec);
