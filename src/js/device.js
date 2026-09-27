@@ -1727,6 +1727,16 @@
           });
         }
       } catch (e) {}
+      // FIX 2026-09-27 #1335h：上面那行报「写入拒绝 212 次」却看不出是哪本账在拒——实报那台机 212 次【全部】
+      //   出自小键写日志的整包落盘（诊断单现场账逐条同名）。日志落不回去＝它冻结在最后一次成功提交的形态，
+      //   下一场开站就把旧值当「最近一次写入」灌回、压住库里那条更新的大值（＝收藏被写坏的那条链）。
+      //   没有这一行，下一位只能从「212」猜成因；有了它，一眼看得见这一场到底让没让位。判据取内核回执，零机型分支。
+      try {
+        const wj = window.__wrjDiag && window.__wrjDiag();
+        if (wj) L.push('写日志：' + (wj.stranded
+          ? '⚠ 本会话有 ' + wj.rej + ' 次落不回去＝这本账已冻结，回放进来的 ' + wj.replayed + ' 条旧值不再充当权威，一律以 IndexedDB 为准'
+          : '正常落盘（未冻结＝回放照旧算最近一次写入）'));
+      } catch (e) {}
       items.sort(function (a, b) { return b.size - a.size; });
       L.push('数据总占用≈' + usageStr(total));
       const tops = items.slice(0, 8).map(function (it) { return it.k + '=' + usageStr(it.size); }).join('、');

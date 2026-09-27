@@ -698,6 +698,10 @@
         // 会既不在 localStorage 也不在内存缓存，切回桌面时读空导致壁纸被清掉。
         if (!memoryCache) memoryCache = {};
         memoryCache[key] = v;
+        // FIX 2026-09-27 #1335f：本会话写过这一键＝内存里这份不再是「冻结日志回放进来的旧值」，
+        //   #1335d/e 那两道让位到此为止（不摘掉的话，同一会话里后一次回填会把用户刚写的值当成可疑旧值
+        //   覆盖掉＝把这次的修复变成新的丢数据路径）。
+        try { delete _wrjReplayed[key]; } catch (e0) {}
         try { bigIdxTrack(key, v); } catch (e) {}
         let _wrjT = null; // FIX 2026-09-25 #1257c：标记不再随写同步落——值事务提交回执到点才补记（见下方 idbSet 处与 wrjRecord 尾注）
         try { _wrjT = wrjRecord(key, v); } catch (e) {}
@@ -1028,7 +1032,14 @@
         // 本会话已写入更新值则跳过（原 v3.6.x 语义）：OPPO 雨见等 IDB 慢的浏览器上，
         // 回填未完成时收到的新数据（大键只进 IDB+内存）若被 IDB 旧快照覆盖，
         // 会出现来信弹窗已提示、信箱列表却是旧数据的错位——memoryCache 有值即最新。
-        if (memoryCache && (k in memoryCache)) return false;
+        if (memoryCache && (k in memoryCache)) {
+          // FIX 2026-09-27 #1335d：这一行原样时无条件让「内存里已有的值」压住库里刚读到的权威值——本意是
+          //   「本会话写过的新值不许被回填遮蔽」（v3.6.x，OPPO 慢 IDB 那一族），但【冻结日志的回放】也占
+          //   这一格，于是回放进来的旧值被当成了本会话的新写入，库里那条更新的大值整场会话没人应用
+          //   （#1335 症状本体）。只有「日志落不了盘、且这一键确实是回放塞进来的」才让位；本会话真写过
+          //   的值照旧绝不回填遮蔽——v3.6.x 那条语义一个字没动。
+          if (!wrjReplayOverride(k)) return false;
+        }
         // FIX 2026-09-21 #950：大包数组直存（表情包 my-emoji-groups 等）后 IDB 里的值可能是
         // 数组对象——原实现 JSON.stringify 整包＝把主线程串化从保存点挪到了启动回填点（30MB 级
         // ＝百 ms 级启动长任务）。大对象改为「按估算体积走同一条大键管线、值本身直驻
@@ -1181,7 +1192,9 @@
     })).then(v => {
       if (v === null) return null;
       if (v === undefined) return false;
-      if (!(memoryCache && (key in memoryCache))) {
+      // FIX 2026-09-27 #1335e：按需取回这一路同 #1335d——内存里那份只是冻结日志回放进来的旧值时，
+      //   不许拦住的这次取回（#1218 的 idbEnsureBigKey／各页读空补路都从这一格过）。
+      if (!(memoryCache && (key in memoryCache)) || wrjReplayUnvouched(key)) {
         // FIX 2026-09-21 #950：数组直存的大对象不再整包 stringify 驻留——直驻对象（零串化），
         // 与 retainValue 同口径；小对象仍串化成字符串（老键形态零变化）
         if (typeof v !== 'string') {
@@ -1354,6 +1367,36 @@
   let _wrj = null;                 // [{k, v, t}]，按 key 去重、最新在前
   let _wrjTimes = {};              // key -> 最近一次已知写入时间（回放/合并/本会话写入共用）
   let _wrjMerged = false;
+  // FIX 2026-09-27 #1335：「这本账还落不落得进盘」＝回放条目算不算权威的唯一尺子
+  //   （红米 Note12Turbo/Chrome 实报「版本更新后收藏被全部清空，每次都被清空」；用户明说其他机型也有出现、
+  //    不要覆盖式修补，判据零机型／零 UA 分支＝只取「日志这一发写进去没有」这一个内核事实）。
+  //   日志只有 localStorage 一份副本，落盘＝整包 setItem。同源（GitHub Pages 同账号）兄弟站点把整域配额吃掉
+  //   之后，这一发从此必抛（实测某机本会话 212 次、单发 118.4KB，全部出自 wrjPersistFlush，而旧写法
+  //   `catch (e) {}` 把它吞得一个字不剩）⇒ 屏上那本日志【永久冻结】在最后一次成功提交的形态上。
+  //   而回放排在回填之前（业务模块紧接着就同步读值，这是 #339/#226 刻意定的时序，不能动），此刻
+  //   `_wrjTimes` 还是空的 ⇒ 守卫 `(_wrjTimes[k]||0) >= e.t` 恒不成立 ⇒ 每一条旧值都被无条件当成权威塞进
+  //   memoryCache；retainValue 第一行 `if (k in memoryCache) return false` 本意是「本会话写过的值不许被
+  //   回填遮蔽」，这里却把【冻结日志里的旧值】认成了本会话的新写入，于是库里那条更新的大值整场会话
+  //   没人应用；用户点一次收藏拿这份旧快照做读-改-写 ⇒ 库里 20 条被整包抹成 3 条＝永久丢失；下一开站
+  //   同一发冻结日志照样赢 ⇒ 「每次都被清空」。
+  //   判据：落不了盘的账本不能当「最近一次写入」。探针排在回放之前、写回的就是刚从 LS 读出来的同一份内容
+  //   （幂等、零语义变化），它抛 ⇒ 本场回放进来的每一条都标成「未经背书」，允许被回填/按需取回的库里
+  //   权威值覆盖。LS 写得进的机器（#226/#339 那一族：IDB 那次写失败、日志才是最新）探针必然成功 ⇒
+  //   一个字都不改旧行为。
+  let _wrjStranded = false;        // 日志这一路落盘被拒过＝这本账冻结了，不再充当权威
+  let _wrjStrandedN = 0;           // 被拒次数（只给诊断单看现场）
+  const _wrjReplayed = {};         // key -> true：memoryCache 里这一键来自冻结日志的回放（不是本会话写的）
+  function wrjReplayUnvouched(key) { return !!(_wrjStranded && _wrjReplayed[key]); }
+  function wrjReplayOverride(key) {
+    if (!wrjReplayUnvouched(key)) return false;
+    delete _wrjReplayed[key]; // 库里的权威值已经接管这一键
+    return true;
+  }
+  // 只观测，不改写任何数据
+  window.__wrjDiag = function () {
+    let n = 0; for (const k in _wrjReplayed) n++;
+    return { stranded: _wrjStranded, rej: _wrjStrandedN, replayed: n };
+  };
   function wrjLoad(raw) {
     try {
       const a = JSON.parse(raw || '[]');
@@ -1395,6 +1438,12 @@
     if (s === _wrjLanded) return;    // 内容没变＝库里那份就是它，不必再同步重写一整本
     try { if (window.__mochiPhase) window.__mochiPhase('wrj-journal'); } catch (e1) {}
     try { localStorage.setItem(WRJ_KEY, s); _wrjLanded = s; } catch (e2) {}
+    // FIX 2026-09-27 #1335a：上面那一行一字不动（#1324b 那根针保护它），落没落盘改用一份现成事实来问——
+    //   `_wrjLanded` 只在写成功之后才被置成 s ⇒ 事后一比对就知道这本账这一次落进去了没有。
+    //   旧形态是 `catch (e) {}` 把抛出的那一发吞得一个字不剩：实测某机本会话抛 212 次（单发 118.4KB、
+    //   全部出自这一行），每一次都在白记一遍永远落不了的账，屏上那本日志从此冻结在最后一次成功提交的
+    //   形态上，下一场开站照旧把旧值当「最近一次写入」回放（＝#1335 整条链的第一块多米诺）。
+    if (_wrjLanded !== s) { _wrjStranded = true; _wrjStrandedN++; }
   }
   // 到期裁决：还在手势里且没到硬上限 → 150ms 后回看（回看不重置 due/cap＝押后总量有界）；
   // 否则当场落盘。排程之后手指才落下来的（滑动中途到期）走同一条路，不留「已排程就照付」的缺口。
@@ -1509,17 +1558,36 @@
     if (!entries || !entries.length) return 0;
     if (!memoryCache) memoryCache = {};
     let n = 0;
+    let _wrjDirtyTouched = false;
     entries.forEach(function (e) {
       if ((_wrjTimes[e.k] || 0) >= e.t) return;
       _wrjTimes[e.k] = e.t;
       if (memoryCache[e.k] === e.v) return;
       memoryCache[e.k] = e.v;
-      try { if (e.v.length <= LS_BIG_LIMIT) localStorage.setItem(e.k, e.v); } catch (e2) {}
+      // FIX 2026-09-27 #1335b：日志冻结时这一路整个改道——
+      //   ① 绝不把旧值写回 localStorage：那一条只有几十字符，在「大值写不进」的机器上【照样写得进去】，
+      //     于是回放会拿旧快照把 LS 里那份新鲜值整份换掉，而 retainValue／idbHydrateKey 的旧规则恰好是
+      //     「LS 有值且没标脏＝LS 才是最新」⇒ 旧快照从此每一场都赢（＝用户看到的「每次都被清空」）；
+      //   ② 反过来把这一键标进「LS 不可信」集合（lsDirtyAdd＝站内既有那把尺子，sessionStorage＋IDB 双份
+      //     持久化、跨重启有效），让所有下游判定统一改口以 IDB 为准，不另起第二套口径；
+      //   ③ 记下这一键的内存值来自回放（不是本会话写的），允许被回填／按需取回的权威值覆盖（见 retainValue）。
+      if (_wrjStranded) {
+        _wrjReplayed[e.k] = true;
+        // 直接改集合、最后统一 lsDirtySave 一次：lsDirtyAdd 每次都整包重写 sessionStorage＋IDB，
+        // 启动期连着十几条回放条目就是十几次 IDB 事务（#943c 为同一件事把日志落盘改成防抖过）。
+        try {
+          if (!_lsDirtyKeys) _lsDirtyKeys = new Set();
+          if (!_lsDirtyKeys.has(e.k)) { _lsDirtyKeys.add(e.k); _wrjDirtyTouched = true; }
+        } catch (e3) {}
+      } else {
+        try { if (e.v.length <= LS_BIG_LIMIT) localStorage.setItem(e.k, e.v); } catch (e2) {}
+      }
       // #339 修复锚：WRJ_REPLAY_NO_IDB 恒真——回放值可能是被回滚的旧值，回写 IDB 会踩掉
       // 更新的值（见下方 FIX 注释）；此守卫若被翻转/删除恢复无条件 idbSet，即本 bug 回归
       if (!WRJ_REPLAY_NO_IDB) { try { if (window.idbSet) window.idbSet(e.k, e.v); } catch (e2) {} }
       n++;
     });
+    if (_wrjDirtyTouched) { try { lsDirtySave(); } catch (e4) {} } // #1335g：整场回放只落一次盘
     return n;
   }
   // 同步回放 LS 日志（杀进程场景下 LS 值与 LS 日志常同批回滚，此路为空时靠下方 IDB 合并兜底）
@@ -1532,7 +1600,26 @@
   //   emoji 概率等全站小键设置，多机型）。回放只救 内存+LS；IDB 方向的调和全权交给
   //   wrjMergeFromIdb（其时间戳守卫保证只前不后）。
   var WRJ_REPLAY_NO_IDB = true;
-  try { wrjReplay(wrjLoad(wrjLsRaw())); } catch (e) {}
+  // FIX 2026-09-27 #1335c：回放之前先问一句「这本账今天还落不落得进盘」。探针排在回放【之前】：回放一旦把
+  //   旧值塞进 memoryCache，回填那条权威路就被 `k in memoryCache` 挡死，整条链就是从这一步开始跑偏的。
+  //   量法＝拿一个【另一个键名】试写同等体积：原样写回 WRJ_KEY 在 Chrome 里是 0 字节增量的无操作、
+  //   配额满也不抛（实测：拿刚读出来的同一份内容写回去照样成功，探针当场变成假阴性＝这一版自己踩过的坑），
+  //   换键名才真按体积向内核要位置。写完立刻撤掉，健康机器上不留痕迹。
+  //   LS 写得进的机器（#226/#339 那一族：IDB 那次写失败、日志才是最新的那一发）探针必然成功 ⇒
+  //   旧行为一个字不变。判据只取「这一枚 setItem 抛没抛」，零机型／零 UA 分支。
+  function wrjBootCommitProbe() {
+    const entries = wrjLoad(wrjLsRaw());
+    _wrj = entries;
+    let payload = '';
+    try { payload = JSON.stringify(entries); } catch (e) { return entries; }
+    if (!payload || payload === '[]') return entries; // 空账本无所谓落不落盘
+    try {
+      localStorage.setItem(WRJ_KEY + ':probe', payload);
+      localStorage.removeItem(WRJ_KEY + ':probe');
+    } catch (e) { _wrjStranded = true; _wrjStrandedN++; try { localStorage.removeItem(WRJ_KEY + ':probe'); } catch (e2) {} }
+    return entries;
+  }
+  try { wrjReplay(wrjBootCommitProbe()); } catch (e) {}
   // FIX 2026-09-07 #229：合并失败必须重试——原实现入口即置 _wrjMerged=true，且走
   // idbGetAllKeys（把「清单读取失败(null)」折叠成「空数组」，与「库里确实没有标记」
   // 不可区分）：真我/荣耀/小米 Edge 等挂起内核上合并恰逢 IDB 挂起窗口时空转一次后，

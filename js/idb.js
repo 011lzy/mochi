@@ -475,6 +475,7 @@ set(k, v) {
 const key = prefix + ':' + k;
 if (!memoryCache) memoryCache = {};
 memoryCache[key] = v;
+try { delete _wrjReplayed[key]; } catch (e0) {}
 try { bigIdxTrack(key, v); } catch (e) {}
 let _wrjT = null; // FIX 2026-09-25 #1257c：标记不再随写同步落——值事务提交回执到点才补记（见下方 idbSet 处与 wrjRecord 尾注）
 try { _wrjT = wrjRecord(key, v); } catch (e) {}
@@ -663,7 +664,9 @@ try { console.info('[mochi] 启动回填：' + neverRead.length + ' 个超大键
 }
 function retainValue(k, v) {
 if (v === undefined || v === null) return false;
-if (memoryCache && (k in memoryCache)) return false;
+if (memoryCache && (k in memoryCache)) {
+if (!wrjReplayOverride(k)) return false;
+}
 if (typeof v !== 'string') {
 const estObj = (x, d) => {
 if (typeof x === 'string') return x.length;
@@ -774,7 +777,7 @@ run();
 })).then(v => {
 if (v === null) return null;
 if (v === undefined) return false;
-if (!(memoryCache && (key in memoryCache))) {
+if (!(memoryCache && (key in memoryCache)) || wrjReplayUnvouched(key)) {
 if (typeof v !== 'string') {
 const estObj = (x, d) => {
 if (typeof x === 'string') return x.length;
@@ -887,6 +890,19 @@ const WRJ_VAL_LIMIT = 64 * 1024; // 单值超过不记录（大键有自己的�
 let _wrj = null;                 // [{k, v, t}]，按 key 去重、最新在前
 let _wrjTimes = {};              // key -> 最近一次已知写入时间（回放/合并/本会话写入共用）
 let _wrjMerged = false;
+let _wrjStranded = false;        // 日志这一路落盘被拒过＝这本账冻结了，不再充当权威
+let _wrjStrandedN = 0;           // 被拒次数（只给诊断单看现场）
+const _wrjReplayed = {};         // key -> true：memoryCache 里这一键来自冻结日志的回放（不是本会话写的）
+function wrjReplayUnvouched(key) { return !!(_wrjStranded && _wrjReplayed[key]); }
+function wrjReplayOverride(key) {
+if (!wrjReplayUnvouched(key)) return false;
+delete _wrjReplayed[key]; // 库里的权威值已经接管这一键
+return true;
+}
+window.__wrjDiag = function () {
+let n = 0; for (const k in _wrjReplayed) n++;
+return { stranded: _wrjStranded, rej: _wrjStrandedN, replayed: n };
+};
 function wrjLoad(raw) {
 try {
 const a = JSON.parse(raw || '[]');
@@ -909,6 +925,7 @@ try { s = JSON.stringify(_wrj || []); } catch (e0) { return; }
 if (s === _wrjLanded) return;    // 内容没变＝库里那份就是它，不必再同步重写一整本
 try { if (window.__mochiPhase) window.__mochiPhase('wrj-journal'); } catch (e1) {}
 try { localStorage.setItem(WRJ_KEY, s); _wrjLanded = s; } catch (e2) {}
+if (_wrjLanded !== s) { _wrjStranded = true; _wrjStrandedN++; }
 }
 function wrjPersistAt() {
 _wrjPersistT = null;
@@ -1003,19 +1020,41 @@ function wrjReplay(entries) {
 if (!entries || !entries.length) return 0;
 if (!memoryCache) memoryCache = {};
 let n = 0;
+let _wrjDirtyTouched = false;
 entries.forEach(function (e) {
 if ((_wrjTimes[e.k] || 0) >= e.t) return;
 _wrjTimes[e.k] = e.t;
 if (memoryCache[e.k] === e.v) return;
 memoryCache[e.k] = e.v;
+if (_wrjStranded) {
+_wrjReplayed[e.k] = true;
+try {
+if (!_lsDirtyKeys) _lsDirtyKeys = new Set();
+if (!_lsDirtyKeys.has(e.k)) { _lsDirtyKeys.add(e.k); _wrjDirtyTouched = true; }
+} catch (e3) {}
+} else {
 try { if (e.v.length <= LS_BIG_LIMIT) localStorage.setItem(e.k, e.v); } catch (e2) {}
+}
 if (!WRJ_REPLAY_NO_IDB) { try { if (window.idbSet) window.idbSet(e.k, e.v); } catch (e2) {} }
 n++;
 });
+if (_wrjDirtyTouched) { try { lsDirtySave(); } catch (e4) {} } // #1335g：整场回放只落一次盘
 return n;
 }
 var WRJ_REPLAY_NO_IDB = true;
-try { wrjReplay(wrjLoad(wrjLsRaw())); } catch (e) {}
+function wrjBootCommitProbe() {
+const entries = wrjLoad(wrjLsRaw());
+_wrj = entries;
+let payload = '';
+try { payload = JSON.stringify(entries); } catch (e) { return entries; }
+if (!payload || payload === '[]') return entries; // 空账本无所谓落不落盘
+try {
+localStorage.setItem(WRJ_KEY + ':probe', payload);
+localStorage.removeItem(WRJ_KEY + ':probe');
+} catch (e) { _wrjStranded = true; _wrjStrandedN++; try { localStorage.removeItem(WRJ_KEY + ':probe'); } catch (e2) {} }
+return entries;
+}
+try { wrjReplay(wrjBootCommitProbe()); } catch (e) {}
 let _wrjMergeTries = 0;
 let _wrjMergeBusy = false;
 function wrjMergeRetry() {
