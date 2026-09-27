@@ -386,7 +386,42 @@
   let feedAuthSeen = false;
   let feedAuthWritable = null;   // null=未探测；true=确认可写（权威键确实不存在）；false=权威仍在
   let feedAuthRetried = 0;       // 守卫拒写后的权威重读次数上限 2（间隔 10s，防病理存储下无限循环）
+  // FIX 2026-09-27 #1336 「联系人发的朋友圈没过一会儿就不见了」（EC-PAD01 SE 平板／Chrome 138 PWA，
+  //   用户注明其他机型同现；零机型／零 UA 分支＝判据只取「这一轮同步层交得出主键吗」一个事实）：
+  //   #187 那条守则问的是「本会话见过权威没有」，而会话内见过权威之后还会出事——#975/#1195e 在切后台
+  //   时按体积放掉 ≥256KB 大键的内存副本（那是 iOS/安卓内存压力下的正解，本批不动它），而 feed-posts
+  //   过 200KB 就被 LS 大键线剥走那份副本 ⇒ 回前台 `store.get(KEY)` 必然同步读空。旧代码把这次读空
+  //   当成「动态只剩剥图快照那些」：无头实测同一次会话内屏上 16 条→4 条，接一次最正常的点赞整包写回
+  //   ⇒ 库里 15 条抹成 3 条（写小的那一发同时删掉 __big-idx 条目，事后连旁证都不留＝诊断单一律正常）。
+  //   没有快照的那一族更直接：屏上 0 条＋空态宣告「还没有动态」，而库里 12 条好好躺着。
+  //   守则：见过权威之后同步层交不出主键＝读数残缺，不是数据没了——本次整包不写权威键（增量照旧
+  //   并入 feedPending 留在屏上），并按需回库里问一次；只有问出「库里确实没有」(idbHasKey=false)
+  //   才放开写，重建期不受影响。#187 那一条「会话还没见过权威」的路径一字未动。
+  let feedSyncCold = false;      // 本轮同步层交不出权威主键（见过权威之后读空＝内存副本被释放）
+  let feedColdAsking = false;    // 残缺期已发起的权威重读合流标记（同场只问一次）
+  function feedAskIdb() {
+    if (feedColdAsking || !window.idbGet) return;
+    feedColdAsking = true;
+    const settleCold = () => {
+      feedColdAsking = false;
+      // 问不出整包时用既有那把「键在不在」的尺子定性（与 #187 同一把）：确认库里没有＝真重建，放开写
+      if (!feedSyncCold || typeof window.idbHasKey !== 'function') return;
+      window.idbHasKey(uid + ':' + KEY).then(ok => { if (ok === false) feedSyncCold = false; }, () => {});
+    };
+    window.idbGet(uid + ':' + KEY).then(v => {
+      if (v && typeof v === 'string' && v.length > 2) feedSyncCold = false; // 库把整包交回来了
+      settleCold();
+      feedMergeFromIdb(v);   // 合并/重渲染/拒写重试一律走启动那条同款链，不另起第二套口径
+      try { render(); } catch (e) {}
+    }, () => { settleCold(); });
+  }
   function feedGuardWrite(raw) {
+    // #1336：残缺读数没有整包写回资格——先问库，本次增量并进 feedPending（load() 仍把它合在屏上）
+    if (feedSyncCold) {
+      try { feedPending = mergePosts(feedPending || [], feedMem || []); } catch (e) {}
+      feedAskIdb();
+      return Promise.resolve(false);
+    }
     if (feedAuthSeen || store.get(KEY) !== null) {
       try { store.set(KEY, raw); } catch (e) {}
       return Promise.resolve(true);
@@ -501,10 +536,17 @@
     // 原写法 `store.get(KEY) || '[]'` 在键缺失时返回空数组提前 return，快照兜底永不生效
     const raw = store.get(KEY);
     if (raw !== null) {
+      feedSyncCold = false; // 这一轮同步层交出了权威副本（含清空后的 '[]'）
       try {
         const a = JSON.parse(raw);
         if (Array.isArray(a)) list = a.map(normPost);
       } catch (e) {}
+    } else if (feedAuthSeen) {
+      // FIX 2026-09-27 #1336：本会话已经交出过一次整包，此刻却交不出——唯一可能是内存副本被切后台
+      //   释放（#975/#1195e），不是动态被删。旧注释说「模块底部 idbGet 会随后重渲染」只对启动那一轮
+      //   成立（那条链整场会话只跑一次），所以残缺期由这里按需问回来。
+      feedSyncCold = true;
+      feedAskIdb();
     }
     // v3.7.x：LS 主键缺失兜底——大列表只进 IDB（Edge 丢 IDB / LS 被清）时读剥图快照，
     // 文本+作者+时间保留；IDB 存活时模块底部 idbGet 会随后用完整数据重渲染
@@ -622,6 +664,11 @@
     const arr = list || [];
     // #496：内存真相立即生效（load() 不再重读持久层），落盘延后到空闲窗口
     feedMem = arr;
+    // FIX 2026-09-27 #1336：残缺期这次整包没有写回资格，当场就把它并入既有的 feedPending——
+    //   只挂在延后落盘的 feedWritePending 上不够：自愈那一发是 feedMergeFromIdb，它按
+    //   base＋store.get＋feedPending 三方合流、算完就顶掉 feedMem，排在后面的那发根本不知道，
+    //   于是「新发的动态先落库、再被下一次普通点赞按 15 条的旧整包顶掉」（无头实测 16→15）。
+    if (feedSyncCold) { try { feedPending = mergePosts(feedPending || [], arr); } catch (e) {} }
     // v3.10.x：清理存量评论/回复的 authorAv（旧数据存了头像 dataURL，撑大主键 >200KB
     //   → 只进 IDB 不进 LS → Edge 丢 IDB 后评论丢失）。新评论经 stampAuthor 已不存。
     for (let i = 0; i < arr.length; i++) {
@@ -1138,7 +1185,7 @@
     listEl.innerHTML = memHtml + (posts.length
       ? posts.slice(0, feedShownMain).map(p => postCardHtml(p, name)).join('') +
         (posts.length > feedShownMain ? feedMoreBtnHtml(posts.length - feedShownMain) : '')
-      : ((window.mochiDataPending && window.mochiDataPending())
+      : ((feedSyncCold || (window.mochiDataPending && window.mochiDataPending()))
         ? window.mochiLoadingHtml('朋友圈内容')
         : '<div class="ta-empty">还没有动态，TA 会不定期分享生活<br><button class="memo-send-btn" id="feed-empty-pub" style="margin-top:8px">我来发第一条</button></div>'));
     feedRenderSig = sig;
@@ -2989,10 +3036,12 @@ if (comInput) comInput.addEventListener('keydown', (e) => { if (e.key === 'Enter
     const posts = load().filter(inPage).sort((a, b) => b.ts - a.ts);
     // v3.12.x：与主列表同口径窗口化（FEED_RENDER_MAX + 查看更早），防整页全量位图解码
     feedShownAll = Math.min(posts.length, FEED_RENDER_MAX);
+    // FIX 2026-09-27 #1336：本页是「联系人发的朋友圈」的直接落点，残缺期同样不许说「还没有动态」
+    const allCold = feedSyncCold || !!(window.mochiDataPending && window.mochiDataPending());
     listEl.innerHTML = posts.length
       ? posts.slice(0, feedShownAll).map(p => postCardHtmlAll(p)).join('') +
         (posts.length > feedShownAll ? feedMoreBtnHtml(posts.length - feedShownAll) : '')
-      : ((window.mochiDataPending && window.mochiDataPending())
+      : (allCold
         ? window.mochiLoadingHtml(isMePage ? '我的动态' : '该联系人的动态')
         : '<div class="ta-empty">还没有动态</div>');
     // v3.7.x：全部朋友圈页与主列表共用事件绑定——点赞/评论/回复/删除/图片放大全可用

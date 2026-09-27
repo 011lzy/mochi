@@ -265,7 +265,29 @@ let feedMem = null;
 let feedAuthSeen = false;
 let feedAuthWritable = null;   // null=未探测；true=确认可写（权威键确实不存在）；false=权威仍在
 let feedAuthRetried = 0;       // 守卫拒写后的权威重读次数上限 2（间隔 10s，防病理存储下无限循环）
+let feedSyncCold = false;      // 本轮同步层交不出权威主键（见过权威之后读空＝内存副本被释放）
+let feedColdAsking = false;    // 残缺期已发起的权威重读合流标记（同场只问一次）
+function feedAskIdb() {
+if (feedColdAsking || !window.idbGet) return;
+feedColdAsking = true;
+const settleCold = () => {
+feedColdAsking = false;
+if (!feedSyncCold || typeof window.idbHasKey !== 'function') return;
+window.idbHasKey(uid + ':' + KEY).then(ok => { if (ok === false) feedSyncCold = false; }, () => {});
+};
+window.idbGet(uid + ':' + KEY).then(v => {
+if (v && typeof v === 'string' && v.length > 2) feedSyncCold = false; // 库把整包交回来了
+settleCold();
+feedMergeFromIdb(v);   // 合并/重渲染/拒写重试一律走启动那条同款链，不另起第二套口径
+try { render(); } catch (e) {}
+}, () => { settleCold(); });
+}
 function feedGuardWrite(raw) {
+if (feedSyncCold) {
+try { feedPending = mergePosts(feedPending || [], feedMem || []); } catch (e) {}
+feedAskIdb();
+return Promise.resolve(false);
+}
 if (feedAuthSeen || store.get(KEY) !== null) {
 try { store.set(KEY, raw); } catch (e) {}
 return Promise.resolve(true);
@@ -351,10 +373,14 @@ list = feedMem;
 } else {
 const raw = store.get(KEY);
 if (raw !== null) {
+feedSyncCold = false; // 这一轮同步层交出了权威副本（含清空后的 '[]'）
 try {
 const a = JSON.parse(raw);
 if (Array.isArray(a)) list = a.map(normPost);
 } catch (e) {}
+} else if (feedAuthSeen) {
+feedSyncCold = true;
+feedAskIdb();
 }
 if (!list.length) {
 try {
@@ -435,6 +461,7 @@ if (arr) { try { feedGuardWrite(JSON.stringify(arr)); scheduleSnap(arr); lastFee
 function save(list) {
 const arr = list || [];
 feedMem = arr;
+if (feedSyncCold) { try { feedPending = mergePosts(feedPending || [], arr); } catch (e) {} }
 for (let i = 0; i < arr.length; i++) {
 const p = arr[i];
 if (!p || !Array.isArray(p.comments)) continue;
@@ -809,7 +836,7 @@ if (sig === feedRenderSig && listEl.firstChild) return;
 listEl.innerHTML = memHtml + (posts.length
 ? posts.slice(0, feedShownMain).map(p => postCardHtml(p, name)).join('') +
 (posts.length > feedShownMain ? feedMoreBtnHtml(posts.length - feedShownMain) : '')
-: ((window.mochiDataPending && window.mochiDataPending())
+: ((feedSyncCold || (window.mochiDataPending && window.mochiDataPending()))
 ? window.mochiLoadingHtml('朋友圈内容')
 : '<div class="ta-empty">还没有动态，TA 会不定期分享生活<br><button class="memo-send-btn" id="feed-empty-pub" style="margin-top:8px">我来发第一条</button></div>'));
 feedRenderSig = sig;
@@ -2305,10 +2332,11 @@ title.textContent = (c.name || feedAllCid) + ' 的全部朋友圈';
 }
 const posts = load().filter(inPage).sort((a, b) => b.ts - a.ts);
 feedShownAll = Math.min(posts.length, FEED_RENDER_MAX);
+const allCold = feedSyncCold || !!(window.mochiDataPending && window.mochiDataPending());
 listEl.innerHTML = posts.length
 ? posts.slice(0, feedShownAll).map(p => postCardHtmlAll(p)).join('') +
 (posts.length > feedShownAll ? feedMoreBtnHtml(posts.length - feedShownAll) : '')
-: ((window.mochiDataPending && window.mochiDataPending())
+: (allCold
 ? window.mochiLoadingHtml(isMePage ? '我的动态' : '该联系人的动态')
 : '<div class="ta-empty">还没有动态</div>');
 bindEvents(listEl);

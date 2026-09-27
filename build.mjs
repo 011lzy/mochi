@@ -5469,6 +5469,13 @@ const FIX_SENTINELS = [
   { name: '#1325i audit() 两把尺在场（nobody＝任何桌面视角都没人认领／stranded＝换个桌面才认领＝scope 与模块真实命名空间脱节的指纹；没有这个口，下一批脱节只能靠人肉记得）', file: 'js/feature-data.js', needle: 'return { total: keys.length, nobody: nobody, stranded: fromDefault, cid: cur, incomplete: keys.incomplete };' },
   { name: '#1325j 删除型：「global＝顶层根键」那条等式不得回流（判据是键落在哪＋登记的锚点，不是 scope 反推命名空间；本行为何不重复那段代码文本＝删除型哨兵连注释也不许出现裸文本）', file: 'js/feature-data.js', needle: "if (f.scope === 'global') { if (isTop) return f; continue; }", absent: true },
 
+  { name: '#1336a 会话内见过权威整包之后同步层读空＝残缺读数，不是「动态只剩这些」（删＝切后台放掉大键内存副本后，朋友圈拿陈旧剥图快照当最新整包，无头实测屏上 16→3）', file: 'js/feed.js', needle: 'feedSyncCold = true;' },
+  { name: '#1336b 只有库真交出整包才摘掉残缺旗（把条件改成无条件摘＝问不出结果也放开写，正是要防的那一发整包顶包）', file: 'js/feed.js', needle: "if (v && typeof v === 'string' && v.length > 2) feedSyncCold = false;" },
+  { name: '#1336c 问出「库里确实没有」才放开写（删＝全新安装/丢库重建被这把闸永久锁死；改成问不出也放开＝把一次超时讲成数据没了）', file: 'js/feed.js', needle: "window.idbHasKey(uid + ':' + KEY).then(ok => { if (ok === false) feedSyncCold = false;" },
+  { name: '#1336d 拒写这一发必须把增量并进既有 feedPending（只 return false＝用户刚点的赞/刚发的动态当场白丢；宁丢增量也不许顶包＝#187 同口径）', file: 'js/feed.js', needle: 'feedPending = mergePosts(feedPending || [], feedMem || []);' },
+  { name: '#1336e save 当场就把这一整包并入 feedPending（只挂在延后落盘的 feedWritePending 上不够：自愈那一发算完合并就顶掉 feedMem，实测「新动态先落库、再被下一次普通点赞按旧整包顶掉」16→15）', file: 'js/feed.js', needle: 'if (feedSyncCold) { try { feedPending = mergePosts(feedPending || [], arr); } catch (e) {} }' },
+  { name: '#1336f 主列表空态在残缺期只说「还在读取」（退回只问 mochiDataPending＝库里 12 条时当面宣告「还没有动态」，用户据此以为数据没了；#1309 同一把尺）', file: 'js/feed.js', needle: '(feedSyncCold || (window.mochiDataPending && window.mochiDataPending()))' },
+  { name: '#1336g 联系人主页（「联系人发的朋友圈」的直接落点）同一句谎一起收（删＝这一页照旧在残缺期宣告空态）', file: 'js/feed.js', needle: 'const allCold = feedSyncCold ||' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
