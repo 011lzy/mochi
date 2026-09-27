@@ -167,9 +167,24 @@ check('A40 build.mjs 登记 #941a~e 哨兵', sent941 === 5, '实际 ' + sent941)
 
 // —— #958 追加（刷新周期稳健估计：单次 4ms 抖动不再把 jankThr 压到 24ms 下限）——
 check('A41 帧间隔直方图计票（≥4ms 且非冻结入账；随窗口重置）', pc.includes('var gapHist = {};') && pc.includes('if (d >= 4 && d <= BG_GAP) { var _g = Math.round(d); gapHist[_g] = (gapHist[_g] || 0) + 1; gapFrames++; periodEst(); }') && pc.includes('gapHist = {}; gapFrames = 0;'));
-check('A42 周期取「至少重复 3 次的取整间隔」，样本不足回退最小值（periodEst）', pc.includes('function periodEst() {') && pc.includes('if (gapHist[k] >= 3 && (!repMin || v < repMin)) repMin = v;') && pc.includes('minD = repMin || anyMin;'));
+check('A42 周期取「重复 ≥3 的间隔」并保留样本不足回退最小值（periodEst；#1226 起取其中的众数，见 A44）', pc.includes('function periodEst() {') && pc.includes('minD = repMin || anyMin;'));
 const sent958 = (build.match(/#958[a-b] /g) || []).length;
 check('A43 build.mjs 登记 #958a~b 哨兵', sent958 === 2, '实际 ' + sent958);
+
+// —— #1226 追加（尺子四处纠偏：长任务观测能力门控／周期取众数／每帧归因不再强制样式重算／冻结分型）——
+check('A44 周期在「重复 ≥3」的候选里取出现次数最多的那个＝众数（旧写法取最小＝4ms 抖动重复三次就永远赢过 16ms，阈值掉到 24ms 下限、正常 60Hz 帧全被计成掉帧）', pc.includes('if (n >= 3 && (!repN || n > repN || (n === repN && v < repMin))) { repN = n; repMin = v; }'));
+check('A45 长任务观测能力按 PerformanceObserver 能力表判定（旧写法拿「observe 会不会抛错」当探针＝WebKit 不抛错也不投递，lt.ok 被误置真）', pc.includes("Array.prototype.indexOf.call(PerformanceObserver.supportedEntryTypes || [], 'longtask') >= 0") && pc.includes('if (ltCap) try {') && pc.includes('rep.ltCap = ltCap;'));
+check('A46 「窗口内无」只在真有通道时说（没通道照实说没通道；两种口径都走 ltNoneLine，且带冻结未被覆盖时点名前台冻结）', pc.includes('function ltNoneLine(r) {') && pc.includes('return r.ltCap ? ') && (pc.match(/L\.push\(ltNoneLine\(r\)\)/g) || []).length === 2 && pc.includes('次前台冻结未被长任务观测覆盖'));
+check('A47 旧机型写死的长任务措辞已删（回流＝在安卓 Chrome 上断言「此内核不支持观测（iOS WebKit）」＝假话，且把能力问题说成机型问题）', !pc.includes('此内核不支持观测（iOS WebKit）'));
+check('A48 每帧页面归因走缓存＋观察器挂在页节点本身（旧写法每帧 querySelectorAll＋getComputedStyle＝把强制样式重算塞进被测窗口；随窗拆除＝零常驻）', pc.includes('function pageCached() {') && pc.includes("pgMo.observe(pgEls[pgi], { attributes: true, attributeFilter: ['hidden', 'class', 'style'] });") && pc.includes('var pg = pageCached();') && pc.includes('if (pgMo) pgMo.disconnect();'));
+check('A48b 观察器没挂上任何页节点／不可用时退回每帧直查（不许出现「缓存永不失效」的第三种形态）', pc.includes('if (!pgMo) return curPage();') && pc.includes('if (!pgEls.length) { try { pgMo.disconnect(); } catch (e0) {} pgMo = null; }'));
+check('A49 主线程探针链（setTimeout(0) 自续；排期到回执的排队时长＝「这段时间主线程忙不忙」的证据；随窗拆除）', pc.includes('function probe() {') && pc.includes('prTimer = setTimeout(probe, 0);') && pc.includes('clearTimeout(prTimer);'));
+check('A50 冻结分型判据＝探针排队时长 vs 帧间隔的一半（两类处置方向相反；回前台先把 prLag 归零，别把挂起期算成占用）', pc.includes('if (prLag * 2 >= d) rep.fzJs++; else rep.fzPaint++;') && pc.includes('hiddenAt = -1; prLag = 0;'));
+check('A51 报告输出「冻结类型」行并给方向（删＝iOS 报告只剩「冻结 N 次」孤数，建议把查大图与查落盘两条相反方向混成一条）', pc.includes("· 冻结类型（主线程探针实测）：主线程被任务占住 ") && pc.includes('以「出帧跟不上」为主') && pc.includes('以「主线程被占住」为主'));
+check('A52 现场图例不再断言「主线程真被卡住」（分型未出前那句话是无据结论）', pc.includes('且无隐藏期（是主线程被占住还是出帧跟不上，看上面「冻结类型」那行）'));
+check('A53 rep 初始化带分型与通道字段（缺字段＝旧报告/对比行读到 undefined）', pc.includes('fzJs: 0, fzPaint: 0, ltCap: false }'));
+// A54＝A52 的同一条判据落到「带次数那一行」上：图例改了、正文那行照旧把原因写死在主线程一侧＝半条尺子说真话
+check('A54 前台冻结正文行只报实测事实（帧间隔＋无隐藏期），谁慢了交给「冻结类型」当场实测（旧措辞在分型未出前就断言主线程被卡住＝本族只查脚本／落盘的入口）', pc.includes("· 前台冻结 ' + r.fz + ' 次（亮屏下帧间隔 >") && pc.includes('卡在哪一侧见下方「冻结类型」实测') && !pc.includes("次（亮屏下主线程被卡住 >"));
 
 console.log('----');
 console.log('verify-perf-check: ' + pass + ' 通过 / ' + fail + ' 失败');

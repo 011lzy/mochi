@@ -5339,6 +5339,24 @@ const FIX_SENTINELS = [
   { name: '#1314j 后台预热那一腿同尺（头像侧）：与表情侧同一把尺子的另一半，漏一处＝「名字在、逻辑变」的经典复发形状', file: 'js/avatar-lib.js', needle: "avPaintSrc(im, im.dataset.src, function (ok)" },
   { name: '#1314k 换头像的写入面按可见性分档（旧写法整窗一次性重写：300 条历史实测 104 次 src 写／103 次载入，而屏上只有 6~7 个看得见＝用户那几个被排在九十几个隐形节点之后；改成恒 applyTo＝本批症状原样，改成只画可见＝屏外永远留着旧头像）', file: 'js/avatar-lib.js', needle: 'if (!r || (r.bottom > -80 && r.top < vh + 80)) applyTo(av);' },
   { name: '#1314l 屏外分片带轮次号作废（期间又换一次头像时，旧那一轮的剩余分片不许盖掉新那一轮的值＝#169/#228 同族在分帧写入上的那一份；删掉＝连点两张头像后最终显示的是先点的那张）', file: 'js/avatar-lib.js', needle: 'const avGen = ++avApplyGen;' },
+  // ==== 2026-09-25 #1226 卡顿自检这把尺子本身在 iOS 上说假话（iPhone 16PM／iOS 18.7 用户直派自检报告：
+  //   「长任务（>50ms）：窗口内无」与同份报告「前台冻结 106 次、最长 2393ms」并存；「正常帧间隔约 4ms」
+  //   在 60Hz 屏上仍是 4ms）。四处改动全在诊断层、产品行为零变化。本批＝重放到 tip 收口入库：原作者
+  //   2026-09-25 只落了 src＋2 支尺子，台账当时自陈「未构建·未提交＝工作树那份是旧底混合稿，追加针会
+  //   触发 #1214 缩尺」，于是这七针在 git 里从未存在过（复验：`冻结类型`／`prLag` 在 HEAD 的 src 与
+  //   产物双侧各 0 命中）。后果不是「少一行报告」而是整族失明：iOS 侧没有 longtask 通道，「冻结类型」
+  //   这一行是唯一能分出「主线程被任务占住」还是「主线程空闲而出帧跟不上」的证据，而这两类的处置方向
+  //   相反（查落盘/解码 vs 查大图层/栅格）；它不在，#1295/#1300/#1301/#1311/#1313 之后每一批都只能猜
+  //   脚本侧——八批都真有效、症状照旧复报（2026-09-27 iPhone 17/ iOS 27 再复报「切页面滑动都卡」，
+  //   两份导出件里依旧没有这一行）。零机型／零 UA 分支：判据只取内核能力表、帧间隔分布与探针回执。 ====
+  { name: '#1226a 长任务能不能观测由内核能力表说了算（旧写法拿「observe(longtask) 会不会抛错」当探针＝WebKit 里它既不抛错也永不投递，lt.ok 被置真、报告对 iOS 上所有 JS 阻塞签了「窗口内无」的无罪证明；删掉＝同一句假话回流，且这次是替真凶作的证）', file: 'js/perf-check.js', needle: "Array.prototype.indexOf.call(PerformanceObserver.supportedEntryTypes || [], 'longtask') >= 0" },
+  { name: '#1226b 「窗口内无」这一句只许真有通道的内核说（两条 else 支合流成 ltNoneLine，没通道就照实说没通道；删掉＝把「没有观测」写成「没有异常」）', file: 'js/perf-check.js', needle: "return r.ltCap ? '· 长任务（>50ms）：窗口内无' + cav" },
+  { name: '#1226c 刷新周期取「重复过的间隔里的众数」（#958 只治掉单次抖动那一半：4ms 补帧只要重复到 3 次就永远赢过整窗上千次的 16ms，阈值落到 24ms 下限、正常 60Hz 帧全被计成掉帧＝掉帧率虚高，用户照着虚高的报告去查并不存在的大图）', file: 'js/perf-check.js', needle: 'if (n >= 3 && (!repN || n > repN || (n === repN && v < repMin))) { repN = n; repMin = v; }' },
+  { name: '#1226d 帧回路读缓存的页面归因（旧写法每帧先 querySelectorAll 取全部可见 .page、再对每个可见页 getComputedStyle 读 zIndex＝把一次强制样式重算塞进被测量的窗口里，节点越多这尺子本身越贵，测卡顿的工具在给卡顿加账）', file: 'js/perf-check.js', needle: 'var pg = pageCached();' },
+  { name: '#1226e 前台冻结当场分型（rAF 迟到时回看常驻主线程探针：探针跟着迟到＝那段时间主线程被任务占住；探针按时回执而帧仍迟到＝主线程是空的、晚的是出帧。这一行是 iOS 那条路（压根没有 longtask 通道）上唯一的分叉证据，删掉＝整族退回只能猜脚本侧）', file: 'js/perf-check.js', needle: 'if (prLag * 2 >= d) rep.fzJs++; else rep.fzPaint++;' },
+  { name: '#1226f 分型结果进导出件（用户能发回来的只有这份文本，两档各带相反方向的处置建议；缺这一行＝下一张 iOS 卡顿单仍然答不出该查落盘还是查大图层）', file: 'js/perf-check.js', needle: '· 冻结类型（主线程探针实测）' },
+  { name: '#1226g 删除型：把「这台内核没有 longtask 观测通道」写成一句绑机型／绑 UA 的旧措辞不得回流（真判据是能力表；安卓 Chrome 上同样会出现没通道的情形，那句话在两侧都是假话——needle 取那句六字短语，本行为何不重复它＝删除型哨兵连注释里也不许出现裸短语）', file: 'js/perf-check.js', needle: '此内核不支持观测', absent: true },
+  { name: '#1226h 前台冻结正文行只报实测事实（帧间隔＋无隐藏期），「卡在哪一侧」交给当场实测的「冻结类型」——旧措辞在分型未出之前就把原因写死在主线程那一侧，本族八批（#1295/#1300/#1301/#1311/#1313…）全部只削脚本与落盘、句句照做于这句推断；改回断言式措辞＝下一张 iOS 单又把方向预设为查脚本（⚠️ 该旧短语此刻仍留在 #934 那条机制注释里，注释会随产物合并＝这条只能做正向针，谁要加 absent 针先把那处注释一并清掉）', file: 'js/perf-check.js', needle: "· 前台冻结 ' + r.fz + ' 次（亮屏下帧间隔 >" },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

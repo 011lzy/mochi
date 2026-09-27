@@ -53,12 +53,17 @@ if (of < 30) return true;
 return (pj / pf) >= 2 * (oj / of);
 }
 function jankThr() { return Math.min(Math.max(minD * 2, MIN_JANK), MAX_JANK); } // #770：阈值随实测刷新周期自适应
+function ltNoneLine(r) {
+var cav = r.fz > 0 ? '（但窗内有 ' + r.fz + ' 次前台冻结未被长任务观测覆盖，以「前台冻结／冻结类型」两行为准）' : '';
+return r.ltCap ? '· 长任务（>50ms）：窗口内无' + cav
+: '· 长任务：这台内核没有 longtask 观测通道（按 PerformanceObserver 能力表判定，与机型无关），已改用帧间隔＋主线程探针等效判定' + cav;
+}
 function periodEst() {
-var anyMin = 0, repMin = 0;
+var anyMin = 0, repMin = 0, repN = 0;
 for (var k in gapHist) {
-var v = +k;
+var v = +k, n = gapHist[k];
 if (!anyMin || v < anyMin) anyMin = v;
-if (gapHist[k] >= 3 && (!repMin || v < repMin)) repMin = v;
+if (n >= 3 && (!repN || n > repN || (n === repN && v < repMin))) { repN = n; repMin = v; }
 }
 minD = repMin || anyMin;
 }
@@ -77,17 +82,22 @@ ms = Math.max(3000, Math.min(300000, Number(ms) || 30000));
 onTick = typeof onTick === 'function' ? onTick : function () {};
 var rep = { t: Date.now(), ms: ms, frames: 0, janky: 0, severe: 0, worst: 0, hid: 0,
 kbFrames: 0, kbJanky: 0, pages: {}, pageFrames: {}, jankMs: 0, period: 0, fps: 0, lt: null,
-int: null, scene: [], lp: false, bgMs: 0, effMs: 0, fz: 0, fzWorst: 0, topCnt: '' };
+int: null, scene: [], lp: false, bgMs: 0, effMs: 0, fz: 0, fzWorst: 0, topCnt: '',
+fzJs: 0, fzPaint: 0, ltCap: false };
 var last = performance.now(), t0 = last, raf = 0, done = false;
 var bgMs = 0, hiddenAt = -1, hidPending = 0;
 function onVis() {
 var now = performance.now();
 if (document.hidden) { hiddenAt = now; hidPending = 1; }
-else if (hiddenAt >= 0) { bgMs += now - hiddenAt; hiddenAt = -1; }
+else if (hiddenAt >= 0) { bgMs += now - hiddenAt; hiddenAt = -1; prLag = 0; } // #1226④：挂起期定时器被系统掐到秒级，回前台第一帧别把整段挂起算成主线程占用
 }
 try { document.addEventListener('visibilitychange', onVis, { passive: true }); } catch (e) {}
-var lt = { ok: false, n: 0, worst: 0, bgN: 0, top: [], agg: {} }, po = null;
+var lt = { ok: false, n: 0, worst: 0, bgN: 0, top: [], agg: {} }, po = null, ltCap = false;
 try {
+ltCap = !!window.PerformanceObserver &&
+Array.prototype.indexOf.call(PerformanceObserver.supportedEntryTypes || [], 'longtask') >= 0;
+} catch (e) {}
+if (ltCap) try {
 po = new PerformanceObserver(function (list) {
 try {
 var es = list.getEntries() || [];
@@ -114,17 +124,45 @@ var downEv = window.PointerEvent ? 'pointerdown' : 'mousedown';
 function onDown() { lastDown = performance.now(); }
 try { document.addEventListener(downEv, onDown, { passive: true }); } catch (e) {}
 minD = 0; gapHist = {}; gapFrames = 0;
+var pgCache = '?', pgDirty = true, pgMo = null;
+function pageCached() {
+if (!pgMo) return curPage();
+if (pgDirty) { pgCache = curPage(); pgDirty = false; }
+return pgCache;
+}
+try {
+pgMo = new MutationObserver(function () { pgDirty = true; });
+var pgEls = document.querySelectorAll('.page');
+for (var pgi = 0; pgi < pgEls.length; pgi++) {
+pgMo.observe(pgEls[pgi], { attributes: true, attributeFilter: ['hidden', 'class', 'style'] });
+}
+if (!pgEls.length) { try { pgMo.disconnect(); } catch (e0) {} pgMo = null; } // 一个页节点都没有＝没东西可跟，退回每帧直查
+if (!pgEls.length) pgMo = null; // 一个页节点都没挂着＝缓存无从失效，退回每帧直查
+} catch (e) { pgMo = null; }
+var prArm = 0, prLag = 0, prTimer = 0;
+function probe() {
+if (done) return;
+var t = performance.now();
+prLag = t - prArm > 0 ? Math.round(t - prArm) : 0;
+prArm = t;
+prTimer = setTimeout(probe, 0);
+}
+prArm = performance.now();
+try { prTimer = setTimeout(probe, 0); } catch (e) {}
 var first = true;
 function finish() {
 if (done) return;
 done = true;
 try { if (po) po.disconnect(); } catch (e) {}
+try { if (pgMo) pgMo.disconnect(); } catch (e) {} // #1226③ 页归因观察器随窗拆除（零常驻）
+try { clearTimeout(prTimer); } catch (e) {} // #1226④ 主线程探针链随窗拆除
 try { document.removeEventListener(downEv, onDown); } catch (e) {} // #818 响应监听随窗拆除
 try { document.removeEventListener('visibilitychange', onVis); } catch (e) {} // #934 可见性监听随窗拆除
 if (hiddenAt >= 0) { bgMs += performance.now() - hiddenAt; hiddenAt = -1; } // 窗口在后台里结束的尾段
 rep.bgMs = Math.round(bgMs);
 rep.effMs = Math.max(0, rep.ms - rep.bgMs); // 前台有效时长（fps 的分母与报告展示都按它）
 rep.lt = lt.ok ? lt : null;
+rep.ltCap = ltCap; // #1226①：报告要分清「真没有长任务」与「这台内核没给观测通道」
 rep.jankMs = Math.round(jankThr());
 rep.period = Math.round(minD * 10) / 10;
 rep.fps = rep.effMs >= 1000 ? Math.round(rep.frames * 10000 / rep.effMs) / 10 : 0;
@@ -174,7 +212,7 @@ rep.hid++; // 帧回调落到隐藏期（兜底），不计入样本
 rep.hid++; // 后台/锁屏冻结段剔除：隐藏时长已由 visibilitychange 计入 bgMs，不重复累计
 } else {
 rep.frames++;
-var pg = curPage();
+var pg = pageCached(); // #1226③：读缓存的页归因（旧写法每帧直查 DOM＋强制样式重算）
 rep.curPg = pg; // #906：当前所在页（进度浮条实时显示，让用户知道采样在跟着走）
 rep.pageFrames[pg] = (rep.pageFrames[pg] || 0) + 1;
 if (pg !== lastPgSeen) { lastPgSeen = pg; swAt = now; } // #818 切页时刻（最慢帧现场归因用）
@@ -194,6 +232,7 @@ if (d > jankThr()) {
 var fz = d > BG_GAP ? 1 : 0;
 if (fz) {
 rep.fz++; if (d > rep.fzWorst) rep.fzWorst = Math.round(d);
+if (prLag * 2 >= d) rep.fzJs++; else rep.fzPaint++;
 try {
 var _pl = window.__mochiPhaseLog || [], _hit = '(无标记)', _dl = -1;
 var _startWall = Date.now() - Math.round(d);
@@ -266,7 +305,12 @@ if (_diedN >= 3) L.push('· 本页已被系统回收过 ' + _diedN + ' 次（手
 } catch (e6) {}
 if (r.janky > 0) {
 L.push('· 掉帧 ' + r.janky + ' 帧（间隔>' + r.jankMs + 'ms），其中严重 ' + r.severe + ' 帧（>100ms），最慢一帧 ' + r.worst + 'ms');
-if (r.fz > 0) L.push('· 前台冻结 ' + r.fz + ' 次（亮屏下主线程被卡住 >' + BG_GAP + 'ms，最长 ' + r.fzWorst + 'ms）——现场见下方「最慢帧现场」的前台冻结标记');
+if (r.fz > 0) L.push('· 前台冻结 ' + r.fz + ' 次（亮屏下帧间隔 >' + BG_GAP + 'ms 且无隐藏期，最长 ' + r.fzWorst + 'ms）——卡在哪一侧见下方「冻结类型」实测，现场见下方「最慢帧现场」的前台冻结标记');
+if (r.fz > 0 && (r.fzJs || r.fzPaint)) {
+L.push('· 冻结类型（主线程探针实测）：主线程被任务占住 ' + (r.fzJs || 0) + ' 次、主线程空闲而出帧跟不上 ' + (r.fzPaint || 0) + ' 次'
++ (r.fzPaint > r.fzJs ? '——以「出帧跟不上」为主：卡的是画不出来（该页的大图层/模糊壁纸/超长列表图片解码），不是脚本跑不完；对着「掉帧集中」那页查图与 blur，落盘那条先放一放'
+: '——以「主线程被占住」为主：卡的是任务本身（大键落盘/图片解码/整页重渲），对着上面「冻结前序操作」那行找真凶'));
+}
 if (r.fzBy) {
 var _fk = Object.keys(r.fzBy).sort(function (a, b) { return r.fzBy[b] - r.fzBy[a]; }).slice(0, 4);
 if (_fk.length && r.fzBy[_fk[0]] > 0) {
@@ -305,7 +349,7 @@ ss.push('第' + sc.at + '秒 ' + pageName(sc.pg) + ' ' + sc.ms + 'ms' + (sc.fz ?
 var _lg = [];
 if (_mk.sw) _lg.push('「切页后」＝紧跟页面切换 0.5s 内，多为打开该页的一次性渲染成本');
 if (_mk.kb) _lg.push('「键盘期」＝键盘弹出期（视口被压缩的变形帧，iOS 上常见）');
-if (_mk.fz) _lg.push('「前台冻结」＝亮屏下主线程真被卡住 >' + BG_GAP + 'ms');
+if (_mk.fz) _lg.push('「前台冻结」＝亮屏下帧间隔 >' + BG_GAP + 'ms 且无隐藏期（是主线程被占住还是出帧跟不上，看上面「冻结类型」那行）');
 L.push('· 最慢帧现场：' + ss.join('；') + (_lg.length ? '（' + _lg.join('；') + '）' : ''));
 }
 }
@@ -330,10 +374,10 @@ if (_agList.length > 3) _agTxt += ' 等 ' + _agList.length + ' 页';
 L.push('· 长任务按页面：' + _agTxt + (r.lt.bgN ? '（前台任务归总；另有 ' + r.lt.bgN + ' 次发生在后台/锁屏期，未计入）' : ''));
 }
 } else {
-L.push('· 长任务（>50ms）：窗口内无');
+L.push(ltNoneLine(r)); // #1226①
 }
 } else {
-L.push('· 长任务：此内核不支持观测（iOS WebKit），已用帧间隔等效判定');
+L.push(ltNoneLine(r)); // #1226①：没掉帧也不等于「内核不支持观测」，两种口径分开说
 }
 if (r.int) {
 L.push('· 点按响应：采样 ' + r.int.n + ' 次，中位 ' + r.int.med + 'ms、最慢 ' + r.int.worst + 'ms（最慢在' + pageName(r.int.worstPg) + '）' + (r.int.slow > 0 ? '；' + r.int.slow + ' 次超过 100ms＝「点了隔一下才动」体感的直接来源' : ''));

@@ -53,6 +53,28 @@
 //   内补帧）就把周期钉死在 4ms。修法＝周期改从帧间隔直方图取「至少重复 3 次的最小取整间隔」，
 //   单次/双次抖动不入账；样本太少（无间隔重复到 3 次）退回旧最小值口径。真高刷与低电量整档
 //   30fps 是整窗反复出现的间隔，估计不变，不改变这两类判定。报告「正常帧间隔」随之显示真周期。
+// #1226 四处「尺子自己说谎／自己添乱」的纠偏（用户直派 iPhone 16 Pro Max / iOS 18.7 卡顿自检报告：
+//   「长任务（>50ms）：窗口内无」与同一份报告「前台冻结 106 次、最长 2393ms」并排；「正常帧间隔约
+//   4ms」在 60Hz 屏上仍是 4ms＝#958 那条口径没修到位。零机型／零 UA 分支，判据只取内核能力表与时序）：
+//   ①长任务观测能力改按 PerformanceObserver.supportedEntryTypes 判——旧写法拿「observe('longtask')
+//     会不会抛错」当能力探针，实测 WebKit（iOS Safari 与本仓无头 webkit）里它既不抛错也永不投递
+//     （能力表中就没有 longtask），于是 lt.ok 被置真、报告输出「窗口内无」＝一句没有任何观测支撑的
+//     否定，等于替 iOS 上所有 JS 阻塞签了无罪证明。现在没通道就照实说没通道；有通道但整窗零条时也
+//     点名「未被长任务覆盖的前台冻结 N 次」，两种情形都不再拿一个「无」字当结论。
+//   ②#958 的周期估计由「重复 ≥3 次的最小间隔」改成「重复 ≥3 的间隔里出现次数最多的那个」＝众数：
+//     真 vsync 周期是整窗反复出现的那个值（本次 1055 帧落在 16ms），而同 vsync 补帧的 4ms 抖动哪怕
+//     出现二十次也只是噪声——旧规则只问「重复没重复」，4ms 一旦重复到 3 次就永远赢过 16ms，阈值落到
+//     24ms 下限，25~33ms 的正常帧全被计成掉帧（本次「掉帧率 12.8%」由此虚高）。
+//   ③每帧的页面归因不再现场查 DOM：旧实现每帧 querySelectorAll('.page:not([hidden])') 再对每个可见页
+//     getComputedStyle(zIndex)＝把一次强制样式重算塞进被测量的窗口里（24867 节点量级的库上更贵；
+//     #943e 已给 swSample 立过同款规矩）。改为把观察器挂在 .page 页节点本身（只看 hidden/class/style
+//     三类属性）标脏、帧里读缓存——页真换人才重算一次，列表里的 hidden 抖动不惊动缓存；观察器随窗
+//     拆除，零常驻不变；一个页节点都挂不上时退回每帧直查（不许出现「缓存永不失效」的第三种形态）。
+//     长任务归因那条路（低频）照旧直查。
+//   ④前台冻结补「类型」判据：rAF 迟到时回看主线程探针（setTimeout(0) 自续链，只活在窗口内）——探针
+//     同样迟到＝这段时间主线程被任务占住（落盘／解码／脚本）；探针按时回执而帧仍迟到＝主线程是空的，
+//     晚的是出帧（合成／栅格：大图层、blur 这类）。iOS 没有 longtask 通道，旧报告只能给「冻结 106 次」
+//     一个孤数，建议把「查该页大图」和「查落盘时机」两条相反方向混成一条；现在当场分流。
 (function () {
   'use strict';
   if (window.mochiPerfCheck) return;
@@ -121,16 +143,30 @@
     return (pj / pf) >= 2 * (oj / of);
   }
   function jankThr() { return Math.min(Math.max(minD * 2, MIN_JANK), MAX_JANK); } // #770：阈值随实测刷新周期自适应
+  // #1226① 「长任务」这行在没有观测数据时的两种口径：旧写法不论哪种都写「窗口内无」——可 r.lt 为 null
+  // 既可能是「真没有」，也可能是「这台内核压根没给 longtask 观测通道」（iOS 正是后者），后者被写成
+  // 前者＝给整窗的 JS 阻塞发无罪证明；而 janky=0 那一支旧写法又把「没有观测通道」无条件扣在
+  // iOS WebKit 头上（在安卓 Chrome 上同样是假话）。现在一律按能力表（rep.ltCap）分流，措辞不绑机型、不绑 UA。
+  function ltNoneLine(r) {
+    var cav = r.fz > 0 ? '（但窗内有 ' + r.fz + ' 次前台冻结未被长任务观测覆盖，以「前台冻结／冻结类型」两行为准）' : '';
+    return r.ltCap ? '· 长任务（>50ms）：窗口内无' + cav
+      : '· 长任务：这台内核没有 longtask 观测通道（按 PerformanceObserver 能力表判定，与机型无关），已改用帧间隔＋主线程探针等效判定' + cav;
+  }
   // #958 刷新周期稳健估计：优先取「至少重复 3 次的最小取整间隔」＝显示屏 vsync 周期；单次/双次的
   // 调度抖动（iOS 的 4ms 补帧）不入账。真高刷（整窗 8ms）与 iOS 低电量整档 30fps（整窗 33ms）都是
   // 反复出现的间隔，估计值与旧版一致，不改变这两类判定；样本太少的窗口（没有间隔重复到 3 次）
   // 退回旧「单次最小值」口径，窗口起始几帧行为不变。
+  // #1226 修正「重复 ≥3 次里取最小」这一步：真 vsync 周期不只是「重复过」，它是整窗出现次数最多的
+  // 那个间隔（iPhone 16PM 那份报告里 16ms 出现上千次），而 4ms 补帧抖动重复二十次也只是噪声——旧写法
+  // 只要 4ms 重复到 3 次就永远赢过 16ms，周期被记成 4ms、jankThr 落到 24ms 下限，正常的 60Hz 帧又
+  // 开始被计成掉帧（#958 想治的病只治掉了「单次」那一半）。现在按众数取（次数并列时取更小者，窗口
+  // 起始几帧两种读法同值）；「没有间隔重复到 3 次就回退单次最小值」保持原样。
   function periodEst() {
-    var anyMin = 0, repMin = 0;
+    var anyMin = 0, repMin = 0, repN = 0;
     for (var k in gapHist) {
-      var v = +k;
+      var v = +k, n = gapHist[k];
       if (!anyMin || v < anyMin) anyMin = v;
-      if (gapHist[k] >= 3 && (!repMin || v < repMin)) repMin = v;
+      if (n >= 3 && (!repN || n > repN || (n === repN && v < repMin))) { repN = n; repMin = v; }
     }
     minD = repMin || anyMin;
   }
@@ -155,7 +191,8 @@
       onTick = typeof onTick === 'function' ? onTick : function () {};
       var rep = { t: Date.now(), ms: ms, frames: 0, janky: 0, severe: 0, worst: 0, hid: 0,
                   kbFrames: 0, kbJanky: 0, pages: {}, pageFrames: {}, jankMs: 0, period: 0, fps: 0, lt: null,
-                  int: null, scene: [], lp: false, bgMs: 0, effMs: 0, fz: 0, fzWorst: 0, topCnt: '' };
+                  int: null, scene: [], lp: false, bgMs: 0, effMs: 0, fz: 0, fzWorst: 0, topCnt: '',
+                  fzJs: 0, fzPaint: 0, ltCap: false };
       var last = performance.now(), t0 = last, raf = 0, done = false;
       // #934 后台/锁屏时长实测：fps 分母、「后台占比过半」提示、以及「>250ms 间隙算不算后台」都靠它；
       // 与 rAF/观察器同款纪律，只活在检测窗口内，窗口结束随窗拆除（零常驻）
@@ -163,14 +200,21 @@
       function onVis() {
         var now = performance.now();
         if (document.hidden) { hiddenAt = now; hidPending = 1; }
-        else if (hiddenAt >= 0) { bgMs += now - hiddenAt; hiddenAt = -1; }
+        else if (hiddenAt >= 0) { bgMs += now - hiddenAt; hiddenAt = -1; prLag = 0; } // #1226④：挂起期定时器被系统掐到秒级，回前台第一帧别把整段挂起算成主线程占用
       }
       try { document.addEventListener('visibilitychange', onVis, { passive: true }); } catch (e) {}
-      // 长任务：窗口内自建观察器（iOS WebKit observe('longtask') 抛错 → ok=false 降级为纯帧间隔判定）
-      // #934：除计数外记「第几秒·哪页·切页后/键盘期/后台期」top3——1.6s 级阻塞可定位来自哪一页、
-      // 是不是发生在后台期内（长任务低频，push+排序开销可忽略）
-      var lt = { ok: false, n: 0, worst: 0, bgN: 0, top: [], agg: {} }, po = null;
+      // 长任务：窗口内自建观察器（#934：除计数外记「第几秒·哪页·切页后/键盘期/后台期」top3——1.6s 级
+      // 阻塞可定位来自哪一页、是不是发生在后台期内；长任务低频，push+排序开销可忽略）
+      // #1226：能不能观测由内核能力表说了算，不再拿「observe 会不会抛错」当探针——WebKit（iOS Safari
+      // 与本仓无头 webkit）里 observe({type:'longtask'}) 既不抛错也永不投递（能力表中没有 longtask），
+      // 旧写法据此把 lt.ok 置真、报告写出「长任务：窗口内无」，而同一份报告有 106 次前台冻结、最长
+      // 2393ms＝给 JS 阻塞签了张无罪证明。零机型分支：读的是能力表，不是 UA。
+      var lt = { ok: false, n: 0, worst: 0, bgN: 0, top: [], agg: {} }, po = null, ltCap = false;
       try {
+        ltCap = !!window.PerformanceObserver &&
+          Array.prototype.indexOf.call(PerformanceObserver.supportedEntryTypes || [], 'longtask') >= 0;
+      } catch (e) {}
+      if (ltCap) try {
         po = new PerformanceObserver(function (list) {
           try {
             var es = list.getEntries() || [];
@@ -201,17 +245,55 @@
       function onDown() { lastDown = performance.now(); }
       try { document.addEventListener(downEv, onDown, { passive: true }); } catch (e) {}
       minD = 0; gapHist = {}; gapFrames = 0;
+      // #1226③ 页面归因缓存：帧里不再现场查 DOM——旧写法每帧 querySelectorAll('.page:not([hidden])')
+      // 再对每个可见页 getComputedStyle(zIndex)，等于把一次强制样式重算塞进被测量的窗口（库大到
+      // 2.4 万节点时更明显；#943e 已为 swSample 立过同款规矩）。窗口内挂一个只看 hidden 的观察器标脏，
+      // 页集合真变了才重算；随窗拆除＝零常驻不变。老内核没有 MutationObserver 时退回每帧直查。
+      var pgCache = '?', pgDirty = true, pgMo = null;
+      function pageCached() {
+        if (!pgMo) return curPage();
+        if (pgDirty) { pgCache = curPage(); pgDirty = false; }
+        return pgCache;
+      }
+      try {
+        pgMo = new MutationObserver(function () { pgDirty = true; });
+        // 观察器挂在页节点本身（不跟子树）：只有「哪个 .page 可见／它的 class・style（含 z-index）
+        // 变了」才打脏——列表卡片里的 hidden 抖动一律不惊动缓存。#770 的归因只取决于这两件事，
+        // 而 .page 是 template.html 里的静态锚点（新页走锚点、不动态造页），所以不必跟 childList。
+        var pgEls = document.querySelectorAll('.page');
+        for (var pgi = 0; pgi < pgEls.length; pgi++) {
+          pgMo.observe(pgEls[pgi], { attributes: true, attributeFilter: ['hidden', 'class', 'style'] });
+        }
+        if (!pgEls.length) { try { pgMo.disconnect(); } catch (e0) {} pgMo = null; } // 一个页节点都没有＝没东西可跟，退回每帧直查
+        if (!pgEls.length) pgMo = null; // 一个页节点都没挂着＝缓存无从失效，退回每帧直查
+      } catch (e) { pgMo = null; }
+      // #1226④ 主线程探针：setTimeout(0) 自续链，每轮回执记下「从排期到真跑起来被排了多少 ms」。
+      // rAF 迟到而探针没迟到＝那段时间主线程是空的、晚的是出帧（合成/栅格）；探针一起迟到＝主线程
+      // 被任务占住（落盘/解码/脚本）。只活在窗口内（done 后不再续排），一帧一次排程、开销可忽略。
+      var prArm = 0, prLag = 0, prTimer = 0;
+      function probe() {
+        if (done) return;
+        var t = performance.now();
+        prLag = t - prArm > 0 ? Math.round(t - prArm) : 0;
+        prArm = t;
+        prTimer = setTimeout(probe, 0);
+      }
+      prArm = performance.now();
+      try { prTimer = setTimeout(probe, 0); } catch (e) {}
       var first = true;
       function finish() {
         if (done) return;
         done = true;
         try { if (po) po.disconnect(); } catch (e) {}
+        try { if (pgMo) pgMo.disconnect(); } catch (e) {} // #1226③ 页归因观察器随窗拆除（零常驻）
+        try { clearTimeout(prTimer); } catch (e) {} // #1226④ 主线程探针链随窗拆除
         try { document.removeEventListener(downEv, onDown); } catch (e) {} // #818 响应监听随窗拆除
         try { document.removeEventListener('visibilitychange', onVis); } catch (e) {} // #934 可见性监听随窗拆除
         if (hiddenAt >= 0) { bgMs += performance.now() - hiddenAt; hiddenAt = -1; } // 窗口在后台里结束的尾段
         rep.bgMs = Math.round(bgMs);
         rep.effMs = Math.max(0, rep.ms - rep.bgMs); // 前台有效时长（fps 的分母与报告展示都按它）
         rep.lt = lt.ok ? lt : null;
+        rep.ltCap = ltCap; // #1226①：报告要分清「真没有长任务」与「这台内核没给观测通道」
         rep.jankMs = Math.round(jankThr());
         rep.period = Math.round(minD * 10) / 10;
         // #934 fps 分母改「前台有效时长」——原实现拿整窗（含后台/锁屏）当分母，300 秒窗口里
@@ -268,7 +350,7 @@
           rep.hid++; // 后台/锁屏冻结段剔除：隐藏时长已由 visibilitychange 计入 bgMs，不重复累计
         } else {
           rep.frames++;
-          var pg = curPage();
+          var pg = pageCached(); // #1226③：读缓存的页归因（旧写法每帧直查 DOM＋强制样式重算）
           rep.curPg = pg; // #906：当前所在页（进度浮条实时显示，让用户知道采样在跟着走）
           rep.pageFrames[pg] = (rep.pageFrames[pg] || 0) + 1;
           if (pg !== lastPgSeen) { lastPgSeen = pg; swAt = now; } // #818 切页时刻（最慢帧现场归因用）
@@ -292,6 +374,11 @@
               var fz = d > BG_GAP ? 1 : 0;
               if (fz) {
                 rep.fz++; if (d > rep.fzWorst) rep.fzWorst = Math.round(d);
+                // #1226④ 冻结类型分流：探针回执覆盖的正是「上一帧结束→这一帧开始」这段——它跟着迟到
+                // ＝主线程被任务占住；它按时回执而帧仍迟到＝主线程当时是空的，晚的是出帧（合成/栅格）。
+                // 两类给的是相反方向的处置（查落盘/解码 vs 查大图/模糊层），旧报告只有一条「冻结 N 次」
+                // 孤数，建议只能把两条路混在一起写。
+                if (prLag * 2 >= d) rep.fzJs++; else rep.fzPaint++;
                 // #907 冻结归因：回查冻结起点（wall 时钟≈现在−d）之前最近一条相位标记——
                 // 「冻结前最后在做什么」直接点名（大键写 IDB／小键写日志／聊天落盘／表情包落盘…）
                 try {
@@ -382,8 +469,17 @@
     if (r.janky > 0) {
       L.push('· 掉帧 ' + r.janky + ' 帧（间隔>' + r.jankMs + 'ms），其中严重 ' + r.severe + ' 帧（>100ms），最慢一帧 ' + r.worst + 'ms');
       // #934：亮屏下的超长阻塞单独点名（旧版把这它当后台冻结剔除，报告里连数字都看不到）
-      if (r.fz > 0) L.push('· 前台冻结 ' + r.fz + ' 次（亮屏下主线程被卡住 >' + BG_GAP + 'ms，最长 ' + r.fzWorst + 'ms）——现场见下方「最慢帧现场」的前台冻结标记');
-      // #907 冻结归因汇总：冻结前序操作分布（iOS 无 longtask 观测，这行是唯一能指出「谁在堵主线程」的取证）
+      // #1226h：这一行只报「帧断了」这一个可观测事实，谁慢了交给下方「冻结类型」当场实测——旧措辞在
+      // 分型出来之前就把原因写死在主线程那一侧（＝无据结论），而它正是本族一路只查脚本与落盘的入口
+      if (r.fz > 0) L.push('· 前台冻结 ' + r.fz + ' 次（亮屏下帧间隔 >' + BG_GAP + 'ms 且无隐藏期，最长 ' + r.fzWorst + 'ms）——卡在哪一侧见下方「冻结类型」实测，现场见下方「最慢帧现场」的前台冻结标记');
+      // #1226④ 冻结类型分流（探针实测）：两类卡处置方向相反，混着说等于没说
+      if (r.fz > 0 && (r.fzJs || r.fzPaint)) {
+        L.push('· 冻结类型（主线程探针实测）：主线程被任务占住 ' + (r.fzJs || 0) + ' 次、主线程空闲而出帧跟不上 ' + (r.fzPaint || 0) + ' 次'
+          + (r.fzPaint > r.fzJs ? '——以「出帧跟不上」为主：卡的是画不出来（该页的大图层/模糊壁纸/超长列表图片解码），不是脚本跑不完；对着「掉帧集中」那页查图与 blur，落盘那条先放一放'
+                                : '——以「主线程被占住」为主：卡的是任务本身（大键落盘/图片解码/整页重渲），对着上面「冻结前序操作」那行找真凶'));
+      }
+      // #907 冻结归因汇总：冻结前序操作分布（#1226① 实测确认：iOS 这类内核压根没有 longtask 通道，
+      // 这行就是唯一能指出「谁在堵主线程」的取证；#1226④ 的冻结类型先分流「是不是主线程」，再看这里）
       if (r.fzBy) {
         var _fk = Object.keys(r.fzBy).sort(function (a, b) { return r.fzBy[b] - r.fzBy[a]; }).slice(0, 4);
         if (_fk.length && r.fzBy[_fk[0]] > 0) {
@@ -428,7 +524,7 @@
         var _lg = [];
         if (_mk.sw) _lg.push('「切页后」＝紧跟页面切换 0.5s 内，多为打开该页的一次性渲染成本');
         if (_mk.kb) _lg.push('「键盘期」＝键盘弹出期（视口被压缩的变形帧，iOS 上常见）');
-        if (_mk.fz) _lg.push('「前台冻结」＝亮屏下主线程真被卡住 >' + BG_GAP + 'ms');
+        if (_mk.fz) _lg.push('「前台冻结」＝亮屏下帧间隔 >' + BG_GAP + 'ms 且无隐藏期（是主线程被占住还是出帧跟不上，看上面「冻结类型」那行）');
         L.push('· 最慢帧现场：' + ss.join('；') + (_lg.length ? '（' + _lg.join('；') + '）' : ''));
       }
     }
@@ -456,10 +552,10 @@
           L.push('· 长任务按页面：' + _agTxt + (r.lt.bgN ? '（前台任务归总；另有 ' + r.lt.bgN + ' 次发生在后台/锁屏期，未计入）' : ''));
         }
       } else {
-        L.push('· 长任务（>50ms）：窗口内无');
+        L.push(ltNoneLine(r)); // #1226①
       }
     } else {
-      L.push('· 长任务：此内核不支持观测（iOS WebKit），已用帧间隔等效判定');
+      L.push(ltNoneLine(r)); // #1226①：没掉帧也不等于「内核不支持观测」，两种口径分开说
     }
     if (r.int) {
       L.push('· 点按响应：采样 ' + r.int.n + ' 次，中位 ' + r.int.med + 'ms、最慢 ' + r.int.worst + 'ms（最慢在' + pageName(r.int.worstPg) + '）' + (r.int.slow > 0 ? '；' + r.int.slow + ' 次超过 100ms＝「点了隔一下才动」体感的直接来源' : ''));
