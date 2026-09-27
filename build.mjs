@@ -5442,8 +5442,8 @@ const FIX_SENTINELS = [
   { name: '#1323l 四行共用同一个宿主与入口管线（第二份上传实现＝两条会走偏的路，#1230 同一课：accept 迟到/键写错都从这里长出来）', file: 'js/call.js', needle: "window.mochiFilePickDoor(door, { owner: 'mochi-call-bg-pick', accept: 'image/*' })" },
   { name: '#1323m 市集商品图按钮在绑定处幂等补装（这颗全站只有合成腿、连 label 都没有，且每次重渲重新绑一遍＝在绑定处补刚好）', file: 'js/gift-shop.js', needle: "window.mochiFilePickDoor(pick, { owner: gmImgInput })" },
   { name: '#1323p 自动铺层前先爬到「盖不到别人」的那一格——SVG/mathml 命名空间跳过（往 svg 里塞 input＝不渲染＝白铺还留游离节点）', file: 'index.html', needle: "if (cur.namespaceURI && cur.namespaceURI !== 'http://www.w3.org/1999/xhtml') continue;" },
-  { name: '#1323q 整格覆盖只认 button/a（规范禁止其内部再放交互元素＝铺满不吃人）；其余元素走叶子判据', file: 'index.html', needle: "if (tag === 'BUTTON' || tag === 'A') return cur;" },
-  { name: '#1323r 非叶子容器一律不自动铺（一张 100%×100% 的透明 input 会浮在静态流内的孩子之上，把这一格里本来点别的孩子的动作整个接走＝修一处吃另一处，正是本批要终结的那件事）', file: 'index.html', needle: "if (!cur.children || cur.children.length === 0) return cur;" },
+  { name: '#1323q 整格覆盖只认 button/a（规范禁止其内部再放交互元素＝铺满不吃人）；其余元素走叶子判据【#1343 重锚：climb 现在交 {el,face}】', file: 'index.html', needle: "if (tag === 'BUTTON' || tag === 'A') return { el: cur, face: null };" },
+  { name: '#1323r 容器不整格自动铺（透明 input 浮在静态流内的孩子之上＝把点别的孩子的动作整个接走）【#1343 重锚：容器只按 face（手指那一格）的盒子铺，且确认命得中才留下】', file: 'index.html', needle: 'if (o.face && o.face !== el && el.contains(o.face))' },
   { name: '#1323n 诊断出账「选图门台账：在册 N · 此刻真铺着层 M」（在册与有层拉开＝这条自愈线在真机上到底咬合过没有，不用靠猜；#1272 同一课：活在内存里的取证随回收清零）', file: 'index.html', needle: "'选图门台账：在册 '" },
   { name: '#1323o 诊断出账「DOM 节点分解」（20272 那个总数此前从来只是一个数，#1295/#1300/#1301/#1311 四批都只能对着它猜一处脚本削一刀）', file: 'index.html', needle: "'· 节点分解（*=这一份此刻在屏上可见" },
   { name: '#1326a 整窗/增量渲染把真实下标在挂载前交给这一格（删＝#1004 的「迟到节点」判据读到 provisional 数，构建期每挂一格都被判成迟到，新消息被排到列表头部＝用户实报「对方正在输入中却不出消息，退出再进才显现」复发）', file: 'js/chat.js', needle: 'const __msgAt = Number.isFinite(atIdx) ? atIdx : msgs.length - 1;' },
@@ -5476,6 +5476,15 @@ const FIX_SENTINELS = [
   { name: '#1336e save 当场就把这一整包并入 feedPending（只挂在延后落盘的 feedWritePending 上不够：自愈那一发算完合并就顶掉 feedMem，实测「新动态先落库、再被下一次普通点赞按旧整包顶掉」16→15）', file: 'js/feed.js', needle: 'if (feedSyncCold) { try { feedPending = mergePosts(feedPending || [], arr); } catch (e) {} }' },
   { name: '#1336f 主列表空态在残缺期只说「还在读取」（退回只问 mochiDataPending＝库里 12 条时当面宣告「还没有动态」，用户据此以为数据没了；#1309 同一把尺）', file: 'js/feed.js', needle: '(feedSyncCold || (window.mochiDataPending && window.mochiDataPending()))' },
   { name: '#1336g 联系人主页（「联系人发的朋友圈」的直接落点）同一句谎一起收（删＝这一页照旧在残缺期宣告空态）', file: 'js/feed.js', needle: 'const allCold = feedSyncCold ||' },
+  /* ==== 2026-09-27 #1343 iPhone15／iOS 17.6.1 复报「朋友圈背景、表情包、大部分需要添加图片的功能都已卡死失效」＋「其他设备型号也有出现、不要覆盖式修补」。根因是一条与机型无关的判据写错：#1323 的门判据把「这一格没有元素子节点」当成「这一格装得下一个子节点」，而替换元素（img/canvas/input/video…）的子节点按规范不参与渲染——往 <img> 里 appendChild 一张 file input，节点在 DOM 里、盒子 0×0、elementFromPoint 永远命不中＝死层。全站「格子＝一张图」的入口（朋友圈封面/背景、好友头像、表情包、壁纸预览、商品图）恰好全是这个形状，无头复现：真鼠标落在 img 上→铺出的层 parent=IMG／w=0／h=0，第二发照旧走合成腿（＝iOS 静默拒绝那一族症状原样留着），而【诊断】的「此刻真铺着层 M」把它算成已修。本批改判据本身＋给铺层加一道当场复核（零机型／零 UA 分支，一行页面代码都不动）：装不出子节点的叶子不当门、往上爬到能装的宿主、宿主是容器时只按「手指那一格」的盒子铺（于是同格里的兄弟元素仍命中自己＝#1323 ④ 那条勿踩担心的事没发生）、铺完用 elementFromPoint 复核命得中、复核不过撤层；无 id 的格子改按结构锚落盘（iOS 每几分钟回收一次页面，#1323 的 B 档要求 id＝每场重交一发学费＝用户所见「每次进来都点不动」）。行为验证＝tools/verify-1343-img-cell-door-anchor.mjs ==== */
+  { name: '#1343a 模具拒收「装不出渲染子节点」的宿主（替换元素里铺 input＝0×0 死层，正是本批改的那条判据；删＝图片格子又回到铺了等于没铺）', file: 'index.html', needle: 'if (!pickDoorHostable(el) || !window.mochiFilePickSurface) return null;' },
+  { name: '#1343b 装不出子节点的叶子不当门、记下那一格的盒子继续往上爬（删回「叶子即门」＝朋友圈背景/表情包/头像那批 img 格子永久铺死层）', file: 'index.html', needle: 'if (leaf) { face = face || cur; continue; }' },
+  { name: '#1343c 容器当门的前提是「这一发确实是从装不出东西的叶子上爬上来的」，并把那一格交给模具收盒子（无 face 的容器照旧一律不铺＝不吃兄弟）', file: 'index.html', needle: 'if (face && pickDoorHostable(cur)) return { el: cur, face: face };' },
+  { name: '#1343d 按 face 收完盒子必须当场复核命中，复核不过＝撤层返回 null（宁可退回合成腿，也不留第二类「看起来修好了」的门）', file: 'index.html', needle: 'if (!pickDoorFitLayer(layer, el, o.face)) return null;' },
+  { name: '#1343e 宿主已排版而层还是 0×0 才算没铺上（宿主自己没盒子＝还没切到的页／隐藏容器，此刻判死会掐掉启动补装＝实测红过邻居 #1323 R3；死层不再计入「真铺着层」＝诊断那句谎收掉，人工门不带 veto＝行为逐字不变）', file: 'index.html', needle: 'if (_hb && _lb && _hb.width && _hb.height && (!_lb.width || !_lb.height))' },
+  { name: '#1343f 无 id 的门按结构锚落盘（#1323 的 B 档要求 tgt.id＝JS 现渲的图片格子基本没 id，iOS 每回收一次页面就重交一发学费）', file: 'index.html', needle: "'fp:' + _anchor.root + '>' + (_anchor.idx || []).join('/')" },
+  { name: '#1343g 补装时锚解析到别处就什么都不铺（拿猜错的格子铺门＝把别的入口变成死层，比不铺更糟）', file: 'index.html', needle: 'if (_f && !el.contains(_f)) _f = null;' },
+  { name: '#1343h 台账把「命得中」与「命不中」分开数（armed 只数有盒子的层，dead 单列＝下一批不再靠猜哪扇门是假的）', file: 'index.html', needle: 'if (b && b.width && b.height) armed++; else dead++;' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

@@ -1447,6 +1447,8 @@
         var _dc = window.mochiPickDoorCensus();
         L.push('选图门台账：在册 ' + _dc.total + ' 扇 · 此刻真铺着层 ' + _dc.armed + ' 扇'
           + (_dc.bad ? ' · 口径不一致已剔除 ' + _dc.bad + ' 扇' : '')
+          + (_dc.dead ? ' · 其中命不中的死层 ' + _dc.dead + ' 扇（0×0＝这一发仍走合成腿）' : '')
+          + (_dc.nofit ? ' · 复核不过撤层 ' + _dc.nofit + ' 次' : '')
           + (_dc.total > _dc.armed ? '（差值＝这一页刚被重画过，下一次点按当场补装）' : ''));
       }
     } catch (e) {}
@@ -4585,7 +4587,7 @@ function pickDoorHasLayer(el) {
 window.mochiFilePickDoor = function (el, o) {
   try {
     o = o || {};
-    if (!el || !el.appendChild || !window.mochiFilePickSurface) return null;
+    if (!pickDoorHostable(el) || !window.mochiFilePickSurface) return null; // #1343：替换元素装不出渲染得出来的子节点＝铺进去也是死层
     var owner = o.owner;
     var host = typeof owner === 'string' ? document.getElementById(owner) : owner;
     // 宿主还没被建出来（统一入口那个 input 是第一次点按钮时才建的）＝按 #1230 同一口径预建（noClick，
@@ -4605,6 +4607,23 @@ window.mochiFilePickDoor = function (el, o) {
     // （自带 position/z-index 的那些）会按 DOM 顺序压在层上面＝那几块点下去又走回合成腿。挪成第一个子
     // 节点＝层永远在最下、原有可点元素永远在上，两件事都不偷。
     try { if (layer.parentNode === el && el.firstChild !== layer) el.insertBefore(layer, el.firstChild); } catch (e0) {}
+    // #1343：宿主是容器时按 **face（手指真正落在的那一张）** 收盒子——只盖住用户点的这一格，同格里别的
+    // 子元素仍命中自己；收完当场用 elementFromPoint 复核这层确实接得住这一发，复核不过＝撤层返回 null。
+    // 没有 face 的（叶子格／人工门）沿用 100%×100%，但自学铺的那张要量一次盒子：0×0＝命不中＝不算铺上，
+    // 于是「诊断里真铺着层 M」不再把死层算成已修（本批第二条谎）。
+    if (o.face && o.face !== el && el.contains(o.face)) {
+      if (!pickDoorFitLayer(layer, el, o.face)) return null;
+    } else if (o.veto) {
+      // 只在「宿主自己已排版、而层却是 0×0」时判死层——宿主本身没盒子（还没切到的页／隐藏容器）时
+      // 这一层将来会随宿主一起有尺寸，此刻判死＝把 #1323 启动补装整条路掐掉（实测红过邻居 R3）。
+      var _hb = null, _lb = null;
+      try { _hb = el.getBoundingClientRect(); _lb = layer.getBoundingClientRect(); } catch (e1) {}
+      if (_hb && _lb && _hb.width && _hb.height && (!_lb.width || !_lb.height)) {
+        try { if (layer.parentNode) layer.parentNode.removeChild(layer); } catch (e2) {}
+        window.__mochiDoorNoFit = (window.__mochiDoorNoFit || 0) + 1;
+        return null;
+      }
+    }
     var rec = layer.__mochiSurface;
     if (rec) {
       if (o.veto) rec.veto = 1;
@@ -4613,23 +4632,121 @@ window.mochiFilePickDoor = function (el, o) {
   } catch (e) { return null; }
 };
 // ② 记门：只有「这一下真的走了合成腿」才记（手指落在已有层上的那一发原生已经在管事，不该再动）
+// FIX 2026-09-27 #1343（iPhone 15 / iOS 17.6.1 复报「朋友圈背景、表情包、大部分需要添加图片的功能都已
+// 卡死失效」，并明说其他设备型号也有出现、要求不要覆盖式修补）：#1323 的叶子判据把「这一格没有元素子
+// 节点」当成了「这一格装得下一个子节点」——这两件事在**替换元素**上不成立：<img>／<canvas>／<input>／
+// <video> 这些元素的子节点按规范不参与渲染，往 <img> 里 appendChild 一个 file input，节点确实在 DOM 里、
+// getBoundingClientRect 是 0×0、elementFromPoint 永远命不中它＝一张**死层**。而全站「格子＝一张图」的入口
+// （朋友圈封面/背景、好友头像、表情包、壁纸预览、商品图）恰好全是这个形状，无头复现：真鼠标落在 img 上
+// → 自学铺出的层 parent=IMG／w=0／h=0，第二发照旧走合成腿＝iOS 静默拒绝那一族症状原样留着，而【诊断】
+// 的「此刻真铺着层 M」把它算成已修＝谎报。本批改这一条判据本身（零机型／零 UA）：
+//   · 装不出子节点的叶子**不当门**，继续往上爬到装得出的宿主；
+//   · 爬到的是容器（有别的元素子节点）时，层只按**手指那一格的盒子**铺，不整格覆盖＝旁边别的子元素仍命中
+//     自己（#1323 ④ 那条「容器一律不铺」担心的正是整格覆盖吃掉兄弟，缩到落点这一格就没这个担心）；
+//   · 铺完当场用 elementFromPoint 复核「落点这一格确实命中新层」，被别的子元素挡着就先抬那一格，抬完仍
+//     不过＝**不铺**（退回 #1323 之前的合成腿）并计入 census，绝不留下第二类死层。
+var PICK_DOOR_NOCHILD = { IMG: 1, INPUT: 1, BR: 1, HR: 1, PICTURE: 1, SOURCE: 1, VIDEO: 1, AUDIO: 1, IFRAME: 1, EMBED: 1, OBJECT: 1, TRACK: 1, AREA: 1, CANVAS: 1, PROGRESS: 1, SELECT: 1, TEXTAREA: 1, META: 1, LINK: 1, SCRIPT: 1, STYLE: 1, BASE: 1, WBR: 1 };
+function pickDoorHostable(el) { return !!(el && el.appendChild && !PICK_DOOR_NOCHILD[el.tagName]); }
+// 结构锚：这一格没有 id 时（JS 现渲的图片格子基本都是）用「最近带 id 的祖先 ＋ 一路子序号」记住它，
+// 供起手/启动那两次扫按原样补回。#1323 的 B 档要求 tgt.id，于是无 id 的每一格每场都要重交一次学费；
+// iOS 每隔几分钟回收一次页面＝每次回收都重新交。解析不中＝跳过（绝不在猜错的那一格上铺层）。
+function pickDoorAnchor(el) {
+  try {
+    var seg = [], cur = el, i = 0;
+    for (; i < 8 && cur && cur.nodeType === 1; i++, cur = cur.parentElement) {
+      if (cur.id) {
+        seg.reverse();
+        return { root: String(cur.id).slice(0, 40), idx: seg, ok: 1 };
+      }
+      var p = cur.parentElement;
+      if (!p) break;
+      var kids = p.children || [], k = 0, n = 0;
+      for (; n < kids.length; n++) { if (kids[n] === cur) break; if (kids[n].tagName === cur.tagName) k++; }
+      seg.push(cur.tagName + '#' + k);
+    }
+  } catch (e) {}
+  return null;
+}
+function pickDoorResolve(a) {
+  try {
+    if (!a || !a.root || !Array.isArray(a.idx)) return null;
+    var cur = document.getElementById(a.root);
+    if (!cur) return null;
+    for (var i = 0; i < a.idx.length && cur; i++) {
+      var seg = String(a.idx[i]).split('#'), want = seg[0], k = Number(seg[1]) || 0;
+      var kids = cur.children || [], hit = null;
+      for (var n = 0; n < kids.length; n++) {
+        if (kids[n].tagName !== want) continue;
+        if (k-- === 0) { hit = kids[n]; break; }
+      }
+      cur = hit;
+    }
+    return cur && cur.nodeType === 1 ? cur : null;
+  } catch (e) { return null; }
+}
 // 从「手指真正落到的那一格」向上找到**铺层安全**的那一格（≤6 层）：
 //   · SVG／mathml 节点跳过——往 `<svg>` 里塞 `<input>` 不渲染，等于白铺还留个游离节点；
 //   · `<button>`／`<a>`／`<label>` 整格覆盖安全：规范就不允许它们内部再放可交互元素，
 //     铺满也不会盖掉谁的按钮；
-//   · 其余 HTML 元素只认**叶子**（没有元素子节点）：层的盒子＝这一格的盒子，兄弟一格都盖不到。
-//     非叶子的容器一律不自动铺——一张 100%×100% 的透明 input 浮在静态流内的孩子之上，
-//     会把这一格里本来要点别的孩子的动作整个接走（＝本批最不该犯的那件事：修一处、吃掉另一处）。
+//   · 其余 HTML 元素只认**装得出子节点的叶子**：层的盒子＝这一格的盒子，兄弟一格都盖不到。
+//     非叶子的容器一律不整格自动铺——一张 100%×100% 的透明 input 浮在静态流内的孩子之上，
+//     会把这一格里本来要点别的孩子的动作整个接走（＝#1323 ④ 那条勿踩，本批原样保留）。
+//   · #1343 补的第三型：**装不出子节点的叶子**（<img>／<canvas>／<input>…替换元素按规范不渲染子节点）
+//     不当门——铺进去就是一张 0×0、elementFromPoint 命不到的死层。记下它那一格的盒子继续往上爬，
+//     爬到能装子节点的宿主时**只按这一格的盒子**铺（face），于是「格子＝一张图」那批入口既活得过来、
+//     又不会连带吃掉同格里的兄弟按钮。返回 {el 宿主, face 落点那一格}。
 function pickDoorClimb(node) {
   try {
+    var face = null;
     for (var cur = node, i = 0; i < 6 && cur && cur.nodeType === 1; i++, cur = cur.parentElement) {
       if (cur.namespaceURI && cur.namespaceURI !== 'http://www.w3.org/1999/xhtml') continue;
       var tag = cur.tagName;
-      if (tag === 'BUTTON' || tag === 'A') return cur;   // label 不算：它自己就是转发层，再塞 input 进去＝两条转发路叠在一格
-      if (!cur.children || cur.children.length === 0) return cur;
+      if (tag === 'BUTTON' || tag === 'A') return { el: cur, face: null };   // label 不算：它自己就是转发层，再塞 input 进去＝两条转发路叠在一格
+      var leaf = !cur.children || cur.children.length === 0;
+      if (leaf && pickDoorHostable(cur)) return { el: cur, face: null };
+      if (leaf) { face = face || cur; continue; }
+      if (face && pickDoorHostable(cur)) return { el: cur, face: face };
     }
   } catch (e) {}
   return null;
+}
+// 把层收到 face 那一格的盒子上，并当场复核「这一格确实命中新层」。复核不过＝撤层返回 false，
+// 由调用方按「没铺成」处理——本批宁可退回合成腿，也不留第二类看起来修好了的门。
+function pickDoorFitLayer(layer, host, face) {
+  try {
+    var fr = face.getBoundingClientRect(), hr = host.getBoundingClientRect();
+    if (!fr.width || !fr.height) return false;
+    layer.style.left = Math.round(fr.left - hr.left) + 'px';
+    layer.style.top = Math.round(fr.top - hr.top) + 'px';
+    layer.style.width = Math.round(fr.width) + 'px';
+    layer.style.height = Math.round(fr.height) + 'px';
+    var cx = fr.left + fr.width / 2, cy = fr.top + fr.height / 2;
+    if (cx < 0 || cy < 0 || cx > window.innerWidth || cy > window.innerHeight) return true; // 不在视口内＝无从复核，按旧语义放行
+    var u = document.elementFromPoint(cx, cy);
+    if (u === layer) return true;
+    if (u === face) { // face 自己是定位元素、压在层上面：把层抬到它之上（盒子与它完全重合＝只盖它这一格）
+      try { layer.style.zIndex = '2'; } catch (e1) {}
+      u = document.elementFromPoint(cx, cy);
+      if (u === layer) return true;
+    }
+    // 只有「挡路那一格本来就在这扇门之内」才是本条判据要拦的事（同格里的徽标／角标按钮＝让路给它，
+    // 让不开就是它 owns 这一发＝撤层）。挡在外面的是临时的遮罩／开屏层／还没切到的页（#1323 R3 量到的
+    // 正是启动那一刻的 splash 盖住静态锚），那些散去之后这层就是真门＝当场判死会把补装整条路掐掉。
+    if (u && !host.contains(u)) return true;
+    if (u && !u.__mochiSurface) {
+      try {
+        var up = '';
+        try { up = getComputedStyle(u).position || ''; } catch (e2) {}
+        if (up === 'static' || up === '') u.style.position = 'relative';
+        if (!u.style.zIndex || u.style.zIndex === 'auto' || u.style.zIndex === '0') u.style.zIndex = '1';
+      } catch (e3) {}
+      u = document.elementFromPoint(cx, cy);
+      if (u === layer) return true;
+    }
+    try { if (layer.parentNode) layer.parentNode.removeChild(layer); } catch (e4) {}
+    window.__mochiDoorNoFit = (window.__mochiDoorNoFit || 0) + 1;
+    return false;
+  } catch (e) { return false; }
 }
 window.mochiFilePickLearnDoor = function (input) {
   try {
@@ -4640,7 +4757,8 @@ window.mochiFilePickLearnDoor = function (input) {
     if (surfAt && Date.now() - surfAt < 400) return;         // 本次手势落在真层上＝别重复记
     var raw = ev.target;
     if (!raw || raw.nodeType !== 1 || raw.__mochiSurface) return;   // 落点本身就是某张层＝这一发已由原生腿负责，不再记
-    var tgt = pickDoorClimb(raw);                                    // 往上找铺得安全的那一格（见上）
+    var climb = pickDoorClimb(raw);                                  // 往上找铺得安全的那一格（见上）
+    var tgt = climb && climb.el, face = climb && climb.face;         // #1343：face＝手指那一格（宿主是容器时按它收盒子）
     if (!tgt) return;
     if (!input || !input.id || !input.accept) return;        // 宿主没有 accept＝无法保证重建时口径一致（音频/文件门不自动学）
     var cur = ev.currentTarget;
@@ -4665,19 +4783,22 @@ window.mochiFilePickLearnDoor = function (input) {
         // 取证只留一笔：A 档「当场换」与 B 档「落账」是同一次动作的两半，各记一笔会把 #1014 那口
         // 只有 6 格的环挤掉——实测挤掉过 verify-1230 的 B1d（leg:fire 被自己的新观测顶出环＝邻居假红）。
         var _justArmed = !_had;
-        if (window.mochiFilePickDoor(tgt, { id: tgt.__mochiDoorId, owner: input, veto: _had ? undefined : 1 }) && _justArmed && window.mochiPickLog) {
+        if (window.mochiFilePickDoor(tgt, { id: tgt.__mochiDoorId, owner: input, veto: _had ? undefined : 1, face: _had ? null : face }) && _justArmed && window.mochiPickLog) {
           window.__mochiDoorPendingLog = 1; // 由下面的 B 档决定这一笔的名字：落得了盘就叫 door:learn
         }
       } catch (eA) {}
     }
-    // B 档·落盘：有 id 才留得下（无 id＝重画之后找不到回这格的路＝不学，A 档那一层仍然当场有效）。
-    // 留盘记录的是「这格 → 哪个宿主、什么口径」，供起手/启动那两次扫装按原样补回。
+    // B 档·落盘：有 id 直接按 id 记；**没有 id 的按结构锚记**（#1343——JS 现渲的图片格子基本都没有 id，
+    // 而 iOS 每隔几分钟回收一次页面＝每场都要重交一发学费，用户所见就是「每次进来都点不动」）。
+    // 留盘记录的是「这格（＋手指那一格）→ 哪个宿主、什么口径」，供起手/启动那两次扫装按原样补回。
     var _bstat = '';
     try {
-      if (tgt.id && tgt.isConnected) {
+      var _anchor = tgt.id ? null : pickDoorAnchor(tgt);
+      if ((tgt.id || _anchor) && tgt.isConnected) {
         var d = pickDoorLoad();
-        var k = String(tgt.id).slice(0, 40);
+        var k = String(tgt.id || ('fp:' + _anchor.root + '>' + (_anchor.idx || []).join('/'))).slice(0, 80);
         var want = { owner: String(input.id).slice(0, 40), accept: String(input.accept).slice(0, 40), multiple: !!input.multiple, t: Date.now() };
+        if (!tgt.id) { want.a = _anchor; if (face) want.f = pickDoorAnchor(face); }
         var old = d[k];
         if (old && old.bad) { /* 已被判过「口径不一致」＝永久裁决，不再自动铺 */ }
         else if (old && (old.owner !== want.owner || old.accept !== want.accept || !!old.multiple !== want.multiple)) {
@@ -4715,10 +4836,12 @@ window.mochiPickDoorSweep = function (force) {
       if (!Object.prototype.hasOwnProperty.call(d, k)) continue;
       var r = d[k];
       if (!r || r.bad || !r.owner) continue;
-      var el = document.getElementById(k);
-      if (!el || !el.appendChild) continue;
+      var el = k.indexOf('fp:') === 0 ? pickDoorResolve(r.a) : document.getElementById(k); // #1343：无 id 的门按结构锚找回去
+      if (!el || !pickDoorHostable(el)) continue;
       if (pickDoorHasLayer(el)) continue;
-      window.mochiFilePickDoor(el, { owner: r.owner, accept: r.accept, multiple: r.multiple, veto: 1 });
+      var _f = r.f ? pickDoorResolve(r.f) : null;
+      if (_f && !el.contains(_f)) _f = null;   // 锚解析到别处＝宁可不铺，绝不在猜错的格子上铺一张门
+      window.mochiFilePickDoor(el, { owner: r.owner, accept: r.accept, multiple: r.multiple, veto: 1, face: _f });
       n++;
     }
     return n;
@@ -4761,19 +4884,34 @@ try {
 // 点按当学费；JS 现渲的门此刻还不在，交给下一次点按起手的 sweep（同一把尺子，两条路都通）。
 try { setTimeout(function () { window.mochiPickDoorSweep(true); }, 0); } catch (e4) {}
 // 台账出账（诊断单用）：共几扇、当前真装着几扇、被剔掉几扇——证明这条自愈线在真机上到底咬合过没有
+// #1343：「真铺着层」不能再把**命不中的层**算成已修——铺进 <img> 里的那种 0×0 死层过去就计在 armed 里，
+// 于是诊断说「在册 12 · 有层 12」而用户那一下照样没反应。现在 armed 只数有盒子且命得中的，另计 dead。
+function pickDoorLayerOf(el) {
+  try {
+    var kids = el.children || [];
+    for (var i = 0; i < kids.length; i++) {
+      if (kids[i].getAttribute && kids[i].getAttribute('data-file-pick-surface') === '1') return kids[i];
+    }
+  } catch (e) {}
+  return null;
+}
 window.mochiPickDoorCensus = function () {
-  var d = pickDoorLoad(), total = 0, armed = 0, bad = 0;
+  var d = pickDoorLoad(), total = 0, armed = 0, bad = 0, dead = 0;
   try {
     for (var k in d) {
       if (!Object.prototype.hasOwnProperty.call(d, k)) continue;
       total++;
       var r = d[k];
       if (!r || r.bad) { bad++; continue; }
-      var el = document.getElementById(k);
-      if (el && pickDoorHasLayer(el)) armed++;
+      var el = k.indexOf('fp:') === 0 ? pickDoorResolve(r.a) : document.getElementById(k);
+      var lay = el && pickDoorLayerOf(el);
+      if (!lay) continue;
+      var b = null;
+      try { b = lay.getBoundingClientRect(); } catch (e1) {}
+      if (b && b.width && b.height) armed++; else dead++; // 0×0＝这张层根本命不到＝病还在
     }
   } catch (e) {}
-  return { total: total, armed: armed, bad: bad };
+  return { total: total, armed: armed, bad: bad, dead: dead, nofit: window.__mochiDoorNoFit || 0 };
 };
 
 // ===== #1273 「轻点」共用绑定原语：touch 路 ＋ pointer 路 ＋ click 兜底，三路共用防重入 =====
