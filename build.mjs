@@ -1074,7 +1074,7 @@ const FIX_SENTINELS = [
   { name: '#163 主动消息先掷默认字卡概率（dc-overall-chat 命中即用默认卡，修主动消息从不混默认=概率调到八九十仍总发用户自定义字卡反复出现）', file: 'js/chat.js', needle: "if (defs && defs.type !== 'poke' && defs.text) return { text: defs.text, type: 'text' };" },
   { name: '#163 群聊文本回复按成员桌面混入默认字卡（同聊天页 genOneReply 覆盖语义，原只有拍一拍走 getDefaultCardsFor）', file: 'js/group-chat.js', needle: "if (defs && defs.type === 'text' && defs.text) t = defs.text;" },
   { name: '#166 存储优化·媒体池GC引用面（#142 池只增不删债务收口；引用源扫描被删即消失）', file: 'js/media-pool.js', needle: 'keys.filter(function (k) { return REFS.test(String(k)); })' },
-  { name: '#166 存储优化·写日志标记合并（每小键 set 值+标记两个 IDB 事务并成一个批量事务；改回逐键即时写即消失）', file: 'js/idb.js', needle: 'setTimeout(wrjMarkFlush, WRJ_MARK_FLUSH_MS)' },
+  { name: '#166 存储优化·写日志标记合并（每小键 set 值+标记两个 IDB 事务并成一个批量事务；改回逐键即时写即消失）', file: 'js/idb.js', needle: '_wrjMarkT = setTimeout(wrjMarkAt, Math.max(0, Math.min(_wrjMarkDue, _wrjMarkCap) - now));' },
   { name: '#166 存储优化·查看存储页孤儿清理入口（媒体池面板接线）', file: 'js/personalize.js', needle: "getElementById('st-media-gc')" },
   { name: '#167 多字卡回复总开关·单聊 scheduleReply（关=回复条数强制1条，修「关了多字卡仍拆多条」；改回无条件 randInt 即消失）', file: 'js/chat.js', needle: "const count = (c['py-en'] === 1) ? randInt(rpMin, rpMax) : 1;" },
   { name: '#167 多字卡回复总开关·继续说 continueChat（同上语义）', file: 'js/chat.js', needle: "count = (c['py-en'] !== 1) ? 1 : randInt(rpMin, rpMax);" },
@@ -4143,7 +4143,7 @@ const FIX_SENTINELS = [
   { name: '#943a 超限遗留 LS 聊天快照跳过整包 parse 合并（删＝每次发消息/退后台 2.7MB JSON.parse+全量合并重串化压回主线程）', file: 'js/chat.js', needle: "if (raw.length > LS_SNAP_LIMIT) { performLsSnapWrite(msgsNow, prefix); return; }" },
   { name: '#943b 表情包整包写防抖 600ms（删＝面板每次点按都同步串化 1.14MB+大 IDB put）', file: 'js/chat.js', needle: "myeSaveTimer = setTimeout(function () { myeSaveTimer = null; myEmojiSaveNow(); }, 600);" },
   { name: '#943b 离页当场补发防抖中的表情包写（删＝600ms 窗口内退出丢保存）', file: 'js/chat.js', needle: "if (myeSaveTimer) { clearTimeout(myeSaveTimer); myeSaveTimer = null; myEmojiSaveNow(); }" },
-  { name: '#943c 写日志落盘防抖 200ms（删＝xyStore.set 每写一小键就整本日志 stringify+setItem）', file: 'js/idb.js', needle: "_wrjPersistT = setTimeout(wrjPersistFlush, 200);" },
+  { name: '#943c 写日志落盘防抖 200ms（删＝xyStore.set 每写一小键就整本日志 stringify+setItem）', file: 'js/idb.js', needle: "_wrjPersistT = setTimeout(wrjPersistAt, Math.max(0, Math.min(_wrjDue, _wrjCap) - now));" },
   { name: '#943c 离页冲刷防抖中的日志落盘（删＝写完 200ms 内退出丢日志条目）', file: 'js/idb.js', needle: "if (document.visibilityState === 'hidden') { wrjMarkFlush(); wrjPersistFlush(); }" },
   { name: '#943d 桌面视觉重应用拆帧（删＝回到桌面一帧同步跑完七项含大 dataURL 重应用＝950ms 冻结）', file: 'js/personalize.js', needle: "const rest = [applyAllWidgetTexts, applyAllWidgetOpacities, renderDeskImages, syncBgUI];" },
   { name: '#943e 回桌面自动帧采样限频 5 分钟（删＝每次切回桌面开 30 帧 rAF 循环自我加压）', file: 'js/desktop-slider.js', needle: "if (now943 - (swSample.last || 0) < 300000) return;" },
@@ -5372,6 +5372,11 @@ const FIX_SENTINELS = [
   { name: '#1324e', file: 'js/desktop-slider.js', needle: "function awayGap() { if (!awayEdge) return false; awayEdge = false; return true; }", note: "边界一次性消费（不消费＝之后每一帧都被丢弃＝样本永远攒不满；一次边界只作废一帧）" },
   { name: '#1324f', file: 'js/desktop-slider.js', needle: "if (awayGap()) { hid++; last = 0; requestAnimationFrame(tick); return; } // #1324", note: "翻页尺（#690）认挂起边界（删＝一条后台间隙再次把均值拉成假「严重卡顿」，#707 只挡住「回调还在跑」那一种）" },
   { name: '#1324g', file: 'js/desktop-slider.js', needle: "if (document.hidden || awayGap()) { hid++; last = 0; requestAnimationFrame(tick); return; } // #1324", note: "切回桌面尺（#884）同款（这条路径的旧读数「平均 1196ms／最慢 20828ms」＝用户口径「从后台切回来最卡」被尺子放大过的证据）" },
+  { name: '#1206a 交互判据＝「最近一次手势时间戳」这条表达式本身（换成名字锚点＝留着名字改掉实现也照报绿；判据被改成读机型/UA 即失配）', file: 'js/mobile-adapt.js', needle: 'return Date.now() - __actLast() < (holdMs > 0 ? holdMs : 380);' },
+  { name: '#1206b 后台期恒判「没在交互」（离页那一次落盘绝不让路＝#943c 防丢语义零破口）', file: 'js/mobile-adapt.js', needle: "if (typeof document !== 'undefined' && document.hidden) return false;" },
+  { name: '#1206c 日志落盘到期裁决按手势让路', file: 'js/idb.js', needle: 'if (wrjBusy() && now < _wrjCap) { _wrjPersistT = setTimeout(wrjPersistAt, 150); return; }' },
+  { name: '#1206d 标记批量到期裁决按手势让路（只押后标记，值事务照旧同步先发）', file: 'js/idb.js', needle: 'if (wrjBusy() && now < _wrjMarkCap) { _wrjMarkT = setTimeout(wrjMarkAt, 150); return; }' },
+  { name: '#1206e 让路有硬上限常量（改成 Infinity＝日志静默不落盘）', file: 'js/idb.js', needle: 'const WRJ_FLUSH_MS = 200, WRJ_BUSY_CAP = 1200;' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

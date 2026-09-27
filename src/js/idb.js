@@ -1366,6 +1366,17 @@
   // 全包串化税（456 键的域里发消息/开关切换连写时叠加成可感长任务）。改 200ms trailing
   // 合并；离页（visibilitychange hidden / pagehide）当场冲刷，写入仍必达，防丢语义不变。
   let _wrjPersistT = null;
+  // #1206 交互让路：本函数是「整本日志 stringify ＋ 同步 localStorage 写」（实测该域里
+  // __wr-journal 已长到 76.9KB），200ms 防抖到期点正好落在用户滑动/打字的窗口里付费。
+  // 现按 __mochiInteracting()（mobile-adapt.js 的交互窗口信号）让路到停手，但最迟
+  // WRJ_BUSY_CAP 必落一次——连续滑动不停手也不会把日志无限押后；离页另有
+  // visibilitychange hidden / pagehide 当场冲刷两条兜底，防丢语义与 #943c 完全一致。
+  // 与 #1324 的「内容逐字相同即跳过」叠在一处：让路决定「什么时候写」，跳过决定「要不要写」。
+  const WRJ_FLUSH_MS = 200, WRJ_BUSY_CAP = 1200;
+  let _wrjDue = 0, _wrjCap = 0;
+  function wrjBusy() {
+    try { return !!(window.__mochiInteracting && window.__mochiInteracting()); } catch (e) { return false; }
+  }
   // FIX 2026-09-27 #1324（iPhone 17 Pro Max／iOS 26.6.1 复报「切页面和从后台切回来最卡」；同批 perfcheck
   //   自报「前台冻结 19 次／10 秒」「wrj-journal 距冻结起点中位 2ms＝紧邻高危」）：上面那条「离页当场冲刷」
   //   把「有改动必达」写成了「不管有没有改动都整本重写一遍」。纯 HEAD 副本实测：四次后台往返里一条数据都没
@@ -1378,15 +1389,27 @@
   let _wrjLanded = null;             // 上一次真的写进 localStorage 的那份序列化串
   function wrjPersistFlush() {
     if (_wrjPersistT) { clearTimeout(_wrjPersistT); _wrjPersistT = null; }
+    _wrjDue = 0; _wrjCap = 0; // #1206 回看/落盘一并作废，下一次排程重新起表
     let s;
     try { s = JSON.stringify(_wrj || []); } catch (e0) { return; }
     if (s === _wrjLanded) return;    // 内容没变＝库里那份就是它，不必再同步重写一整本
     try { if (window.__mochiPhase) window.__mochiPhase('wrj-journal'); } catch (e1) {}
     try { localStorage.setItem(WRJ_KEY, s); _wrjLanded = s; } catch (e2) {}
   }
+  // 到期裁决：还在手势里且没到硬上限 → 150ms 后回看（回看不重置 due/cap＝押后总量有界）；
+  // 否则当场落盘。排程之后手指才落下来的（滑动中途到期）走同一条路，不留「已排程就照付」的缺口。
+  function wrjPersistAt() {
+    _wrjPersistT = null;
+    const now = Date.now();
+    if (wrjBusy() && now < _wrjCap) { _wrjPersistT = setTimeout(wrjPersistAt, 150); return; }
+    wrjPersistFlush();
+  }
   function wrjPersist() {
     if (_wrjPersistT) return;
-    _wrjPersistT = setTimeout(wrjPersistFlush, 200);
+    const now = Date.now();
+    if (!_wrjDue) _wrjDue = now + WRJ_FLUSH_MS;
+    if (!_wrjCap) _wrjCap = now + WRJ_BUSY_CAP;
+    _wrjPersistT = setTimeout(wrjPersistAt, Math.max(0, Math.min(_wrjDue, _wrjCap) - now));
   }
   // v3.26.x 存储优化：标记合并落库——原实现每个小键 set 各发一个 IDB 事务写时间戳标记，
   // 值事务之外白翻倍事务数；现积攒 150ms 用 idbSetAll 单事务批量写。语义不变：值事务在
@@ -1396,8 +1419,10 @@
   const WRJ_MARK_FLUSH_MS = 150;
   let _wrjMarkBuf = new Map(); // 完整标记键 -> t
   let _wrjMarkT = null;
+  let _wrjMarkDue = 0, _wrjMarkCap = 0; // #1206 让路用的到期点/硬上限（0＝未排程）
   function wrjMarkFlush() {
     if (_wrjMarkT) { clearTimeout(_wrjMarkT); _wrjMarkT = null; }
+    _wrjMarkDue = 0; _wrjMarkCap = 0;
     if (!_wrjMarkBuf.size) return;
     const pairs = [];
     _wrjMarkBuf.forEach(function (t, k) { pairs.push({ k: k, v: t }); });
@@ -1413,9 +1438,26 @@
     } catch (e) {}
     pairs.forEach(function (p) { try { if (window.idbSet) window.idbSet(p.k, p.v); } catch (e2) {} });
   }
+  function wrjMarkSchedule() {
+    // #1206 同日志落盘口径让路：idbSetAll 的入参数组要在主线程做结构化克隆，手势窗口内
+    // 一样是白付的账。只押后【标记】事务——值事务在 xyStore.set 里已同步先发出，
+    // 「值先于标记提交」的既有前提不受影响；离页仍由 pagehide/visibilitychange 当场冲刷。
+    if (_wrjMarkT) return;
+    const now = Date.now();
+    if (!_wrjMarkDue) _wrjMarkDue = now + WRJ_MARK_FLUSH_MS;
+    if (!_wrjMarkCap) _wrjMarkCap = now + WRJ_BUSY_CAP;
+    _wrjMarkT = setTimeout(wrjMarkAt, Math.max(0, Math.min(_wrjMarkDue, _wrjMarkCap) - now));
+  }
+  // 到期裁决（与 wrjPersistAt 同口径）：手势中每 150ms 回看，due/cap 不重置＝押后总量有界
+  function wrjMarkAt() {
+    _wrjMarkT = null;
+    const now = Date.now();
+    if (wrjBusy() && now < _wrjMarkCap) { _wrjMarkT = setTimeout(wrjMarkAt, 150); return; }
+    wrjMarkFlush();
+  }
   function wrjMark(key, t) {
     _wrjMarkBuf.set(WRJ_MARK + key, t);
-    if (!_wrjMarkT) _wrjMarkT = setTimeout(wrjMarkFlush, WRJ_MARK_FLUSH_MS);
+    wrjMarkSchedule();
   }
   function wrjUnmark(key) {
     _wrjMarkBuf.delete(WRJ_MARK + key); // 还没落库的标记直接撤销，省一个删除事务

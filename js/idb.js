@@ -895,24 +895,41 @@ return Array.isArray(a) ? a.filter(function (e) { return e && typeof e.k === 'st
 }
 function wrjLsRaw() { try { return localStorage.getItem(WRJ_KEY); } catch (e) { return null; } }
 let _wrjPersistT = null;
+const WRJ_FLUSH_MS = 200, WRJ_BUSY_CAP = 1200;
+let _wrjDue = 0, _wrjCap = 0;
+function wrjBusy() {
+try { return !!(window.__mochiInteracting && window.__mochiInteracting()); } catch (e) { return false; }
+}
 let _wrjLanded = null;             // 上一次真的写进 localStorage 的那份序列化串
 function wrjPersistFlush() {
 if (_wrjPersistT) { clearTimeout(_wrjPersistT); _wrjPersistT = null; }
+_wrjDue = 0; _wrjCap = 0; // #1206 回看/落盘一并作废，下一次排程重新起表
 let s;
 try { s = JSON.stringify(_wrj || []); } catch (e0) { return; }
 if (s === _wrjLanded) return;    // 内容没变＝库里那份就是它，不必再同步重写一整本
 try { if (window.__mochiPhase) window.__mochiPhase('wrj-journal'); } catch (e1) {}
 try { localStorage.setItem(WRJ_KEY, s); _wrjLanded = s; } catch (e2) {}
 }
+function wrjPersistAt() {
+_wrjPersistT = null;
+const now = Date.now();
+if (wrjBusy() && now < _wrjCap) { _wrjPersistT = setTimeout(wrjPersistAt, 150); return; }
+wrjPersistFlush();
+}
 function wrjPersist() {
 if (_wrjPersistT) return;
-_wrjPersistT = setTimeout(wrjPersistFlush, 200);
+const now = Date.now();
+if (!_wrjDue) _wrjDue = now + WRJ_FLUSH_MS;
+if (!_wrjCap) _wrjCap = now + WRJ_BUSY_CAP;
+_wrjPersistT = setTimeout(wrjPersistAt, Math.max(0, Math.min(_wrjDue, _wrjCap) - now));
 }
 const WRJ_MARK_FLUSH_MS = 150;
 let _wrjMarkBuf = new Map(); // 完整标记键 -> t
 let _wrjMarkT = null;
+let _wrjMarkDue = 0, _wrjMarkCap = 0; // #1206 让路用的到期点/硬上限（0＝未排程）
 function wrjMarkFlush() {
 if (_wrjMarkT) { clearTimeout(_wrjMarkT); _wrjMarkT = null; }
+_wrjMarkDue = 0; _wrjMarkCap = 0;
 if (!_wrjMarkBuf.size) return;
 const pairs = [];
 _wrjMarkBuf.forEach(function (t, k) { pairs.push({ k: k, v: t }); });
@@ -928,9 +945,22 @@ return;
 } catch (e) {}
 pairs.forEach(function (p) { try { if (window.idbSet) window.idbSet(p.k, p.v); } catch (e2) {} });
 }
+function wrjMarkSchedule() {
+if (_wrjMarkT) return;
+const now = Date.now();
+if (!_wrjMarkDue) _wrjMarkDue = now + WRJ_MARK_FLUSH_MS;
+if (!_wrjMarkCap) _wrjMarkCap = now + WRJ_BUSY_CAP;
+_wrjMarkT = setTimeout(wrjMarkAt, Math.max(0, Math.min(_wrjMarkDue, _wrjMarkCap) - now));
+}
+function wrjMarkAt() {
+_wrjMarkT = null;
+const now = Date.now();
+if (wrjBusy() && now < _wrjMarkCap) { _wrjMarkT = setTimeout(wrjMarkAt, 150); return; }
+wrjMarkFlush();
+}
 function wrjMark(key, t) {
 _wrjMarkBuf.set(WRJ_MARK + key, t);
-if (!_wrjMarkT) _wrjMarkT = setTimeout(wrjMarkFlush, WRJ_MARK_FLUSH_MS);
+wrjMarkSchedule();
 }
 function wrjUnmark(key) {
 _wrjMarkBuf.delete(WRJ_MARK + key); // 还没落库的标记直接撤销，省一个删除事务

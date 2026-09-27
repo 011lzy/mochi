@@ -19,6 +19,37 @@
   // 兼容守卫：device.js 判平板时会给 <html> 加 .tablet 类（base.css 平板布局），
   // 若加载顺序异常导致此处读不到 mochiDevice，仍按类恢复 isTablet。
   if (!isTablet) { try { if (document.documentElement.classList.contains('tablet')) isTablet = true; } catch (e) {} }
+  // ===== #1206 交互窗口信号：window.__mochiInteracting() =====
+  // 为什么需要：iPhone 17（iOS 26.6 / 桌面图标启动）卡顿自检 120 秒采到「前台冻结 95 次
+  //（>250ms，最长 1211ms）」，而用户主诉是「切页面、滑动时最卡」——账不是付在空闲，是挤在
+  // 手指还在动的那一段。各重活各自的防抖只有 150~400ms（写日志＝整包 stringify＋同步 LS
+  // 落盘、IDB 时间戳标记批量事务、桌面页全树几何复核），到期点恰好都落在同一个滑动窗口里。
+  // 判据只有一条：最近一次手势/滚动/键盘输入的时间戳。零布局读写、零机型与 UA 分支——
+  // 「用户正在动」在任何内核里都是同一件事。重活据此让路到停手之后，调用方各设硬上限保证必落。
+  // 注册位置在 isMobile/isTablet 早退之前：桌面浏览器同样读取，且没人读也无害。
+  const __actLast = (function () {
+    let last = 0;
+    const mark = function () { last = Date.now(); };
+    // scroll 不冒泡，捕获相才收得到任意滚动体；touch/wheel/keydown 用 passive——
+    // 处理器只做一次时间戳写入，不 preventDefault、不查 DOM，滚动帧预算里可忽略。
+    const OPT = { passive: true, capture: true };
+    try {
+      window.addEventListener('touchstart', mark, OPT);
+      window.addEventListener('touchmove', mark, OPT);
+      window.addEventListener('pointerdown', mark, OPT);
+      window.addEventListener('wheel', mark, OPT);
+      window.addEventListener('keydown', mark, OPT);
+      window.addEventListener('scroll', mark, OPT);
+    } catch (e) {}
+    return function () { return last; };
+  })();
+  window.__mochiInteracting = function (holdMs) {
+    try {
+      // 后台期一律判「没在交互」：切后台/被回收前的那一次落盘必须当场做完，不能让路
+      if (typeof document !== 'undefined' && document.hidden) return false;
+      return Date.now() - __actLast() < (holdMs > 0 ? holdMs : 380);
+    } catch (e) { return false; }
+  };
   // 手机窄屏或平板都启用本文件适配（桌面模拟器外壳不受影响）
   if (!isMobile && !isTablet) return;
 

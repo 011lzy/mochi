@@ -6,6 +6,26 @@ const d = window.mochiDevice;
 if (d) { isMobile = !!d.isMobile; isTablet = !!d.isTablet; isIOS = !!d.isIOS; }
 } catch (e) {}
 if (!isTablet) { try { if (document.documentElement.classList.contains('tablet')) isTablet = true; } catch (e) {} }
+const __actLast = (function () {
+let last = 0;
+const mark = function () { last = Date.now(); };
+const OPT = { passive: true, capture: true };
+try {
+window.addEventListener('touchstart', mark, OPT);
+window.addEventListener('touchmove', mark, OPT);
+window.addEventListener('pointerdown', mark, OPT);
+window.addEventListener('wheel', mark, OPT);
+window.addEventListener('keydown', mark, OPT);
+window.addEventListener('scroll', mark, OPT);
+} catch (e) {}
+return function () { return last; };
+})();
+window.__mochiInteracting = function (holdMs) {
+try {
+if (typeof document !== 'undefined' && document.hidden) return false;
+return Date.now() - __actLast() < (holdMs > 0 ? holdMs : 380);
+} catch (e) { return false; }
+};
 if (!isMobile && !isTablet) return;
 const FLOAT_PANEL_SELECTORS = ['#chat-more-panel', '#chat-decision-panel', '#chat-gdecision-panel', '#chat-divine-panel', '#chat-ask-panel', '#poke-card', '#gc-poke-card', '#emoji-panel', '#chat-rp-panel', '#chat-rps-panel', '#chat-pong-panel', '#chat-snake-panel', '#chat-brick-panel', '#chat-c4-panel', '#chat-ms-panel', '#chat-fish-panel', '#chat-memory-panel', '#chat-gift-panel', '#chat-gomoku-panel', '#chat-linkup-panel', '#chat-match3-panel', '#chat-auction-panel', '#chat-arcade-panel', '#ck-panel', '#chat-search', '#gc-more-panel', '#voice-panel'];
 var IOS_VP_A = 'width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content';
