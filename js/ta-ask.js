@@ -2278,8 +2278,9 @@ let migrated = false;
 d.questions.forEach(q => {
 const fix = q && q.id ? CURIOUS_QUICK_FIX[q.id] : null;
 if (fix && Array.isArray(q.quick)) {
-q.quick = q.quick.map(o => fix[o] || o);
-migrated = true;
+const prevQuick = q.quick;
+const nextQuick = prevQuick.map(o => fix[o] || o);
+if (nextQuick.some((o, i) => o !== prevQuick[i])) { q.quick = nextQuick; migrated = true; }
 }
 });
 if (migrated) { try { store.set(KEY3, JSON.stringify(d)); } catch (e) {} }

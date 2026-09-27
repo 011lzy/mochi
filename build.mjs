@@ -5365,6 +5365,13 @@ const FIX_SENTINELS = [
   { name: '#1330e 「更多者胜」的补回只在用户没写过的时候做（删掉 favTouched 这道闸＝把上一会话删掉的收藏也补回来，verify-1309 C2「主动清空必须真落空」当场红；反过来把它扩到覆盖一切＝本批修复作废）', file: 'js/chat.js', needle: 'if (favTouched[cid] || !idbRaw || idbRaw.length <= 2) return false;' },
   { name: '#1330f 本地是残缺快照这一判据＝条数比库里少（改成比字节／比时间戳都不成立：LS 快照与库里形态不同；改成无条件覆盖＝回滚 #456「IDB 落后不许把最新收藏回滚成旧快照」）', file: 'js/chat.js', needle: 'if (ii < 0 || (li >= 0 && ii <= li)) return false;' },
   { name: '#1330g 删除型：favDrainAll 不许再把 null 当权威传给 drain（回流＝#1309 那条闸白装一半，restore-done 那一发仍然是整包覆盖）', file: 'js/chat.js', needle: 'favDrain(c, null)', absent: true },
+  { name: '#1324a', file: 'js/idb.js', needle: "if (s === _wrjLanded) return;", note: "写日志内容闸：与库里那份逐字相同就不再整本同步重写（改回无条件 setItem＝4 次后台往返 552KB 同步写回潮，恰落在系统要挂起页面的那一拍）" },
+  { name: '#1324b', file: 'js/idb.js', needle: "localStorage.setItem(WRJ_KEY, s); _wrjLanded = s;", note: "落盘成功才记「库里那份就是它」（提前记账＝写失败被当成已落盘，#943c/#1257 的必达语义被作废）" },
+  { name: '#1324c', file: 'js/ta-ask.js', needle: "if (nextQuick.some((o, i) => o !== prevQuick[i])) { q.quick = nextQuick; migrated = true; }", note: "「迁移过了」只认真改了字（改回无条件 migrated＝每次读都把固化好的快答再迁一遍再写一遍 22KB，回前台两次 tcuLoad 各一发）" },
+  { name: '#1324d', file: 'js/desktop-slider.js', needle: "let awayEdge = false;", note: "挂起边界标志（删＝#690/#884 两把帧尺重新把整段后台时长量成「一帧」，实测读数 20828ms／25575ms 就是这样骗掉 #1225/#1300/#1301 三批的）" },
+  { name: '#1324e', file: 'js/desktop-slider.js', needle: "function awayGap() { if (!awayEdge) return false; awayEdge = false; return true; }", note: "边界一次性消费（不消费＝之后每一帧都被丢弃＝样本永远攒不满；一次边界只作废一帧）" },
+  { name: '#1324f', file: 'js/desktop-slider.js', needle: "if (awayGap()) { hid++; last = 0; requestAnimationFrame(tick); return; } // #1324", note: "翻页尺（#690）认挂起边界（删＝一条后台间隙再次把均值拉成假「严重卡顿」，#707 只挡住「回调还在跑」那一种）" },
+  { name: '#1324g', file: 'js/desktop-slider.js', needle: "if (document.hidden || awayGap()) { hid++; last = 0; requestAnimationFrame(tick); return; } // #1324", note: "切回桌面尺（#884）同款（这条路径的旧读数「平均 1196ms／最慢 20828ms」＝用户口径「从后台切回来最卡」被尺子放大过的证据）" },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

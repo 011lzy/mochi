@@ -1366,10 +1366,23 @@
   // 全包串化税（456 键的域里发消息/开关切换连写时叠加成可感长任务）。改 200ms trailing
   // 合并；离页（visibilitychange hidden / pagehide）当场冲刷，写入仍必达，防丢语义不变。
   let _wrjPersistT = null;
+  // FIX 2026-09-27 #1324（iPhone 17 Pro Max／iOS 26.6.1 复报「切页面和从后台切回来最卡」；同批 perfcheck
+  //   自报「前台冻结 19 次／10 秒」「wrj-journal 距冻结起点中位 2ms＝紧邻高危」）：上面那条「离页当场冲刷」
+  //   把「有改动必达」写成了「不管有没有改动都整本重写一遍」。纯 HEAD 副本实测：四次后台往返里一条数据都没
+  //   改，`__wr-journal` 仍被 stringify＋同步 setItem 重写 8 次、合计 552KB（单次约 42KB＝整个日志预算的
+  //   66%），而且这条链在 WebKit 上是**同步持久写**，恰好落在系统正要挂起页面的那一拍。判据收成一把尺子：
+  //   「要写的这份内容与库里那份是否逐字相同」——相同＝上一次已经落过，跳过（与 #1311/#1222 同口径＝比内容
+  //   不比引用身份，因为同一份数据每次从 localStorage 拿回来都是新字符串实例，按身份比会把「没变」判成「变了」）。
+  //   #943c 的防抖、#1257 的「写入仍必达」一字未削：只要内容真的变了（含本会话从未落过、_wrjLanded 仍为
+  //   null 的第一次冲刷＝启动期照旧重新断言一次，LS 被回滚时能自愈回去），下一次 flush 必写。
+  let _wrjLanded = null;             // 上一次真的写进 localStorage 的那份序列化串
   function wrjPersistFlush() {
     if (_wrjPersistT) { clearTimeout(_wrjPersistT); _wrjPersistT = null; }
-    try { if (window.__mochiPhase) window.__mochiPhase('wrj-journal'); } catch (e0) {}
-    try { localStorage.setItem(WRJ_KEY, JSON.stringify(_wrj || [])); } catch (e) {}
+    let s;
+    try { s = JSON.stringify(_wrj || []); } catch (e0) { return; }
+    if (s === _wrjLanded) return;    // 内容没变＝库里那份就是它，不必再同步重写一整本
+    try { if (window.__mochiPhase) window.__mochiPhase('wrj-journal'); } catch (e1) {}
+    try { localStorage.setItem(WRJ_KEY, s); _wrjLanded = s; } catch (e2) {}
   }
   function wrjPersist() {
     if (_wrjPersistT) return;

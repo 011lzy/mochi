@@ -895,10 +895,14 @@ return Array.isArray(a) ? a.filter(function (e) { return e && typeof e.k === 'st
 }
 function wrjLsRaw() { try { return localStorage.getItem(WRJ_KEY); } catch (e) { return null; } }
 let _wrjPersistT = null;
+let _wrjLanded = null;             // 上一次真的写进 localStorage 的那份序列化串
 function wrjPersistFlush() {
 if (_wrjPersistT) { clearTimeout(_wrjPersistT); _wrjPersistT = null; }
-try { if (window.__mochiPhase) window.__mochiPhase('wrj-journal'); } catch (e0) {}
-try { localStorage.setItem(WRJ_KEY, JSON.stringify(_wrj || [])); } catch (e) {}
+let s;
+try { s = JSON.stringify(_wrj || []); } catch (e0) { return; }
+if (s === _wrjLanded) return;    // 内容没变＝库里那份就是它，不必再同步重写一整本
+try { if (window.__mochiPhase) window.__mochiPhase('wrj-journal'); } catch (e1) {}
+try { localStorage.setItem(WRJ_KEY, s); _wrjLanded = s; } catch (e2) {}
 }
 function wrjPersist() {
 if (_wrjPersistT) return;

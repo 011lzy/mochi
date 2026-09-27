@@ -101,6 +101,17 @@
   //      设置→诊断【性能】段读出。同一秒内不重复起采（perfOn 闸）。
   const PERF_KEY = 'xy-home-v2:__diag-deskperf';
   const PERF_FRAMES = 60;
+  // FIX 2026-09-27 #1324：两把帧尺（#690 翻页／#884 切回桌面）共用的「挂起边界」标记。
+  //   #707 那一条只挡住「回调还在跑而页面已隐藏」这一种后台帧；真机挂起时内核**一帧都不派发**，
+  //   于是整段后台时长既不经过 `document.hidden` 分支、也没人重置基线，回来第一帧把它量成「一帧」。
+  //   证据就在诊断单自己里：#884 那把尺 30 帧样本读出「平均 1196ms／p90 3435ms／最慢 20828ms」
+  //   （2026-09-27 同一台 iPhone）、「最慢 25575ms」（#1300 那单），而 hid＝0＝它声称自己一帧后台
+  //   都没剔——20 秒的一帧不是卡顿，是挂起。这条读数连续骗了 #1225／#1300／#1301 三批去「修切回桌面」，
+  //   每一批都拿它当症状大小来定优先级（＝用户说的「覆盖式修补」的源头之一）。判据与 perf-check.js
+  //   早已在用的那把尺同口径（可见性翻转＝一次边界，跨边界的差值不作数），零机型／零 UA 分支。
+  let awayEdge = false;
+  try { document.addEventListener('visibilitychange', function () { if (document.hidden) awayEdge = true; }); } catch (e) {}
+  function awayGap() { if (!awayEdge) return false; awayEdge = false; return true; }
   // #1295 采样现场快照：帧耗时落键那一刻随附「这台桌面此刻什么配置＋最近跑了哪些活」——
   // #690/#884 两把尺子从前只能证「慢」，配上现场才能分辨是壁纸大纹理、CSS 模糊兜底、
   // 缩放外扩盒还是标签栏毛玻璃。只跑在采样收尾一次，读取零失败兜底、字符串截长。
@@ -127,6 +138,7 @@
     // 诊断【性能】一节据此标注「已剔除后台帧 N」。
     let hid = 0;
     const tick = (now) => {
+      if (awayGap()) { hid++; last = 0; requestAnimationFrame(tick); return; } // #1324：跨挂起边界的那一差不算一帧
       if (typeof document !== 'undefined' && document.hidden) {
         hid++;
         last = 0;
@@ -314,7 +326,7 @@
     const gaps = [];
     let last = 0, hid = 0;
     const tick = (now) => {
-      if (document.hidden) { hid++; last = 0; requestAnimationFrame(tick); return; }
+      if (document.hidden || awayGap()) { hid++; last = 0; requestAnimationFrame(tick); return; } // #1324：同上，挂起期那一段不记进样本
       if (last) gaps.push(now - last);
       last = now;
       if (gaps.length < SW_FRAMES) { requestAnimationFrame(tick); return; }

@@ -2644,8 +2644,15 @@ window.openTCPanel = openTCPanel;
       d.questions.forEach(q => {
         const fix = q && q.id ? CURIOUS_QUICK_FIX[q.id] : null;
         if (fix && Array.isArray(q.quick)) {
-          q.quick = q.quick.map(o => fix[o] || o);
-          migrated = true;
+          const prevQuick = q.quick;
+          const nextQuick = prevQuick.map(o => fix[o] || o);
+          // FIX 2026-09-27 #1324：「迁移过了」只能是「这一次真的改到了字」，不能是「这条 id 在修复表里」。
+          //   旧写法只要题目带 id 且挂着 quick 数组就无条件置 migrated ⇒ 整包回写，而这份数据第一次就
+          //   已经改对了，之后每次读都「再迁一遍＋再写一遍」＝永久空转。纯 HEAD 副本实测：一次回前台
+          //   经 mochi-fg-resume 走到 tcuLoad 两次，每次 stringify＋同步写回 22KB（四次后台往返合计
+          //   158KB），而库里的内容一个字都没变；它同时把 #1324 那条写日志（__wr-journal）顶脏，
+          //   于是每次回前台都要重写整本日志。迁移语义一字未动：第一次照旧改字＋落库。
+          if (nextQuick.some((o, i) => o !== prevQuick[i])) { q.quick = nextQuick; migrated = true; }
         }
       });
       if (migrated) { try { store.set(KEY3, JSON.stringify(d)); } catch (e) {} }

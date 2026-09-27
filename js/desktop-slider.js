@@ -40,6 +40,9 @@ for (let k = 0; k < dotsCache.length; k++) dotsCache[k].classList.toggle('active
 }
 const PERF_KEY = 'xy-home-v2:__diag-deskperf';
 const PERF_FRAMES = 60;
+let awayEdge = false;
+try { document.addEventListener('visibilitychange', function () { if (document.hidden) awayEdge = true; }); } catch (e) {}
+function awayGap() { if (!awayEdge) return false; awayEdge = false; return true; }
 function sampleWitness() {
 const w = { sc: '', ph: '' };
 try { if (window.__mochiDeskScene) w.sc = window.__mochiDeskScene().txt.slice(0, 160); } catch (e) {}
@@ -58,6 +61,7 @@ const gaps = [];
 let last = 0;
 let hid = 0;
 const tick = (now) => {
+if (awayGap()) { hid++; last = 0; requestAnimationFrame(tick); return; } // #1324：跨挂起边界的那一差不算一帧
 if (typeof document !== 'undefined' && document.hidden) {
 hid++;
 last = 0;
@@ -169,7 +173,7 @@ swOn = true;
 const gaps = [];
 let last = 0, hid = 0;
 const tick = (now) => {
-if (document.hidden) { hid++; last = 0; requestAnimationFrame(tick); return; }
+if (document.hidden || awayGap()) { hid++; last = 0; requestAnimationFrame(tick); return; } // #1324：同上，挂起期那一段不记进样本
 if (last) gaps.push(now - last);
 last = now;
 if (gaps.length < SW_FRAMES) { requestAnimationFrame(tick); return; }
