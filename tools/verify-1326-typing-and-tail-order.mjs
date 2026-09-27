@@ -222,6 +222,20 @@ try {
   await sleep(1500);
   const b6 = await C.snap('一三二六丙');
   A_('B6 对照：普通收发的新消息照旧在尾部可见（旧契约零变化）', !!b6.hit && b6.hit.last === true && b6.hit.inView === true, b6);
+  // 构建在飞期间连续来 6 条＝真机「整页冻结后解冻、积压的那几发一口气落地」的等价形态：
+  // 迟到队列按到达顺序补挂，因此**第一批**迟到的就会占住队首，旧写法下整批被挂到列表头部。
+  await C.evalJs(park({ z: true }));
+  await C.evalJs(`(function(){ return window.chatImportMsgs(window.chatExportMsgs()); })()`);
+  await sleep(500);
+  for (let k = 0; k < 6; k++) {
+    await C.evalJs(`(function(){ window.chatAddIn('一三二六丁' + (${k}) + '·构建期连发', {initiative:true}); return 1; })()`);
+    await sleep(140);
+  }
+  await C.evalJs(unpark);
+  await C.evalJs(thaw);
+  await sleep(3000);
+  const b9 = await C.snap('一三二六丁');
+  A_('B9 构建期连发六条：六条全在屏上、按序排在末尾、最后一条在视口里（解冻补投那一口气）', b9.hitN === 6 && !!b9.hit && b9.hit.last === true && b9.hit.inView === true && b9.asc === 0 && b9.dupIdx === 0, b9);
 
   console.log('\n行为断言 ②（「对方正在输入」的承诺要有期限）:');
   // 冻住投递那一发（3s）与自家看门狗（8s）＝真机整页冻结的等价形态
