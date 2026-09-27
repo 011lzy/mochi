@@ -170,13 +170,20 @@ syncVal();
 }
 function switchAvTab(me) { avOwner = me ? 1 : 0; syncAvPane(); try { avKickFirstScreen(avGrid); avKickFirstScreen(avMeGrid); } catch (e) {} }
 function switchAvKind(name) { avKind = name ? 'name' : 'avatar'; syncAvPane(); try { avKickFirstScreen(avGrid); avKickFirstScreen(avMeGrid); } catch (e) {} }
+function avPaintSrc(img, src, done) {
+if (src && window.mochiMediaPaint) {
+try { window.mochiMediaPaint(img, src, done || null); return; } catch (e) { img.__moPaint = 0; } // 池抛错：交回原写法
+}
+try { img.setAttribute('src', src || ''); } catch (e2) {}
+if (done) { try { done(true); } catch (e3) {} }
+}
 const avImgObserver = ('IntersectionObserver' in window)
 ? new IntersectionObserver((entries) => {
 for (const en of entries) {
 if (!en.isIntersecting) continue;
 const img = en.target;
 if (img && img.dataset && img.dataset.src && !img.getAttribute('src')) {
-img.setAttribute('src', img.dataset.src);
+avPaintSrc(img, img.dataset.src); // #1314 令牌交回池，不上屏
 img.removeAttribute('data-src');
 }
 try { avImgObserver.unobserve(img); } catch (e) {}
@@ -186,7 +193,7 @@ try { avImgObserver.unobserve(img); } catch (e) {}
 function avAttachLazy(img) {
 if (!img) return;
 if (avImgObserver) { try { avImgObserver.observe(img); } catch (e) {} }
-else { img.setAttribute('src', img.dataset.src || ''); img.removeAttribute('data-src'); }
+else { avPaintSrc(img, img.dataset.src || ''); img.removeAttribute('data-src'); } // #1314 令牌交回池
 }
 function emptyHintMismatch(el, lib) { return !!el && el.hidden !== (lib.length > 0); }
 function updateGridNow() {
@@ -413,7 +420,7 @@ for (let i = 0; i < imgs.length; i++) {
 const im = imgs[i];
 let ds = ''; try { ds = (im.dataset && im.dataset.src) || ''; } catch (e) {}
 if (ds && !im.getAttribute('src')) {
-im.setAttribute('src', ds); // 当场补：不等 IO 回调（令牌载荷同路径，池会按 src 重写真载荷）
+avPaintSrc(im, ds);
 try { im.removeAttribute('data-src'); } catch (e) {}
 try { if (avImgObserver) avImgObserver.unobserve(im); } catch (e) {}
 }
@@ -429,6 +436,7 @@ const off = function () { try { im.removeEventListener('load', settle); im.remov
 const settle = function () {
 if (done) return;
 if (okNow()) { done = true; off(); res(true); return; }
+if (im.__moPaint) return; // #1314 池的回话还在飞（此刻 src 既没载荷也没令牌）：判「无源」会放行一个没图的格子
 if (srcNow().indexOf('@@m:') !== 0) { done = true; off(); res(false); return; } // 真失败/无源：不挡显示
 };
 try { im.addEventListener('load', settle); im.addEventListener('error', settle); } catch (e) {}
@@ -485,11 +493,11 @@ let n = 0;
 for (let i = 0; i < imgs.length && n < 24; i++) {
 const im = imgs[i];
 if (im.dataset && im.dataset.src && !im.getAttribute('src')) {
-im.setAttribute('src', im.dataset.src);
+avPaintSrc(im, im.dataset.src, function (ok) { if (ok) { try { if (im.decode) im.decode().catch(function () {}); } catch (eD) {} } }); // #1314 令牌交回池；解码发起挪到载荷真落地那一刻
 im.removeAttribute('data-src');
 n++;
 }
-try { if (im.decode) im.decode().catch(function () {}); } catch (e) {}
+if (im.getAttribute('src')) { try { if (im.decode) im.decode().catch(function () {}); } catch (e) {} } // #1314 只在「这一格此刻真有源」时解码；在飞的留给池的回话
 }
 }
 };
@@ -630,13 +638,14 @@ bindPoolClear(avClear, saveLib, () => { renderGrid(); syncVal(); }, '清空头�
 bindPoolClear(avMeClear, saveMeLib, () => { renderMeGrid(); syncVal(); }, '清空我的头像池？', '已清空我的头像池');
 bindPoolClear(avNickClear, saveNickLib, () => { renderNickGrid(); syncVal(); }, '清空昵称池？', '已清空昵称池');
 bindPoolClear(avMeNickClear, saveMeNickLib, () => { renderMeNickGrid(); syncVal(); }, '清空我的昵称池？', '已清空我的昵称池');
+let avApplyGen = 0; // #1314 屏外气泡头像分片补写的轮次号（见下面写入面那段注释）
 function applyAvatarImg(data, out, chatOnly) {
 if (data) {
 try {
 const _warm = new Image();
 _warm.decoding = 'async';
-_warm.src = data;
-if (_warm.decode) { const _p = _warm.decode(); if (_p && _p.catch) _p.catch(function () {}); }
+const warmDecode = function () { try { if (_warm.decode) { const _p = _warm.decode(); if (_p && _p.catch) _p.catch(function () {}); } } catch (eW) {} };
+avPaintSrc(_warm, data, warmDecode);
 } catch (e) {}
 }
 const chatAv = document.getElementById(out ? 'chat-user-av' : 'chat-partner-av');
@@ -648,10 +657,10 @@ if (el.__avApplied === want) return;
 el.__avApplied = want;
 if (data) {
 const cur = el.querySelector('img');
-if (cur) { cur.src = data; cur.alt = ''; }
+if (cur) { avPaintSrc(cur, data); cur.alt = ''; } // #1314 令牌交回池，不上屏（内联值＝逐字同旧的一次赋值）
 else {
 const img = document.createElement('img');
-img.src = data;
+avPaintSrc(img, data);
 img.alt = '';
 el.innerHTML = '';
 el.appendChild(img);
@@ -662,7 +671,26 @@ el.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="#999999" stroke-wid
 };
 applyTo(chatAv);
 applyTo(deskRing);
-document.querySelectorAll((out ? '.msg-out' : '.msg-in') + ' .msg-av').forEach(av => { applyTo(av); });
+const avNodes = document.querySelectorAll((out ? '.msg-out' : '.msg-in') + ' .msg-av');
+const vh = window.innerHeight || 0;
+const avTail = [];
+for (let i = 0; i < avNodes.length; i++) {
+const av = avNodes[i];
+if (!vh) { applyTo(av); continue; }
+let r = null; try { r = av.getBoundingClientRect(); } catch (e) {}
+if (!r || (r.bottom > -80 && r.top < vh + 80)) applyTo(av);
+else avTail.push(av);
+}
+if (!avTail.length) return;
+if (!window.requestAnimationFrame) { for (let k = 0; k < avTail.length; k++) applyTo(avTail[k]); return; }
+const avGen = ++avApplyGen; // 期间又换了一次头像：旧那一轮的剩余分片作废（#169/#228 同族），新那一轮自己会枚举到全部节点
+const avStep = function () {
+if (avGen !== avApplyGen) return;
+const chunk = avTail.splice(0, 24);
+for (let k = 0; k < chunk.length; k++) applyTo(chunk[k]);
+if (avTail.length) { try { window.requestAnimationFrame(avStep); } catch (e) { for (let k = 0; k < avTail.length; k++) applyTo(avTail[k]); avTail.length = 0; } }
+};
+try { window.requestAnimationFrame(avStep); } catch (e) { for (let k = 0; k < avTail.length; k++) applyTo(avTail[k]); }
 }
 function chatSystem(text, img, keep) {
 if (window.chatAddSystem) window.chatAddSystem(text, { img: img, nickKeep: !!keep });

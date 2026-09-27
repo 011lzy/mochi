@@ -257,13 +257,25 @@
   // v3.42.x 头像互动图片懒加载——与表情面板/字卡库同一机制（data-src + IntersectionObserver）：
   // 头像池多张全尺寸图一次全量解码 = 中端机型主线程卡死、头像显示不出（跨机型报障同族）。
   // 只给进入视口的图补 src；无 IntersectionObserver 的浏览器回退即时补 src（行为不变）。
+  // FIX 2026-09-26 #1314：本库「把 data-src 落到 src」的四处写入点（观察器回调、无 IntersectionObserver
+  // 的即时补、首屏 kick、后台预热）共用一把尺子＝令牌交回池（media-pool 的 mochiMediaPaint），由池一次
+  // 写成载荷。旧写法各处自己把 @@m:<hash> 那 44 个字符写进 src，只为让池的观察器按 img[src^="@@m:"] 捞到
+  // 这一格再重写真载荷＝每格两次赋值＋一发注定 404 的相对 URL 请求＋第二次从零解码＝用户实报「图片会闪
+  // 和重新加载」。空串与池没接入时逐字照旧赋值＝最坏情况等于今天，不会更坏。
+  function avPaintSrc(img, src, done) {
+    if (src && window.mochiMediaPaint) {
+      try { window.mochiMediaPaint(img, src, done || null); return; } catch (e) { img.__moPaint = 0; } // 池抛错：交回原写法
+    }
+    try { img.setAttribute('src', src || ''); } catch (e2) {}
+    if (done) { try { done(true); } catch (e3) {} }
+  }
   const avImgObserver = ('IntersectionObserver' in window)
     ? new IntersectionObserver((entries) => {
       for (const en of entries) {
         if (!en.isIntersecting) continue;
         const img = en.target;
         if (img && img.dataset && img.dataset.src && !img.getAttribute('src')) {
-          img.setAttribute('src', img.dataset.src);
+          avPaintSrc(img, img.dataset.src); // #1314 令牌交回池，不上屏
           img.removeAttribute('data-src');
         }
         try { avImgObserver.unobserve(img); } catch (e) {}
@@ -273,7 +285,7 @@
   function avAttachLazy(img) {
     if (!img) return;
     if (avImgObserver) { try { avImgObserver.observe(img); } catch (e) {} }
-    else { img.setAttribute('src', img.dataset.src || ''); img.removeAttribute('data-src'); }
+    else { avPaintSrc(img, img.dataset.src || ''); img.removeAttribute('data-src'); } // #1314 令牌交回池
   }
   // FIX #508（红米 K80 Chrome 等多机型报「头像互动点选换头像，图片闪一下重新加载」）：
   // 换头像后库内容没变，唯一变化是「当前生效」那张的高亮——旧路径 renderGrid()/renderMeGrid()
@@ -557,7 +569,10 @@
       const im = imgs[i];
       let ds = ''; try { ds = (im.dataset && im.dataset.src) || ''; } catch (e) {}
       if (ds && !im.getAttribute('src')) {
-        im.setAttribute('src', ds); // 当场补：不等 IO 回调（令牌载荷同路径，池会按 src 重写真载荷）
+        // #1314 与表情侧同一把尺子：令牌不上屏，池载荷一次写好（旧写法为了被池的观察器捞到，先把
+        //   @@m:<hash> 本身写进 src＝每格两次赋值＋一发注定 404 的相对请求＋第二次从零解码；在飞标记
+        //   __moPaint 由池摆/由池收，avImgReady 读它）。本库现存的还是内联 dataURL＝一次赋值、行为逐字不变。
+        avPaintSrc(im, ds);
         try { im.removeAttribute('data-src'); } catch (e) {}
         try { if (avImgObserver) avImgObserver.unobserve(im); } catch (e) {}
       }
@@ -573,6 +588,7 @@
       const settle = function () {
         if (done) return;
         if (okNow()) { done = true; off(); res(true); return; }
+        if (im.__moPaint) return; // #1314 池的回话还在飞（此刻 src 既没载荷也没令牌）：判「无源」会放行一个没图的格子
         if (srcNow().indexOf('@@m:') !== 0) { done = true; off(); res(false); return; } // 真失败/无源：不挡显示
         // 令牌未解析：池重写 src 后会再触发 load，继续等
       };
@@ -641,11 +657,11 @@
       for (let i = 0; i < imgs.length && n < 24; i++) {
         const im = imgs[i];
         if (im.dataset && im.dataset.src && !im.getAttribute('src')) {
-          im.setAttribute('src', im.dataset.src);
+          avPaintSrc(im, im.dataset.src, function (ok) { if (ok) { try { if (im.decode) im.decode().catch(function () {}); } catch (eD) {} } }); // #1314 令牌交回池；解码发起挪到载荷真落地那一刻
           im.removeAttribute('data-src');
           n++;
         }
-        try { if (im.decode) im.decode().catch(function () {}); } catch (e) {}
+        if (im.getAttribute('src')) { try { if (im.decode) im.decode().catch(function () {}); } catch (e) {} } // #1314 只在「这一格此刻真有源」时解码；在飞的留给池的回话
       }
     }
   };
@@ -838,6 +854,7 @@
   // out=true 换我的头像（.msg-out .msg-av 是我的消息旁的头像）
   // data 为空时恢复默认人物图标
   // v3.6.x：img 用属性赋值（dataURL 含引号时拼 innerHTML 会逃逸注入 HTML）
+  let avApplyGen = 0; // #1314 屏外气泡头像分片补写的轮次号（见下面写入面那段注释）
   function applyAvatarImg(data, out, chatOnly) {
     // FIX 2026-09-17 #662：新头像先离屏 decode 一次再落到整列节点——换一次头像会同时改
     //   顶栏 + 8~16 个气泡头像的 src（实测 15 次 src 赋值），不带预热时各节点各自等解码，
@@ -847,8 +864,10 @@
       try {
         const _warm = new Image();
         _warm.decoding = 'async';
-        _warm.src = data;
-        if (_warm.decode) { const _p = _warm.decode(); if (_p && _p.catch) _p.catch(function () {}); }
+        // #1314 交回池：万一值已被令牌化，旧写法 `_warm.src = 令牌` 是发一次必 404 的相对 URL 请求、
+        // 什么也没预热；池把载荷回写那一刻再 decode()＝热缓存照旧先暖上（内联 dataURL 走同一条＝当场）。
+        const warmDecode = function () { try { if (_warm.decode) { const _p = _warm.decode(); if (_p && _p.catch) _p.catch(function () {}); } } catch (eW) {} };
+        avPaintSrc(_warm, data, warmDecode);
       } catch (e) {}
     }
     const chatAv = document.getElementById(out ? 'chat-user-av' : 'chat-partner-av');
@@ -869,10 +888,10 @@
       el.__avApplied = want;
       if (data) {
         const cur = el.querySelector('img');
-        if (cur) { cur.src = data; cur.alt = ''; }
+        if (cur) { avPaintSrc(cur, data); cur.alt = ''; } // #1314 令牌交回池，不上屏（内联值＝逐字同旧的一次赋值）
         else {
           const img = document.createElement('img');
-          img.src = data;
+          avPaintSrc(img, data);
           img.alt = '';
           el.innerHTML = '';
           el.appendChild(img);
@@ -883,7 +902,34 @@
     };
     applyTo(chatAv);
     applyTo(deskRing);
-    document.querySelectorAll((out ? '.msg-out' : '.msg-in') + ' .msg-av').forEach(av => { applyTo(av); });
+    // #1314 写入面：换一次头像原本把**整个已渲染窗口**的气泡头像在同一拍里全部重新赋值——实测
+    //   （无头 390×844、300 条历史、头像互动点第 4 张）＝104 次 src 写／103 次图片载入，而屏上只有
+    //   6~7 个头像看得见。#617 收掉了「拆节点重建」、#662 预热了位图，写入面一直是整窗：用户看得见
+    //   的那几个换图被排在九十几个看不见节点的载入／解码之后＝「图片会闪和重新加载」。
+    //   收口＝按「这一格现在画不画得出来」分档：可见的（含 80px 余量）立刻落，屏外的分片在后续帧里
+    //   补齐（每片 24 个，几帧内一定落地，不留旧头像；用户滚到历史前早已补完）。判据只有几何可见性，
+    //   零机型分支、零视觉改动；拿不到视口（隐藏页／innerHeight 为 0）或内核没有 rAF 时一律照旧一次
+    //   写完＝最坏情况等于今天，不会更坏。
+    const avNodes = document.querySelectorAll((out ? '.msg-out' : '.msg-in') + ' .msg-av');
+    const vh = window.innerHeight || 0;
+    const avTail = [];
+    for (let i = 0; i < avNodes.length; i++) {
+      const av = avNodes[i];
+      if (!vh) { applyTo(av); continue; }
+      let r = null; try { r = av.getBoundingClientRect(); } catch (e) {}
+      if (!r || (r.bottom > -80 && r.top < vh + 80)) applyTo(av);
+      else avTail.push(av);
+    }
+    if (!avTail.length) return;
+    if (!window.requestAnimationFrame) { for (let k = 0; k < avTail.length; k++) applyTo(avTail[k]); return; }
+    const avGen = ++avApplyGen; // 期间又换了一次头像：旧那一轮的剩余分片作废（#169/#228 同族），新那一轮自己会枚举到全部节点
+    const avStep = function () {
+      if (avGen !== avApplyGen) return;
+      const chunk = avTail.splice(0, 24);
+      for (let k = 0; k < chunk.length; k++) applyTo(chunk[k]);
+      if (avTail.length) { try { window.requestAnimationFrame(avStep); } catch (e) { for (let k = 0; k < avTail.length; k++) applyTo(avTail[k]); avTail.length = 0; } }
+    };
+    try { window.requestAnimationFrame(avStep); } catch (e) { for (let k = 0; k < avTail.length; k++) applyTo(avTail[k]); }
   }
   // 聊天里显示系统消息（chatAddSystem 会持久化，下次进聊天也能看到）
   // img：可选，消息里附带换的头像图片

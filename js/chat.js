@@ -10892,13 +10892,20 @@ if (emojiLazyQueue.indexOf(img) >= 0) return;
 emojiLazyQueue.push(img);
 if (!emojiLazyT) emojiLazyT = setTimeout(emojiLazyPump, 50);
 }
+function emojiPaintSrc(img, src, done) {
+if (src && window.mochiMediaPaint) {
+try { window.mochiMediaPaint(img, src, done || null); return; } catch (e) { img.__moPaint = 0; } // 池抛错：交回原写法
+}
+try { img.setAttribute('src', src || ''); } catch (e2) {}
+if (done) { try { done(true); } catch (e3) {} }
+}
 function emojiLazyPump() {
 emojiLazyT = null;
 for (let n = 0; n < 4 && emojiLazyQueue.length; n++) {
 const img = emojiLazyQueue.shift();
 if (!img || !img.isConnected) continue; // 重渲染已丢弃的节点不再补
 if ((img.__emojiLazySrc || (img.dataset && img.dataset.src)) && !img.getAttribute('src')) {
-img.setAttribute('src', img.__emojiLazySrc || img.dataset.src);
+emojiPaintSrc(img, img.__emojiLazySrc || img.dataset.src); // #1314 令牌交回池，不上屏
 if (img.dataset) img.removeAttribute('data-src');
 img.__emojiLazySrc = null; // #931：节点被回收池复活时不得带着上一轮的源
 }
@@ -10918,7 +10925,7 @@ if (img && img.dataset && img.dataset.src) emojiLazyEnqueue(img);
 function emojiAttachLazy(img) {
 if (!img) return;
 if (emojiImgObserver) { try { emojiImgObserver.observe(img); } catch (e) {} }
-else { img.setAttribute('src', img.dataset.src || ''); img.removeAttribute('data-src'); }
+else { emojiPaintSrc(img, img.dataset.src || ''); img.removeAttribute('data-src'); } // #1314 令牌交回池
 }
 function emojiNewImg(src) {
 const img = document.createElement('img');
@@ -11432,7 +11439,7 @@ const pay = ds || im.getAttribute('src') || '';
 if (!pay) continue;
 const isTok = pay.indexOf('@@m:') === 0;
 if (ds && !im.getAttribute('src')) {
-im.setAttribute('src', ds);
+emojiPaintSrc(im, ds);
 try { im.removeAttribute('data-src'); } catch (e) {}
 try { if (emojiImgObserver) emojiImgObserver.unobserve(im); } catch (e) {}
 }
@@ -11449,6 +11456,7 @@ const off = function () { try { im.removeEventListener('load', settle); im.remov
 const settle = function () {
 if (done) return;
 if (okNow()) { done = true; off(); res(true); return; }
+if (im.__moPaint) return; // #1314 池的回话还在飞（此刻 src 既没载荷也没令牌）：判「无源」会让面板带着没图的格子打开
 if (srcNow().indexOf('@@m:') !== 0) { done = true; off(); res(false); return; } // 真失败/无源：不挡显示
 };
 try { im.addEventListener('load', settle); im.addEventListener('error', settle); } catch (e) {}
@@ -11503,12 +11511,12 @@ let n = 0;
 for (let i = 0; i < imgs.length && n < 24; i++) {
 const im = imgs[i];
 if (im.dataset && im.dataset.src && !im.getAttribute('src')) {
-im.setAttribute('src', im.dataset.src);
+emojiPaintSrc(im, im.dataset.src, function (ok) { if (ok) { try { if (im.decode) im.decode().catch(function () {}); } catch (eD) {} } }); // #1314 令牌交回池；解码发起挪到载荷真落地那一刻
 im.removeAttribute('data-src');
 n++;
 try { if (emojiImgObserver) emojiImgObserver.unobserve(im); } catch (e) {}
 }
-try { if (im.decode) im.decode().catch(function () {}); } catch (e) {}
+if (im.getAttribute('src')) { try { if (im.decode) im.decode().catch(function () {}); } catch (e) {} } // #1314 只在「这一格此刻真有源」时解码；在飞的留给池的回话（上面那个 done）
 }
 }
 function schedulePanelPrewarm(delay) {

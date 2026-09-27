@@ -13576,13 +13576,26 @@ function emojiLazyEnqueue(img, src) {
   emojiLazyQueue.push(img);
   if (!emojiLazyT) emojiLazyT = setTimeout(emojiLazyPump, 50);
 }
+// FIX 2026-09-26 #1314：面板里「把 data-src 落到 src」的四处写入点（首屏 kick、懒加载泵、无
+// IntersectionObserver 的即时补、后台预热）共用一把尺子＝令牌一律交回池（media-pool 的
+// mochiMediaPaint），由池一次写成载荷。旧写法各处自己 im.setAttribute('src', 令牌)，为的是让池的
+// 观察器按 img[src^="@@m:"] 捞到这一格、再重写真载荷——代价是每一格都先拿那 44 个字符当**相对
+// URL** 真发一次必 404 的请求、随后再从零解码一遍＝用户实报「每次打开图片都闪和重新加载」。
+// 空串与池没接入（本文件先于 media-pool 求值的极端情况）时逐字照旧赋值＝最坏情况等于今天，不会更坏。
+function emojiPaintSrc(img, src, done) {
+  if (src && window.mochiMediaPaint) {
+    try { window.mochiMediaPaint(img, src, done || null); return; } catch (e) { img.__moPaint = 0; } // 池抛错：交回原写法
+  }
+  try { img.setAttribute('src', src || ''); } catch (e2) {}
+  if (done) { try { done(true); } catch (e3) {} }
+}
 function emojiLazyPump() {
   emojiLazyT = null;
   for (let n = 0; n < 4 && emojiLazyQueue.length; n++) {
     const img = emojiLazyQueue.shift();
     if (!img || !img.isConnected) continue; // 重渲染已丢弃的节点不再补
     if ((img.__emojiLazySrc || (img.dataset && img.dataset.src)) && !img.getAttribute('src')) {
-      img.setAttribute('src', img.__emojiLazySrc || img.dataset.src);
+      emojiPaintSrc(img, img.__emojiLazySrc || img.dataset.src); // #1314 令牌交回池，不上屏
       if (img.dataset) img.removeAttribute('data-src');
       img.__emojiLazySrc = null; // #931：节点被回收池复活时不得带着上一轮的源
     }
@@ -13602,7 +13615,7 @@ const emojiImgObserver = (('IntersectionObserver' in window) && emojiList)
 function emojiAttachLazy(img) {
   if (!img) return;
   if (emojiImgObserver) { try { emojiImgObserver.observe(img); } catch (e) {} }
-  else { img.setAttribute('src', img.dataset.src || ''); img.removeAttribute('data-src'); }
+  else { emojiPaintSrc(img, img.dataset.src || ''); img.removeAttribute('data-src'); } // #1314 令牌交回池
 }
 // FIX 2026-09-14 #435 面板 img 统一创建：补 decoding="async"（字卡库 img 一直有、面板漏了
 // ——大 dataURL 解码不再阻塞主线程渲染帧）
@@ -14202,8 +14215,12 @@ function emojiKickFirstScreen(imgs) {
     if (!pay) continue;
     const isTok = pay.indexOf('@@m:') === 0;
     if (ds && !im.getAttribute('src')) {
-      // 令牌也得落到 src 上池才认（池按 img[src^="@@m:"] 观察后重写真载荷）：当场补，不等 IO 回调
-      im.setAttribute('src', ds);
+      // #1314 令牌不上屏：这一格要显示的是池载荷，就当池载荷一次落到 src（在飞标记 __moPaint 由池摆/由池收，
+      //   emojiImgReady 读它）。旧写法先把 @@m:<hash> 这 44 个字符本身写进 src，只为让池的观察器／#435 预热
+      //   按 src 捞到它再重写真载荷＝每格两次 src 赋值＋一发注定 404 的相对 URL 请求＋第二次从零解码＝用户
+      //   实报「每次打开图片都闪和重新加载」（#1011 的 opacity:0 只藏坏帧，没拿走那发多余请求）。
+      //   非令牌载荷（内联 dataURL／外链图）在 emojiPaintSrc 里逐字同旧写法＝一次赋值，行为不变。
+      emojiPaintSrc(im, ds);
       try { im.removeAttribute('data-src'); } catch (e) {}
       try { if (emojiImgObserver) emojiImgObserver.unobserve(im); } catch (e) {}
     }
@@ -14220,6 +14237,7 @@ function emojiImgReady(im) {
     const settle = function () {
       if (done) return;
       if (okNow()) { done = true; off(); res(true); return; }
+      if (im.__moPaint) return; // #1314 池的回话还在飞（此刻 src 既没载荷也没令牌）：判「无源」会让面板带着没图的格子打开
       if (srcNow().indexOf('@@m:') !== 0) { done = true; off(); res(false); return; } // 真失败/无源：不挡显示
       // src 还是令牌：池解析完会重写 src 并再触发一次 load，继续等（确缺数据时占位图也会 load）
     };
@@ -14286,12 +14304,12 @@ let n = 0;
 for (let i = 0; i < imgs.length && n < 24; i++) {
 const im = imgs[i];
 if (im.dataset && im.dataset.src && !im.getAttribute('src')) {
-im.setAttribute('src', im.dataset.src);
+emojiPaintSrc(im, im.dataset.src, function (ok) { if (ok) { try { if (im.decode) im.decode().catch(function () {}); } catch (eD) {} } }); // #1314 令牌交回池；解码发起挪到载荷真落地那一刻
 im.removeAttribute('data-src');
 n++;
 try { if (emojiImgObserver) emojiImgObserver.unobserve(im); } catch (e) {}
 }
-try { if (im.decode) im.decode().catch(function () {}); } catch (e) {}
+if (im.getAttribute('src')) { try { if (im.decode) im.decode().catch(function () {}); } catch (e) {} } // #1314 只在「这一格此刻真有源」时解码；在飞的留给池的回话（上面那个 done）
 }
 }
 function schedulePanelPrewarm(delay) {
