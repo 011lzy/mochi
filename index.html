@@ -469,6 +469,7 @@ linear-gradient(168deg, var(--bg-a, #ffffff) 0%, var(--bg-b, #f2f2f2) 100%);
 }
 @media (max-width: 900px) {
 html, body { padding:0; min-height:100vh; min-height:100svh; min-height:100dvh; background:var(--bg-b, #fff); }
+html:not(.ios-pwa-standalone), html:not(.ios-pwa-standalone) body { overflow:hidden; align-items:flex-start; }
 .phone {
 box-sizing:border-box;
 width:100vw; height:100vh;
@@ -482,6 +483,7 @@ padding-bottom:10px;
 }
 }
 html.force-mobile, html.force-mobile body { padding:0; min-height:100vh; min-height:100svh; min-height:100dvh; background:var(--bg-b, #fff); }
+html.force-mobile:not(.ios-pwa-standalone), html.force-mobile:not(.ios-pwa-standalone) body { overflow:hidden; align-items:flex-start; }
 html.force-mobile .phone {
 box-sizing:border-box;
 width:100vw; height:100vh;
@@ -10704,9 +10706,9 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
       <!-- #570：第三行开屏新版检测（ver-check.js 渲染）：检测中 / ✓已是最新 / ⇩有新版本可点更新 -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1790508999173">
+      <div class="splash-ver" id="splash-ver" data-build-ts="1790512969722">
         <span class="sv-app">Mochi 字卡传讯 <b>v8.45</b></span>
-        <span class="sv-deploy">部署于 2026-09-27 19:36<span id="splash-ver-live"></span></span>
+        <span class="sv-deploy">部署于 2026-09-27 20:42<span id="splash-ver-live"></span></span>
         <span class="sv-check" id="splash-ver-check" hidden></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
@@ -22105,4 +22107,4 @@ window.__mochiBootRetry = function () { try { location.reload(); } catch (e) {} 
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mujqtts5 -->
+<!-- __MOCHI_EOF__ mujt6xh6 -->

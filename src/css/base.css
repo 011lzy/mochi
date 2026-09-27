@@ -631,6 +631,22 @@ input.mochi-pick-surface::-webkit-file-upload-button { display:none; }
      （收键盘动画/内核 vv 上报有延迟）露出的那一条由「大片灰底」变成与页面同色，观感
      不突兀；桌面宽屏外壳不在此媒体查询内，模拟器灰底照旧。零机型分支、纯视觉兜底。 */
   html, body { padding:0; min-height:100vh; min-height:100svh; min-height:100dvh; background:var(--bg-b, #fff); }
+  /* FIX 2026-09-27 #1340 竖屏形态的文档不变量：根不可滚、壳顶对齐（与机型／内核无关）。
+     #185（iPad 独立应用「文档可滚时橡皮筋把整页来回拽＝滑动位置会飞、一弹一弹」）与
+     #537（iOS 覆盖形态「flex 居中把 .phone 整块挪走 31px＝顶部重叠＋底部白带」）早就各自
+     量到过同一处物理后果，但两道收口都写死在 iOS standalone 的选择器上；竖屏浏览器形态
+     （inner==vv、.phone==100dvh、只有 overflow-x 被锁）从来没有这一对约束，于是壳与视口
+     之间只要差出一格——内核 dvh 滞留、#916 过期内联钉高、键盘残留、用户手调偏移——那一格
+     既成白带又成可拖走量，同一缺陷在红米／OPPO／小米15 上分别长成「页面可以上下滑飞出屏
+     幕」「全屏也会有空白」「顶部白条」。本批把它升成形态无关的不变量：整页是永不滚动的
+     裁剪框（#399 早已把 .phone 定为裁剪框、纵向滚动只属于 .page／#chat-body，根却是漏的）。
+     顶对齐＝差出来的那一格一律留在下沿：上沿是状态栏与返回键，永不该动；旧写法居中时同一
+     格被劈成上下两条（实测 762→822 那 2~3s 里顶 45／底 15）。
+     健康态里两条都是空操作：.phone 与 body 同为 100dvh、彼此相等，既不居中位移也无
+     可滚量——只在两者 disagreement（＝正在发病）时起作用＝零观感回归。
+     刻意排除 .ios-pwa-standalone：那一路的形态（覆盖／保留／iPad）各有一条自己的高度与
+     锁法（#114/#148/#185/#537 的针都在那里），本批不越过去动它＝iOS 主屏幕零变化。 */
+  html:not(.ios-pwa-standalone), html:not(.ios-pwa-standalone) body { overflow:hidden; align-items:flex-start; }
   .phone {
     /* v3.5.139：显式声明——padding(0 18px 18px) 必须算进 100dvh 内，
        否则实际高度超视口、底部导航栏/组件被截 */
@@ -660,6 +676,9 @@ input.mochi-pick-surface::-webkit-file-upload-button { display:none; }
 /* #542：同 @media(max-width:900px)——UA 桌面伪装兜底形态 body 底色也跟 .phone（--bg-b），
    键盘收缩露出的那一条不再是大片灰底 */
 html.force-mobile, html.force-mobile body { padding:0; min-height:100vh; min-height:100svh; min-height:100dvh; background:var(--bg-b, #fff); }
+/* #1340：同一条文档不变量——force-mobile 复刻的就是上方竖屏形态（手机伪装桌面 UA 时媒体
+   查询不命中、只能靠这个类复刻），漏一份就等于「桌面站点」模式下整页照旧可被拖走 */
+html.force-mobile:not(.ios-pwa-standalone), html.force-mobile:not(.ios-pwa-standalone) body { overflow:hidden; align-items:flex-start; }
 html.force-mobile .phone {
   box-sizing:border-box;
   width:100vw; height:100vh;

@@ -5386,6 +5386,30 @@ const FIX_SENTINELS = [
   { name: '#1335f', file: 'js/idb.js', needle: 'try { delete _wrjReplayed[key]; } catch (e0) {}', note: "本会话写过就摘掉「未获背书」标记；不摘＝同一会话里后一次回填把用户刚写的值当成可疑旧值覆盖掉＝把这次的修复变成新的丢数据路径" },
   { name: '#1335g', file: 'js/idb.js', needle: '_lsDirtyKeys.add(e.k); _wrjDirtyTouched = true;', note: "冻结回放的键整场只落一次脏标记盘（逐条 lsDirtyAdd＝每条一次 sessionStorage＋一次 IDB 事务；#943c 为同一件事把日志落盘改成防抖过）" },
   { name: '#1335h', file: 'js/device.js', needle: 'window.__wrjDiag && window.__wrjDiag()', note: "诊断【数据】段点名「写日志冻没冻」；上面那行只报「写入拒绝 212 次」看不出是哪本账在拒，删＝下一位照旧只能从数字猜成因" },
+  /* ==== 2026-09-27 #1340 小米15/Edge（桌面快捷方式）「页面可以上下滑动飞出屏幕，全屏也会有空白」＝整页那一格的两把尺（零机型／零 UA 分支） ====
+     无头同尺量出两处、都与机型无关：① 文档从来没有「不可滚」这条约束——#185（iPad 独立应用「文档
+     可滚时橡皮筋把整页来回拽＝滑动位置会飞、一弹一弹」）与 #537（iOS 覆盖形态「flex 居中把 .phone
+     整块挪走 31px＝顶部重叠＋底部白带」）各自撞见过同一物理后果，但两道收口都写死在 iOS standalone
+     的选择器上，竖屏浏览器形态只锁了 overflow-x ⇒ 壳与视口差出的那一格同时是「白带」和「可拖走的
+     量」（实测本机真值 shift=15：文档底 777／视口 762，真手指一拖整页被拖走 15px 且松手不回位）。
+     ② #916 的稳态高度对账拿【底边】当尺寸尺（`.phone 底边 − innerHeight`）——底边＝顶边＋壳高，顶边
+     会被任何一格平移挪走（#707 手调整体位移／#236·#1330 那一路的 style.top）⇒ 凡顶边不在 0 的机器
+     偏差恒等于那段位移（shift=15 ⇒ 永久 +15px＞8）＝钉高一经挂上永不摘除，而钉的值是「挂上那一刻」
+     的视口高，视口一变高没人让它作废：实测 762→822 那 2~3s 里壳高仍 762 而盒子已 822，body 居中把
+     60px 劈成顶 45／底 15 两条白带（＝「全屏也会有空白」），反向变矮时同一格变成「整页可拖走」。
+     本批收口＝① 竖屏形态（含 force-mobile 复刻）根不可滚＋壳顶对齐，刻意不动 .ios-pwa-standalone
+     （那一路的高度与锁法各有其针 #114/#148/#185/#537）；② 对账改量【盒高】vs innerHeight，且钉高
+     一经挂上就当拍跟随视口（#916a 两拍闸只管「要不要开始钉」，一字未动，E 组断言守它）。
+     ⚠️ 分工：位移轴越界本身该夹回多少、以及屏幕适配诊断的纵尺，是 #1322 在同一台机（370×822／
+     shift+15 同形）正在收的两件，本批刻意不写第二份＝同一事实不许两个主人。
+     验证＝tools/verify-1340-doc-fit-invariant.mjs（31 断言，无头 CDP 真跑产物；同尺 A/B＝落库侧
+     全绿 · 纯 tip 侧红的恰全本批新契约）。 */
+  { name: '#1340a 竖屏形态根不可滚＋壳顶对齐（删回只锁 overflow-x＝壳与视口差出的那一格又同时是白带和可拖走量，本批复报）', file: 'css/base.css', needle: 'html:not(.ios-pwa-standalone), html:not(.ios-pwa-standalone) body { overflow:hidden; align-items:flex-start; }' },
+  { name: '#1340b force-mobile 复刻同一对约束（漏一份＝手机伪装桌面 UA 时媒体查询不命中，整页照旧可被拖走）', file: 'css/base.css', needle: 'html.force-mobile:not(.ios-pwa-standalone), html.force-mobile:not(.ios-pwa-standalone) body { overflow:hidden; align-items:flex-start; }' },
+  { name: '#1340c #916 对账的实测量取盒高（改回 getBoundingClientRect().bottom＝拿位置当尺寸，凡顶边不在 0 的机器钉高永不摘除）', file: 'js/mobile-adapt.js', needle: 'var _aPhH = Math.round(_aPhone.getBoundingClientRect().height);' },
+  { name: '#1340d 期望量＝innerHeight，不含任何平移（改回与底边比＝位移／style.top 冒充偏差，本批「全屏有空白」的前半）', file: 'js/mobile-adapt.js', needle: "var _aDev = (_aPhH > 0) ? (_aPhH - _aExpB) : 0;" },
+  { name: '#1340e 钉高一经挂上就当拍跟随视口（删＝视口变高后过期内联高还要压 2~3s＝那两条白带的宽度；两拍闸职责不变）', file: 'js/mobile-adapt.js', needle: "if (_aFitPin && _aPhone.style.height !== _aExpB + 'px') {" },
+  { name: '#1340f 删除型：#916 旧底边尺不得回流（拿 .phone 底边当尺寸的写法必须整行消失＝本批改尺的唯一硬证据）', file: 'js/mobile-adapt.js', needle: 'aPbNow = Math.round(_aPhone.getBoundingClientRect().bottom)', absent: true },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

@@ -1955,6 +1955,11 @@
             // 回落 CSS。上方清扫块每拍先清内联再落到这里＝钉高态每拍「清→实测→复钉」
             // 单拍内完成，渲染帧始终是钉正后的形态，无来回抖动。健康设备偏差恒 ≤8px、
             // 零写入零重排，行为零变化。
+            // ⚠️ 上面那句「实测 .phone 底边 vs innerHeight」是 #916 当时的原始口径，2026-09-27
+            // 由 #1340 收窄成「实测 .phone 盒高 vs innerHeight」——底边那把尺把任何一格平移
+            // （用户手调整体位移／#236 那一路的 style.top）当成偏差，改口径的取证与后果见下方
+            // #1340 那块注释。当年那两条现场签名（底边 699／751）在新尺下同量同判，钉高职责
+            // 一字未动（E 组断言守这条）。
             try {
               var _aExpB = window.innerHeight || 0;
               var _aVvQ = Math.round(_aVV.height || 0);
@@ -1964,8 +1969,25 @@
                 && Date.now() - _aVvChgAt > 1200
                 && !(window.matchMedia && matchMedia('(display-mode: standalone)').matches);
               if (_aFitGo) {
-                var _aPbNow = Math.round(_aPhone.getBoundingClientRect().bottom);
-                var _aDev = (_aPbNow > 0) ? (_aPbNow - _aExpB) : 0;
+                // FIX 2026-09-27 #1340：这把尺子量的必须是【尺寸】，旧写法量的是【位置】。
+                // 原式「.phone 底边 − innerHeight」把两件事混成一件：底边＝顶边＋壳高，而顶边
+                // 会被任何一格平移挪走——用户手调整体位移（#707 shift＝.phone 的 top）、内核
+                // 把视觉视口平移（#236/#1330 那一路 style.top）都算。于是凡顶边不在 0 的机器
+                // 偏差恒等于那一段位移（本批实报机器 shift=15 ⇒ 偏差永久 +15px＞8px）＝① 钉高
+                // 一经挂上永不摘除；② 钉的值又是「挂上那一刻」的视口高，视口一变高（Edge 工具条
+                // 收起／进全屏 762→822）没有任何东西让它作废——实测那 2~3s 里壳高仍 762 而盒子
+                // 已 822，body flex 居中把差出来的 60px 劈成顶 45／底 15 两条白带（＝用户本批报
+                // 的「全屏也会有空白」）；反向变矮时同一格变成「整页可被手指拖走」。
+                // 改为只看尺寸事实：期望壳高＝innerHeight（顶边去哪不管），实测量取盒高。
+                var _aPhH = Math.round(_aPhone.getBoundingClientRect().height);
+                var _aDev = (_aPhH > 0) ? (_aPhH - _aExpB) : 0;
+                // #1340：钉高一经挂上就是「跟随实测视口」的活值，当拍跟、不等两拍。两拍闸
+                //（下方 #916a 那行）的职责是「要不要开始钉」（避开工具条显隐动画中途误钉来回
+                // 抽），它管不到「已经钉着的那个值过期」——旧写法过期后还要再压 2~3s
+                if (_aFitPin && _aPhone.style.height !== _aExpB + 'px') {
+                  _aPhone.style.height = _aExpB + 'px';
+                  _aPanComp();
+                }
                 if (_aDev > 8 || _aDev < -8) {
                   if (_aFitPend === _aExpB) {
                     if (_aPhone.style.height !== _aExpB + 'px') _aPhone.style.height = _aExpB + 'px';

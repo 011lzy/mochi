@@ -1107,8 +1107,12 @@ var _aFitGo = _aExpB > 0 && _aVvQ > 0 && _coarse && !_aVpPin && !_aKb && !_aProv
 && Date.now() - _aVvChgAt > 1200
 && !(window.matchMedia && matchMedia('(display-mode: standalone)').matches);
 if (_aFitGo) {
-var _aPbNow = Math.round(_aPhone.getBoundingClientRect().bottom);
-var _aDev = (_aPbNow > 0) ? (_aPbNow - _aExpB) : 0;
+var _aPhH = Math.round(_aPhone.getBoundingClientRect().height);
+var _aDev = (_aPhH > 0) ? (_aPhH - _aExpB) : 0;
+if (_aFitPin && _aPhone.style.height !== _aExpB + 'px') {
+_aPhone.style.height = _aExpB + 'px';
+_aPanComp();
+}
 if (_aDev > 8 || _aDev < -8) {
 if (_aFitPend === _aExpB) {
 if (_aPhone.style.height !== _aExpB + 'px') _aPhone.style.height = _aExpB + 'px';
