@@ -18,7 +18,9 @@
 // 用例：
 //   S1~S4 静态锚（src／产物：复核闸在位 ＋ 重读不再挂在一次性回调上）
 //   P0~P3 前提：贴底渲染／构建在飞（屏上被清空）／另一上下文确已落库
-//   C1 构建在飞期：新消息尚未上屏且零重读（＝那一枪确实被打掉，前提成立；两侧都该绿）
+//   C1 构建在飞期不抢跑：让路窗内零重读＋尚未上屏，**或**已按 #1313 的停滞接管并真的画回来
+//      （⚠️ 2026-09-26 #1313 重锚：停摆的分帧轮不再是「永久在飞」，旧形态「3s 后仍旧零重读」成了
+//       对无主空白的背书；本条改成两种诚实形态之一，纯 HEAD 侧因没有 __chatPumpDiag 而等价于旧断言）
 //   C2 【判别核心】障碍清除后：新消息必须**自己**上屏、气泡有文字、屏上尾部追平内存尾部
 //   C3 回场仍贴底（#930/#416 语义不打回）
 //   C4 【契约】短离场（2s）＋无构建在飞：历史键零重读（≤60s 行为零变化）
@@ -279,7 +281,19 @@ try {
   await sleep(3000);
   const readsDuring = await A.evalJs('JSON.stringify(window.__histReads)');
   const onScreenDuring = await A.evalJs(HAS(MARK));
-  A_('C1 构建在飞期：零重读、新消息尚未上屏（前提成立，两侧都该绿）', onScreenDuring === false && readsDuring === '[]', { readsDuring, onScreenDuring });
+  const sDuring = JSON.parse((await A.evalJs(SNAP)) || '{}');
+  const pumpDuring = JSON.parse((await A.evalJs("(function(){return JSON.stringify(window.__chatPumpDiag ? window.__chatPumpDiag() : null);})()")) || 'null');
+  // ⚠️ 本条的前提窗在 #1313 之后被收窄（重锚、非松绑）：一条**真的停摆**的分帧轮不再等于「永久在飞」——
+  // 最迟在停滞被认定之后必须有人接管收装。所以旧写法「3s 之后仍零重读＋屏上没有」在这里不再是契约，
+  // 而本条要守的东西一个字没少：**不许抢跑**（停滞没成立就不许提前重读/提前画）、**不许无主**（屏被清空
+  // 却没有任何接管记录＝本症状本体）。两种诚实形态之一才放行：
+  //   ① 仍在让路窗内＝旧契约原样（零重读＋新消息尚未上屏）；② 已按停滞接管＝必须留下 watchdog/resume-heal
+  //   那一发事故记录，**并且屏上真的重新有内容**（只留证不画回来照样红）。
+  // 纯 HEAD 侧没有 __chatPumpDiag ⇒ ②恒不成立 ⇒ 本条等价于旧断言（尺子两侧同一条）。
+  const letWayHeld = onScreenDuring === false && readsDuring === '[]';
+  const takenOver = !!pumpDuring && Array.isArray(pumpDuring.incidents)
+    && pumpDuring.incidents.some((x) => /watchdog|resume-heal/.test(String(x && x.why))) && sDuring.kids > 0;
+  A_('C1 构建在飞期不抢跑：让路窗内零重读尚未上屏，或已按停滞接管并真的画回来（#1313 收窄前提窗）', letWayHeld || takenOver, { letWayHeld, takenOver, readsDuring, onScreenDuring, kids: sDuring.kids, pump: pumpDuring });
 
   // ---------- C2 判别核心：障碍清除后，新消息必须自己上屏（不靠用户退出重进/刷新） ----------
   await A.evalJs(PARK_SET(false));

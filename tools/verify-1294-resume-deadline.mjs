@@ -20,6 +20,8 @@
 // 用例：
 //   A1~A4 静态锚（src／产物：死线不掉弹 ＋ 读在飞有界续期）
 //   P0~P3 前提：320 条贴底渲染／构建在飞（屏上清空＝用户口径「一片空白」）／另一上下文确已落库
+//   D0 前提：软死线之前不许抢跑（零重读）**或**已按 #1313 的停滞接管并真的画回来
+//      （2026-09-26 重锚：停摆的分帧轮不再是「永久在飞」，旧形态「3s 后仍零重读」成了对无主空白的背书）
 //   D1 【判别核心】构建在飞拖过 6s 死线：到点仍必须开出这一发权威重读（HEAD 红：reads=[]）
 //   D2 【判别核心】障碍清除后新消息自己上屏（HEAD 红：永远不上屏，只有刷新/重进才画＝用户原话）
 //   D3 屏上尾部追平内存尾部（无「模型有、屏上没有」错位）
@@ -275,7 +277,20 @@ try {
   await A.evalJs(RESUME(65000));
   await sleep(3000);
   const readsEarly = await A.evalJs('JSON.stringify(window.__histReads)');
-  A_('D0 前提：软死线（6s）之前构建在飞期零重读（#1202 的让路语义不变）', readsEarly === '[]', readsEarly);
+  const sEarly = JSON.parse((await A.evalJs(SNAP)) || '{}');
+  const pumpEarly = JSON.parse((await A.evalJs("(function(){return JSON.stringify(window.__chatPumpDiag ? window.__chatPumpDiag() : null);})()")) || 'null');
+  // ⚠️ 本条的前提窗在 #1313 之后被收窄（重锚、非松绑）：一条**真的停摆**的分帧轮不再是「永久在飞」，
+  // 最迟在停滞被认定之后必须有人接管收装 ⇒ 障碍一清，本批的复核状态机提前开出那一发重读是**对的**。
+  // 本条要守的两件事一个字没少：**不许抢跑**（停滞尚未成立就不许提前重读）、**不许无主**（屏被清空却
+  // 没有任何接管记录＝用户那句「一片空白、只有刷新才恢复」的本体）。两种诚实形态之一才放行：
+  //   ① 仍在让路窗内＝旧契约原样（零重读）；② 已按停滞接管＝必须留下 watchdog/resume-heal 那一发事故
+  //   记录，**并且屏上真的重新有内容**（只留证不画回来照样红）。
+  // 纯 HEAD 侧没有 __chatPumpDiag ⇒ ②恒不成立 ⇒ 本条等价于旧断言（＝两侧同一条尺子）。
+  // D1（6s 死线到点必须开那一发）与 D2~D5 一字未动，本批没有给「死线」让路。
+  const letWayHeld = readsEarly === '[]';
+  const takenOver = !!pumpEarly && Array.isArray(pumpEarly.incidents)
+    && pumpEarly.incidents.some((x) => /watchdog|resume-heal/.test(String(x && x.why))) && sEarly.kids > 0;
+  A_('D0 让路语义未被抢跑：软死线前零重读，或已按 #1313 的停滞接管并真的画回来（前提窗收窄）', letWayHeld || takenOver, { letWayHeld, takenOver, readsEarly, kids: sEarly.kids, pump: pumpEarly });
 
   // ---------- D1 判别核心：6s 死线到点，构建仍在飞＝子弹也必须开（数据重读与构建无关） ----------
   await sleep(4500); // 越过 _rcDeadline（arm+6s）＋两个 250ms 步进

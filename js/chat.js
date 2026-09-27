@@ -3137,6 +3137,43 @@ let suppressScrollUntil = 0; // 程序化滚动后短暂忽略 scroll 事件（�
 const RENDER_CHUNK = 50;
 const RENDER_CHUNK_MIN = 80;
 let _rwToken = 0;
+const CHAT_PUMP_STALL_MS = 2500; // 一帧都不推进多久才算卡死：无头实测单批 50 条 renderMsg 在 4× CPU 节流下仍 <250ms，留一个量级的余量＝绝不误伤健康的分帧轮（误伤只是把「让出主线程」换成「一口气画完」，总工不变）
+let chatPump = null; // 只有「分帧整窗轮」会登记：{ at, token, done, watch, rescue }
+function chatPumpTouch() { if (chatPump) chatPump.at = Date.now(); }
+function chatPumpStalled() {
+if (!batchRendering || !chatPump) return false; // 不在飞／不是分帧轮＝没有可停滞的泵
+return Date.now() - chatPump.at >= CHAT_PUMP_STALL_MS;
+}
+function chatPumpStopWatch(p) { if (p && p.watch) { clearTimeout(p.watch); p.watch = 0; } }
+function chatPumpArmWatch(p) {
+chatPumpStopWatch(p);
+p.watch = setTimeout(function () { chatPumpWatch(p); }, CHAT_PUMP_STALL_MS);
+}
+function chatPumpWatch(p) {
+p.watch = 0;
+if (p.done || chatPump !== p) return; // 本轮已收装／已被新一轮顶替（新轮自己排了自己的枪）
+if (!batchRendering) return;
+if (document.hidden) { chatPumpArmWatch(p); return; } // 后台期内核本就不派发定时器＝冻结不是卡死，等回前台再判
+if (Date.now() - p.at < CHAT_PUMP_STALL_MS) { chatPumpArmWatch(p); return; } // 期间有过进展＝泵还活着，再观察一轮
+chatPumpRescue('watchdog');
+}
+function chatRenderIncident(why, stallMs, threw) {
+try {
+const l = window.__chatRenderIncidents = window.__chatRenderIncidents || [];
+if (l.length >= 8) l.shift();
+l.push({ t: Date.now(), why: String(why), stallMs: stallMs || 0, threw: threw || 0, token: _rwToken, kids: body.children.length, n: msgs.length });
+window.__chatRenderIncidentN = (window.__chatRenderIncidentN || 0) + 1;
+if (window.__mochiPhase) window.__mochiPhase('render:' + why); // 塞进 #907 相位账本：卡顿自检回查冻结起点前的最近标记时能点名
+} catch (e) {}
+}
+function chatPumpRescue(why) {
+const p = chatPump;
+if (!p || p.done || !batchRendering) return false;
+chatRenderIncident(why, Date.now() - p.at, 0);
+try { p.rescue(); } catch (e) {} // rescue 内部逐条已有 try/catch，这里只兜「收尾自身抛」＝维持旧行为
+return true;
+}
+window.__chatPumpDiag = function () { return { flying: batchRendering, stalled: chatPumpStalled(), sinceMs: chatPump ? Date.now() - chatPump.at : -1, incidents: (window.__chatRenderIncidents || []).slice(-3) }; }; // 只观测不改写：供 verify 脚本与真机诊断回读
 function renderWindow(keepScroll, clampTop, forceSync) {
 try { if (!keepScroll && window.__mochiPhase) window.__mochiPhase('chat-renderWindow'); } catch (e0) {}const len = msgs.length;
 chatRebuilding = false; // #841e：新一轮渲染先复位空窗标志（被作废的旧分帧轮不得把进度条留在屏上）
@@ -3162,10 +3199,31 @@ appendAvatarBatch(true);
 const myAvBatch = avatarBatchCache; // #972：本轮自己的缓存对象身份——作废时只释放「还属于本轮」那份，绝不误清新一轮的
 const myDefer = batchDefer = { len: len, q: [] }; // #1004：本轮开轮时的条数快照（迟到节点判据）＋暂存队列
 const skippedIdx = []; // #1004：本轮因「记录位不是对象」被 #919a 保护性跳过的下标（屏上少画一条，必须留痕）
+const threwIdx = []; // #1313：本轮 renderMsg 当场弄抛的下标（对象里的坏字段）——与 #919a 的空洞分开记：它不是「等数据补上就自愈」的空洞
 let i = start;
 const myToken = ++_rwToken;
+const myPump = { at: Date.now(), token: myToken, done: false, watch: 0, rescue: null }; // #1313：本轮的泵（进展时间戳＋接管入口＋是否已收装）
+const paintRange = function (end) {
+for (; i < end; i++) {
+const _rm = msgs[i];
+if (!_rm || typeof _rm !== 'object') { skippedIdx.push(i); continue; } // #919a 记录位空洞/坏记录跳过不画：renderMsg(undefined) 抛 TypeError 打断整轮分帧构建（setTimeout 链断＝不换装不贴底、batchRendering 卡死，屏上停在窗口最旧的几十条、退出重进才恢复；用户设备 buildChunk→renderMsg「reading 'side'」实锤）
+try {
+maybeInsertDivider(i);
+if (_rm && (_rm._lsLite || _rm.img === '' || _rm.voice === '' ||
+(Array.isArray(_rm.parts) && _rm.parts.some(p => p && typeof p.v === 'string' && p.v === '')))) {
+_liteIdx.push(i);
+}
+const m = renderMsg(_rm);
+m.dataset.idx = i; // 覆盖 renderMsg 内的 msgs.length-1（批量渲染时必须为真实下标）
+} catch (eThrow) { threwIdx.push(i); } // #1313：单条记录不许带走整轮构建（链断＝永久空白，见上面 #919a 那条真机实锤）
+}
+};
 const finishSwap = function () {
+if (myPump.done) return; // #1313：本轮已经收过装（正常跑完或看门狗接管），任何迟到的续链不得二次换装
+chatPumpStopWatch(myPump); // #1313：本轮到此为止，看门狗撤枪
 if (myToken !== _rwToken) { if (avatarBatchCache === myAvBatch) appendAvatarBatch(false); if (batchDefer === myDefer) batchDefer = null; return; }
+myPump.done = true;
+if (chatPump === myPump) chatPump = null; // #1313：泵只登记「真正在飞的那一轮」
 if (_liteIdx.length) windowRenderedLite = _liteIdx;
 appendAvatarBatch(false);
 appendTarget = null;
@@ -3178,6 +3236,7 @@ renderEnd = msgs.length;
 }
 batchDefer = null;
 if (skippedIdx.length) { windowStale = true; armWindowHoleHeal(skippedIdx); }
+if (threwIdx.length) { windowStale = true; chatRenderIncident('paint-throw', 0, threwIdx.length); }
 if (keepScroll && prevHeight > 0) {
 body.scrollTop = prevTop + (body.scrollHeight - prevHeight);
 }
@@ -3195,31 +3254,28 @@ try { chatSettleHoldSettle(); } catch (e) {} // #1010：分帧换装落定后再
 if (chatPinnedBottom) chatEntrySettle(); // #841b：重建换装＝一次「进页」，重开 1.2s 同帧贴底窗，视口内图片迟到解码当帧收口，不等 250ms 看门狗拽把
 };
 const buildChunk = function () {
-if (myToken !== _rwToken) { try { restoreInplaceDrafts(); } catch (e) {} if (avatarBatchCache === myAvBatch) appendAvatarBatch(false); if (batchDefer === myDefer) batchDefer = null; return; } // #718 作废：草稿回填旧 DOM（新轮 collect 会再收），不丢草稿；#972/#1004：作废轮释放自己那轮的批量头像缓存与迟到队列
-const end = Math.min(i + RENDER_CHUNK, len);
-for (; i < end; i++) {
-const _rm = msgs[i];
-if (!_rm || typeof _rm !== 'object') { skippedIdx.push(i); continue; } // #919a 记录位空洞/坏记录跳过不画：renderMsg(undefined) 抛 TypeError 打断整轮分帧构建（setTimeout 链断＝不换装不贴底、batchRendering 卡死，屏上停在窗口最旧的几十条、退出重进才恢复；用户设备 buildChunk→renderMsg「reading 'side'」实锤）
-maybeInsertDivider(i);
-if (_rm && (_rm._lsLite || _rm.img === '' || _rm.voice === '' ||
-(Array.isArray(_rm.parts) && _rm.parts.some(p => p && typeof p.v === 'string' && p.v === '')))) {
-_liteIdx.push(i);
-}
-const m = renderMsg(_rm);
-m.dataset.idx = i; // 覆盖 renderMsg 内的 msgs.length-1（批量渲染时必须为真实下标）
-}
+if (myPump.done) return; // #1313：本轮已收装（正常跑完或接管完毕），停摆后迟到的那一发不许再动任何状态（appendTarget 已空＝旧写法会把节点直接补挂进 body 里成重复消息）
+if (myToken !== _rwToken) { try { restoreInplaceDrafts(); } catch (e) {} if (avatarBatchCache === myAvBatch) appendAvatarBatch(false); if (batchDefer === myDefer) batchDefer = null; return; } // #718 作废：草稿回填旧 DOM（新轮 collect 会再收），不丢草稿；#972/#1004：作废轮释放自己那轮的批量头像缓存与迟到队列（#1313：作废轮的看门狗不在此撤——它是真延时定时器，到点自己见 chatPump 已换主即空手而归）
+chatPumpTouch(); // #1313：跑到了这里＝泵还在推进（盖时间戳的唯一出处）
+paintRange(Math.min(i + RENDER_CHUNK, len));
 if (i < len) { setTimeout(buildChunk, 0); return; }
+finishSwap();
+};
+myPump.rescue = function () {
+while (!myPump.done && i < len) paintRange(Math.min(i + RENDER_CHUNK, len));
 finishSwap();
 };
 if (!keepScroll && !forceSync && (len - start) >= RENDER_CHUNK_MIN && window.requestAnimationFrame) {
 chatRebuilding = true; // #841f：分帧构建期列表是空的，进度条顶上（updateChatLoading 读该标志）
 updateChatLoading(); // #841g：置位后立即置屏，不留一帧「闪白无提示」
+chatPump = myPump; chatPumpArmWatch(myPump); // #1313：登记本轮的泵并排一枪看门狗——这一枪是真正的延时定时器、不挂在那条 0ms 链上，链死了它还在
 setTimeout(buildChunk, 0); // #718 分帧构建
 return;
 }
 for (; i < len; i++) {
 const _rm = msgs[i];
 if (!_rm || typeof _rm !== 'object') { skippedIdx.push(i); continue; } // #919b 同 #919a：同步整窗路径也不得被单条空记录打断（异常一路上抛，调用方紧随的贴底/收尾整段跳过）
+try {
 maybeInsertDivider(i);
 if (_rm && (_rm._lsLite || _rm.img === '' || _rm.voice === '' ||
 (Array.isArray(_rm.parts) && _rm.parts.some(p => p && typeof p.v === 'string' && p.v === '')))) {
@@ -3227,6 +3283,7 @@ _liteIdx.push(i);
 }
 const m = renderMsg(_rm);
 m.dataset.idx = i; // 覆盖 renderMsg 内的 msgs.length-1（批量渲染时必须为真实下标）
+} catch (eThrow) { threwIdx.push(i); } // #1313：同步整窗路径同理——单条记录不许把异常抛给调用方（那会连贴底/撤进度条一起跳过，屏上停在被清空的状态）
 }
 finishSwap();
 }
@@ -6502,7 +6559,10 @@ chatResumeReconcileHeal();
 }
 function chatResumeReconcileHeal() {
 try {
-if (!chatVisible() || !chatPinnedBottom || batchRendering) return; // #162／换装期不写 DOM
+if (!chatVisible() || !chatPinnedBottom) return; // #162
+if (batchRendering && !chatPumpStalled()) return; // 换装期不写 DOM（泵确实还在推进＝让路）
+if (batchRendering) chatPumpRescue('resume-heal'); // 停滞泵接管：先把那一轮已经构建好的部分换装落屏
+if (batchRendering) return; // 接管没成（收尾自身抛）＝维持旧行为，本轮不写 DOM
 const len = msgs.length;
 if (!len) return;
 let lastIdx = -1;

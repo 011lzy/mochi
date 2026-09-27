@@ -5279,6 +5279,16 @@ const FIX_SENTINELS = [
   { name: '#1311g 封面昵称抬到层之上（按 #821 桌面昵称同一口径；删＝点昵称那一块被整层接住＝改昵称这条路上前台被吃掉）', file: 'index.html', needle: '.feed-cover-name { position:relative; z-index:1;' },
   { name: '#1311h 封面右上角装饰圆环不吃命中（::after 按最后子节点绘制、压在这张层上，那块 120×120 点下去又走回合成腿＝修复留下盲区）', file: 'index.html', needle: "border:1px solid rgba(255,255,255,.15); border-radius:50%;\npointer-events:none;" },
   { name: '#1311i 合成腿当场留证「这个入口有没有那张真·可点层」（srf:0＝只有合成腿、该铺层；srf:≥1＝层在但没被这一下命中；两种修法完全不同，旧诊断单两笔 leg:fire 只能让人猜）', file: 'index.html', needle: "'srf:' + window.mochiFilePickSurfaceAll(input).length" },
+  /* ==== 2026-09-26 #1313 渲染泵停摆＝「挂后台再回来聊天一片空白、要刷新才恢复」根治（红米 K80 Chrome 第四次复报、多机型同现；判据只取「这一轮整窗构建还在不在推进」这一个事实，零机型／零 UA 分支。分帧构建唯一的生命线是 buildChunk 末尾那条 setTimeout(buildChunk,0) 自续链，而 body.innerHTML='' 发生在开轮那一刻：链不再回来（单条记录把 renderMsg 弄抛＝#919a 注释里真机「reading 'side'」实锤那一族；或内核把 0ms 链吞掉＝#1202 取证过隐藏标签约 1 次/分钟）⇒ batchRendering／appendTarget 永久停在「构建中」＋屏上空列表，而回场复核④、#1004 空洞自愈、增量补尾、退出重进同窗补丁全拿「构建在飞」当早退理由＝没有任何补口，只有刷新能恢复。取证＝tools/verify-1313-render-pump-stall.mjs 红侧 kids:0 撑满 20s／进度条常驻／n 在涨而屏上不画／链中抛错以未捕获异常收场）==== */
+  { name: '#1313a 停滞阈值常量（尺子唯一的来源；改回「按在飞判断」这一行必然消失＝卡死态下在飞永远为真、所有让路闸变死路）', file: 'js/chat.js', needle: 'const CHAT_PUMP_STALL_MS = 2500;' },
+  { name: '#1313b 停滞判据函数（问「有没有进展」而不是「在不在飞」；删＝回场复核与看门狗双双失去唯一判据）', file: 'js/chat.js', needle: 'function chatPumpStalled() {' },
+  { name: '#1313c 分帧轮登记泵并排真延时看门狗（这一枪不挂在那条 0ms 链上＝链死了它还在；删＝没有任何东西续得上，永久空白复发）', file: 'js/chat.js', needle: 'chatPump = myPump; chatPumpArmWatch(myPump);' },
+  { name: '#1313d 泵进展时间戳在续链入口（挪出 buildChunk＝尺子失效，接管会误伤健康的分帧轮）', file: 'js/chat.js', needle: 'chatPumpTouch(); // #1313' },
+  { name: '#1313e 接管＝把剩下的画完再走既有 finishSwap（换成第二套换装收尾／只换装不补尾都会漏画或错位；删＝认出了停滞却无人收装）', file: 'js/chat.js', needle: 'while (!myPump.done && i < len) paintRange(Math.min(i + RENDER_CHUNK, len));' },
+  { name: '#1313f 回场复核④的死路改尺（旧形态 `|| batchRendering) return;` 让停滞泵永久挡住补画＝本症状最后一条无主态；删回旧行＝第四次复报的那一眼复发）', file: 'js/chat.js', needle: "if (batchRendering) chatPumpRescue('resume-heal');" },
+  { name: '#1313g 分帧路径逐条 try/catch（单条记录不许带走整轮；删回旧形态＝renderMsg 一抛链即断＝永久空白，正是 #919a 记着的真机实锤那一族）', file: 'js/chat.js', needle: '} catch (eThrow) { threwIdx.push(i); } // #1313：单条记录不许带走整轮构建' },
+  { name: '#1313h 同步整窗路径同理（删＝异常一路上抛给调用方，连贴底／撤进度条一起跳过，屏上停在被清空的状态）', file: 'js/chat.js', needle: '} catch (eThrow) { threwIdx.push(i); } // #1313：同步整窗路径同理' },
+  { name: '#1313i 抛错下标与可自愈空洞分开登记（喂进 #1004 的补画队列会变成「重画→又抛→又排」的 700ms 空转，破坏它刻意保住的自终止不变量）', file: 'js/chat.js', needle: "if (threwIdx.length) { windowStale = true; chatRenderIncident('paint-throw', 0, threwIdx.length); }" },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
