@@ -2904,10 +2904,7 @@ const wItem = wishBuyBtn.closest('.msg-wish');
 const wIdx = wItem && wItem.dataset.idx !== undefined ? Number(wItem.dataset.idx) : -1;
 const wRec = wIdx >= 0 ? msgs[wIdx] : null;
 if (!wRec || wRec.special !== 'wish' || !window.giftBuyFromWishCard) { toast('这张卡片已经翻篇啦'); return; }
-window.giftBuyFromWishCard(wRec, function () {
-const acts = wItem.querySelector('.msg-wish-acts');
-if (acts) acts.outerHTML = '<div class="msg-wish-done">\u2713 ' + escTxt(window.taFit ? window.taFit('已送出') : '已送出') + '</div>';
-});
+window.giftBuyFromWishCard(wRec, function () { chatWishSettled(wRec.wishGiftId); });
 return;
 }
 const rpCard = e.target.closest('.msg-rp-card');
@@ -4003,6 +4000,41 @@ linkup: { icon: '🔗', name: '连连看' },
 match3: { icon: '🍬', name: '消消乐' },
 auction: { icon: '🔨', name: '心意币拍卖会' }
 };
+function wishCardIsPending(rec) {
+if (!rec || rec.special !== 'wish') return false;
+if (rec.wishSent) return false; // 卡片自己记着的既成事实，优先于任何实时推断
+return !window.giftTaWishHas || window.giftTaWishHas(rec.wishGiftId);
+}
+function wishDoneHtml() {
+return '<div class="msg-wish-done">\u2713 ' + escTxt(window.taFit ? window.taFit('已送出') : '已送出') + '</div>';
+}
+function chatWishSettled(giftId) {
+try {
+if (giftId) {
+let marked = false;
+for (let i = 0; i < msgs.length; i++) {
+const r = msgs[i];
+if (!r || r.special !== 'wish' || r.wishGiftId !== giftId || r.wishSent) continue;
+r.wishSent = Date.now();
+marked = true;
+}
+if (marked) saveMsgs();
+}
+} catch (e) {}
+try {
+const els = document.querySelectorAll('#chat-body .msg-wish');
+for (let i = 0; i < els.length; i++) {
+const idx = Number(els[i].dataset.idx);
+if (!isFinite(idx) || idx < 0 || idx >= msgs.length) continue; // 认不出记录就不动＝绝不凭空宣告已送出
+const r = msgs[idx];
+if (!wishCardIsPending(r)) {
+const acts = els[i].querySelector('.msg-wish-acts');
+if (acts) acts.outerHTML = wishDoneHtml();
+}
+}
+} catch (e) {}
+}
+window.chatWishSettled = chatWishSettled;
 function renderMsg(rec) {
 const m = document.createElement('div');
 m.dataset.mk = msgKeyOf(rec); // FIX 2026-09-15 #491 身份锚随渲染写入，批量渲染只覆盖 data-idx 不动它
@@ -4232,7 +4264,7 @@ return m;
 if (rec.special === 'wish') {
 m.className = 'msg-gift msg-wish';
 m.dataset.idx = msgs.length - 1;
-const wStill = !window.giftTaWishHas || window.giftTaWishHas(rec.wishGiftId);
+const wStill = wishCardIsPending(rec); // #1316：卡片自己记的 wishSent 优先，其次才是「TA 心愿单此刻还有这件」
 const wgc = ((window.GIFT_CAT_COLOR || {})[rec.wishGiftCat]) || '#f2f2f5';
 m.innerHTML = '<div class="msg-gift-card msg-wish-card">' +
 '<div class="msg-wish-tag">' + escTxt(T('TA 的心愿')) + '</div>' +

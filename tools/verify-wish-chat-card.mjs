@@ -47,9 +47,15 @@ console.log('S 层：源码口径');
   ok(/toast\('请填 0~100 的整数'\);/.test(gs), 'S14 概率输入沿用非法值保护（不清空写 0）');
   ok(/function taWishIds\(\) \{[\s\S]{0,260}_taWishIdsFor !== tag/.test(gs), 'S15 TA 心愿 id 缓存按桌面打标（切联系人不再张冠李戴）');
   ok(/if \(rec\.special === 'wish'\) \{/.test(cj), 'S16 聊天有 TA 心愿卡渲染分支');
-  ok(/const wStill = !window\.giftTaWishHas \|\| window\.giftTaWishHas\(rec\.wishGiftId\);/.test(cj), 'S17 待买/已送出按 TA 心愿单实时数据判定');
+  // ⚠️ #1316 重锚（同名换 needle，不算缩尺）：#660 当年把「待买/已送出」全押在「TA 心愿单此刻还有没有
+  //   这件商品」的实时推断上，同一件商品的多张心愿卡因此共用一个状态、成交又只给「点击时捕获的那个节点」
+  //   打一次性补丁（红米 K80 实报「送完礼物按钮还是没消失」）。现在两把判据合成一把：卡片自己的 wishSent
+  //   优先，其次才是实时推断；换装按新数据逐张做。旧 needle 在新形态下必然消失，本条改成认新那一行。
+  ok(/const wStill = wishCardIsPending\(rec\);/.test(cj) && /return !window\.giftTaWishHas \|\| window\.giftTaWishHas\(rec\.wishGiftId\);/.test(cj), 'S17 待买/已送出按「卡片自己记的 wishSent ＋ TA 心愿单实时数据」这一把尺子判定（#1316 重锚）');
   ok(/!window\.giftBuyFromWishCard\) \{ toast[\s\S]{0,80}\nwindow\.giftBuyFromWishCard\(wRec/.test(cj), 'S18 【送 TA】点击走 gift-shop 入口（并入既有卡片点击委派）');
-  ok(/acts\.outerHTML = '<div class="msg-wish-done">/.test(cj), 'S19 成交后卡片就地转已送出（不整窗重建）');
+  // ⚠️ #1316 重锚：成交换装不再抓「点击时捕获的那个节点」（中途任何一次整窗重画都会让补丁落在脱离文档
+  //   的旧节点上＝静默失效，只有刷新才好），改为报出「这件心愿兑现了」＋按新数据逐张就地换装（仍不整窗重建）。
+  ok(/if \(acts\) acts\.outerHTML = wishDoneHtml\(\);/.test(cj) && /window\.giftBuyFromWishCard\(wRec, function \(\) \{ chatWishSettled\(wRec\.wishGiftId\); \}\);/.test(cj), 'S19 成交后按新数据逐张就地转已送出（不整窗重建，#1316 重锚）');
   ok(/'gift' \|\| rec\.special === 'wish'\);/.test(cj), 'S20 TA 心愿卡并入「值得提醒」消息（未读角标/桌面横幅）');
   ok(/else if \(special === 'wish'\) \{ q = \(rec\.wishGiftName/.test(cj), 'S21 收藏快照覆盖心愿卡（心形不是点了没反应）');
   ok(/\.msg-wish-buy \{/.test(css), 'S22 卡片按钮样式在位');

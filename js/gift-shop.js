@@ -797,7 +797,7 @@ a.unshift(wishSnap(g));
 wishSave(WL_MY_KEY, a.slice(0, WL_MAX));
 return true;
 }
-function wishTaRemove(id) { wishSave(WL_TA_KEY, wishLoad(WL_TA_KEY).filter(function (x) { return x.giftId !== id; })); }
+function wishTaRemove(id) { wishSave(WL_TA_KEY, wishLoad(WL_TA_KEY).filter(function (x) { return x.giftId !== id; })); try { if (window.chatWishSettled) window.chatWishSettled(id); } catch (e) {} }
 const WL_TA_SEEN_KEY = 'gift-wishlist-ta-seen';
 function taWishUnread() {
 const list = wishLoad(WL_TA_KEY);

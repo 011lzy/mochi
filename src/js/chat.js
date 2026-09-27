@@ -3893,6 +3893,8 @@ return;
 }
 // v3.26.x #660：聊天里「TA 的心愿」卡片点【送 TA】——复用市集购买弹窗（gift-shop 侧同一扣款 /
 // 心意柜 / 聊天送礼链路），成交回调把这张卡就地转「已送出」（不整窗重建，同红包 #230 口径）
+// #1316：回调不再动「点击时捕获的 wItem」（那是一次性补丁，中途重画就落在旧节点上），成交只负责说出
+// 「这件心愿兑现了」这个事实，屏上每一张心愿卡按同一把尺子重判——含同款商品的兄弟卡片。
 const wishBuyBtn = e.target.closest('.msg-wish-buy');
 if (wishBuyBtn) {
 e.stopPropagation();
@@ -3900,11 +3902,7 @@ const wItem = wishBuyBtn.closest('.msg-wish');
 const wIdx = wItem && wItem.dataset.idx !== undefined ? Number(wItem.dataset.idx) : -1;
 const wRec = wIdx >= 0 ? msgs[wIdx] : null;
 if (!wRec || wRec.special !== 'wish' || !window.giftBuyFromWishCard) { toast('这张卡片已经翻篇啦'); return; }
-window.giftBuyFromWishCard(wRec, function () {
-const acts = wItem.querySelector('.msg-wish-acts');
-// 此处不能用 renderMsg 局部的 T()，用同层其它提示的 taFit 口径（失焦/兜底同理）
-if (acts) acts.outerHTML = '<div class="msg-wish-done">\u2713 ' + escTxt(window.taFit ? window.taFit('已送出') : '已送出') + '</div>';
-});
+window.giftBuyFromWishCard(wRec, function () { chatWishSettled(wRec.wishGiftId); });
 return;
 }
 const rpCard = e.target.closest('.msg-rp-card');
@@ -5447,6 +5445,58 @@ const GAME_CHAT_CARDS = {
   match3: { icon: '🍬', name: '消消乐' },
   auction: { icon: '🔨', name: '心意币拍卖会' }
 };
+// v3.28.x #1316（红米 K80 Chrome 实报「礼物卡片我已经点击【送他】，但是送完礼物这个按钮还是没有消失」，
+// 用户明说其他设备型号也有出现、要求不要覆盖式修补）：心愿卡的「已送出」必须是一条**记在这张卡片记录上
+// 的事实**，不能只是「渲染时按 TA 心愿单此刻还有没有这件商品」的实时推断，再叠一个只作用于「点按钮那
+// 一下捕获到的节点」的一次性补丁。纯 HEAD 实测到三条失效（都跟机型无关，是同一处状态口径）：
+//   ① 同一件商品的两张心愿卡共用同一个 wishGiftId：买掉一张后另一张仍挂着【送 TA】，再点只 toast
+//      「心愿单里已经没有这件啦」、按钮永不消失（实测 dom:["0:BUY","1:done"] 且余额不动）；
+//   ② 那次性补丁写的是开弹窗前捕获的 wItem，中途任何一次整窗重画（回场复核／分帧构建／退出重进的同窗
+//      补丁）都让它落在脱离文档的旧节点上＝静默失效，只有刷新能恢复；
+//   ③ TA 日后重新许愿同一件商品时，早已送出的旧卡会重新长出【送 TA】，再点一次就再扣一次钱
+//      （实测余额 49500→48250、心意柜 2→3 件）。
+// 判据零机型／零 UA 分支：wishSent 只在「这件心愿确实被兑现」那一步落下，渲染与换装问的是同一把尺子。
+function wishCardIsPending(rec) {
+if (!rec || rec.special !== 'wish') return false;
+if (rec.wishSent) return false; // 卡片自己记着的既成事实，优先于任何实时推断
+return !window.giftTaWishHas || window.giftTaWishHas(rec.wishGiftId);
+}
+function wishDoneHtml() {
+// 此处不能用 renderMsg 局部的 T()，用同层其它提示的 taFit 口径（失焦/兜底同理）
+return '<div class="msg-wish-done">\u2713 ' + escTxt(window.taFit ? window.taFit('已送出') : '已送出') + '</div>';
+}
+// 心愿被兑现这一刻：把事实记到该商品的每一张心愿卡记录上，再按**新数据**重画屏上的心愿卡（一张都不落）。
+// 刻意不接「点按钮时捕获的那个节点」，也刻意不只看 TA 心愿单此刻的数据——成交那一刻屏上可能已经是另一批
+// 节点（中途重画过），而同一件商品的兄弟卡片问的是同一个 id，只有按数据逐张重判才两者都盖住。
+// gift-shop 在 wishTaRemove（心愿清单被消费掉的唯一收口）处调用，聊天卡／市集心愿单／直接买下 TA 正许愿
+// 的礼物这三扇门因此走同一条路。
+function chatWishSettled(giftId) {
+try {
+if (giftId) {
+let marked = false;
+for (let i = 0; i < msgs.length; i++) {
+const r = msgs[i];
+if (!r || r.special !== 'wish' || r.wishGiftId !== giftId || r.wishSent) continue;
+r.wishSent = Date.now();
+marked = true;
+}
+if (marked) saveMsgs();
+}
+} catch (e) {}
+try {
+const els = document.querySelectorAll('#chat-body .msg-wish');
+for (let i = 0; i < els.length; i++) {
+const idx = Number(els[i].dataset.idx);
+if (!isFinite(idx) || idx < 0 || idx >= msgs.length) continue; // 认不出记录就不动＝绝不凭空宣告已送出
+const r = msgs[idx];
+if (!wishCardIsPending(r)) {
+const acts = els[i].querySelector('.msg-wish-acts');
+if (acts) acts.outerHTML = wishDoneHtml();
+}
+}
+} catch (e) {}
+}
+window.chatWishSettled = chatWishSettled;
 function renderMsg(rec) {
 const m = document.createElement('div');
 m.dataset.mk = msgKeyOf(rec); // FIX 2026-09-15 #491 身份锚随渲染写入，批量渲染只覆盖 data-idx 不动它
@@ -5704,7 +5754,7 @@ return m;
 if (rec.special === 'wish') {
 m.className = 'msg-gift msg-wish';
 m.dataset.idx = msgs.length - 1;
-const wStill = !window.giftTaWishHas || window.giftTaWishHas(rec.wishGiftId);
+const wStill = wishCardIsPending(rec); // #1316：卡片自己记的 wishSent 优先，其次才是「TA 心愿单此刻还有这件」
 const wgc = ((window.GIFT_CAT_COLOR || {})[rec.wishGiftCat]) || '#f2f2f5';
 m.innerHTML = '<div class="msg-gift-card msg-wish-card">' +
 '<div class="msg-wish-tag">' + escTxt(T('TA 的心愿')) + '</div>' +

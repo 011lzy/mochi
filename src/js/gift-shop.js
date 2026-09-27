@@ -940,7 +940,10 @@
     wishSave(WL_MY_KEY, a.slice(0, WL_MAX));
     return true;
   }
-  function wishTaRemove(id) { wishSave(WL_TA_KEY, wishLoad(WL_TA_KEY).filter(function (x) { return x.giftId !== id; })); }
+  // #1316：清单被消费掉这一刻同时通知聊天「这件心愿兑现了」——聊天把该商品的每张心愿卡记上 wishSent
+  //   并按新数据重画。三扇门（聊天心愿卡／市集「☆ 心愿单」面板的送 TA／直接买下 TA 正许愿的那件）
+  //   都汇到这一个收口，所以只在这里挂一次；聊天侧函数缺席时静默跳过（渲染仍按实时数据判定，不更坏）。
+  function wishTaRemove(id) { wishSave(WL_TA_KEY, wishLoad(WL_TA_KEY).filter(function (x) { return x.giftId !== id; })); try { if (window.chatWishSettled) window.chatWishSettled(id); } catch (e) {} }
   // #826（用户 2026-09-19 报「提示 XX 把礼物加进了 TA 的心愿单，点进心愿单却没看到」）：
   // 提示说的是 TA 那一栏，而市集「☆ 心愿单」入口硬停在我的那栏，中间没有任何指引。现在按
   // 「上次看过之后 TA 新许的愿」计未读，用来给入口挂数字、并决定面板落在哪个标签。

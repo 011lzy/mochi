@@ -3187,9 +3187,11 @@ const FIX_SENTINELS = [
   { name: '#663e 设置面板「TA 心愿发到聊天概率」行（删＝概率无处可调、用户看不到当前是多少）', file: 'js/gift-shop.js', needle: 'data-gsn="wishChatPct"' },
   { name: '#663f 卡片【送 TA】入口（删＝聊天卡片上的按钮点了没反应）', file: 'js/gift-shop.js', needle: 'window.giftBuyFromWishCard = function (rec, done) {' },
   { name: '#663g TA 心愿 id 缓存按桌面打标（删＝切联系人后心愿卡待买/已送出误判，市集「☆ TA许愿的」角标也串桌面）', file: 'js/gift-shop.js', needle: '_taWishIdsFor !== tag' },
-  { name: '#663h 聊天里 TA 心愿卡的渲染分支（删＝聊天里只剩空气泡，TA 的心愿看不见）', file: 'js/chat.js', needle: 'const wStill = !window.giftTaWishHas || window.giftTaWishHas(rec.wishGiftId);' },
+  // #1316 重锚（同名换 needle，不算缩尺）：待买/已送出的判据从「TA 心愿单此刻还有这件」收成 wishCardIsPending 一把尺子
+  { name: '#663h 聊天里 TA 心愿卡的渲染分支（删＝聊天里只剩空气泡，TA 的心愿看不见）', file: 'js/chat.js', needle: 'const wStill = wishCardIsPending(rec);' },
   { name: '#663i 【送 TA】点击接线（删＝点按钮打不开购买弹窗）', file: 'js/chat.js', needle: 'window.giftBuyFromWishCard(wRec, function () {' },
-  { name: '#663j 成交后卡片就地转「已送出」（删＝买完卡片还挂着【送 TA】，看着像没生效、还可能被重复买）', file: 'js/chat.js', needle: "wItem.querySelector('.msg-wish-acts')" },
+  // #1316 重锚：成交回调不再改「点击时捕获的那个节点」，改为报出「这件心愿兑现了」这个事实、由聊天按新数据逐张重画
+  { name: '#663j 成交后卡片就地转「已送出」（删＝买完卡片还挂着【送 TA】，看着像没生效、还可能被重复买）', file: 'js/chat.js', needle: "window.giftBuyFromWishCard(wRec, function () { chatWishSettled(wRec.wishGiftId); });" },
   { name: '#663k TA 心愿卡并入「值得提醒」消息（删＝心愿只静静躺在聊天里，未读角标与桌面横幅都不提）', file: 'js/chat.js', needle: "rec.special === 'gift' || rec.special === 'wish'" },
   { name: '#663l 收藏快照覆盖心愿卡（删＝卡片心形点了没反应，同 #v3.28.x 那批漏网）', file: 'js/chat.js', needle: "else if (special === 'wish') { q = (rec.wishGiftName" },
   { name: '#663m 心愿卡按钮样式（删＝【送 TA】退化成浏览器默认按钮）', file: 'css/market.css', needle: '.msg-wish-buy {' },
@@ -5309,6 +5311,21 @@ const FIX_SENTINELS = [
   { name: '#1315q 六类页各挂整类停用条（问「这一页有没有整组停用条」；三处同款入口一并登记，漏一处＝那一页又回到只能逐张点）', file: 'js/ta-ask.js', needle: "presetGroup.catBar('ta-ask'" },
   { name: '#1315r 查岗题库整类停用（条＋闸）', file: 'js/ck-question.js', needle: "catBar('ta-checkin'" },
   { name: '#1315s 邀请话术整类停用（条＋闸；本页分类字段是 kind）', file: 'js/ta-invite.js', needle: "catBar('ta-invite'" },
+  // ===== #1316（2026-09-27 红米 K80 Chrome 实报「礼物卡片我已经点击【送他】，但是送完礼物这个按钮还是没有消失」，
+  //   用户明说其他设备型号也有出现、要求不要覆盖式修补；零机型／零 UA 分支＝判据只取「这一件心愿到底兑现
+  //   了没有」这一个事实）聊天「TA 的心愿」卡的「已送出」从【一次性 DOM 补丁＋按商品 id 的实时推断】收成
+  //   【记在这张卡片记录上的事实 wishSent＋按同一把尺子逐张重画】。纯 HEAD 同尺实测三条失效：① 同款商品
+  //   的兄弟卡片永远挂着【送 TA】、再点只剩一句 toast（实测 dom:["0:BUY","1:done"] 且余额不动）；② 那个补丁
+  //   写的是开弹窗前捕获的节点，中途任何一次整窗重画都让它落在脱离文档的旧节点上＝静默失效，只有刷新能恢复
+  //   （实测刷新后 ["0:done","1:done"]）；③ TA 日后重新许愿同一件商品时，早已送出的旧卡重新长出【送 TA】，
+  //   再点一次就再扣一次钱（实测余额 49500→48250、心意柜 2→3 件）。
+  //   编号说明：#1314（面板单次涡染）／#1315（并行批，tools/diag-1315*）已被占用，本批取 #1316。
+  { name: '#1316a 心愿卡「已送出」是记在这张卡片记录上的事实（删＝状态只能靠「TA 心愿单此刻还有没有这件」猜，TA 重新许愿同一件时早已送出的旧卡会重新长出【送 TA】，再点一次就再扣一次钱）', file: 'js/chat.js', needle: 'if (rec.wishSent) return false;' },
+  { name: '#1316b 渲染与成交换装问的是同一把尺子（拆成两套口径＝屏上状态与下次重画自相矛盾，残留态又回来）', file: 'js/chat.js', needle: 'if (!wishCardIsPending(r)) {' },
+  { name: '#1316c 成交后逐张按新数据重判屏上心愿卡（删＝只改被点那一张，同款商品的兄弟卡片永远挂着【送 TA】、点了只剩一句 toast）', file: 'js/chat.js', needle: "document.querySelectorAll('#chat-body .msg-wish')" },
+  { name: '#1316d 认不出记录就不动手（改成凭空宣告已送出＝一次窗口漂移就把真待买的卡片抹掉，比留着按钮更糟）', file: 'js/chat.js', needle: 'if (!isFinite(idx) || idx < 0 || idx >= msgs.length) continue;' },
+  { name: '#1316e 心愿被兑现的唯一收口通知聊天（删＝市集「☆ 心愿单」面板与直接买下 TA 正许愿的那件这两扇门又变回「聊天卡片要等下次重画才收」）', file: 'js/gift-shop.js', needle: 'try { if (window.chatWishSettled) window.chatWishSettled(id); } catch (e) {}' },
+  { name: '#1316f 删除型：成交换装不再依赖点击时捕获的那个节点引用（回流＝中途一次整窗重画就让补丁落在脱离文档的旧节点上，用户口径的「送完礼物按钮没消失」复发，只有刷新才恢复）', file: 'js/chat.js', needle: "wItem.querySelector('.msg-wish-acts')", absent: true },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
