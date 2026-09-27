@@ -211,10 +211,13 @@
   function ckSave(d) { try { store.set(KEY, JSON.stringify(d)); } catch (e) {} }
 
   // ---------- 抽题：已启用池内随机，避免与上一题相同 ----------
+  // #1315：整类停用（共用件 window.presetGroup，键 pg-groups-off）——只闸系统预设题，
+  //   用户在「我的添加」里自建的同类题不受影响。
+  function pgCatOff(ns, cat) { return !!(window.presetGroup && window.presetGroup.isOff(ns, cat || 'daily')); }
   function pickQ() {
     const d = ckLoad();
     const useDefault = (d.settings || {}).useDefault !== false;
-    const qs = d.questions.filter(q => q && q.enabled !== false && q.text && (useDefault || q.isPreset !== true));
+    const qs = d.questions.filter(q => q && q.enabled !== false && q.text && (useDefault || q.isPreset !== true) && !(q.isPreset === true && pgCatOff('ta-checkin', q.cat)));
     if (!qs.length) return null;
     let pool = qs;
     if (qs.length > 1) {
@@ -453,6 +456,8 @@
       html += '<button class="cc-tab' + (k === ckSysCat ? ' sel' : '') + '" data-cat="' + k + '">' + esc(label) + '<em class="cc-tab-n">' + counts[k] + '</em></button>';
     });
     html += '</div>';
+    // #1315：整类停用条——本页一个分类就是一个「分组」，旧版只能逐张点掉
+    html += window.presetGroup ? window.presetGroup.catBar('ta-checkin', ckSysCat, esc((CATS_CKQ.find(c => c[0] === ckSysCat) || [])[1] || ckSysCat)) : '';
     d.questions.forEach(q => {
       if (!(hit(q) && q.cat === ckSysCat)) return;
       const idx = d.questions.indexOf(q);
@@ -470,6 +475,7 @@
       }
     });
     container.innerHTML = html;
+    if (window.presetGroup) window.presetGroup.bindBar(container.querySelector('.preset-cat-bar'), 'ta-checkin', ckSysCat, function () { renderCkSysInto(container, search); });
     container.querySelectorAll('.cc-tab[data-cat]').forEach(t => {
       t.addEventListener('click', () => { ckSysCat = t.dataset.cat; renderCkSysInto(container, search); });
     });

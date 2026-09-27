@@ -30,7 +30,9 @@
     return v === null ? true : v === '1';
   }
   // 单卡开关：loc-off-<cat>:<text> = '1' 表示关闭
-  function isOff(cat, text) { return store.get('loc-off-' + cat + ':' + text) === '1'; }
+  // #1315：整类停用叠在同一出口（共用件 window.presetGroup，键 pg-groups-off；CATS 九个分类各是一个
+  //   「分组」）——sysCards/入口角标/本页列表都走这个判据，逐张开关存值一字不动。
+  function isOff(cat, text) { return store.get('loc-off-' + cat + ':' + text) === '1' || !!(window.presetGroup && window.presetGroup.isOff('loc', cat)); }
   function setOff(cat, text, off) { store.set('loc-off-' + cat + ':' + text, off ? '1' : '0'); }
   // ---- 自定义位置卡（我的添加） ----
   // v3.13.x：老版本位置面板自定义存 loc-custom（字符串数组）——首次读取时迁移进 loc-lib-custom
@@ -125,6 +127,14 @@
   window.locLibEggText = eggText;
   window.locLibEggEnabled = eggEnabled;
   window.locLibIsOff = isOff;
+  // #1315：按「文案属于哪个分类」反查一次闸——供不过 isOff 出口的内置字面量用（自动换位那条
+  //   陪伴句数组就是硬编码的，停用「状态/感知」后照样发＝开关是装饰）。
+  window.locLibTextOff = function (text) {
+    for (let i = 0; i < CATS.length; i++) {
+      if ((LIB[CATS[i]] || []).indexOf(text) >= 0 && isOff(CATS[i], text)) return true;
+    }
+    return false;
+  };
   window.locLibSetOff = setOff;
   window.locLibGetUseDefault = getUseDefault;
   window.locLibSenseGroup = senseGroup;
@@ -164,6 +174,16 @@
       tip.textContent = '系统预设位置卡已关闭（位置面板只显示「我的添加」）。开启上方开关即可恢复使用。';
       listEl.appendChild(tip);
       return;
+    }
+    // #1315：整类停用条——九个分类各是一个「分组」，旧版只能一条条点掉
+    if (window.presetGroup) {
+      const barBox = document.createElement('div');
+      barBox.innerHTML = window.presetGroup.catBar('loc', cat, LABEL[cat] || cat);
+      const bar = barBox.firstElementChild;
+      if (bar) {
+        listEl.appendChild(bar);
+        window.presetGroup.bindBar(bar, 'loc', cat, function () { renderSysList(); updateEntryCount(); });
+      }
     }
     (LIB[cat] || []).forEach(x => {
       const off = isOff(cat, x);

@@ -486,7 +486,7 @@ if (Array.isArray(v)) return v;
 return [];
 }
 function ckSaveGroups(k, groups) { store.set('checkin-cards-groups-' + k, JSON.stringify(groups)); }
-function isCkCardOff(k, x) { return store.get('ck-off-' + k + ':' + x) === '1'; }
+function isCkCardOff(k, x) { return store.get('ck-off-' + k + ':' + x) === '1' || !!(window.presetGroup && window.presetGroup.isOff('cck', k)); }
 function setCkCardOff(k, x, off) { store.set('ck-off-' + k + ':' + x, off ? '1' : '0'); }
 const CK_EN_KEY = 'checkin-en';
 function ckEn() {
@@ -522,7 +522,9 @@ let place = useDefault ? places.filter(p => !isCkCardOff('place', p.t)) : places
 let action = useDefault ? actions.filter(a => !isCkCardOff('action', a.t)) : actions.filter(a => DEF_ACTIONS.indexOf(a.t) < 0 && !isCkCardOff('action', a.t));
 let msg = useDefault ? msgs.filter(m => !isCkCardOff('msg', m.t)) : msgs.filter(m => DEF_CHECK_MSGS.indexOf(m.t) < 0 && !isCkCardOff('msg', m.t));
 if (!place.length && !action.length && !msg.length) {
-place = places; action = actions; msg = msgs;
+place = places.filter(p => !isCkCardOff('place', p.t));
+action = actions.filter(a => !isCkCardOff('action', a.t));
+msg = msgs.filter(m => !isCkCardOff('msg', m.t));
 }
 if (place.length) out.place = place[Math.floor(Math.random() * place.length)].t;
 if (action.length) out.action = action[Math.floor(Math.random() * action.length)].t;
@@ -849,6 +851,15 @@ tip.className = 'ta-empty';
 tip.textContent = '系统预设字卡已关闭（寻踪只从「我的添加」里抽取）。开启上方开关即可恢复使用。';
 listEl.appendChild(tip);
 return;
+}
+if (window.presetGroup) {
+const barBox = document.createElement('div');
+barBox.innerHTML = window.presetGroup.catBar('cck', ckTab, CK_LABEL[ckTab] || ckTab);
+const bar = barBox.firstElementChild;
+if (bar) {
+listEl.appendChild(bar);
+window.presetGroup.bindBar(bar, 'cck', ckTab, function () { renderCkSysList(); updateCkCount(); });
+}
 }
 def.forEach(x => {
 const off = isCkCardOff(ckTab, x);
@@ -1639,13 +1650,14 @@ function doLocAuto() {
 if (window.nightModeActive && window.nightModeActive()) return;
 if (document.hidden || Date.now() < locWakeAt || !window.__mochiDataReady) return;
 if (store.get('loc-auto') === '0') return; // 设置「TA 自动换位」关：到点也不发（拦设置后仍残留的当次定时器）
-const companion = ['在你身边', '一直没走远', '隔着世界在你身边', '隐约在你身旁', '在你看不到的地方'];
+const companion = ['在你身边', '一直没走远', '隔着世界在你身边', '隐约在你身旁', '在你看不到的地方']
+.filter(function (t) { return !(window.locLibTextOff && window.locLibTextOff(t)); });
 let text;
-if (Math.random() < 0.7) {
+if (companion.length && Math.random() < 0.7) {
 text = companion[Math.floor(Math.random() * companion.length)];
 } else {
 const all = (window.locLibAllEnabled ? window.locLibAllEnabled() : []).slice();
-if (!all.length) all.push('在你身边');
+if (!all.length) return;
 text = all[Math.floor(Math.random() * all.length)];
 }
 if (!text) return;

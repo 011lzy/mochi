@@ -117,7 +117,10 @@
   function drawFrom(pool) { const q = pickFrom(pool, lastId()); if (q) markLast(q); return q; }
   function enabledPool(d, kinds) {
     const useDefault = (d.settings || {}).useDefault !== false;
-    return d.questions.filter(q => q && q.enabled !== false && q.text && kinds.indexOf(q.kind) >= 0 && (useDefault || q.isPreset !== true));
+    // #1315：整类停用（共用件 window.presetGroup，键 pg-groups-off）——本页的分类字段是 kind；
+    //   只闸系统预设邀请，用户自建的同类条目不受影响。
+    const pgOff = function (q) { return !!(q.isPreset === true && q.kind && window.presetGroup && window.presetGroup.isOff('ta-invite', q.kind)); };
+    return d.questions.filter(q => q && q.enabled !== false && q.text && kinds.indexOf(q.kind) >= 0 && (useDefault || q.isPreset !== true) && !pgOff(q));
   }
   // 自动链路抽取（chat.js tryActiveInvite 调用）：保持旧版权重语义——
   // 先掷猜拳门（ai-rps-en/ai-rps-prob），命中且猜拳池有货则出猜拳；
@@ -201,6 +204,8 @@
       html += '<button class="cc-tab' + (k === tiSysCat ? ' sel' : '') + '" data-cat="' + k + '">' + esc(label) + '<em class="cc-tab-n">' + counts[k] + '</em></button>';
     });
     html += '</div>';
+    // #1315：整类停用条——本页的一个分类（猜拳/游戏/贴贴）就是一个「分组」
+    html += window.presetGroup ? window.presetGroup.catBar('ta-invite', tiSysCat, esc((CATS_TI.find(c => c[0] === tiSysCat) || [])[1] || tiSysCat)) : '';
     d.questions.forEach(q => {
       if (!(hitKw(q) && q.kind === tiSysCat)) return;
       const idx = d.questions.indexOf(q);
@@ -210,6 +215,7 @@
         '</div>';
     });
     container.innerHTML = html;
+    if (window.presetGroup) window.presetGroup.bindBar(container.querySelector('.preset-cat-bar'), 'ta-invite', tiSysCat, function () { renderTiSysInto(container, search); });
     container.querySelectorAll('.cc-tab[data-cat]').forEach(t => {
       t.addEventListener('click', () => { tiSysCat = t.dataset.cat; renderTiSysInto(container, search); });
     });

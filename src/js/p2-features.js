@@ -541,7 +541,9 @@ function ckList(k, def) {
   }
   function ckSaveGroups(k, groups) { store.set('checkin-cards-groups-' + k, JSON.stringify(groups)); }
 // v3.6.x：寻踪系统预设字卡单卡开关——逐张开启/关闭（关闭后寻踪不再抽取该条）
-function isCkCardOff(k, x) { return store.get('ck-off-' + k + ':' + x) === '1'; }
+// #1315：整类停用叠在同一出口上（共用件 window.presetGroup，键 pg-groups-off；本页三类 place/action/msg
+//   就是三个「分组」）——genCheckin 与页面列表都走这个判据，无需逐处加分支；逐张开关存值一字不动。
+function isCkCardOff(k, x) { return store.get('ck-off-' + k + ':' + x) === '1' || !!(window.presetGroup && window.presetGroup.isOff('cck', k)); }
 function setCkCardOff(k, x, off) { store.set('ck-off-' + k + ':' + x, off ? '1' : '0'); }
 // v3.27.x #823：寻踪总开关（per-cid 键 checkin-en，从未写过＝默认开启）。关闭＝全静：
 // 不自动生成日常、不往聊天推任何寻踪消息、不落新记录，桌面【寻踪】图标／聊天「更多功能」
@@ -594,8 +596,12 @@ function genCheckin() {
   let action = useDefault ? actions.filter(a => !isCkCardOff('action', a.t)) : actions.filter(a => DEF_ACTIONS.indexOf(a.t) < 0 && !isCkCardOff('action', a.t));
   let msg = useDefault ? msgs.filter(m => !isCkCardOff('msg', m.t)) : msgs.filter(m => DEF_CHECK_MSGS.indexOf(m.t) < 0 && !isCkCardOff('msg', m.t));
   // 兜底：关闭预设且完全没有用户自定义时回退使用系统预设（避免寻踪空白/undefined）
+  // #1315：这条兜底治的是「没有数据」，不是「用户关掉了」——旧写法直接塞回未过滤的整表，
+  //   于是把三类逐张关光或整类停用后照样生成日常＝页面上的开关是装饰。重新过一次同一判据。
   if (!place.length && !action.length && !msg.length) {
-    place = places; action = actions; msg = msgs;
+    place = places.filter(p => !isCkCardOff('place', p.t));
+    action = actions.filter(a => !isCkCardOff('action', a.t));
+    msg = msgs.filter(m => !isCkCardOff('msg', m.t));
   }
   if (place.length) out.place = place[Math.floor(Math.random() * place.length)].t;
   if (action.length) out.action = action[Math.floor(Math.random() * action.length)].t;
@@ -992,6 +998,16 @@ if (ckRefresh) {
       tip.textContent = '系统预设字卡已关闭（寻踪只从「我的添加」里抽取）。开启上方开关即可恢复使用。';
       listEl.appendChild(tip);
       return;
+    }
+    // #1315：整类停用条——本页三类（地点/做的事/说的话）各是一个「分组」，旧版只能一条条点掉
+    if (window.presetGroup) {
+      const barBox = document.createElement('div');
+      barBox.innerHTML = window.presetGroup.catBar('cck', ckTab, CK_LABEL[ckTab] || ckTab);
+      const bar = barBox.firstElementChild;
+      if (bar) {
+        listEl.appendChild(bar);
+        window.presetGroup.bindBar(bar, 'cck', ckTab, function () { renderCkSysList(); updateCkCount(); });
+      }
     }
     def.forEach(x => {
       const off = isCkCardOff(ckTab, x);
@@ -1901,14 +1917,19 @@ if (ckRefresh) {
     if (window.nightModeActive && window.nightModeActive()) return;
     if (document.hidden || Date.now() < locWakeAt || !window.__mochiDataReady) return;
     if (store.get('loc-auto') === '0') return; // 设置「TA 自动换位」关：到点也不发（拦设置后仍残留的当次定时器）
-    const companion = ['在你身边', '一直没走远', '隔着世界在你身边', '隐约在你身旁', '在你看不到的地方'];
+    const companion = ['在你身边', '一直没走远', '隔着世界在你身边', '隐约在你身旁', '在你看不到的地方']
+      // #1315：这五行是「状态/感知」两类位置卡的字面量副本，旧写法从不过闸＝在字卡库里整组停用
+      //   或逐张关掉后，TA 自动换位照发这些话（用户报的「关不掉」）。按所属分类反查一次同一判据。
+      .filter(function (t) { return !(window.locLibTextOff && window.locLibTextOff(t)); });
     let text;
-    if (Math.random() < 0.7) {
+    if (companion.length && Math.random() < 0.7) {
       text = companion[Math.floor(Math.random() * companion.length)];
     } else {
       // v3.13.x：词源 = 字卡库全部启用（系统预设 dir/dist/state/sense + 我的添加）
       const all = (window.locLibAllEnabled ? window.locLibAllEnabled() : []).slice();
-      if (!all.length) all.push('在你身边');
+      // #1315：旧写法在词源被关空时硬塞「在你身边」——那是用户刚关掉的一句，等于开关归零；
+      //   现在按「全部关光＝这一发不发」处理（自建卡还在时照常抽）。
+      if (!all.length) return;
       text = all[Math.floor(Math.random() * all.length)];
     }
     if (!text) return;

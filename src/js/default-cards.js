@@ -95,6 +95,89 @@
     const names = o && o[cat];
     return !!(names && names.length) && groupOffTexts(cat, names).has(c);
   }
+  // ================= #1315 「整组停用」共用出口（供 mountCardView 以外的预设字卡页接入）==========
+  // 需求＝用户实报「字卡库→系统预设字卡→其他互动功能字卡 的单独分组无法选择关闭使用」：
+  // #926 的分组开关只覆盖 mountCardView 那四个列表，而【系统预设字卡】入口下另有 12 个由各页
+  // 自渲染的预设池（情绪/回应/TA的心情/寻踪日常/今日情话/位置卡/TA 的询问·小问题·好奇·吐槽·
+  // 查岗·邀请），它们只有逐张开关——一个分组几十张，想停掉整组只能一张张点，等于够不到「关闭使用」。
+  // 机制与上面同构，但**另存一份键**（pg-groups-off，id 用「<页>:<分类>」）：dc-groups-off 的语义
+  // 已被 #926 的针与 #932 的自检账绑在 mountCardView 的分类名单上，把别的页面塞进同一份名单＝改动
+  // 邻居批的口径。各页仍走自己已有的单卡判据叠一层（判据＝该组内全部字卡视为已关闭），组内逐张
+  // 开关的存值一字不动，重新启用分组即恢复原状；同 dc-* 按桌面（联系人命名空间）独立保存。
+  const PG_KEY = 'pg-groups-off';
+  let pgRaw = null, pgObj = null;   // 单格缓存：原始值没变才复用解析结果（切桌面＝自动重解析）
+  function pgRecord(st) {
+    let raw = null;
+    try { raw = (st || ls).get(PG_KEY); } catch (e) { return null; }
+    if (raw === pgRaw) return pgObj;
+    let o = null;
+    try {
+      if (raw) { const p = JSON.parse(raw); if (p && typeof p === 'object' && !Array.isArray(p)) o = p; }
+    } catch (e) {}
+    pgRaw = raw; pgObj = o;
+    return o;
+  }
+  function pgIsOff(id, grp, st) {
+    const o = pgRecord(st);
+    const names = o && o[id];
+    return !!(names && names.indexOf(grp) >= 0);
+  }
+  function pgSet(id, grp, off) {
+    const cur = pgRecord(ls) || {};
+    const arr = (cur[id] || []).slice();
+    const i = arr.indexOf(grp);
+    if (off && i < 0) arr.push(grp);
+    if (!off && i >= 0) arr.splice(i, 1);
+    const next = {};
+    Object.keys(cur).forEach(k => { if (k !== id && Array.isArray(cur[k]) && cur[k].length) next[k] = cur[k].slice(); });
+    if (arr.length) next[id] = arr;
+    ls.set(PG_KEY, JSON.stringify(next));
+  }
+  function pgNames(id) {
+    const o = pgRecord(ls);
+    const names = o && o[id];
+    return Array.isArray(names) ? names.slice() : [];
+  }
+  // 开关形态与 #926 分组头同款（.cc-group-header ＋ label.toggle.ccard-toggle，样式锚 .preset-list）；
+  // .ccg-switch 只是接线时认出「这一发是分组开关」的凭据，不参与任何样式。
+  function pgSwitchHTML(off) {
+    return '<label class="toggle ccard-toggle ccg-switch" title="' + (off ? '启用该分组' : '停用该分组') + '">' +
+      '<input type="checkbox"' + (off ? '' : ' checked') + '><span class="tk"></span></label>';
+  }
+  function pgOffTag(off) { return off ? '<em class="ccg-off-tag">已停用</em>' : ''; }
+  function pgWire(scopeEl, id, grp, onChange) {
+    if (!scopeEl) return;
+    const input = scopeEl.querySelector('.ccg-switch input');
+    if (!input) return;
+    input.addEventListener('change', () => {
+      const nowOff = !input.checked;
+      pgSet(id, grp, nowOff);
+      if (typeof onChange === 'function') onChange(nowOff, grp);
+    });
+  }
+  // 扁平 tab 页（列表里没有分组头可挂）用的「整类停用」条
+  function pgCatBar(id, grp, label) {
+    const off = pgIsOff(id, grp);
+    return '<div class="set-group glass preset-cat-bar"><div class="gs-row"><span>整组停用「' + label + '」' +
+      pgOffTag(off) + '</span>' + pgSwitchHTML(off) + '</div></div>';
+  }
+  window.presetGroup = {
+    KEY: PG_KEY,
+    isOff: pgIsOff,
+    set: pgSet,
+    names: pgNames,
+    switchHTML: pgSwitchHTML,
+    offTag: pgOffTag,
+    bind: pgWire,
+    bindBar: pgWire,   // 分组头与整类停用条用的是同一形态（.ccg-switch），两个名字都给，调用方按语义读
+    catBar: pgCatBar,
+    // 各页分组头的整行内容（名称＋已停用徽标＋张数＋开关），extra 传该页自己的附加徽标
+    headerHTML: function (id, grp, label, count, extra) {
+      const off = pgIsOff(id, grp);
+      return '<span class="ccg-name">' + label + pgOffTag(off) + '</span><span class="ccg-count">' + count + '</span>' +
+        (extra || '') + pgSwitchHTML(off);
+    }
+  };
   // ---- 开关/概率读取（store 参数化）----
   // 所有 dc-* 键都按桌面（联系人命名空间）独立保存；顶层 API 绑 activeStore（当前
   // 桌面），群聊等跨桌面场景用 defaultCardApiFor(目标桌面 store) 按成员自己的桌面读。

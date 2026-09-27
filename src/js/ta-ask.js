@@ -37,6 +37,12 @@
     if (!arr.length) return '';
     return '<div class="tc-qopts">TA 回应：<span class="tc-known">系统</span> ' + arr.map(escG).join(' / ') + '</div>';
   }
+  // #1315：系统预设字卡「整类停用」（共用件＝default-cards.js 的 window.presetGroup，键 pg-groups-off）。
+  //   本文件四类（询问/小问题/好奇/吐槽）的分类就是它们的「分组」，页顶分类条上挂整类开关；
+  //   判据只认「这条是不是系统预设 + 它所属分类有没有被停用」——用户在「我的添加」里自建的同类
+  //   条目不受这把闸影响（那部分有自己的逐条启停）。
+  function pgCatOff(ns, cat) { return !!(window.presetGroup && window.presetGroup.isOff(ns, cat || 'daily')); }
+  function presetCatOpen(ns, q) { return !(q && q.isPreset === true && pgCatOff(ns, q.cat)); }
   window.cardGroups = {
     genId: function () { return 'g' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36); },
     toast: grpToast,
@@ -806,7 +812,7 @@
   function taAskPick(d) {
     const s = d.settings || {};
     const useDefault = s.useDefault !== false;
-    const qs = d.questions.filter(q => q.enabled !== false && q.text && (useDefault || !q.isPreset));
+    const qs = d.questions.filter(q => q.enabled !== false && q.text && (useDefault || !q.isPreset) && presetCatOpen('ta-ask', q));
     if (!qs.length) return null;
     return qs[Math.floor(Math.random() * qs.length)];
   }
@@ -1256,6 +1262,9 @@
         html += '<button class="cc-tab' + (k === askSysCat ? ' sel' : '') + '" data-cat="' + k + '">' + escG(label) + '<em class="cc-tab-n">' + counts[k] + '</em></button>';
       });
       html += '</div>';
+      // #1315：整类停用条——本页的一个分类就是一个「分组」，旧版只能逐张点掉
+      const sysCatLabel = escG((CATS.find(c => c[0] === askSysCat) || [])[1] || askSysCat);
+      html += window.presetGroup ? window.presetGroup.catBar('ta-ask', askSysCat, String(sysCatLabel)) : '';
       const arr = d.questions.filter(q => q.cat === askSysCat && q.isPreset === true && (search === '' || q.text.indexOf(search) >= 0));
       arr.forEach(q => {
         const idx = d.questions.indexOf(q);
@@ -1266,6 +1275,7 @@
         html += interactPoolInlineHtml('询问·回应');
       });
       container.innerHTML = html;
+      if (window.presetGroup) window.presetGroup.bindBar(container.querySelector('.preset-cat-bar'), 'ta-ask', askSysCat, function () { renderAskCatsInto(container, true, search); });
       container.querySelectorAll('.cc-tab[data-cat]').forEach(t => {
         t.addEventListener('click', () => { askSysCat = t.dataset.cat; renderAskCatsInto(container, true, search); });
       });
@@ -1860,8 +1870,12 @@ const TC_DEFAULT = [
   // v3.6.x：useDefault=false 时不抽取系统预设（isPreset）题
   function tcPick(d) {
     const useDefault = (d.settings || {}).useDefault !== false;
-    const qs = d.questions.filter(q => q.enabled !== false && q.text && q.options && q.options.length >= 2 && (useDefault || !q.isPreset));
-    const fallback = qs.length ? qs : TC_DEFAULT;
+    const ready = function (q) { return q.text && q.options && q.options.length >= 2; };
+    const qs = d.questions.filter(q => q.enabled !== false && ready(q) && (useDefault || !q.isPreset) && presetCatOpen('ta-choose', q));
+    // #1315：内置兜底只补「库里连预设题都还没合并进来」这一种空。旧写法在用户把题逐张关掉、
+    //   或整类停用之后拿【没过任何闸】的 TC_DEFAULT 把池子填回来＝页面上的开关是装饰（本次报障本体）。
+    const presetInStore = d.questions.some(q => q.isPreset === true && ready(q));
+    const fallback = (qs.length || presetInStore) ? qs : TC_DEFAULT.filter(q => !pgCatOff('ta-choose', q.cat));
     const pool = fallback.filter(q => _tcAskedIds.indexOf(q.id) === -1);
     const src = pool.length ? pool : fallback;
     return src[Math.floor(Math.random() * src.length)];
@@ -2097,6 +2111,9 @@ window.openTCPanel = openTCPanel;
         html += '<button class="cc-tab' + (k === tcSysCat ? ' sel' : '') + '" data-cat="' + k + '">' + escT(TC_CAT_LABEL[k] || k) + '<em class="cc-tab-n">' + counts[k] + '</em></button>';
       });
       html += '</div>';
+      // #1315：整类停用条——本页的一个分类就是一个「分组」，旧版只能逐张点掉
+      const sysCatLabel = escT(TC_CAT_LABEL[tcSysCat] || tcSysCat);
+      html += window.presetGroup ? window.presetGroup.catBar('ta-choose', tcSysCat, String(sysCatLabel)) : '';
       const arr = d.questions.filter(q => q.cat === tcSysCat && q.isPreset === true && (search === '' || q.text.indexOf(search) >= 0));
       arr.forEach(q => {
         const idx = d.questions.indexOf(q);
@@ -2107,6 +2124,7 @@ window.openTCPanel = openTCPanel;
           '</div>';
       });
       container.innerHTML = html;
+      if (window.presetGroup) window.presetGroup.bindBar(container.querySelector('.preset-cat-bar'), 'ta-choose', tcSysCat, function () { renderTCCatsInto(container, true, search); });
       container.querySelectorAll('.cc-tab[data-cat]').forEach(t => {
         t.addEventListener('click', () => { tcSysCat = t.dataset.cat; renderTCCatsInto(container, true, search); });
       });
@@ -2668,10 +2686,19 @@ window.openTCPanel = openTCPanel;
   // v3.6.x：useDefault=false 时不抽取系统预设（isPreset）题
   function tcuPick(d) {
     const useDefault = (d.settings || {}).useDefault !== false;
-    const pool = (d.questions && d.questions.length) ? d.questions : TCU_DEFAULT;
-    let qs = pool.filter(q => q.enabled !== false && q.text && !(q.id && d.known[q.id]) && (useDefault || !q.isPreset));
-    if (!qs.length) qs = TCU_DEFAULT.filter(q => !d.known[q.id]);
-    if (!qs.length) qs = TCU_DEFAULT.slice();
+    // #1315：整类停用先作用于内置兜底表（这一路 pool 就是 TCU_DEFAULT，条目没有 isPreset 字段）
+    const pool = (d.questions && d.questions.length) ? d.questions : TCU_DEFAULT.filter(q => !pgCatOff('ta-curious', q.cat));
+    let qs = pool.filter(q => q.enabled !== false && q.text && !(q.id && d.known[q.id]) && (useDefault || !q.isPreset) && presetCatOpen('ta-curious', q));
+    if (!qs.length) {
+      // #1315：两道旧兜底都拿【没过闸】的 TCU_DEFAULT 填空池＝用户逐张关掉/整类停用后照样出题，
+      //   页面上的开关是装饰（本次报障本体）。现在库里已有预设题时不再回灌内置表（该类就此不出题，
+      //   调用方判空返回）；只有「库里连预设都还没合并」时才按类闸放行内置表。
+      const presetInStore = (d.questions || []).some(q => q.isPreset === true);
+      if (!presetInStore) {
+        qs = TCU_DEFAULT.filter(q => !d.known[q.id] && !pgCatOff('ta-curious', q.cat));
+        if (!qs.length) qs = TCU_DEFAULT.filter(q => !pgCatOff('ta-curious', q.cat));
+      }
+    }
     return qs[Math.floor(Math.random() * qs.length)];
   }
   function tcuPush(q, opts) {
@@ -2859,6 +2886,9 @@ window.openTCPanel = openTCPanel;
         html += '<button class="cc-tab' + (k === tcuSysCat ? ' sel' : '') + '" data-cat="' + k + '">' + escT(TCU_CAT_LABEL[k] || k) + '<em class="cc-tab-n">' + counts[k] + '</em></button>';
       });
       html += '</div>';
+      // #1315：整类停用条——本页的一个分类就是一个「分组」，旧版只能逐张点掉
+      const sysCatLabel = escT(TCU_CAT_LABEL[tcuSysCat] || tcuSysCat);
+      html += window.presetGroup ? window.presetGroup.catBar('ta-curious', tcuSysCat, String(sysCatLabel)) : '';
       const arr = d.questions.filter(q => q.cat === tcuSysCat && q.isPreset === true && (search === '' || q.text.indexOf(search) >= 0));
       arr.forEach(q => {
         const idx = d.questions.indexOf(q);
@@ -2871,6 +2901,7 @@ window.openTCPanel = openTCPanel;
           '</div></div>';
       });
       container.innerHTML = html;
+      if (window.presetGroup) window.presetGroup.bindBar(container.querySelector('.preset-cat-bar'), 'ta-curious', tcuSysCat, function () { renderTCUCatsInto(container, true, search); });
       container.querySelectorAll('.cc-tab[data-cat]').forEach(t => {
         t.addEventListener('click', () => { tcuSysCat = t.dataset.cat; renderTCUCatsInto(container, true, search); });
       });
@@ -3255,13 +3286,16 @@ window.openTCPanel = openTCPanel;
   // v3.6.x：useDefault=false 时不抽取系统预设（isPreset）字卡
   function trPick(d, lastUserText) {
     const useDefault = (d.settings || {}).useDefault !== false;
-    const pool = (d.questions && d.questions.length) ? d.questions : TR_DEFAULT;
+    // #1315：整类停用先作用于内置兜底表（这一路 pool 就是 TR_DEFAULT，条目没有 isPreset 字段）
+    const pool = (d.questions && d.questions.length) ? d.questions : TR_DEFAULT.filter(q => !pgCatOff('ta-roast', q.cat));
     if (lastUserText) {
-      const matched = pool.filter(q => q.enabled !== false && Array.isArray(q.match) && q.match.length && (useDefault || !q.isPreset) && q.match.some(k => lastUserText.indexOf(k) >= 0));
+      const matched = pool.filter(q => q.enabled !== false && Array.isArray(q.match) && q.match.length && (useDefault || !q.isPreset) && presetCatOpen('ta-roast', q) && q.match.some(k => lastUserText.indexOf(k) >= 0));
       if (matched.length) return matched[Math.floor(Math.random() * matched.length)];
     }
-    let qs = pool.filter(q => q.enabled !== false && (useDefault || !q.isPreset));
-    if (!qs.length) qs = TR_DEFAULT.slice();
+    let qs = pool.filter(q => q.enabled !== false && (useDefault || !q.isPreset) && presetCatOpen('ta-roast', q));
+    // #1315：旧写法「抽空就 TR_DEFAULT.slice() 整表回灌」＝逐张关闭与整类停用全被越过（开关是装饰）。
+    //   现在只在库里连预设题都没合并过时才用内置表，且同样过类闸。
+    if (!qs.length && !(d.questions || []).some(q => q.isPreset === true)) qs = TR_DEFAULT.filter(q => !pgCatOff('ta-roast', q.cat));
     return qs[Math.floor(Math.random() * qs.length)];
   }
   function trPush(q, opts) {
@@ -3495,6 +3529,9 @@ window.openTCPanel = openTCPanel;
         html += '<button class="cc-tab' + (k === trSysCat ? ' sel' : '') + '" data-cat="' + k + '">' + escT(TR_CAT_LABEL[k] || k) + '<em class="cc-tab-n">' + counts[k] + '</em></button>';
       });
       html += '</div>';
+      // #1315：整类停用条——本页的一个分类就是一个「分组」，旧版只能逐张点掉
+      const sysCatLabel = escT(TR_CAT_LABEL[trSysCat] || trSysCat);
+      html += window.presetGroup ? window.presetGroup.catBar('ta-roast', trSysCat, String(sysCatLabel)) : '';
       const arr = d.questions.filter(q => q.cat === trSysCat && q.isPreset === true && (search === '' || q.text.indexOf(search) >= 0));
       arr.forEach(q => {
         const idx = d.questions.indexOf(q);
@@ -3506,6 +3543,7 @@ window.openTCPanel = openTCPanel;
           '</div></div>';
       });
       container.innerHTML = html;
+      if (window.presetGroup) window.presetGroup.bindBar(container.querySelector('.preset-cat-bar'), 'ta-roast', trSysCat, function () { renderTRCatsInto(container, true, search); });
       container.querySelectorAll('.cc-tab[data-cat]').forEach(t => {
         t.addEventListener('click', () => { trSysCat = t.dataset.cat; renderTRCatsInto(container, true, search); });
       });

@@ -72,6 +72,76 @@ const o = groupOffRecord(st);
 const names = o && o[cat];
 return !!(names && names.length) && groupOffTexts(cat, names).has(c);
 }
+const PG_KEY = 'pg-groups-off';
+let pgRaw = null, pgObj = null;   // 单格缓存：原始值没变才复用解析结果（切桌面＝自动重解析）
+function pgRecord(st) {
+let raw = null;
+try { raw = (st || ls).get(PG_KEY); } catch (e) { return null; }
+if (raw === pgRaw) return pgObj;
+let o = null;
+try {
+if (raw) { const p = JSON.parse(raw); if (p && typeof p === 'object' && !Array.isArray(p)) o = p; }
+} catch (e) {}
+pgRaw = raw; pgObj = o;
+return o;
+}
+function pgIsOff(id, grp, st) {
+const o = pgRecord(st);
+const names = o && o[id];
+return !!(names && names.indexOf(grp) >= 0);
+}
+function pgSet(id, grp, off) {
+const cur = pgRecord(ls) || {};
+const arr = (cur[id] || []).slice();
+const i = arr.indexOf(grp);
+if (off && i < 0) arr.push(grp);
+if (!off && i >= 0) arr.splice(i, 1);
+const next = {};
+Object.keys(cur).forEach(k => { if (k !== id && Array.isArray(cur[k]) && cur[k].length) next[k] = cur[k].slice(); });
+if (arr.length) next[id] = arr;
+ls.set(PG_KEY, JSON.stringify(next));
+}
+function pgNames(id) {
+const o = pgRecord(ls);
+const names = o && o[id];
+return Array.isArray(names) ? names.slice() : [];
+}
+function pgSwitchHTML(off) {
+return '<label class="toggle ccard-toggle ccg-switch" title="' + (off ? '启用该分组' : '停用该分组') + '">' +
+'<input type="checkbox"' + (off ? '' : ' checked') + '><span class="tk"></span></label>';
+}
+function pgOffTag(off) { return off ? '<em class="ccg-off-tag">已停用</em>' : ''; }
+function pgWire(scopeEl, id, grp, onChange) {
+if (!scopeEl) return;
+const input = scopeEl.querySelector('.ccg-switch input');
+if (!input) return;
+input.addEventListener('change', () => {
+const nowOff = !input.checked;
+pgSet(id, grp, nowOff);
+if (typeof onChange === 'function') onChange(nowOff, grp);
+});
+}
+function pgCatBar(id, grp, label) {
+const off = pgIsOff(id, grp);
+return '<div class="set-group glass preset-cat-bar"><div class="gs-row"><span>整组停用「' + label + '」' +
+pgOffTag(off) + '</span>' + pgSwitchHTML(off) + '</div></div>';
+}
+window.presetGroup = {
+KEY: PG_KEY,
+isOff: pgIsOff,
+set: pgSet,
+names: pgNames,
+switchHTML: pgSwitchHTML,
+offTag: pgOffTag,
+bind: pgWire,
+bindBar: pgWire,   // 分组头与整类停用条用的是同一形态（.ccg-switch），两个名字都给，调用方按语义读
+catBar: pgCatBar,
+headerHTML: function (id, grp, label, count, extra) {
+const off = pgIsOff(id, grp);
+return '<span class="ccg-name">' + label + pgOffTag(off) + '</span><span class="ccg-count">' + count + '</span>' +
+(extra || '') + pgSwitchHTML(off);
+}
+};
 function apiFor(st) {
 const gE = function () { const v = st.get('dc-enabled'); return v === null ? true : v === '1'; };
 const gO = function () { const v = st.get('dc-overall'); return v === null ? 30 : Number(v); };

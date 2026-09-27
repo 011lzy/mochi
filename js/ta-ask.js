@@ -21,6 +21,8 @@ const arr = window.getInteractPool ? window.getInteractPool(poolName, []) : [];
 if (!arr.length) return '';
 return '<div class="tc-qopts">TA 回应：<span class="tc-known">系统</span> ' + arr.map(escG).join(' / ') + '</div>';
 }
+function pgCatOff(ns, cat) { return !!(window.presetGroup && window.presetGroup.isOff(ns, cat || 'daily')); }
+function presetCatOpen(ns, q) { return !(q && q.isPreset === true && pgCatOff(ns, q.cat)); }
 window.cardGroups = {
 genId: function () { return 'g' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36); },
 toast: grpToast,
@@ -630,7 +632,7 @@ setTimeout(() => { if (m && !m.hidden) { dlPickerSetSecs(n); dlPickerRender(); }
 function taAskPick(d) {
 const s = d.settings || {};
 const useDefault = s.useDefault !== false;
-const qs = d.questions.filter(q => q.enabled !== false && q.text && (useDefault || !q.isPreset));
+const qs = d.questions.filter(q => q.enabled !== false && q.text && (useDefault || !q.isPreset) && presetCatOpen('ta-ask', q));
 if (!qs.length) return null;
 return qs[Math.floor(Math.random() * qs.length)];
 }
@@ -988,6 +990,8 @@ hasCats.forEach(([k, label]) => {
 html += '<button class="cc-tab' + (k === askSysCat ? ' sel' : '') + '" data-cat="' + k + '">' + escG(label) + '<em class="cc-tab-n">' + counts[k] + '</em></button>';
 });
 html += '</div>';
+const sysCatLabel = escG((CATS.find(c => c[0] === askSysCat) || [])[1] || askSysCat);
+html += window.presetGroup ? window.presetGroup.catBar('ta-ask', askSysCat, String(sysCatLabel)) : '';
 const arr = d.questions.filter(q => q.cat === askSysCat && q.isPreset === true && (search === '' || q.text.indexOf(search) >= 0));
 arr.forEach(q => {
 const idx = d.questions.indexOf(q);
@@ -998,6 +1002,7 @@ html += '<div class="ta-row' + (!useDefault ? ' off' : '') + '">' +
 html += interactPoolInlineHtml('询问·回应');
 });
 container.innerHTML = html;
+if (window.presetGroup) window.presetGroup.bindBar(container.querySelector('.preset-cat-bar'), 'ta-ask', askSysCat, function () { renderAskCatsInto(container, true, search); });
 container.querySelectorAll('.cc-tab[data-cat]').forEach(t => {
 t.addEventListener('click', () => { askSysCat = t.dataset.cat; renderAskCatsInto(container, true, search); });
 });
@@ -1555,8 +1560,10 @@ return d;
 function tcSave(d) { try { store.set(KEY2, JSON.stringify(d)); } catch (e) {} }
 function tcPick(d) {
 const useDefault = (d.settings || {}).useDefault !== false;
-const qs = d.questions.filter(q => q.enabled !== false && q.text && q.options && q.options.length >= 2 && (useDefault || !q.isPreset));
-const fallback = qs.length ? qs : TC_DEFAULT;
+const ready = function (q) { return q.text && q.options && q.options.length >= 2; };
+const qs = d.questions.filter(q => q.enabled !== false && ready(q) && (useDefault || !q.isPreset) && presetCatOpen('ta-choose', q));
+const presetInStore = d.questions.some(q => q.isPreset === true && ready(q));
+const fallback = (qs.length || presetInStore) ? qs : TC_DEFAULT.filter(q => !pgCatOff('ta-choose', q.cat));
 const pool = fallback.filter(q => _tcAskedIds.indexOf(q.id) === -1);
 const src = pool.length ? pool : fallback;
 return src[Math.floor(Math.random() * src.length)];
@@ -1767,6 +1774,8 @@ hasCats.forEach(k => {
 html += '<button class="cc-tab' + (k === tcSysCat ? ' sel' : '') + '" data-cat="' + k + '">' + escT(TC_CAT_LABEL[k] || k) + '<em class="cc-tab-n">' + counts[k] + '</em></button>';
 });
 html += '</div>';
+const sysCatLabel = escT(TC_CAT_LABEL[tcSysCat] || tcSysCat);
+html += window.presetGroup ? window.presetGroup.catBar('ta-choose', tcSysCat, String(sysCatLabel)) : '';
 const arr = d.questions.filter(q => q.cat === tcSysCat && q.isPreset === true && (search === '' || q.text.indexOf(search) >= 0));
 arr.forEach(q => {
 const idx = d.questions.indexOf(q);
@@ -1777,6 +1786,7 @@ html += '<div class="tc-qrow' + (q.enabled === false || !useDefault ? ' off' : '
 '</div>';
 });
 container.innerHTML = html;
+if (window.presetGroup) window.presetGroup.bindBar(container.querySelector('.preset-cat-bar'), 'ta-choose', tcSysCat, function () { renderTCCatsInto(container, true, search); });
 container.querySelectorAll('.cc-tab[data-cat]').forEach(t => {
 t.addEventListener('click', () => { tcSysCat = t.dataset.cat; renderTCCatsInto(container, true, search); });
 });
@@ -2305,10 +2315,15 @@ return d;
 function tcuSave(d) { try { store.set(KEY3, JSON.stringify(d)); } catch (e) {} }
 function tcuPick(d) {
 const useDefault = (d.settings || {}).useDefault !== false;
-const pool = (d.questions && d.questions.length) ? d.questions : TCU_DEFAULT;
-let qs = pool.filter(q => q.enabled !== false && q.text && !(q.id && d.known[q.id]) && (useDefault || !q.isPreset));
-if (!qs.length) qs = TCU_DEFAULT.filter(q => !d.known[q.id]);
-if (!qs.length) qs = TCU_DEFAULT.slice();
+const pool = (d.questions && d.questions.length) ? d.questions : TCU_DEFAULT.filter(q => !pgCatOff('ta-curious', q.cat));
+let qs = pool.filter(q => q.enabled !== false && q.text && !(q.id && d.known[q.id]) && (useDefault || !q.isPreset) && presetCatOpen('ta-curious', q));
+if (!qs.length) {
+const presetInStore = (d.questions || []).some(q => q.isPreset === true);
+if (!presetInStore) {
+qs = TCU_DEFAULT.filter(q => !d.known[q.id] && !pgCatOff('ta-curious', q.cat));
+if (!qs.length) qs = TCU_DEFAULT.filter(q => !pgCatOff('ta-curious', q.cat));
+}
+}
 return qs[Math.floor(Math.random() * qs.length)];
 }
 function tcuPush(q, opts) {
@@ -2477,6 +2492,8 @@ hasCats.forEach(k => {
 html += '<button class="cc-tab' + (k === tcuSysCat ? ' sel' : '') + '" data-cat="' + k + '">' + escT(TCU_CAT_LABEL[k] || k) + '<em class="cc-tab-n">' + counts[k] + '</em></button>';
 });
 html += '</div>';
+const sysCatLabel = escT(TCU_CAT_LABEL[tcuSysCat] || tcuSysCat);
+html += window.presetGroup ? window.presetGroup.catBar('ta-curious', tcuSysCat, String(sysCatLabel)) : '';
 const arr = d.questions.filter(q => q.cat === tcuSysCat && q.isPreset === true && (search === '' || q.text.indexOf(search) >= 0));
 arr.forEach(q => {
 const idx = d.questions.indexOf(q);
@@ -2489,6 +2506,7 @@ html += '<div class="tc-qrow' + (q.enabled === false || !useDefault ? ' off' : '
 '</div></div>';
 });
 container.innerHTML = html;
+if (window.presetGroup) window.presetGroup.bindBar(container.querySelector('.preset-cat-bar'), 'ta-curious', tcuSysCat, function () { renderTCUCatsInto(container, true, search); });
 container.querySelectorAll('.cc-tab[data-cat]').forEach(t => {
 t.addEventListener('click', () => { tcuSysCat = t.dataset.cat; renderTCUCatsInto(container, true, search); });
 });
@@ -2845,13 +2863,13 @@ return d;
 function trSave(d) { try { store.set(KEY4, JSON.stringify(d)); } catch (e) {} }
 function trPick(d, lastUserText) {
 const useDefault = (d.settings || {}).useDefault !== false;
-const pool = (d.questions && d.questions.length) ? d.questions : TR_DEFAULT;
+const pool = (d.questions && d.questions.length) ? d.questions : TR_DEFAULT.filter(q => !pgCatOff('ta-roast', q.cat));
 if (lastUserText) {
-const matched = pool.filter(q => q.enabled !== false && Array.isArray(q.match) && q.match.length && (useDefault || !q.isPreset) && q.match.some(k => lastUserText.indexOf(k) >= 0));
+const matched = pool.filter(q => q.enabled !== false && Array.isArray(q.match) && q.match.length && (useDefault || !q.isPreset) && presetCatOpen('ta-roast', q) && q.match.some(k => lastUserText.indexOf(k) >= 0));
 if (matched.length) return matched[Math.floor(Math.random() * matched.length)];
 }
-let qs = pool.filter(q => q.enabled !== false && (useDefault || !q.isPreset));
-if (!qs.length) qs = TR_DEFAULT.slice();
+let qs = pool.filter(q => q.enabled !== false && (useDefault || !q.isPreset) && presetCatOpen('ta-roast', q));
+if (!qs.length && !(d.questions || []).some(q => q.isPreset === true)) qs = TR_DEFAULT.filter(q => !pgCatOff('ta-roast', q.cat));
 return qs[Math.floor(Math.random() * qs.length)];
 }
 function trPush(q, opts) {
@@ -3057,6 +3075,8 @@ hasCats.forEach(k => {
 html += '<button class="cc-tab' + (k === trSysCat ? ' sel' : '') + '" data-cat="' + k + '">' + escT(TR_CAT_LABEL[k] || k) + '<em class="cc-tab-n">' + counts[k] + '</em></button>';
 });
 html += '</div>';
+const sysCatLabel = escT(TR_CAT_LABEL[trSysCat] || trSysCat);
+html += window.presetGroup ? window.presetGroup.catBar('ta-roast', trSysCat, String(sysCatLabel)) : '';
 const arr = d.questions.filter(q => q.cat === trSysCat && q.isPreset === true && (search === '' || q.text.indexOf(search) >= 0));
 arr.forEach(q => {
 const idx = d.questions.indexOf(q);
@@ -3068,6 +3088,7 @@ interactPoolInlineHtml('吐槽·回应') +
 '</div></div>';
 });
 container.innerHTML = html;
+if (window.presetGroup) window.presetGroup.bindBar(container.querySelector('.preset-cat-bar'), 'ta-roast', trSysCat, function () { renderTRCatsInto(container, true, search); });
 container.querySelectorAll('.cc-tab[data-cat]').forEach(t => {
 t.addEventListener('click', () => { trSysCat = t.dataset.cat; renderTRCatsInto(container, true, search); });
 });

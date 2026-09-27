@@ -5289,6 +5289,26 @@ const FIX_SENTINELS = [
   { name: '#1313g 分帧路径逐条 try/catch（单条记录不许带走整轮；删回旧形态＝renderMsg 一抛链即断＝永久空白，正是 #919a 记着的真机实锤那一族）', file: 'js/chat.js', needle: '} catch (eThrow) { threwIdx.push(i); } // #1313：单条记录不许带走整轮构建' },
   { name: '#1313h 同步整窗路径同理（删＝异常一路上抛给调用方，连贴底／撤进度条一起跳过，屏上停在被清空的状态）', file: 'js/chat.js', needle: '} catch (eThrow) { threwIdx.push(i); } // #1313：同步整窗路径同理' },
   { name: '#1313i 抛错下标与可自愈空洞分开登记（喂进 #1004 的补画队列会变成「重画→又抛→又排」的 700ms 空转，破坏它刻意保住的自终止不变量）', file: 'js/chat.js', needle: "if (threwIdx.length) { windowStale = true; chatRenderIncident('paint-throw', 0, threwIdx.length); }" },
+  // ==== 2026-09-27 #1315 系统预设字卡「整组停用」补到其余 12 个入口（用户实报「字卡库的系统预设字卡 / 其他互动功能字卡 的单独分组无法选择关闭使用」，追问点名「有些页压根没有整组开关」；零机型／零 UA 分支＝判据只问「这一组被停用没有」）：#926 的分组开关只覆盖 mountCardView 那四个列表，其余 12 个由各页自渲染的预设池只有逐张开关，一个分组几十上百张时够不到「关闭使用」。共用件＝default-cards.js 的 window.presetGroup，另存 <桌面>:pg-groups-off（不塞进 dc-groups-off——那张键的语义已被 #926 的针与 #932 的自检账绑在 mountCardView 的分类名单上）；各页把自己已有的单卡判据当唯一出口叠一层，组内单卡存值一字不动。另修「关空即回灌」一族：池被用户关空后旧写法拿没过闸的内置常量填空池（TC_DEFAULT/TCU_DEFAULT/TR_DEFAULT/DEF_* 三空兜底/自动换位的陪伴句字面量），于是开关看着生效实际照发＝装饰；判据改为「兜底只补库里真没数据这一种空」。行为断言 tools/verify-1315-preset-group-off.mjs（改后 44/0 · 纯 HEAD 8/36，36 条红的恰全本批新契约，8 条两侧皆绿＝夹具真实且旧契约未动） ====
+  { name: '#1315a 预设字卡「整组停用」共用件的独立键（塞回 dc-groups-off＝改动 #926/#932 的口径与账；删则各页无处存）', file: 'js/default-cards.js', needle: "const PG_KEY = 'pg-groups-off';" },
+  { name: '#1315b 共用出口本身（12 页全靠它，删＝整组停用没有判据可问）', file: 'js/default-cards.js', needle: 'window.presetGroup = {' },
+  { name: '#1315c 情绪三级链的组闸叠在 typeOff 出口首行（挪到单卡判定之后＝单卡「重新打开」会越过整组停用，用户报的关不掉复发）', file: 'js/mood-reply-cards.js', needle: 'if (pgOff(type, content)) return true;' },
+  { name: '#1315d 回应字卡的合并判据（分类闸 OR 单卡闸，一个函数收口；拆开写＝getReplyCard 与 getFollowupWord 两路会漏掉一路）', file: 'js/mood-reply-cards.js', needle: "function rcOff(cat, t) { return isCardOff('rc-off-' + cat, t) ||" },
+  { name: '#1315e 情绪卡选组处也按组过滤（只闸 typeOff 时抽组权重仍会把停用组选进来再抽空，等于白抽）', file: 'js/mood-reply-cards.js', needle: 'presetGroup.isOff(PG_ID_MC.mood, g.group)' },
+  { name: '#1315f TA 的心情组闸叠在自己的 isCardOff 出口（该函数同时供选组处与页面用，改成就两处漏一处）', file: 'js/ta-mood.js', needle: "presetGroup.isOff('tm', g)) return true;" },
+  { name: '#1315g 寻踪三类整类停用叠在 isCkCardOff 出口（genCheckin 与页面同源）', file: 'js/p2-features.js', needle: "=== '1' || !!(window.presetGroup && window.presetGroup.isOff('cck', k));" },
+  { name: '#1315h 寻踪「三类全空」兜底重新过闸（改回 place = places 整表塞回＝三类全停用照样生成日常，本批要修的就是这一发）', file: 'js/p2-features.js', needle: "place = places.filter(p => !isCkCardOff('place', p.t));" },
+  { name: '#1315i 自动换位的内置陪伴句按所属分类反查同一条闸（那五行字面量从不过闸＝停用「状态/感知」后 TA 照发）', file: 'js/p2-features.js', needle: '!(window.locLibTextOff && window.locLibTextOff(t))' },
+  { name: '#1315j 词源关空不再凭空造出一句用户刚关掉的话（删除型＝写回旧形态即复发）', file: 'js/p2-features.js', needle: "all.push('在你身边')", absent: true },
+  { name: '#1315k 位置卡组闸叠在 isOff 出口（面板/角标/词源同源）', file: 'js/loc-lib.js', needle: "presetGroup.isOff('loc', cat));" },
+  { name: '#1315l 按文案反查所属分类的出口（陪伴句那一路的唯一凭据）', file: 'js/loc-lib.js', needle: 'window.locLibTextOff = function (text) {' },
+  { name: '#1315m TA 六类的类闸只作用于系统预设（连自建条目一起闸＝把用户自己加的话术也关掉）', file: 'js/ta-ask.js', needle: 'function presetCatOpen(ns, q) { return !(q && q.isPreset === true && pgCatOff(ns, q.cat)); }' },
+  { name: '#1315n 小问题的内置兜底只补「库里没预设数据」（改回 qs.length ? qs : TC_DEFAULT＝逐张关光与整类停用全被越过）', file: 'js/ta-ask.js', needle: 'const presetInStore = d.questions.some(q => q.isPreset === true && ready(q));' },
+  { name: '#1315o 好奇的类闸（两道旧兜底同时收口；只留一处＝另一道照样回灌 TCU_DEFAULT）', file: 'js/ta-ask.js', needle: 'if (!presetInStore) {' },
+  { name: '#1315p 吐槽的回灌闸（旧写法 pool 空则 TR_DEFAULT.slice() 整表塞回）', file: 'js/ta-ask.js', needle: 'qs = TR_DEFAULT.filter(q => !pgCatOff' },
+  { name: '#1315q 六类页各挂整类停用条（问「这一页有没有整组停用条」；三处同款入口一并登记，漏一处＝那一页又回到只能逐张点）', file: 'js/ta-ask.js', needle: "presetGroup.catBar('ta-ask'" },
+  { name: '#1315r 查岗题库整类停用（条＋闸）', file: 'js/ck-question.js', needle: "catBar('ta-checkin'" },
+  { name: '#1315s 邀请话术整类停用（条＋闸；本页分类字段是 kind）', file: 'js/ta-invite.js', needle: "catBar('ta-invite'" },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

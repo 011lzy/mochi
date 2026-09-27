@@ -182,10 +182,11 @@ if (!Array.isArray(d.groups)) d.groups = [];
 return d;
 }
 function ckSave(d) { try { store.set(KEY, JSON.stringify(d)); } catch (e) {} }
+function pgCatOff(ns, cat) { return !!(window.presetGroup && window.presetGroup.isOff(ns, cat || 'daily')); }
 function pickQ() {
 const d = ckLoad();
 const useDefault = (d.settings || {}).useDefault !== false;
-const qs = d.questions.filter(q => q && q.enabled !== false && q.text && (useDefault || q.isPreset !== true));
+const qs = d.questions.filter(q => q && q.enabled !== false && q.text && (useDefault || q.isPreset !== true) && !(q.isPreset === true && pgCatOff('ta-checkin', q.cat)));
 if (!qs.length) return null;
 let pool = qs;
 if (qs.length > 1) {
@@ -368,6 +369,7 @@ hasCats.forEach(([k, label]) => {
 html += '<button class="cc-tab' + (k === ckSysCat ? ' sel' : '') + '" data-cat="' + k + '">' + esc(label) + '<em class="cc-tab-n">' + counts[k] + '</em></button>';
 });
 html += '</div>';
+html += window.presetGroup ? window.presetGroup.catBar('ta-checkin', ckSysCat, esc((CATS_CKQ.find(c => c[0] === ckSysCat) || [])[1] || ckSysCat)) : '';
 d.questions.forEach(q => {
 if (!(hit(q) && q.cat === ckSysCat)) return;
 const idx = d.questions.indexOf(q);
@@ -385,6 +387,7 @@ html += '<div class="tc-qopts">TA对我：' + esc(q.taToMe || q.text) + ' / 我�
 }
 });
 container.innerHTML = html;
+if (window.presetGroup) window.presetGroup.bindBar(container.querySelector('.preset-cat-bar'), 'ta-checkin', ckSysCat, function () { renderCkSysInto(container, search); });
 container.querySelectorAll('.cc-tab[data-cat]').forEach(t => {
 t.addEventListener('click', () => { ckSysCat = t.dataset.cat; renderCkSysInto(container, search); });
 });

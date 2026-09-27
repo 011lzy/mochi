@@ -21,7 +21,7 @@ function getUseDefault() {
 const v = store.get(DEF_KEY);
 return v === null ? true : v === '1';
 }
-function isOff(cat, text) { return store.get('loc-off-' + cat + ':' + text) === '1'; }
+function isOff(cat, text) { return store.get('loc-off-' + cat + ':' + text) === '1' || !!(window.presetGroup && window.presetGroup.isOff('loc', cat)); }
 function setOff(cat, text, off) { store.set('loc-off-' + cat + ':' + text, off ? '1' : '0'); }
 function getGroups() {
 try {
@@ -102,6 +102,12 @@ window.locLibLabel = function (t) { return LABEL[t] || t || ''; };
 window.locLibEggText = eggText;
 window.locLibEggEnabled = eggEnabled;
 window.locLibIsOff = isOff;
+window.locLibTextOff = function (text) {
+for (let i = 0; i < CATS.length; i++) {
+if ((LIB[CATS[i]] || []).indexOf(text) >= 0 && isOff(CATS[i], text)) return true;
+}
+return false;
+};
 window.locLibSetOff = setOff;
 window.locLibGetUseDefault = getUseDefault;
 window.locLibSenseGroup = senseGroup;
@@ -137,6 +143,15 @@ tip.className = 'ta-empty';
 tip.textContent = '系统预设位置卡已关闭（位置面板只显示「我的添加」）。开启上方开关即可恢复使用。';
 listEl.appendChild(tip);
 return;
+}
+if (window.presetGroup) {
+const barBox = document.createElement('div');
+barBox.innerHTML = window.presetGroup.catBar('loc', cat, LABEL[cat] || cat);
+const bar = barBox.firstElementChild;
+if (bar) {
+listEl.appendChild(bar);
+window.presetGroup.bindBar(bar, 'loc', cat, function () { renderSysList(); updateEntryCount(); });
+}
 }
 (LIB[cat] || []).forEach(x => {
 const off = isOff(cat, x);
