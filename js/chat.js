@@ -1894,6 +1894,8 @@ document.addEventListener('contact-renamed', function () { try { updateChatPartn
 } catch (e) {}
 const typingEl = document.getElementById('chat-typing');
 let typingOn = false;
+let typingDueAt = 0;
+let typingWatch = 0;
 function chatVisible() {
 const p = document.getElementById('page-chat');
 return !!(p && !p.hidden);
@@ -2077,10 +2079,29 @@ function rateBlocksIn(side, special, nightAllow) {
 if (side !== 'in' || nightAllow || special === 'read') return false;
 return rateLimitFull();
 }
+function chatTypingHorizonMs() {
+const rsMax = Math.max(1, Number(cfg()['rs-max']) || 40);
+return Math.max(rsMax * 1000, 2600) + 5000;
+}
+function chatTypingReconcile(why) {
+if (!typingOn || !typingDueAt || Date.now() < typingDueAt) return false;
+const overMs = Date.now() - typingDueAt;
+hideTyping();
+try {
+const l = window.__chatTypingExpired = window.__chatTypingExpired || [];
+if (l.length >= 8) l.shift();
+l.push({ t: Date.now(), why: String(why || ''), overMs: overMs });
+window.__chatTypingExpiredN = (window.__chatTypingExpiredN || 0) + 1;
+} catch (e) {}
+return true;
+}
 function showTyping() {
 if (!typingEl) return;
 if (rateLimitFull()) return; // #1180：额度已满＝TA 不会再发出来了，就别再演「正在输入」（否则每条都变成「打了字又没消息」）
 typingOn = true;
+typingDueAt = Date.now() + chatTypingHorizonMs(); // #1326：点亮这一行的同一刻登记它的到期时刻
+if (typingWatch) clearTimeout(typingWatch);
+typingWatch = setTimeout(function () { typingWatch = 0; chatTypingReconcile('watch'); }, chatTypingHorizonMs());
 if (chatVisible()) {
 typingEl.hidden = false; // FIX 2026-09-15 #514 只切可见性、不写 scrollTop（#334 守钉加强版：连钉住态也不抢滚动权）
 }
@@ -2088,6 +2109,8 @@ typingEl.hidden = false; // FIX 2026-09-15 #514 只切可见性、不写 scrollT
 function hideTyping() {
 if (!typingEl) return;
 typingOn = false;
+typingDueAt = 0; // #1326：这一发兑现了（或这条链作废了）＝期限一并撤掉，别留下一个到不了期的旧承诺
+if (typingWatch) { clearTimeout(typingWatch); typingWatch = 0; }
 typingEl.hidden = true;
 if (chatPinnedBottom) scrollChatBottom(); // FIX 2026-09-11 #334 解钉态不抢滚动权；#514 起这次写只作收尾补平（行隐藏态 scrollTop 已在最大值，正常链路里等于无操作）
 }
@@ -3210,7 +3233,7 @@ if (_rm && (_rm._lsLite || _rm.img === '' || _rm.voice === '' ||
 (Array.isArray(_rm.parts) && _rm.parts.some(p => p && typeof p.v === 'string' && p.v === '')))) {
 _liteIdx.push(i);
 }
-const m = renderMsg(_rm);
+const m = renderMsg(_rm, i); // #1326：真实下标要在挂载之前落定，否则 #1004 的「迟到节点」判据读到的是 provisional 数
 m.dataset.idx = i; // 覆盖 renderMsg 内的 msgs.length-1（批量渲染时必须为真实下标）
 } catch (eThrow) { threwIdx.push(i); } // #1313：单条记录不许带走整轮构建（链断＝永久空白，见上面 #919a 那条真机实锤）
 }
@@ -3278,7 +3301,7 @@ if (_rm && (_rm._lsLite || _rm.img === '' || _rm.voice === '' ||
 (Array.isArray(_rm.parts) && _rm.parts.some(p => p && typeof p.v === 'string' && p.v === '')))) {
 _liteIdx.push(i);
 }
-const m = renderMsg(_rm);
+const m = renderMsg(_rm, i); // #1326：真实下标要在挂载之前落定，否则 #1004 的「迟到节点」判据读到的是 provisional 数
 m.dataset.idx = i; // 覆盖 renderMsg 内的 msgs.length-1（批量渲染时必须为真实下标）
 } catch (eThrow) { threwIdx.push(i); } // #1313：同步整窗路径同理——单条记录不许把异常抛给调用方（那会连贴底/撤进度条一起跳过，屏上停在被清空的状态）
 }
@@ -3365,7 +3388,7 @@ const ui = liteUpgrade[u];
 const old = body.querySelector('[data-idx="' + ui + '"]');
 if (!old) { batchRendering = false; return false; }
 let nu = null;
-try { nu = renderMsg(msgs[ui]); } catch (e) { nu = null; }
+try { nu = renderMsg(msgs[ui], ui); } catch (e) { nu = null; } // #1326：原位补丁同样带真实下标（旧写法在构建在飞时会被误判成迟到节点）
 if (!nu || nu.dataset.idx === undefined) { batchRendering = false; return false; }
 nu.dataset.idx = ui;
 old.parentNode.replaceChild(nu, old);
@@ -3427,7 +3450,7 @@ const ui = idxs[u];
 const old = body.querySelector('[data-idx="' + ui + '"]');
 if (!old) { batchRendering = false; restoreInplaceDrafts(); __plog('fail-node@' + ui); return false; }
 let nu = null;
-try { nu = renderMsg(msgs[ui]); } catch (e) { nu = null; }
+try { nu = renderMsg(msgs[ui], ui); } catch (e) { nu = null; } // #1326：原位补丁同样带真实下标（旧写法在构建在飞时会被误判成迟到节点）
 if (!nu || nu.dataset.idx === undefined) { batchRendering = false; restoreInplaceDrafts(); __plog('fail-render@' + ui); return false; }
 nu.dataset.idx = ui;
 old.parentNode.replaceChild(nu, old);
@@ -3560,7 +3583,7 @@ appendTarget = frag;
 appendAvatarBatch(true);
 for (let i = newStart; i < renderStart; i++) {
 maybeInsertDivider(i); // 时间分隔线：新批首条与前一条间距大时补胶囊
-const m = renderMsg(msgs[i]);
+const m = renderMsg(msgs[i], i); // #1326：同上——下插/追加批也要在挂载前落定真实下标
 m.dataset.idx = i;
 }
 appendAvatarBatch(false);
@@ -3601,7 +3624,7 @@ if (!anchor) {
 for (let j = i + 1; j < len && !anchor; j++) anchor = onScreen.get(j) || null; // #918b：锚点同批改查表（旧写法每个未命中下标都全表扫一次）
 }
 maybeInsertDivider(i);
-const m = renderMsg(msgs[i]);
+const m = renderMsg(msgs[i], i); // #1326：同上——下插/追加批也要在挂载前落定真实下标
 m.dataset.idx = i;
 }
 appendAvatarBatch(false);
@@ -4035,10 +4058,11 @@ if (acts) acts.outerHTML = wishDoneHtml();
 } catch (e) {}
 }
 window.chatWishSettled = chatWishSettled;
-function renderMsg(rec) {
+function renderMsg(rec, atIdx) {
 const m = document.createElement('div');
 m.dataset.mk = msgKeyOf(rec); // FIX 2026-09-15 #491 身份锚随渲染写入，批量渲染只覆盖 data-idx 不动它
-m.dataset.idx = msgs.length - 1;
+const __msgAt = Number.isFinite(atIdx) ? atIdx : msgs.length - 1;
+m.dataset.idx = __msgAt;
 const __fit = rec.side !== 'out' && !!window.taFit;
 const __taNm = chatPartnerName();
 const __meNm = chatUserName();
@@ -4057,7 +4081,7 @@ return t;
 };
 if (rec.special === 'invite') {
 m.className = 'msg-ask';
-m.dataset.idx = msgs.length - 1;
+m.dataset.idx = __msgAt; // #1326：分支重写读调用方给的这一格
 const answered = rec.inviteStatus === 'answered';
 m.innerHTML = '<div class="msg-ask-card' + (answered ? ' answered' : '') + '">' +
 '<div class="msg-ask-q">' + T('邀请TA') + ' · ' + escTxt(rec.inviteContent || rec.text || '') + '</div>' +
@@ -4072,7 +4096,7 @@ return m;
 }
 if (rec.special === 'ask') {
 m.className = 'msg-ask';
-m.dataset.idx = msgs.length - 1;
+m.dataset.idx = __msgAt; // #1326：分支重写读调用方给的这一格
 const answered = rec.askStatus === 'answered';
 const askIsSingle = rec.askType === 'single';
 m.innerHTML = '<div class="msg-ask-card' + (answered ? ' answered' : '') + '">' +
@@ -4189,7 +4213,7 @@ return m;
 }
 if (rec.special === 'redpacket') {
 m.className = 'msg-rp';
-m.dataset.idx = msgs.length - 1;
+m.dataset.idx = __msgAt; // #1326：分支重写读调用方给的这一格
 const sideTxt = rec.side === 'out' ? '我' : chatPartnerName();
 const cls = rpStatusCls(rec);
 const rpIco = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9c3 2 6 3 9 3s6-1 9-3"/><circle cx="12" cy="9" r="1.4"/></svg>';
@@ -4226,7 +4250,7 @@ return m;
 }
 if (rec.special === 'flower') {
 m.className = 'msg-flower';
-m.dataset.idx = msgs.length - 1;
+m.dataset.idx = __msgAt; // #1326：分支重写读调用方给的这一格
 const sideTxt = rec.side === 'out' ? '我' : chatPartnerName();
 m.innerHTML = '<div class="msg-flower-card">' +
 '<div class="msg-flower-bar"></div>' +
@@ -4243,7 +4267,7 @@ return m;
 }
 if (rec.special === 'gift') {
 m.className = 'msg-gift';
-m.dataset.idx = msgs.length - 1;
+m.dataset.idx = __msgAt; // #1326：分支重写读调用方给的这一格
 const sideTxt = rec.side === 'out' ? '我 送出' : (rec.giftSelf ? (chatPartnerName() + ' 自己买的') : (chatPartnerName() + ' 送来'));
 const gc = ((window.GIFT_CAT_COLOR || {})[rec.giftCat]) || '#f2f2f5';
 m.innerHTML = '<div class="msg-gift-card">' +
@@ -4263,7 +4287,7 @@ return m;
 }
 if (rec.special === 'wish') {
 m.className = 'msg-gift msg-wish';
-m.dataset.idx = msgs.length - 1;
+m.dataset.idx = __msgAt; // #1326：分支重写读调用方给的这一格
 const wStill = wishCardIsPending(rec); // #1316：卡片自己记的 wishSent 优先，其次才是「TA 心愿单此刻还有这件」
 const wgc = ((window.GIFT_CAT_COLOR || {})[rec.wishGiftCat]) || '#f2f2f5';
 m.innerHTML = '<div class="msg-gift-card msg-wish-card">' +
@@ -4285,7 +4309,7 @@ return m;
 }
 if (rec.special === 'dish') {
 m.className = 'msg-gift msg-dish';
-m.dataset.idx = msgs.length - 1;
+m.dataset.idx = __msgAt; // #1326：分支重写读调用方给的这一格
 const sideTxt = rec.side === 'out' ? '我 烹饪送出' : (chatPartnerName() + ' 烹饪送来');
 const stars = rec.dishQuality === 'perfect' ? '★★★' : rec.dishQuality === 'good' ? '★★' : '★';
 m.innerHTML = '<div class="msg-gift-card msg-dish-card">' +
@@ -4303,7 +4327,7 @@ return m;
 }
 if (rec.special === 'ask-choose') {
 m.className = 'msg-ask';
-m.dataset.idx = msgs.length - 1;
+m.dataset.idx = __msgAt; // #1326：分支重写读调用方给的这一格
 const answered = rec.choiceStatus === 'answered';
 m.innerHTML = '<div class="msg-choose-card' + (answered ? ' answered' : '') + '">' +
 '<div class="msg-ask-q">' + escTxt(rec.choiceQuestion || rec.text || '') + '</div>' +
@@ -4318,7 +4342,7 @@ return m;
 }
 if (rec.special === 'ask-curious') {
 m.className = 'msg-ask';
-m.dataset.idx = msgs.length - 1;
+m.dataset.idx = __msgAt; // #1326：分支重写读调用方给的这一格
 const answered = rec.curiousStatus === 'answered';
 m.innerHTML = '<div class="msg-choose-card' + (answered ? ' answered' : '') + '">' +
 '<div class="msg-ask-q">' + escTxt(rec.curiousQuestion || rec.text || '') + '</div>' +
@@ -4333,7 +4357,7 @@ return m;
 }
 if (rec.special === 'ask-roast') {
 m.className = 'msg-ask';
-m.dataset.idx = msgs.length - 1;
+m.dataset.idx = __msgAt; // #1326：分支重写读调用方给的这一格
 const answered = rec.roastStatus === 'answered';
 m.innerHTML = '<div class="msg-choose-card' + (answered ? ' answered' : '') + '">' +
 '<div class="msg-ask-q">' + escTxt(rec.roastText || rec.text || '') + '</div>' +
@@ -4348,7 +4372,7 @@ return m;
 }
 if (rec.special === 'ask-survey') {
 m.className = 'msg-ask msg-survey';
-m.dataset.idx = msgs.length - 1;
+m.dataset.idx = __msgAt; // #1326：分支重写读调用方给的这一格
 m.innerHTML = surveyCardHtml(rec);
 appendMsg(m);
 maybeScrollChatBottom(rec.side);
@@ -4356,7 +4380,7 @@ return m;
 }
 if (rec.special === 'ask-card') {
 m.className = 'msg-ask';
-m.dataset.idx = msgs.length - 1;
+m.dataset.idx = __msgAt; // #1326：分支重写读调用方给的这一格
 const answered = rec.askStatus === 'answered';
 const isSingle = rec.askType === 'single' || (rec.type === 'single' && Array.isArray(rec.options) && rec.options.length);
 m.innerHTML = '<div class="msg-ask-card' + (answered ? ' answered' : '') + '">' +
@@ -4591,7 +4615,7 @@ b.insertBefore(mk, b.firstChild);
 }
 } catch (e) {}
 }
-if (rec.side === 'in' || rec.side === 'out') m.dataset.idx = msgs.length - 1;
+if (rec.side === 'in' || rec.side === 'out') m.dataset.idx = __msgAt; // #1326：分支重写读调用方给的这一格
 try {
 const ts = rec.ts || Date.now();
 m.querySelectorAll('img').forEach(img => {
@@ -5718,7 +5742,7 @@ rec.retractedSegs.push({ text: segs[si], idx: si });
 sessionChangedIdx.add(idx); // v3.6.x：标记本会话变更，防 loadMsgs 合并回滚局部撤回
 chatTailDrop(rec); // #180：局部撤回后日志原文不得回放（与撤回同口径）
 saveMsgs();
-const m = renderMsg(rec);
+const m = renderMsg(rec, idx); // #1326：局部撤回重画的是「原来那一格」，下标交给调用方才是真的
 m.dataset.idx = idx;
 if (target.parentNode) target.parentNode.replaceChild(m, target);
 return;
@@ -5737,7 +5761,7 @@ rec.retractedMood.push(pick);
 sessionChangedIdx.add(idx); // v3.6.x：标记本会话变更，防 loadMsgs 合并回滚局部撤回
 chatTailDrop(rec); // #180：局部撤回后日志原文不得回放（与撤回同口径）
 saveMsgs();
-const m = renderMsg(rec);
+const m = renderMsg(rec, idx); // #1326：局部撤回重画的是「原来那一格」，下标交给调用方才是真的
 m.dataset.idx = idx;
 if (target.parentNode) target.parentNode.replaceChild(m, target);
 return;
@@ -6685,6 +6709,9 @@ settleReplayedChatAnim(); // #1151c：回场一帧在绘制之前落终态＝看
 }).observe(chatPage, { attributes: true, attributeFilter: ['hidden'] });
 }
 function chatResumeSettleAnim() { try { settleReplayedChatAnim(true); } catch (e) {} }
+document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') chatTypingReconcile('fg'); });
+document.addEventListener('mochi-fg-resume', function () { chatTypingReconcile('fg'); });
+window.addEventListener('pageshow', function (e) { if (e.persisted) chatTypingReconcile('fg'); });
 document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') chatResumeSettleAnim(); });
 document.addEventListener('mochi-fg-resume', chatResumeSettleAnim); // bg-keep 统一信号：覆盖「只发 focus / bfcache 恢复」的内核（与 #967 同款双通道）
 window.addEventListener('pageshow', function (e) { if (e.persisted) chatResumeSettleAnim(); });
@@ -6714,6 +6741,7 @@ requestAnimationFrame(scrollToBottom);
 requestAnimationFrame(() => requestAnimationFrame(scrollToBottom));
 }
 chatEntrySettle();
+chatTypingReconcile('enter'); // #1326：进页先把过期的承诺收掉——否则每次重进聊天页都把那句「正在输入」重新点亮（用户口径的「退出再进来还是不动」）
 if (typingOn && chatVisible()) {
 typingEl.hidden = false; // FIX 2026-09-15 #514 进页同款：只切可见性、不写 scrollTop（上面三连已在行隐藏态贴到底）
 }

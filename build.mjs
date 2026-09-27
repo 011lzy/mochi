@@ -5428,6 +5428,14 @@ const FIX_SENTINELS = [
   { name: '#1323r 非叶子容器一律不自动铺（一张 100%×100% 的透明 input 会浮在静态流内的孩子之上，把这一格里本来点别的孩子的动作整个接走＝修一处吃另一处，正是本批要终结的那件事）', file: 'index.html', needle: "if (!cur.children || cur.children.length === 0) return cur;" },
   { name: '#1323n 诊断出账「选图门台账：在册 N · 此刻真铺着层 M」（在册与有层拉开＝这条自愈线在真机上到底咬合过没有，不用靠猜；#1272 同一课：活在内存里的取证随回收清零）', file: 'index.html', needle: "'选图门台账：在册 '" },
   { name: '#1323o 诊断出账「DOM 节点分解」（20272 那个总数此前从来只是一个数，#1295/#1300/#1301/#1311 四批都只能对着它猜一处脚本削一刀）', file: 'index.html', needle: "'· 节点分解（*=这一份此刻在屏上可见" },
+  { name: '#1326a 整窗/增量渲染把真实下标在挂载前交给这一格（删＝#1004 的「迟到节点」判据读到 provisional 数，构建期每挂一格都被判成迟到，新消息被排到列表头部＝用户实报「对方正在输入中却不出消息，退出再进才显现」复发）', file: 'js/chat.js', needle: 'const __msgAt = Number.isFinite(atIdx) ? atIdx : msgs.length - 1;' },
+  { name: '#1326b renderMsg 各分支不得再各写「当前最后一条的下标」当自己的身份（回流＝构建期整窗节点集体误判为迟到）', file: 'js/chat.js', needle: 'm.dataset.idx = msgs.length - 1;', absent: true },
+  { name: '#1326c 两条整窗路径必须把 i 交进 renderMsg（旧形态 renderMsg(_rm) 回流＝分帧构建期到的消息排到头部）', file: 'js/chat.js', needle: 'const m = renderMsg(_rm);', absent: true },
+  { name: '#1326d 上翻／补尾两条增量路径同理（旧形态 renderMsg(msgs[i]) 回流＝补尾批同样被误判）', file: 'js/chat.js', needle: 'const m = renderMsg(msgs[i]);', absent: true },
+  { name: '#1326e 点亮「对方正在输入」的同一刻登记到期时刻（删＝这一行重新变成没有期限的承诺：那一发投递定时器被冻结多久，行就挂多久）', file: 'js/chat.js', needle: 'typingDueAt = Date.now() + chatTypingHorizonMs();' },
+  { name: '#1326f 到期判据只取「承诺过期了没有」（改成无条件收表＝砍掉设定里诚实的等待；改回凭 typingOn＝谎报复发）', file: 'js/chat.js', needle: 'if (!typingOn || !typingDueAt || Date.now() < typingDueAt) return false;' },
+  { name: '#1326g 进聊天页先复核承诺（删＝每次重进都把那句过期的「正在输入」重新点亮，正是用户口径的「退出再进来还是不动」）', file: 'js/chat.js', needle: "chatTypingReconcile('enter');" },
+  { name: '#1326h 回前台通道复核（冻结期连自家看门狗一起冻住，只挂 setTimeout 等于没挂）', file: 'js/chat.js', needle: "document.addEventListener('mochi-fg-resume', function () { chatTypingReconcile('fg'); });" },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
