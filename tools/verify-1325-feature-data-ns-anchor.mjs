@@ -1,4 +1,9 @@
-// ===== 常驻回归：#1325 各功能数据「单独导出/导入/清空」的命名空间判据（feature-data.js） =====
+// ===== 常驻回归：#1325＋#1346 各功能数据「单独导出/导入/清空」的命名空间判据（feature-data.js） =====
+// #1346（用户「去把那 9 个也一并收了」）续用同一把尺子：穷举后 9 个「混合锚点」里只有 6 个真的两边都写
+//   ——chat／cards／divination／myarc／piggy／games 翻 both；desktop／ask 经查没有任何顶层键（不翻）、
+//   feed 本来就是 both（不动）；顺手把 first-match-wins 的旧歪账 `rp-wallet` 从 chat 归位给 gift。
+//   C5 组钉的就是这一格：从**第二个联系人桌面**视角顶层那一份必须显形、别桌面的私有键照旧不许进，
+//   且 `audit().stranded` 在改判后清零。本文件由 #1325 建立、#1346 续用（同一引擎的常驻回归，不另立新脚本）。
 // 用户实报（vivo X200s / 安卓 Edge，且「其他设备型号也有出现」）：
 //   「音乐里点击【导出数据】，我只有一个联系人，但是桌面说『本桌面暂无数据』」
 // 根因（零机型／零 UA 分支＝判据只取「这一格键落在哪个命名空间」这一个事实）：
@@ -162,6 +167,28 @@ const openMusic = async () => {
   await sleep(1600);
   return via + ':' + await evalJs("(function(){var p=document.getElementById('page-music');return p?!p.hidden:false})()");
 };
+// 等卡上那行计数算完（「统计中…」→「N 项 · …」）。只等卡挂上不够：计数是异步的
+// （allKeys → 分批取值 → 汇总），抢在算完之前读就会把正常状态判成失败——实测「一红两绿」的抖源。
+const waitCount = async (ms) => {
+  const limit = Date.now() + (ms || 12000);
+  for (;;) {
+    const t = await evalJs("(function(){var e=document.querySelector('#page-music [data-fcount]');return e?e.textContent:''})()").catch(() => '');
+    if (/^\d+ 项/.test(String(t))) return true;
+    if (Date.now() > limit) return false;
+    await sleep(300);
+  }
+};
+// 等音乐页那张数据卡真的挂上（mountFdBars 在 800ms／2500ms 与 mochi-restore-done 上各跑一次，
+// 数据回填慢时会更晚；不等的就会把「卡还没挂」读成「导出失败」＝实测一轮红、两轮全绿的抖动源）
+const waitFdBar = async (ms) => {
+  const limit = Date.now() + (ms || 10000);
+  for (;;) {
+    const okBar = await evalJs("(function(){return !!(document.querySelector('#page-music [data-fbar=\\\"music\\\"] [data-op=\\\"export\\\"]'))})()").catch(() => false);
+    if (okBar) return true;
+    if (Date.now() > limit) return false;
+    await sleep(300);
+  }
+};
 // 导出驱动：桩 mochiExportFile（只证键清单/载荷/文案，不触发真下载），真点功能页数据卡上的【导出数据】
 const clickCardExport = async (stub) => evalJs(`(function(){
   try{
@@ -182,6 +209,12 @@ const finishExport = async () => {
     if (!r) { await sleep(200); continue; }
     if (r.calls > 0) return r;
     if (r.open) {
+      // 只确认自己那一个模态：备份提醒／回收提示／开屏公告同样走 openModal，撞上就把它们关掉再继续等
+      const who = await evalJs("(function(){var ms=(window.__modals||[]);for(var i=ms.length-1;i>=0;i--){if(ms[i].title.indexOf('导出「')===0)return ms[i].title}var t=document.getElementById('modal-title');return t?t.textContent:''})()").catch(() => '');
+      if (String(who).indexOf('导出「') !== 0) {
+        await evalJs("(function(){var b=document.getElementById('modal-cancel')||document.getElementById('modal-ok');if(b)b.click();return 1})()");
+        await sleep(400); continue;
+      }
       await evalJs("(function(){var b=document.getElementById('modal-ok')||document.querySelector('#modal-mask button');if(b)b.click();return 1})()");
       await sleep(600);
       const r2 = await evalJs(snap).catch(() => null);
@@ -220,11 +253,13 @@ await nav(); await dismiss(); await ready();
   ok('A2 featureOfKey 直接判定 default:music-playlists 归音乐（红侧＝null）',
     await claim('xy-home-v2:default:music-playlists', 'default') === 'music');
   const howOpened = await openMusic();
+  await waitCount();
   const bar = await evalJs("(function(){var p=document.getElementById('page-music');if(!p)return 'NOPAGE';var el=p.querySelector('[data-fcount=\"music\"]');return el?el.textContent:'NOEL'})()");
   ok('A2b 音乐页数据卡那一行报得出项数（红侧＝「本桌面暂无数据」＝用户原话）',
     /^\d+ 项/.test(String(bar)), 'bar=' + bar + ' 进页=' + howOpened);
 }
 {
+  await waitFdBar();
   const got = await clickCardExport('');
   const res = await finishExport();
   let payload = null; try { payload = JSON.parse(res && res.json || 'null'); } catch (e) {}
@@ -388,6 +423,49 @@ await nav(); await dismiss(); await ready();
   await evalJs("(function(){ window.__activeCid = 'default'; return 1 })()");
 }
 
+// ---------- C5 组：#1346 六个「混合锚点」功能改判后，从联系人桌面看得见顶层那一份 ----------
+{
+  const rootClaims = {
+    'xy-home-v2:my-emoji-groups': 'chat',
+    'xy-home-v2:emoji-recent': 'chat',
+    'xy-home-v2:hide-ta-sticker': 'chat',
+    'xy-home-v2:chat-beauty-schemes': 'chat',
+    'xy-home-v2:chat-panel-prewarm': 'chat',
+    'xy-home-v2:cc-groups-public': 'cards',
+    'xy-home-v2:cc-groups-public-off': 'cards',
+    'xy-home-v2:dict-custom-quotes': 'cards',
+    'xy-home-v2:rp-wallet': 'gift',
+    'xy-home-v2:divine-faces-idx': 'divination',
+    'xy-home-v2:divine-face-onebased': 'divination',
+    'xy-home-v2:myarc-shared': 'myarc',
+    'xy-home-v2:myarc-cur': 'myarc',
+    'xy-home-v2:piggy-log': 'piggy',
+    'xy-home-v2:piggy-coin-prob': 'piggy',
+    'xy-home-v2:au-sound': 'games'
+  };
+  const seen = {};
+  for (const k of Object.keys(rootClaims)) seen[k] = await claim(k, 'czzzzz');   // 全部从「第二个联系人桌面」视角判
+  const wrong = Object.keys(rootClaims).filter(k => seen[k] !== rootClaims[k]);
+  ok('C5 六行改判后，顶层那一份从联系人桌面也认得（红侧＝除 rp-wallet 外全部 null）',
+    wrong.length === 0, wrong.map(k => k + '→' + seen[k]).join(' | '));
+  const iso2 = {
+    a: await claim('xy-home-v2:default:chat-msgs', 'czzzzz'),      // 别人的桌面数据仍不许进来
+    b: await claim('xy-home-v2:czzzzz:chat-msgs', 'czzzzz'),
+    c: await claim('xy-home-v2:default:garden-data', 'czzzzz'),
+    d: await claim('xy-home-v2:default:my-emoji-groups', 'czzzzz') // default 桌面上的 per-desktop 键也不该被当成共享
+  };
+  ok('C5b 改判没把隔离放松（default 桌面的私有键不进联系人桌面视角）',
+    iso2.a === null && iso2.b === 'chat' && iso2.c === null && iso2.d === null, JSON.stringify(iso2));
+  ok('C5c rp-wallet 归位 gift（旧表挂 chat 名下，chat 一翻 both 就会把钱抢进聊天）',
+    seen['xy-home-v2:rp-wallet'] === 'gift', JSON.stringify({ rp: seen['xy-home-v2:rp-wallet'] }));
+  await evalJs("(function(){ window.__activeCid='default'; var s=window.xyStore('xy-home-v2'); s.set('my-emoji-groups', JSON.stringify([{g:'公用一组'}])); s.set('cc-groups-public', JSON.stringify([{g:'公用字卡组'}])); return 1 })()");
+  await sleep(600);
+  const au = JSON.parse(await evalJs('window.mochiFeatureData.audit().then(function(r){return JSON.stringify({s:r.stranded,n:r.nobody,c:r.cid})})', true) || '{}');
+  ok('C5d audit().stranded 在改判后清空（这些顶层键不再「换个桌面才认」）',
+    !(au.s || []).some(k => /my-emoji-groups|cc-groups-public|chat-beauty-schemes|divine-|myarc-|piggy-|au-sound/.test(k)),
+    'cid=' + au.c + ' stranded=' + JSON.stringify((au.s || []).slice(0, 3)));
+}
+
 // ---------- D 组：文件体／超大项／缺项／分批（对照场景把键放在顶层，HEAD 也看得见，才有差分） ----------
 await wipe();
 await nav(); await dismiss(); await ready();
@@ -397,6 +475,7 @@ await seedViaModule('xy-home-v2', "s.set('music-file:sm_body', 'data:audio/mpeg;
 //    D1 就会在「键还在」与「键被搬走」之间抖（实测同一份产物两次跑出 44/1 与 45/0 两种读数）。
 //    导出引擎读的是实时清单（allKeys 走 LS＋IDB），不需要重载来「让模块看见」我的种子。
 {
+  await waitFdBar();
   const res = await finishExport2(await clickCardExport(''));
   let payload = null; try { payload = JSON.parse(res.json || 'null'); } catch (e) {}
   const keys = payload && payload.keys ? Object.keys(payload.keys) : [];
@@ -407,6 +486,7 @@ await seedViaModule('xy-home-v2', "s.set('music-file:sm_body', 'data:audio/mpeg;
 }
 {
   // 超大普通键：拿 idbBigSize 那把尺（桩成 40MB）——引擎信的就是它，与 data-backup 同源
+  await waitFdBar();
   const res = await finishExport2(await clickCardExport('window.idbBigSize=function(k){ return /music-library/.test(k) ? 41943040 : (window.__realBig?window.__realBig(k):null); };'));
   let payload = null; try { payload = JSON.parse(res.json || 'null'); } catch (e) {}
   const keys = payload && payload.keys ? Object.keys(payload.keys) : [];
@@ -426,6 +506,7 @@ await seedViaModule('xy-home-v2', "s.set('music-file:sm_body', 'data:audio/mpeg;
     return 1;
   })()`);
   await sleep(900); // 等 xyStore 的 IDB 写落盘（大值不落 LS，只能从 IDB 清单里见到）
+  await waitFdBar();
   const res = await finishExport2(await clickCardExport(`window.idbGetMany=function(){ return Promise.resolve({}); };
     var rs=window.xyStore; window.xyStore=function(){ try{ var st=rs.apply(null, arguments); return { get: function(){ return null; }, set: st.set, remove: st.remove }; }catch(e){ return { get: function(){ return null; }, set: function(){}, remove: function(){} }; }; }`));
   let payload = null; try { payload = JSON.parse(res.json || 'null'); } catch (e) {}
@@ -519,8 +600,8 @@ await seedViaModule('xy-home-v2', "s.set('music-file:sm_body', 'data:audio/mpeg;
   ok('E2b 种子库存里点名的键各有其主（nobody 只剩机器记账与联系人名册）',
     (a.nobody || []).every((k) => !NEWFAM.test(k)),
     'cid=' + a.cid + ' total=' + a.total);
-  ok('E3 邻居归属一字未动（records-avatar→identity／rp-wallet→chat／cs-lbl-partner→identity／decision-history→decision）',
-    o.r1 === 'identity' && o.r2 === 'chat' && o.r3 === 'identity' && o.r4 === 'decision' && o.r5 === 'garden' && o.r6 === null,
+  ok('E3 邻居归属：records-avatar→identity／cs-lbl-partner→identity／decision-history→decision 一字未动；rp-wallet 自 #1346 起归 gift（旧表挂在 chat 名下，chat 一翻 both 就会把心意币账本抢进聊天，见登记表批注）',
+    o.r1 === 'identity' && o.r2 === 'gift' && o.r3 === 'identity' && o.r4 === 'decision' && o.r5 === 'garden' && o.r6 === null,
     JSON.stringify(o));
 }
 
@@ -538,6 +619,12 @@ async function finishExport2(got, keepToast) {
     const r = await evalJs(snap).catch(() => null);
     if (!r) { await sleep(200); continue; }
     if (r.open) {
+      // 同上：别人的模态（备份提醒／公告／回收提示）不许替我按确定
+      const who2 = await evalJs("(function(){var ms=(window.__modals||[]);for(var i=ms.length-1;i>=0;i--){if(ms[i].title.indexOf('导出「')===0)return ms[i].title}var t=document.getElementById('modal-title');return t?t.textContent:''})()").catch(() => '');
+      if (String(who2).indexOf('导出「') !== 0) {
+        await evalJs("(function(){var b=document.getElementById('modal-cancel')||document.getElementById('modal-ok');if(b)b.click();return 1})()");
+        await sleep(400); continue;
+      }
       await evalJs("(function(){var b=document.getElementById('modal-ok');if(b)b.click();return 1})()");
       await sleep(700);
       const r2 = await evalJs(snap).catch(() => null);

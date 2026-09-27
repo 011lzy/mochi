@@ -68,11 +68,20 @@
   // page：该功能自己的页面 id（#679 各功能页内直达入口；跨域声明见 WORKLOG——
   //       只读各功能 template/JS 已有的静态 id，不改任何归属文件）
   var FEATURES = [
-    { id: 'chat', name: '聊天', group: '聊天与社交', scope: 'desk', page: 'page-chat', btns: 'cs-export-msgs,cs-import-msgs,cs-clear-msgs',
+    // #1346 审计（desk→both）：聊天这一族的键横跨两个锚点，且**表情包那一大块整体在顶层根命名空间**——chat.js:12341-12345
+    // `myEmojiStore()=xyStore(MYE_G_PREFIX)`（MYE_G_PREFIX 就是 'xy-home-v2'，:12342 那句拼键自证）写
+    // `my-emoji-groups`／`hide-ta-sticker`／`emoji-recent`／`emoji-recent-<类别>`；美化方案 `chat-beauty-schemes` 走
+    // chat-settings.js:1943+1958 的 `gStoreChat=xyStore('xy-home-v2')`；字体面 `cs-font` 也有一份根键（:1642/1647）；
+    // 开关 `chat-panel-prewarm` 注释直接写「全局根键」（chat.js:13582）。旧 desk 只在当前桌面恰好是 default 时才认根键
+    // ⇒ 第二个联系人桌面上「导出聊天」里没有公用表情包分组、没有最近使用、没有隐藏 TA 贴纸开关（13MB 级数据在库里看不见）。
+    // 同批把 /^rp-wallet$/ 从本行摘掉（只留红包封面 /^rp-cover-/）：那是心意币旧账本（memory-game.js:141 读根键、
+    // chat.js:9247 只当迁移源），旧表把它挂在聊天名下而 gift 行也登记了同一把——first match wins 让 gift 永远拿不到；
+    // chat 一翻 both 就会把这份钱从「礼物与集市」彻底抢走，故归位给 gift。
+    { id: 'chat', name: '聊天', group: '聊天与社交', scope: 'both', page: 'page-chat', btns: 'cs-export-msgs,cs-import-msgs,cs-clear-msgs',
       desc: '聊天记录、聊天设置（气泡/字号/时间轴/输入栏）、表情包与文字库、拍一拍、红包、引用',
       // #1325b 审计：ask-think-secs＝聊天设置里的「TA 思考秒数」（chat.js:10129/10147 走 activeStore），
       // 旧表里没有这一项 ⇒ 换机后 TA 又变回默认 3 秒思考。
-      res: [/^chat-/, /^cs-(?!avatar-|lbl-)/, /^rp-cover-/, /^rp-wallet$/, /^emoji-last$/, /^my-emoji-groups$/, /^my-text-groups$/, /^my-invite-groups$/, /^mye-global-migrated$/, /^hide-tab-/, /^hide-ta-sticker$/, /^invite-ask-history$/, /^poke-/, /^rps-score$/, /^scroll-anchor-auto$/, /^sysmsg-/, /^more-tab$/, /^more-cat$/, /^mail-emoji-mode$/, /^qixi-today$/, /^ask-think-secs$/] },
+      res: [/^chat-/, /^cs-(?!avatar-|lbl-)/, /^rp-cover-/, /* #1346: legacy rp-wallet moves to gift; see the chat-row comment block */ /^emoji-last$/, /^emoji-recent/, /^my-emoji-groups$/, /^my-text-groups$/, /^my-invite-groups$/, /^mye-global-migrated$/, /^hide-tab-/, /^hide-ta-sticker$/, /^invite-ask-history$/, /^poke-/, /^rps-score$/, /^scroll-anchor-auto$/, /^sysmsg-/, /^more-tab$/, /^more-cat$/, /^mail-emoji-mode$/, /^qixi-today$/, /^ask-think-secs$/] },
     // #1325 审计（与 requests 同族＝scope 与模块真实命名空间脱节）：群聊的键按 group-chat.js:4
     // 「消息全局存储（xy-home-v2:group-chat-msgs），不随联系人切换变」全在顶层根命名空间
     // （:79 gc-groups、:113 gc-profiles、:2052 gc-msgs-<gid>、:212 gc-beauty），旧登记 desk 只在
@@ -83,7 +92,13 @@
       // #1325b 审计：group-chat-enabled（群聊总开关）由 chat-settings.js:2691-2694 走 xyStore(GNS) 写在顶层，
       // 旧表只认 /^group-chat-msgs$/ ⇒ 开关本身导不出也清不掉（新设备上「群聊没开」这个状态跟不过去）。
       res: [/^gc-/, /^group-chat-msgs$/, /^group-chat-enabled$/] },
-    { id: 'cards', name: '字卡库与回复设置', group: '聊天与社交', scope: 'desk', page: 'page-custom-cards', btns: 'cc-export,cc-import-data,cc-clear-all',
+    // #1346 审计（desk→both）：公用字卡／表情包库按设计就是全局一份——chatcard.js:23 注释「公用字卡：全局根命名空间
+    // 键 xy-home-v2:cc-groups-public——以后每个桌面的联系人都能使用」，:28 `PUB_KEY`、:37 同族的 `cc-groups-public-off`；
+    // default-cards.js:186-197 的自定义词典 `dict-custom-quotes`／`dict-custom-words` 也走 `raw=xyStore('xy-home-v2')`；
+    // reply-settings.js:239-245 的 `reply-gc-*` 同形。⇒ 旧 desk 在联系人桌面上把这一整块判成「没数据」。
+    // ⚠️ 翻 both 后从任何桌面导出都会见到 `cc-groups-public`（用户机上实测 424.59 MB）——它由 planKeys 的
+    // ONE_KEY_MAX 挡在文件外并当场说明「请用整包备份」，清空仍会真删它（弹窗按 both 口径写明影响所有桌面）。
+    { id: 'cards', name: '字卡库与回复设置', group: '聊天与社交', scope: 'both', page: 'page-custom-cards', btns: 'cc-export,cc-import-data,cc-clear-all',
       desc: '自定义/公用/默认字卡、词典、TA 回复字卡、各类概率与开关（回复设置）',
       // #1325b 审计：mood-reply-cards.js:55/99/102/403/419 这套「心情回应卡」开关与概率＝mc-enabled / mc-prob-<type> /
       // mc-off-<类别> / mh-<类别> / rc-enabled（回应字卡总开关，与撤回补发的 rc-en 是两个键，card-audit.js:440 注明），
@@ -131,7 +146,10 @@
     { id: 'records', name: '纪念与统计', group: '桌面功能', scope: 'desk', page: 'page-home',
       desc: '纪念日、通话记录、关心/摸鱼收获等纪念页数据',
       res: [/^records-(?!coin)/] },
-    { id: 'divination', name: '占卜', group: '桌面功能', scope: 'desk', page: 'page-divine',
+    // #1346 审计（desk→both）：牌面与图鉴走 divination.js:248/285/289/302 的 `gStore`＝根命名空间
+    // （`divine-faces-idx`、`divine-leno-36`、`divine-face-onebased`、`divine-face-<m>-<n>`），只有抽牌历史
+    // `divine-history` 随桌面（:797）⇒ 旧 desk 在联系人桌面上「有历史、没牌面」，导出回去的自定义牌面全丢。
+    { id: 'divination', name: '占卜', group: '桌面功能', scope: 'both', page: 'page-divine',
       desc: '占卜历史、自定义牌面与图鉴、牌面编号开关',
       res: [/^divine-/, /^divf-/] },
     { id: 'music', name: '音乐', group: '桌面功能', scope: 'global', anchor: 'default', page: 'page-music',
@@ -152,7 +170,10 @@
     { id: 'eat', name: '吃什么', group: '桌面功能', scope: 'desk', page: 'page-eat',
       desc: '菜单、抽取历史与提醒开关',
       res: [/^eat-/] },
-    { id: 'piggy', name: '存钱罐', group: '桌面功能', scope: 'desk', page: 'page-piggy',
+    // #1346 审计（desk→both）：罐子本体走 p2-features.js:3540 `piggyStore()=xyStore('xy-home-v2')`
+    // （`piggy-log`、`piggy-goals`），心意币两把参数 `piggy-coin-prob`／`piggy-coin-ask-limit` 也是根键（chat.js:9411/9418 读）,
+    // 只有 `piggy-coin2-*` 那套新罐随桌面（p2-features.js:3950）⇒ 旧 desk 在联系人桌面上把流水与目标判成没数据。
+    { id: 'piggy', name: '存钱罐', group: '桌面功能', scope: 'both', page: 'page-piggy',
       desc: '存钱目标与流水、心意币两套罐子、来访记录',
       res: [/^piggy-/] },
     // #1325 审计（三处同族）：pomoStore=xyStore('xy-home-v2')（p2-features.js:3281，注释即「番茄钟
@@ -178,7 +199,10 @@
     { id: 'cjian', name: '此间与梦角档案', group: '桌面功能', scope: 'both', page: 'page-cjian',
       desc: '此间状态与换家标记、成员名册、梦角档案（含时辰区间）',
       res: [/^cjian-/, /^narc-/] },
-    { id: 'myarc', name: '我的档案', group: '桌面功能', scope: 'desk', page: 'page-my-arc',
+    // #1346 审计（desk→both）：`myarc-shared`（共享给 TA 的那份，my-arc.js:24 `gStore()=xyStore(GNS)`＋:182-218）
+    // 与当前档案指针 `myarc-cur`（:234/:848 同一个 gStore）都在根命名空间，档案本体 `myarc` 才随桌面 ⇒ 旧 desk
+    // 在联系人桌面上只导得出一份空壳档案，共享内容与「现在看的是哪一份」都丢。
+    { id: 'myarc', name: '我的档案', group: '桌面功能', scope: 'both', page: 'page-my-arc',
       desc: '我的档案资料与共享给 TA 的部分',
       res: [/^myarc/] },
     { id: 'room', name: '房间', group: '桌面功能', scope: 'desk', page: 'page-room',
@@ -210,7 +234,10 @@
     { id: 'mood', name: '心情日记', group: '桌面功能', scope: 'desk', page: 'page-mood',
       desc: '心情日记条目与记录',
       res: [/^mood-diary$/] },
-    { id: 'games', name: '小游戏', group: '桌面功能', scope: 'desk',
+    // #1346 审计（desk→both）：游戏音效偏好按设计是全局一份——auction.js:165/1040 直接读写
+    // `localStorage['xy-home-v2:au-sound']`，注释写明「音效偏好全局记忆（非联系人维度）」⇒ 旧 desk
+    // 在联系人桌面上清不掉也导不出它（换机后每个新桌面都回到默认开）。
+    { id: 'games', name: '小游戏', group: '桌面功能', scope: 'both',
       desc: '各小游戏的音效/动画开关与进行中的局面标记',
       res: [/^snake-/, /^snk-/, /^brick-/, /^c4-/, /^ms-(?!g-)/, /^m3-/, /^lk-/, /^gk-/, /^au-/, /^pong-/, /^game-/] },
     { id: 'desktop', name: '桌面布局与美化', group: '桌面与系统', scope: 'desk',
