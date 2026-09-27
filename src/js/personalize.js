@@ -404,11 +404,15 @@ try {
       try { return el.value || ''; } catch (e) { return ''; }
     }
     let cb = null;
+    // FIX 2026-09-27 #1342o：记住「此刻这一组胶囊」——#1342p 那道「确定＝真·可点选图层」要按
+    // 当前选中的那一档判断这一发到底是不是选图，而阶段切换（ctl.pills）会把整组换掉。
+    let pillList = [];
     // v3.13.x：胶囊构建抽出共用——openModal 打开时与控制器 ctl.pills() 阶段切换
     // 都走这一份（选中态/点击翻转/pillClicked 语义不变）
     function buildPills(list, initVal) {
       pillClicked = false;
       pillVal = initVal !== undefined ? initVal : null;
+      pillList = (list && list.length) ? list : [];
       pillsEl.hidden = !(list && list.length);
       pillsEl.innerHTML = '';
       if (list && list.length) {
@@ -627,22 +631,61 @@ try {
       cb = fn;
       mask.hidden = false;
       // #1014：上一个弹窗可能留下「确定＝真·可点 input 层」（见 device.js mochiModalPickOk）——
-      // 每次开弹窗先撤干净，绝不跨弹窗残留；下面按 opts.pickOk 重新铺本弹窗的那一层。
+      // 每次开弹窗先撤干净，绝不跨弹窗残留；下面重新铺本弹窗的那一层。
       if (window.mochiModalPickOkClear) { try { window.mochiModalPickOkClear(); } catch (eP) {} }
-      if (opts.pickOk && okBtn && window.mochiModalPickOk) {
+      // FIX 2026-09-27 #1342p：这一层现在有两种来源——① 调用方直接给 opts.pickOk（数据导入／字卡
+      // 那几处，语义一字未动）；② 某一粒胶囊自己声明 `pick`＝「选中这一档再点确定＝选文件」。
+      // ②是本批要的那条通吃路径：全站「点确定之后才弹选择器」的入口（桌面卡片背景＝用户点名那一发）
+      // 落下的手指是弹窗那颗**全站共用**的「确定」，#1323 那套自学门面对它必然判成「同一格多宿主」
+      // 而永久剔除（一颗按钮服务几十个弹窗），于是这一族入口永远只剩合成腿＝iOS 静默不弹也不抛
+      //（本机诊断单：mochi-card-bg-pick/leg:fire＋srf:0＋fb:onscreen 两发、一条 files=N 都没回来）。
+      // 判据仍然只有一条事实「手指这一下落在的是不是真 file input」，零机型／零 UA 分支：
+      // 把「这一档＝选文件」写进胶囊，层由本模具在确定按钮上铺。
+      const pillPickOf = (v) => {
+        try {
+          const list = pillList || [];
+          for (let i = 0; i < list.length; i++) {
+            const p = list[i];
+            if (p && p.pick && p.value === v) return p.pick;
+          }
+        } catch (e) {}
+        return null;
+      };
+      const armModalPickLayer = () => {
+        // ① 调用方直接给 opts.pickOk——#1014 那条原口径的判据，一字未动地继续认
+        const byOpts = !!(opts.pickOk && okBtn && window.mochiModalPickOk);
+        if (!okBtn || !window.mochiModalPickOk) return;
+        if (window.mochiModalPickOkClear) { try { window.mochiModalPickOkClear(); } catch (eC) {} }
+        let cfg = byOpts ? opts.pickOk : null;
+        if (!cfg) {
+          let first = null;
+          try { (pillList || []).forEach(p => { if (!first && p && p.pick) first = p.pick; }); } catch (e) {}
+          if (!first) return;
+          cfg = {
+            accept: first.accept || 'image/*',
+            multiple: !!first.multiple,
+            entry: first.entry || '',
+            // 只有「当前选中的这一档声明了 pick」才让原生默认动作弹选择器；其余档（清除／遮罩浓度／
+            // 透明度／文字／摆放…）由 mochiModalPickOk 的 onclick preventDefault 取消默认动作、
+            // 把这发点按原样交回确定按钮自己的逻辑＝既有弹窗行为逐字不变。
+            skipWhen: (v) => !pillPickOf(v),
+            onFiles: (files, v) => { const pk = pillPickOf(v); if (pk && typeof pk.onFiles === 'function') pk.onFiles(files); }
+          };
+        }
         try {
           window.mochiModalPickOk({
             okBtn: okBtn,
-            accept: opts.pickOk.accept || '',
-            multiple: !!opts.pickOk.multiple,
-            entry: opts.pickOk.entry || '',
+            accept: cfg.accept || '',
+            multiple: !!cfg.multiple,
+            entry: cfg.entry || '',
             // 模式＝弹窗内胶囊当前值：点按那一刻与选完文件那一刻各读一次（用户可能先选胶囊再点确定）
             mode: function () { return pillVal; },
-            skipWhen: opts.pickOk.skipWhen,
-            onFiles: opts.pickOk.onFiles
+            skipWhen: cfg.skipWhen,
+            onFiles: cfg.onFiles
           });
         } catch (eP2) {}
-      }
+      };
+      armModalPickLayer();
       // v3.5.133：多行模式聚焦 textarea（原只 focus 单行 input——多行模式下 input 隐藏、
       // focus 打在 display:none 元素上，键盘不弹，批量导入用户首触必失败一次）
       setTimeout(() => {
@@ -691,7 +734,9 @@ try {
           if (show) ctl.focus();
         },
         // 重建胶囊组；传空数组/null 隐藏。initVal 设初始选中项
-        pills: function (list, initVal) { buildPills(list, initVal); },
+        // #1342p：阶段切换会换掉整组胶囊＝「哪一档＝选文件」的答案也换了，铺层跟着重铺一次
+        //（层按确定按钮的盒对齐；弹窗固定居中、几何不变，故重铺只是换 accept/回调口径）。
+        pills: function (list, initVal) { buildPills(list, initVal); try { armModalPickLayer(); } catch (e) {} },
         // #576：ctl.close()——调用方主动关窗（存储异常弹窗「去导出备份/查看存储」直达
         // 按钮跳转成功后关闭）。走与取消/遮罩同一个 close()（含 stayOnce/关键盘语义），
         // 不另开直接摘 mask 的口子；失败静默（弹窗留在原地，调用方有手动路径兜底）。
@@ -2127,12 +2172,10 @@ try {
     const key = app.dataset.app;
     const ico = app.querySelector('.app-ico');
     const hasCustom = !!store.get('app-icon-' + key);
-    const pickFile = () => {
-      // FIX 2026-09-18 #755：统一走 window.mochiFilePick（原实现虽挂 body，但 accept 迟到、无 label
-      // 原生激活兜底、每次点按 new 一个再 remove——注意历史注释点名的「vivo Edge」正是本族机型）
-      window.mochiFilePick({
-        id: 'mochi-appicon-pick', accept: 'image/*',
-        onFiles: (files) => {
+    // FIX 2026-09-27 #1342q：管线从「现搭在 mochiFilePick 的 onFiles 里」提成一份 pickInto，两条腿
+    // 共用：合成腿（mochiFilePick）与「弹窗确定＝真·可点 input 层」（下面那颗 pill 的 pick 声明，
+    // 交给 openModal→mochiModalPickOk 模具）。同 #1342m 那一族的形状。
+    const pickInto = (files) => {
         const f = files && files[0];
         if (!f) { toast('没有取到图片，请再选一次'); return; }
         const reader = new FileReader();
@@ -2161,8 +2204,13 @@ try {
           }, 80);
         };
         reader.readAsDataURL(f);
-        }
-      });
+    };
+    // #1342q：这一档的「选文件」口径交给弹窗模具（openModal→mochiModalPickOk 在确定按钮上铺真层）
+    const appIconPick = { accept: 'image/*', entry: 'app-icon-' + key, onFiles: pickInto };
+    const pickFile = () => {
+      // FIX 2026-09-18 #755：统一走 window.mochiFilePick（原实现虽挂 body，但 accept 迟到、无 label
+      // 原生激活兜底、每次点按 new 一个再 remove——注意历史注释点名的「vivo Edge」正是本族机型）
+      window.mochiFilePick({ id: 'mochi-appicon-pick', accept: 'image/*', onFiles: pickInto });
     };
     const moveApp = (dir) => {
       if (!grid) return;
@@ -2175,7 +2223,7 @@ try {
       toast(dir === 'up' ? '已上移' : '已下移');
     };
     const pills = [];
-    pills.push({ label: hasCustom ? '更换图片' : '上传图片', value: '1' });
+    pills.push({ label: hasCustom ? '更换图片' : '上传图片', value: '1', pick: appIconPick });
     if (hasCustom) pills.push({ label: '清除图片', value: '2' });
     // FIX 2026-09-16 #581：单张图的「缩放 + 位置」——只移动图片在图标里的位置，不用重新上传
     if (hasCustom) pills.push({ label: '调整图片位置', value: 'fit' });
@@ -4150,9 +4198,9 @@ try {
                 list = list.filter(s => !(s && drop.has(s.time) && typeof s.name === 'string' && s.name.indexOf('导入前备份') === 0));
               }
               list.push({ name, time: Date.now(), data: cur });
-              saveSchemesList(list);
-              // 读回校验：写入被静默吞掉时不再谎报成功
-              const back = getSchemes();
+              const wroteBackup = saveSchemesList(list);
+              // 读回校验：写入被静默吞掉时不再谎报成功（#1342h：被「未确认读空」闸拦下时同样不写）
+              const back = wroteBackup ? getSchemes() : [];
               const saved = back.some(s => s && s.name === name);
               if (saved) { backupName = name; toast('已自动保存原美化 → 方案「' + name + '」'); }
               else { toast('原美化备份失败（可能存储空间不足），建议先导出备份再导入'); }
@@ -4182,7 +4230,18 @@ try {
   const getSchemes = () => {
     try { const a = JSON.parse(gStore.get(SCHEMES_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; }
   };
-  const saveSchemesList = (arr) => { try { gStore.set(SCHEMES_KEY, JSON.stringify(arr)); } catch (e) {} };
+  // FIX 2026-09-27 #1342h：整本方案账写回前先问数据层「这一格刚才那次读空，问过库了吗」。
+  // 这一本账（xy-home-v2:beauty-schemes）是 IDB-only 大键：切后台释放大键内存副本（#1195e）或启动
+  // 回填超预算挂起（#975）之后，getSchemes() 从同步读口拿到的是一份空账，而「保存当前为方案」做的
+  // 正是读-改-写——库里那几本会被这一格空账整本顶掉（iPhone／iOS 16.6 实报「美化方案无法保存，
+  // 重新刷新过后数据会被清除」的形状）。闸与文案在数据层那一份（idb.js #1342i），这里只负责不谎报成功。
+  const schemesWriteBlocked = (store, key, what) => {
+    try { return !!(window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, key, what)); } catch (e) { return false; }
+  };
+  const saveSchemesList = (arr) => {
+    if (schemesWriteBlocked(gStore, SCHEMES_KEY, '美化方案')) return false;
+    try { gStore.set(SCHEMES_KEY, JSON.stringify(arr)); return true; } catch (e) { return false; }
+  };
   // v3.27.x：内置美化方案库（只读，绝不写用户 beauty-schemes）——开箱即用，降低首次上手成本
   // 应用走 applyBeautyData（与用户方案同链路），用户主动点才覆盖当前桌面；不污染用户已保存方案
   const BUILTIN_SCHEMES = [
@@ -4285,7 +4344,7 @@ try {
       if (!name) { inp.style.borderColor = '#e05a5a'; return; }
       const list = getSchemes();
       list.push({ name, time: Date.now(), data });
-      saveSchemesList(list);
+      if (!saveSchemesList(list)) return;   // #1342h：没读全这一本账时不写、也不谎报「已保存」
       x.style.display = 'none'; x.hidden = true;
       toast('已保存方案「' + name + '」，所有桌面通用');
       const m = document.getElementById('beauty-scheme-manager');
@@ -4340,7 +4399,7 @@ try {
       if (v !== 'ok') return;
       const list = getSchemes();
       list.splice(idx, 1);
-      saveSchemesList(list);
+      if (!saveSchemesList(list)) return;   // #1342h
       toast('已删除方案');
       window.openBeautySchemes();
     }, { noInput: true, pillSubmit: true, staticText: '删除后不可恢复', pills: [{ label: '删除', value: 'ok' }] });
@@ -4625,7 +4684,7 @@ try {
   // v3.27.x：完整外观方案（项9）——桌面+聊天美化合并保存/应用，跨域用 window.collectChatBeauty/applyChatBeautyData
   const FULL_SCHEMES_KEY = 'full-beauty-schemes';
   const getFullSchemes = () => { try { const a = JSON.parse(gStore.get(FULL_SCHEMES_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } };
-  const saveFullSchemesList = (arr) => { try { gStore.set(FULL_SCHEMES_KEY, JSON.stringify(arr)); } catch (e) {} };
+  const saveFullSchemesList = (arr) => { if (schemesWriteBlocked(gStore, FULL_SCHEMES_KEY, '完整外观方案')) return false; try { gStore.set(FULL_SCHEMES_KEY, JSON.stringify(arr)); return true; } catch (e) { return false; } };
   const collectFullBeauty = () => { const data = { desk: collectBeautyFull() }; try { if (window.collectChatBeauty) data.chat = window.collectChatBeauty(); } catch (e) {} return data; };
   const applyFullBeautyData = (data) => { try { applyBeautyData(data.desk || {}, 'all'); } catch (e) {} try { if (window.applyChatBeautyData && data.chat) window.applyChatBeautyData(data.chat); } catch (e) {} };
   const openFullBeautySchemes = () => {
@@ -4658,7 +4717,7 @@ try {
         if (ctl && ctl.pills) ctl.pills([{ label: '应用', value: 'ok' }], 'ok');
       });
       const del = document.createElement('button'); del.textContent = '删除'; del.style.cssText = 'font-size:12px;padding:4px 10px;border:1px solid rgba(163,45,45,.35);border-radius:8px;background:var(--danger-soft,#fff5f5);color:var(--danger-ink,#a32d2d)';
-      del.addEventListener('click', () => { const l2 = getFullSchemes(); l2.splice(i, 1); saveFullSchemesList(l2); toast('已删除'); openFullBeautySchemes(); });
+      del.addEventListener('click', () => { const l2 = getFullSchemes(); l2.splice(i, 1); if (!saveFullSchemesList(l2)) return; toast('已删除'); openFullBeautySchemes(); });
       btns.appendChild(apply); btns.appendChild(del); row.appendChild(btns); list.appendChild(row);
     });
     box.appendChild(list);
@@ -4667,7 +4726,7 @@ try {
       if (!window.openModal) return;
       const ctl = window.openModal('保存完整方案', '', (name) => {
         name = (name || '').trim(); if (!name) { ctl.hint('名称不能为空'); ctl.stay(); return; }
-        const l2 = getFullSchemes(); l2.push({ name, time: Date.now(), data: collectFullBeauty() }); saveFullSchemesList(l2);
+        const l2 = getFullSchemes(); l2.push({ name, time: Date.now(), data: collectFullBeauty() }); if (!saveFullSchemesList(l2)) { ctl.stay(); return; }
         toast('已保存完整方案「' + name + '」'); openFullBeautySchemes();
       }, { maxlength: 20, placeholder: '例如：情侣粉全套' });
     });
@@ -4717,7 +4776,8 @@ try {
     const ctl = window.openModal('编辑方案名称', s.name, (name) => {
       name = (name || '').trim();
       if (!name) { ctl.hint('名称不能为空'); ctl.stay(); return; }
-      s.name = name; saveSchemesList(list); toast('已重命名');
+      s.name = name; if (!saveSchemesList(list)) { ctl.stay(); return; }   // #1342h：没读全这账就不整本写回
+      toast('已重命名');
       window.openBeautySchemes();
     }, { maxlength: 20, placeholder: '输入方案名称' });
   }
@@ -5744,28 +5804,37 @@ try {
 
     const widgetEl = anchorEl ? anchorEl.closest('[data-desk-widget]') : null;
     // FIX 2026-09-18 #755：统一走 window.mochiFilePick（原实现 detached＋无 label＋accept 迟到）
+    // FIX 2026-09-27 #1342m：管线从「点确定之后现搭在 mochiFilePick 的回调里」提成一份 pickInto——
+    // 同一份管线两条腿共用：合成腿（mochiFilePick）与「弹窗确定＝真·可点 input 层」（下面那颗 pill
+    // 的 pick 声明，交给 openModal→mochiModalPickOk 现成模具）。本入口的手指这一下落在弹窗的「确定」
+    // 按钮上，而 #1323 那套自学门面对它必然判成「同一格多宿主」永久剔除（确定按钮全站共用），
+    // 于是这一族入口永远只剩合成腿＝iOS 静默不弹也不抛（本机诊断单里
+    // mochi-card-bg-pick/leg:fire＋srf:0＋fb:onscreen 两发、一条 files=N 都没回来）。
+    const pickInto = (files) => {
+      const f = files && files[0];
+      if (!f) { toast('没有取到图片，请再选一次'); return; }
+      const reader = new FileReader();
+      reader.onload = () => {
+        // v3.10.x：压缩并保证 <=450KB（渲染防护阈值 500KB 留余量）——超限自动降边长重压，
+        // 防止「设置成功、重启后被渲染防护跳过变白板」
+        compressImageFit(reader.result, 1000, 450 * 1024).then(data => {
+          if (!data) { toast('图片过大或格式不支持，请换一张小图'); return; }
+          store.set('card-bg-' + type, data);
+          applyCardBg(type);
+          syncCardBgUIs();
+          toast(name + '背景已设置');
+          // FIX 2026-09-27 #1342n：写完验真——这张背景是 >200KB 的 dataURL，只进 IDB＋内存，
+          // xyStore.set 那一发 idbSet 的结果没人看（配额满/事务被杀时当场看着「已设置」、重开就没）。
+          // 取库里 count 的真回执（#1218u 那份），问不出结果不吭声。
+          confirmBigKeys(['card-bg-' + type], name + '背景');
+        });
+      };
+      reader.onerror = () => toast('图片读取失败，请换一张再试');
+      reader.readAsDataURL(f);
+    };
+    const cardBgPick = { accept: 'image/*', entry: 'card-bg-' + type, onFiles: pickInto };
     const pickFile = () => {
-      window.mochiFilePick({
-        id: 'mochi-card-bg-pick', accept: 'image/*',
-        onFiles: (files) => {
-          const f = files && files[0];
-          if (!f) { toast('没有取到图片，请再选一次'); return; }
-          const reader = new FileReader();
-          reader.onload = () => {
-            // v3.10.x：压缩并保证 <=450KB（渲染防护阈值 500KB 留余量）——超限自动降边长重压，
-            // 防止「设置成功、重启后被渲染防护跳过变白板」
-            compressImageFit(reader.result, 1000, 450 * 1024).then(data => {
-              if (!data) { toast('图片过大或格式不支持，请换一张小图'); return; }
-              store.set('card-bg-' + type, data);
-              applyCardBg(type);
-              syncCardBgUIs();
-              toast(name + '背景已设置');
-            });
-          };
-          reader.onerror = () => toast('图片读取失败，请换一张再试');
-          reader.readAsDataURL(f);
-        }
-      });
+      window.mochiFilePick({ id: 'mochi-card-bg-pick', accept: 'image/*', onFiles: pickInto });
     };
     const moveWidget = (dir) => {
       if (!widgetEl || !widgetEl.parentNode) return;
@@ -5787,7 +5856,10 @@ try {
     setTimeout(() => { if (window.openModal) window.openModal(t, v, fn, opts); }, 0);
   };
   const pills = [];
-    pills.push({ label: img ? '更换图片' : '上传图片', value: '1' });
+    // #1342m：这一档声明「点确定＝选图」＝把弹窗的确定按钮盖成真·可点 file input（模具在
+    // openModal→mochiModalPickOk，#1014 建的、此前只有数据导入那几处在用）。其余档（清除/遮罩/
+    // 透明度/文字/摆放）照旧走确定按钮原有的那发点按。
+    pills.push({ label: img ? '更换图片' : '上传图片', value: '1', pick: cardBgPick });
     if (img) pills.push({ label: '清除图片', value: '2' });
     if (img) pills.push({ label: '遮罩浓度', value: 'mask' });
     if (img) pills.push({ label: maskPctOf(type) === 0 ? '原图直出 ✓' : '原图直出', value: 'origin' });

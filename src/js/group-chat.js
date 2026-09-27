@@ -3446,7 +3446,18 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
   const getGcSchemes = () => {
     try { const s = gcSchemesStore(); const a = JSON.parse((s && s.get(GC_SCHEMES_KEY)) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; }
   };
-  const saveGcSchemesList = (arr) => { try { const s = gcSchemesStore(); if (s) s.set(GC_SCHEMES_KEY, JSON.stringify(arr)); } catch (e) {} };
+  // FIX 2026-09-27 #1342k：与桌面/聊天美化同一把闸（判据与文案只留一份，见 idb.js #1342i 批注）。
+  // 带壁纸的方案是 IDB-only 大键（#808 那条提醒自陈「一张几百 KB～1MB+」），而这里的读法是同步口——
+  // 读空未确认时再做一次「取列表→改→整本写回」＝库里那本方案被顶成一格。
+  const saveGcSchemesList = (arr) => {
+    try {
+      const s = gcSchemesStore();
+      if (!s) return false;
+      if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(s, GC_SCHEMES_KEY, '群聊美化方案')) return false;
+      s.set(GC_SCHEMES_KEY, JSON.stringify(arr));
+      return true;
+    } catch (e) { return false; }
+  };
   // #808 方案防炸提醒：方案会把当前壁纸整张打包进方案（bg 是高分辨率 JPEG 的 base64，
   // 一张几百 KB～1MB+），带壁纸的方案存多了会把本地存储与备份导出文件撑爆——本批只做
   // 「提醒 + 拒绝重复入库」，不改 #373「应用=真覆盖」的任何数据语义。
@@ -3507,7 +3518,7 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
       if (v !== 'ok') return;
       const list = getGcSchemes();
       list.splice(idx, 1);
-      saveGcSchemesList(list);
+      if (!saveGcSchemesList(list)) return;   // #1342k
       toast('已删除方案');
       window.openGcBeautySchemes();
     }, { noInput: true, staticText: '删除后不可恢复', pills: [{ label: '删除', value: 'ok' }] });
@@ -3613,7 +3624,7 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
       const dup = list.find(it => JSON.stringify(it.data || {}) === snap);
       if (dup) { toast('已有内容完全相同的方案「' + dup.name + '」，不用重复保存'); return; }
       list.push({ name, time: Date.now(), data });
-      saveGcSchemesList(list);
+      if (!saveGcSchemesList(list)) return;   // #1342k：不写、也不谎报「已保存」
       x.style.display = 'none'; x.hidden = true;
       toast('已保存方案「' + name + '」，所有桌面通用');
       const m = document.getElementById('gc-beauty-scheme-manager');
@@ -3667,7 +3678,8 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
     const ctl = window.openModal('编辑方案名称', s.name, (name) => {
       name = (name || '').trim();
       if (!name) { ctl.hint('名称不能为空'); ctl.stay(); return; }
-      s.name = name; saveGcSchemesList(list); toast('已重命名');
+      s.name = name; if (!saveGcSchemesList(list)) { ctl.stay(); return; }   // #1342k
+      toast('已重命名');
       window.openGcBeautySchemes();
     }, { maxlength: 20, placeholder: '输入方案名称' });
   }

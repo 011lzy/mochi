@@ -2902,7 +2902,15 @@ const gcSchemesStore = () => { try { return gcProfileStore(); } catch (e) { retu
 const getGcSchemes = () => {
 try { const s = gcSchemesStore(); const a = JSON.parse((s && s.get(GC_SCHEMES_KEY)) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; }
 };
-const saveGcSchemesList = (arr) => { try { const s = gcSchemesStore(); if (s) s.set(GC_SCHEMES_KEY, JSON.stringify(arr)); } catch (e) {} };
+const saveGcSchemesList = (arr) => {
+try {
+const s = gcSchemesStore();
+if (!s) return false;
+if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(s, GC_SCHEMES_KEY, '群聊美化方案')) return false;
+s.set(GC_SCHEMES_KEY, JSON.stringify(arr));
+return true;
+} catch (e) { return false; }
+};
 const GC_SCHEME_WARN_LEN = 2 * 1024 * 1024; // 方案总占用 ≥2MB 提醒清理
 const GC_SCHEME_WARN_CNT = 10;              // 方案个数 ≥10 提醒清理
 const gcPrettyKb = (len) => {
@@ -2954,7 +2962,7 @@ const ctl = window.openModal('删除方案「' + s.name + '」？', '', (v) => {
 if (v !== 'ok') return;
 const list = getGcSchemes();
 list.splice(idx, 1);
-saveGcSchemesList(list);
+if (!saveGcSchemesList(list)) return;   // #1342k
 toast('已删除方案');
 window.openGcBeautySchemes();
 }, { noInput: true, staticText: '删除后不可恢复', pills: [{ label: '删除', value: 'ok' }] });
@@ -3056,7 +3064,7 @@ const snap = JSON.stringify(data);
 const dup = list.find(it => JSON.stringify(it.data || {}) === snap);
 if (dup) { toast('已有内容完全相同的方案「' + dup.name + '」，不用重复保存'); return; }
 list.push({ name, time: Date.now(), data });
-saveGcSchemesList(list);
+if (!saveGcSchemesList(list)) return;   // #1342k：不写、也不谎报「已保存」
 x.style.display = 'none'; x.hidden = true;
 toast('已保存方案「' + name + '」，所有桌面通用');
 const m = document.getElementById('gc-beauty-scheme-manager');
@@ -3105,7 +3113,8 @@ if (!s || !window.openModal) return;
 const ctl = window.openModal('编辑方案名称', s.name, (name) => {
 name = (name || '').trim();
 if (!name) { ctl.hint('名称不能为空'); ctl.stay(); return; }
-s.name = name; saveGcSchemesList(list); toast('已重命名');
+s.name = name; if (!saveGcSchemesList(list)) { ctl.stay(); return; }   // #1342k
+toast('已重命名');
 window.openGcBeautySchemes();
 }, { maxlength: 20, placeholder: '输入方案名称' });
 }

@@ -2040,7 +2040,15 @@
   const getChatSchemes = () => {
     try { const a = JSON.parse(gStoreChat.get(CHAT_SCHEMES_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; }
   };
-  const saveChatSchemesList = (arr) => { try { gStoreChat.set(CHAT_SCHEMES_KEY, JSON.stringify(arr)); } catch (e) {} };
+  // FIX 2026-09-27 #1342j：与桌面美化同一把闸（判据与文案全站只留一份，见 idb.js #1342i 批注）。
+  // chat-beauty-schemes 是 IDB-only 的全局根键（>200KB 从不落 localStorage），而这里的读法是同步口
+  // ——切后台释放大键内存副本（#1195e）或启动回填超预算挂起（#975）之后读成 []，下一次「保存/删除/
+  // 重命名」做的正是读-改-写＝库里那本被这一格空账整本顶掉（iPhone／iOS 16.6 实报「美化方案无法
+  // 保存，重新刷新过后数据会被清除」）。写回前先问数据层「这次读空确认了吗」。零机型分支。
+  const saveChatSchemesList = (arr) => {
+    if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(gStoreChat, CHAT_SCHEMES_KEY, '聊天美化方案')) return false;
+    try { gStoreChat.set(CHAT_SCHEMES_KEY, JSON.stringify(arr)); return true; } catch (e) { return false; }
+  };
   // FIX 2026-09-15 #527：聊天美化的用途标记 + 命中计数（与桌面美化同族，见 personalize.js #527）。
   // 旧行为：导入无用途校验、无「识别到几项」反馈，把桌面美化 JSON 粘进聊天导入框照样提示成功。
   const CHAT_BEAUTY_KIND = 'mochi-chat-beauty';
@@ -2085,7 +2093,7 @@
         list = list.filter(s => !(s && drop.has(s.time) && typeof s.name === 'string' && s.name.indexOf('导入前备份') === 0));
       }
       list.push({ name, time: Date.now(), data: cur });
-      saveChatSchemesList(list);
+      if (!saveChatSchemesList(list)) return '';   // #1342j：读空未确认时不写、也不报「已备份」
       const back = getChatSchemes();
       return back.some(s => s && s.name === name) ? name : '';
     } catch (e) { return ''; }
@@ -2125,7 +2133,7 @@
       if (v !== 'ok') return;
       const list = getChatSchemes();
       list.splice(idx, 1);
-      saveChatSchemesList(list);
+      if (!saveChatSchemesList(list)) return;   // #1342j
       toast('已删除方案');
       window.openChatBeautySchemes();
     }, { noInput: true, staticText: '删除后不可恢复', pills: [{ label: '删除', value: 'ok' }] });
@@ -2314,7 +2322,7 @@
       if (!name) { inp.style.borderColor = '#e05a5a'; return; }
       const list = getChatSchemes();
       list.push({ name, time: Date.now(), data });
-      saveChatSchemesList(list);
+      if (!saveChatSchemesList(list)) return;   // #1342j：不写、也不谎报「已保存」
       x.style.display = 'none'; x.hidden = true;
       toast('已保存方案「' + name + '」，所有桌面通用');
       const m = document.getElementById('chat-beauty-scheme-manager');
@@ -2364,7 +2372,8 @@
     const ctl = window.openModal('编辑方案名称', s.name, (name) => {
       name = (name || '').trim();
       if (!name) { ctl.hint('名称不能为空'); ctl.stay(); return; }
-      s.name = name; saveChatSchemesList(list); toast('已重命名');
+      s.name = name; if (!saveChatSchemesList(list)) { ctl.stay(); return; }   // #1342j
+      toast('已重命名');
       window.openChatBeautySchemes();
     }, { maxlength: 20, placeholder: '输入方案名称' });
   }

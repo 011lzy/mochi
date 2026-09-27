@@ -1550,7 +1550,10 @@ const CHAT_BEAUTY_KEYS = [
 const getChatSchemes = () => {
 try { const a = JSON.parse(gStoreChat.get(CHAT_SCHEMES_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; }
 };
-const saveChatSchemesList = (arr) => { try { gStoreChat.set(CHAT_SCHEMES_KEY, JSON.stringify(arr)); } catch (e) {} };
+const saveChatSchemesList = (arr) => {
+if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(gStoreChat, CHAT_SCHEMES_KEY, '聊天美化方案')) return false;
+try { gStoreChat.set(CHAT_SCHEMES_KEY, JSON.stringify(arr)); return true; } catch (e) { return false; }
+};
 const CHAT_BEAUTY_KIND = 'mochi-chat-beauty';
 const chatBeautyKindMismatch = (data) => {
 const k = data && data['__kind__'];
@@ -1590,7 +1593,7 @@ const drop = new Set(autos.slice(0, autos.length - 4).map(s => s.time));
 list = list.filter(s => !(s && drop.has(s.time) && typeof s.name === 'string' && s.name.indexOf('导入前备份') === 0));
 }
 list.push({ name, time: Date.now(), data: cur });
-saveChatSchemesList(list);
+if (!saveChatSchemesList(list)) return '';   // #1342j：读空未确认时不写、也不报「已备份」
 const back = getChatSchemes();
 return back.some(s => s && s.name === name) ? name : '';
 } catch (e) { return ''; }
@@ -1626,7 +1629,7 @@ const ctl = window.openModal('删除方案「' + s.name + '」？', '', (v) => {
 if (v !== 'ok') return;
 const list = getChatSchemes();
 list.splice(idx, 1);
-saveChatSchemesList(list);
+if (!saveChatSchemesList(list)) return;   // #1342j
 toast('已删除方案');
 window.openChatBeautySchemes();
 }, { noInput: true, staticText: '删除后不可恢复', pills: [{ label: '删除', value: 'ok' }] });
@@ -1800,7 +1803,7 @@ const name = (inp.value || '').trim();
 if (!name) { inp.style.borderColor = '#e05a5a'; return; }
 const list = getChatSchemes();
 list.push({ name, time: Date.now(), data });
-saveChatSchemesList(list);
+if (!saveChatSchemesList(list)) return;   // #1342j：不写、也不谎报「已保存」
 x.style.display = 'none'; x.hidden = true;
 toast('已保存方案「' + name + '」，所有桌面通用');
 const m = document.getElementById('chat-beauty-scheme-manager');
@@ -1848,7 +1851,8 @@ if (!s || !window.openModal) return;
 const ctl = window.openModal('编辑方案名称', s.name, (name) => {
 name = (name || '').trim();
 if (!name) { ctl.hint('名称不能为空'); ctl.stay(); return; }
-s.name = name; saveChatSchemesList(list); toast('已重命名');
+s.name = name; if (!saveChatSchemesList(list)) { ctl.stay(); return; }   // #1342j
+toast('已重命名');
 window.openChatBeautySchemes();
 }, { maxlength: 20, placeholder: '输入方案名称' });
 }

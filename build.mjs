@@ -5532,6 +5532,25 @@ const FIX_SENTINELS = [
   { name: '#1349f 上传落笔走闸门＋新图在落笔那一刻才追到权威读数后面（旧写法拿"打开选择器之前"那一拍的读数整包写回＝选文件期间那一发切后台正好把读数清空）', file: 'js/avatar-lib.js', needle: 'commitPool(key, (lib) => lib.concat(added), (out) => {' },
   { name: '#1349g 联系人头像池「删一条」同过闸门，且按值删不按渲染那一刻的格子序号（取回回来的读数可能比渲染时更长，拿旧 idx splice＝删错那张、或删不掉还误报成功）', file: 'js/avatar-lib.js', needle: "commitPool('avatar-lib', (lib) => {" },
   { name: '#1349h 我的头像池同理（两个池子同一条通路，漏一个＝用户切到另一个页签就把同一件事复现出来）', file: 'js/avatar-lib.js', needle: "commitPool('avatar-me-lib', (lib) => {" },
+
+  // ===== v8.45 #1342（iPhone 12 Pro Max／iOS 16.6／Safari 桌面 PWA 实报「自定义桌面卡片无法导入图片，
+  //   美化方案无法保存，重新刷新过后数据会被清除」＋「ios 卡顿」；判据一律零机型／零 UA 分支）=====
+  { name: '#1342a 三态尺子认完整键名：全局根键（四本方案账）不再被拼成一个不存在的位置＝库里明明有却报 absent', file: 'js/idb.js', needle: "if (typeof relKey === 'string' && relKey.indexOf('xy-home-v2:') === 0) return [relKey];" },
+  { name: '#1342d 写回侧那句问话的出口（读-改-写的调用方据此让位；判据＝#1342s 那两个当场事实，不另起名册）', file: 'js/idb.js', needle: "awaitingBigKey(k) { return bigReadUnconfirmed(prefix + ':' + k); }," },
+  { name: '#1342f 「大键读回」取证出口（只读、零副作用；口径全部取 #1349/#975 现成名册，不自记第二本账）', file: 'js/idb.js', needle: 'window.__xyBigReadDiag = function () {' },
+  { name: '#1342s 未确认判据只取两个当场事实：这一格现在读不到值（内存与 LS 双双为空）＋它在 #1349 的「被放掉过」名册里或还挂在 #975 的启动挂起名单上——删掉＝冷读又可以被当成答案整本写回', file: 'js/idb.js', needle: 'function bigReadUnconfirmed(key) {' },
+  { name: '#1342r 被拦下的那一发顺手请它去问一次库：复用 #1349 那只单次飞行闸与 #1218 的合流 bigHydAsk，绝不新挂第二脚（两脚各发一趟＝同一张 MB 级原图被读两遍，实测撞红 #1258d）', file: 'js/idb.js', needle: "requestBigKey(k) { try { bigMissRehydrate(prefix + ':' + k); } catch (e) {} }," },
+  { name: '#1342i 「读空未确认 ⇒ 不许整包写回」这句判断＋这一句提示全站只留一份（四本方案账共用；各写一份＝#1335 那条「一条通路喂坏四个页面、逐页补闸」的反面）', file: 'js/idb.js', needle: 'window.xyBigWriteBlocked = function (store, key, what) {' },
+  { name: '#1342g 诊断【数据】段点名「大键读回」——报障件里「方案没了／重开就空」从来不留痕迹，有这一行才分得清库里真没有与问不出结果', file: 'js/device.js', needle: 'window.__xyBigReadDiag && window.__xyBigReadDiag()' },
+  { name: '#1342h 桌面美化方案整本写回前先过数据层那道闸（旧形态＝读空当成「没有」，下一次保存读-改-写＝库里那本被一页空纸整本顶掉＝「每次都被清空」）', file: 'js/personalize.js', needle: "if (schemesWriteBlocked(gStore, SCHEMES_KEY, '美化方案')) return false;" },
+  { name: '#1342m 卡片背景管线提成一份、两条腿共用（合成腿＋弹窗确定上的真·可点层）', file: 'js/personalize.js', needle: "const cardBgPick = { accept: 'image/*', entry: 'card-bg-' + type, onFiles: pickInto };" },
+  { name: '#1342n 卡片背景写完验真（>200KB 只进 IDB＋内存，idbSet 的结果没人看＝当场「已设置」、重开就没）', file: 'js/personalize.js', needle: "confirmBigKeys(['card-bg-' + type], name + '背景');" },
+  { name: '#1342o 弹窗记住此刻这一组胶囊（阶段切换会换掉「哪一档＝选文件」的答案）', file: 'js/personalize.js', needle: 'pillList = (list && list.length) ? list : [];' },
+  { name: '#1342p 胶囊声明 pick＝确定按钮上铺真·可点 file input 的模具口径（这一发手指落在全站共用的「确定」上，#1323 的自学门面对它必然判「同格多宿主」永久剔除＝这一族入口永远只剩合成腿）', file: 'js/personalize.js', needle: 'const pillPickOf = (v) => {' },
+  { name: '#1342q 图标族同一份管线两条腿共用', file: 'js/personalize.js', needle: "const appIconPick = { accept: 'image/*', entry: 'app-icon-' + key, onFiles: pickInto };" },
+  { name: '#1342j 聊天美化方案接同一把闸', file: 'js/chat-settings.js', needle: "if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(gStoreChat, CHAT_SCHEMES_KEY, '聊天美化方案')) return false;" },
+  { name: '#1342k 群聊美化方案接同一把闸', file: 'js/group-chat.js', needle: "if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(s, GC_SCHEMES_KEY, '群聊美化方案')) return false;" },
+  { name: '#1342l 占卜历史分页上界认列表实长（#1049 只信 histShown＝记录少于 30 条的每一台机器都在 i=list.length 取到 undefined，异常打断在 innerHTML 之前＝整块记录一片空白，正是报障件那条 h.mode TypeError）', file: 'js/divination.js', needle: 'if (histShown > list.length) histShown = list.length;' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

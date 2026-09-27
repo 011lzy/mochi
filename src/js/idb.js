@@ -706,6 +706,57 @@
   // （#1258d 的不变量），数据层再补一脚＝同一个 MB 级原图被读两遍、邻居当场报红（实测 32/0→29/3）。
   // 头像池这类「读回来还要整包写回去」的通路，那一格由消费方自己的证人闸门兜（#1349d~h）。
   function bigKeyBlind(key) { return !!_memoBlind[key]; }
+  // ===== FIX 2026-09-27 #1342：「同步读空」不是答案——写回侧那一句问话 =====
+  // #1349 已经把「这一格被 #1195e 放掉过」记进 _memoBlind 并在首次读空时补踢一趟（名册与合流都用
+  // 它那一份，本批不另起第二套、也不挂第二脚）。本批补的是它的**下一环**：读数没回来之前，
+  // 谁都不许拿这一格空账做「整本写回」。四本「美化方案」账（beauty-schemes／full-beauty-schemes／
+  // chat-beauty-schemes／gc-beauty-schemes）写法清一色 `JSON.parse(store.get(K) || '[]')` → 改 →
+  // `store.set(K, 整本)`，而这些都是 IDB-only 大键（>200KB 从不落 LS）⇒ 冷读那一发正好把库里那本
+  // 顶成一格（iPhone／iOS 16.6 实报「美化方案无法保存，重新刷新过后数据会被清除」；红侧实测
+  // 库里 20 条 → 一次最普通的保存 → 1 条 → 重开仍 1 条）。#1335 的 ③④ 与 #1336 点过名的
+  // 「personalize 那几处逐页读-改-写还没接尺子」，收口就在这一个口上。
+  // 判据只有两个当场事实：①这一格现在读不到值（内存与 LS 双双为空）；②它要么在 #1349 的
+  // 「被放掉过」名册里，要么还挂在 #975 启动回填的挂起名单 __xyIdbDeferredKeys 上（本批刻意把
+  // 后者也算进来——#1349 只兜前者，而方案账这一族在挂起名单里同样会被整本写回顶掉）。
+  // 零机型／零 UA 分支。写过即放行（set 无条件写内存缓存 ⇒ ①当场不成立），不把这道闸变成新的存不进去。
+  function bigReadUnconfirmed(key) {
+    if (memoryCache && (key in memoryCache)) return false;
+    try { if (localStorage.getItem(key) !== null) return false; } catch (e) { return true; }
+    if (bigKeyBlind(key)) return true;
+    var di = window.__xyIdbDeferredKeys;
+    return !!(Array.isArray(di) && di.indexOf(key) >= 0);
+  }
+
+  // FIX 2026-09-27 #1342i：「读空未确认 ⇒ 这一格不许整包写回」这句判断＋这一句提示，全站只留一份。
+  // 四本方案账做的都是同一件事：JSON.parse(store.get(K) || '[]') → 改 → store.set(K, 整本)。判据与
+  // 文案若各写一份，就是 #1335 那条「一条通路喂坏四个页面、逐页补闸＝覆盖式修补」的反面教材——
+  // 所以调用方只调这一句，`what` 只负责说清是哪本账。零机型／零 UA 分支。
+  window.xyBigWriteBlocked = function (store, key, what) {
+    try {
+      if (!store || typeof store.awaitingBigKey !== 'function' || !store.awaitingBigKey(key)) return false;
+    } catch (e) { return false; }
+    try { if (store.requestBigKey) store.requestBigKey(key); } catch (e3) {}
+    if (window.toast) { try { window.toast((what || '这份数据') + '这次没读全（存储正忙）：等几秒再点一次即可，不需要重新设置'); } catch (e2) {} }
+    return true;
+  };
+  // #1342f 取证出口（只读、零副作用）：这一场被放掉过几格、还有几格读空没问出结果。
+  // 报障件里「方案没了／壁纸重开就空」从来不留任何痕迹——加了这一行才分得清「库里真没有」
+  // 与「取回还在路上／问不出结果」两种完全不同的现场。
+  window.__xyBigReadDiag = function () {
+    try {
+      var blind = 0, fly = 0;
+      for (var bk in _memoBlind) {
+        if (!Object.prototype.hasOwnProperty.call(_memoBlind, bk)) continue;
+        if (_memoBlind[bk] === 'fly') fly++; else blind++;
+      }
+      var di = Array.isArray(window.__xyIdbDeferredKeys) ? window.__xyIdbDeferredKeys.length : -1;
+      var un = 0;
+      for (var uk in _memoBlind) {
+        if (Object.prototype.hasOwnProperty.call(_memoBlind, uk) && bigReadUnconfirmed(uk)) un++;
+      }
+      return { blind: blind, asked: fly, deferred: di, unconfirmed: un };
+    } catch (e) { return null; }
+  };
 
   window.xyStore = function (prefix) {
     return {
@@ -724,6 +775,12 @@
         if (bigKeyBlind(key)) bigMissRehydrate(key);
         return null;
       },
+      // FIX 2026-09-27 #1342d：做「整本读-改-写」的调用方在写回前问这一句——true＝这一格现在读不到值，
+      // 而名册/挂起名单说库里本该有一份，此时把整本写回去＝用一页空纸顶掉库里那本（＝用户报的「被清空」）。
+      awaitingBigKey(k) { return bigReadUnconfirmed(prefix + ':' + k); },
+      // FIX 2026-09-27 #1342r：被拦下的那一发顺手请它去问一次库——复用 #1349 那一只单次飞行闸
+      //（'fly' 不叠发）与 #1218 那条合流 bigHydAsk，绝不新挂第二脚；用户再点一次保存时值就回来了。
+      requestBigKey(k) { try { bigMissRehydrate(prefix + ':' + k); } catch (e) {} },
       set(k, v) {
         const key = prefix + ':' + k;
         // v3.5.111：内存缓存无条件初始化并写入——大键（壁纸/头像池等）只进 IDB + 内存、
@@ -1305,6 +1362,13 @@
   // 一个相对键名在「当前桌面」的候选完整键名：命名空间键 + default 桌面的旧顶层键
   //（defaultStore().get 就有这条回退，取回路径必须同口径，否则未迁移老数据上的原图永远取不回）
   window.idbBigKeyCandidates = function (relKey) {
+    // FIX 2026-09-27 #1342a：调用方给的若是**完整键名**就照原样认，不再拼命名空间。
+    // 「所有桌面通用」那几本账（beauty-schemes / chat-beauty-schemes / gc-beauty-schemes /
+    // full-beauty-schemes）存的是全局根键 xy-home-v2:<键>，不在任何 per-cid 命名空间里；按相对键名
+    // 拼候选只会得到 xy-home-v2:default:beauty-schemes 这种根本不存在的位置，而在非 default 桌面
+    // 连下面那条旧顶层键候选都不列 ⇒ 三态尺子对全局根键结构性失明：库里明明有那本账，ensure 却
+    // 能报出 'absent'（＝「确认没有」），把「读空」讲成「数据没了」。
+    if (typeof relKey === 'string' && relKey.indexOf('xy-home-v2:') === 0) return [relKey];
     let prefix = 'xy-home-v2:default';
     try { if (window.activePrefix) prefix = window.activePrefix() || prefix; } catch (e) {}
     const out = [prefix + ':' + relKey];

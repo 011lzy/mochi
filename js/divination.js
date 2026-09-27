@@ -772,6 +772,7 @@ const hcard = el.closest ? el.closest('.div-card') : null;
 if (hcard) hcard.hidden = !list.length;
 histShown = Math.min(histShown, HIST_PAGE);   // 重渲（开页/新抽牌/删除）回到第一页，新记录在最上
 if (!list.length) { el.innerHTML = ''; return; }
+if (histShown > list.length) histShown = list.length;
 let html = '<div class="div-label">占卜记录</div>';
 for (let i = 0; i < histShown; i++) html += histRowHtml(list[i], i);
 if (histMoreRest(list) > 0) html += '<button type="button" class="div-h-more" id="div-h-more">显示更早的记录（还有 ' + histMoreRest(list) + ' 条）</button>';

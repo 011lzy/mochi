@@ -1782,6 +1782,15 @@
           ? '⚠ 本会话有 ' + wj.rej + ' 次落不回去＝这本账已冻结，回放进来的 ' + wj.replayed + ' 条旧值不再充当权威，一律以 IndexedDB 为准'
           : '正常落盘（未冻结＝回放照旧算最近一次写入）'));
       } catch (e) {}
+      // FIX 2026-09-27 #1342g：上面那行只管「写不写得回去」，管不到「读回来的空是不是答案」。
+      //   大键（>200KB）从不落 localStorage，而 xyStore.get 是同步口、从不问库——启动回填挂起与切后台
+      //   释放（#1195e）都会让这一格读成空，报障件里只会留下「美化方案没了／卡片背景重开就空」。
+      //   有这一行才分得清「库里真没有」与「取回还在路上／问不出结果」，也才看得见这道闸拦过几次写回。
+      try {
+        const br = window.__xyBigReadDiag && window.__xyBigReadDiag();
+        if (br) L.push('大键读回：切后台放过 ' + (br.blind + br.asked) + ' 格（其中问过 ' + br.asked + '） · 启动挂起未读回 ' + br.deferred +
+          ' 格 · 此刻读不到值未确认 ' + br.unconfirmed + ' 格（这些账不许整本写回，等库里回执）');
+      } catch (e) {}
       items.sort(function (a, b) { return b.size - a.size; });
       L.push('数据总占用≈' + usageStr(total));
       const tops = items.slice(0, 8).map(function (it) { return it.k + '=' + usageStr(it.size); }).join('、');

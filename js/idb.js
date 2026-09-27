@@ -474,6 +474,36 @@ if (st === 'unknown') delete _memoBlind[key];
 } catch (e) { delete _memoBlind[key]; }
 }
 function bigKeyBlind(key) { return !!_memoBlind[key]; }
+function bigReadUnconfirmed(key) {
+if (memoryCache && (key in memoryCache)) return false;
+try { if (localStorage.getItem(key) !== null) return false; } catch (e) { return true; }
+if (bigKeyBlind(key)) return true;
+var di = window.__xyIdbDeferredKeys;
+return !!(Array.isArray(di) && di.indexOf(key) >= 0);
+}
+window.xyBigWriteBlocked = function (store, key, what) {
+try {
+if (!store || typeof store.awaitingBigKey !== 'function' || !store.awaitingBigKey(key)) return false;
+} catch (e) { return false; }
+try { if (store.requestBigKey) store.requestBigKey(key); } catch (e3) {}
+if (window.toast) { try { window.toast((what || '这份数据') + '这次没读全（存储正忙）：等几秒再点一次即可，不需要重新设置'); } catch (e2) {} }
+return true;
+};
+window.__xyBigReadDiag = function () {
+try {
+var blind = 0, fly = 0;
+for (var bk in _memoBlind) {
+if (!Object.prototype.hasOwnProperty.call(_memoBlind, bk)) continue;
+if (_memoBlind[bk] === 'fly') fly++; else blind++;
+}
+var di = Array.isArray(window.__xyIdbDeferredKeys) ? window.__xyIdbDeferredKeys.length : -1;
+var un = 0;
+for (var uk in _memoBlind) {
+if (Object.prototype.hasOwnProperty.call(_memoBlind, uk) && bigReadUnconfirmed(uk)) un++;
+}
+return { blind: blind, asked: fly, deferred: di, unconfirmed: un };
+} catch (e) { return null; }
+};
 window.xyStore = function (prefix) {
 return {
 get(k) {
@@ -483,6 +513,8 @@ try { const v = localStorage.getItem(key); if (v !== null) return v; } catch (e)
 if (bigKeyBlind(key)) bigMissRehydrate(key);
 return null;
 },
+awaitingBigKey(k) { return bigReadUnconfirmed(prefix + ':' + k); },
+requestBigKey(k) { try { bigMissRehydrate(prefix + ':' + k); } catch (e) {} },
 set(k, v) {
 const key = prefix + ':' + k;
 if (!memoryCache) memoryCache = {};
@@ -840,6 +872,7 @@ return 'unknown';
 return bigHydInflight[full];
 }
 window.idbBigKeyCandidates = function (relKey) {
+if (typeof relKey === 'string' && relKey.indexOf('xy-home-v2:') === 0) return [relKey];
 let prefix = 'xy-home-v2:default';
 try { if (window.activePrefix) prefix = window.activePrefix() || prefix; } catch (e) {}
 const out = [prefix + ':' + relKey];

@@ -877,6 +877,12 @@
     if (hcard) hcard.hidden = !list.length;
     histShown = Math.min(histShown, HIST_PAGE);   // 重渲（开页/新抽牌/删除）回到第一页，新记录在最上
     if (!list.length) { el.innerHTML = ''; return; }
+    // FIX 2026-09-27 #1342l：分页上界必须认列表实长。#1049 把历史改成「每页 30 条」时，histShown 的
+    // 初值就是 30，而循环只信 histShown 不信 list.length —— 记录少于 30 条的每一台机器都在 i=list.length
+    // 那一格取到 undefined，histRowHtml 当场抛 TypeError（iPhone／iOS 16.6 诊断单【最近错误】那条
+    // "undefined is not an object (evaluating 'h.mode')" 就是这一发），异常把 renderHistory 打断在
+    // innerHTML 赋值之前＝整块占卜记录一片空白，看着像「记录全没了」。
+    if (histShown > list.length) histShown = list.length;
     let html = '<div class="div-label">占卜记录</div>';
     for (let i = 0; i < histShown; i++) html += histRowHtml(list[i], i);
     if (histMoreRest(list) > 0) html += '<button type="button" class="div-h-more" id="div-h-more">显示更早的记录（还有 ' + histMoreRest(list) + ' 条）</button>';

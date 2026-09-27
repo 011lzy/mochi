@@ -275,9 +275,11 @@ if (box) { try { const t = (box.innerText !== undefined ? box.innerText : box.te
 try { return el.value || ''; } catch (e) { return ''; }
 }
 let cb = null;
+let pillList = [];
 function buildPills(list, initVal) {
 pillClicked = false;
 pillVal = initVal !== undefined ? initVal : null;
+pillList = (list && list.length) ? list : [];
 pillsEl.hidden = !(list && list.length);
 pillsEl.innerHTML = '';
 if (list && list.length) {
@@ -440,19 +442,46 @@ if (sliderCfg.onChange) { try { sliderCfg.onChange(val); } catch (e) {} }
 cb = fn;
 mask.hidden = false;
 if (window.mochiModalPickOkClear) { try { window.mochiModalPickOkClear(); } catch (eP) {} }
-if (opts.pickOk && okBtn && window.mochiModalPickOk) {
+const pillPickOf = (v) => {
+try {
+const list = pillList || [];
+for (let i = 0; i < list.length; i++) {
+const p = list[i];
+if (p && p.pick && p.value === v) return p.pick;
+}
+} catch (e) {}
+return null;
+};
+const armModalPickLayer = () => {
+const byOpts = !!(opts.pickOk && okBtn && window.mochiModalPickOk);
+if (!okBtn || !window.mochiModalPickOk) return;
+if (window.mochiModalPickOkClear) { try { window.mochiModalPickOkClear(); } catch (eC) {} }
+let cfg = byOpts ? opts.pickOk : null;
+if (!cfg) {
+let first = null;
+try { (pillList || []).forEach(p => { if (!first && p && p.pick) first = p.pick; }); } catch (e) {}
+if (!first) return;
+cfg = {
+accept: first.accept || 'image/*',
+multiple: !!first.multiple,
+entry: first.entry || '',
+skipWhen: (v) => !pillPickOf(v),
+onFiles: (files, v) => { const pk = pillPickOf(v); if (pk && typeof pk.onFiles === 'function') pk.onFiles(files); }
+};
+}
 try {
 window.mochiModalPickOk({
 okBtn: okBtn,
-accept: opts.pickOk.accept || '',
-multiple: !!opts.pickOk.multiple,
-entry: opts.pickOk.entry || '',
+accept: cfg.accept || '',
+multiple: !!cfg.multiple,
+entry: cfg.entry || '',
 mode: function () { return pillVal; },
-skipWhen: opts.pickOk.skipWhen,
-onFiles: opts.pickOk.onFiles
+skipWhen: cfg.skipWhen,
+onFiles: cfg.onFiles
 });
 } catch (eP2) {}
-}
+};
+armModalPickLayer();
 setTimeout(() => {
 if (noInput) return;
 const target = (opts.textarea && textarea) ? textarea : input;
@@ -491,7 +520,7 @@ noInput = !show;
 input.hidden = !show;
 if (show) ctl.focus();
 },
-pills: function (list, initVal) { buildPills(list, initVal); },
+pills: function (list, initVal) { buildPills(list, initVal); try { armModalPickLayer(); } catch (e) {} },
 close: function () { try { close(); } catch (e) {} }
 };
 if (copyBtn) {
@@ -1598,10 +1627,7 @@ const grid = app.closest('.app-grid');
 const key = app.dataset.app;
 const ico = app.querySelector('.app-ico');
 const hasCustom = !!store.get('app-icon-' + key);
-const pickFile = () => {
-window.mochiFilePick({
-id: 'mochi-appicon-pick', accept: 'image/*',
-onFiles: (files) => {
+const pickInto = (files) => {
 const f = files && files[0];
 if (!f) { toast('没有取到图片，请再选一次'); return; }
 const reader = new FileReader();
@@ -1624,8 +1650,10 @@ toast('图标已更新');
 }, 80);
 };
 reader.readAsDataURL(f);
-}
-});
+};
+const appIconPick = { accept: 'image/*', entry: 'app-icon-' + key, onFiles: pickInto };
+const pickFile = () => {
+window.mochiFilePick({ id: 'mochi-appicon-pick', accept: 'image/*', onFiles: pickInto });
 };
 const moveApp = (dir) => {
 if (!grid) return;
@@ -1638,7 +1666,7 @@ store.set('app-icon-order-' + grid.dataset.app, JSON.stringify(order));
 toast(dir === 'up' ? '已上移' : '已下移');
 };
 const pills = [];
-pills.push({ label: hasCustom ? '更换图片' : '上传图片', value: '1' });
+pills.push({ label: hasCustom ? '更换图片' : '上传图片', value: '1', pick: appIconPick });
 if (hasCustom) pills.push({ label: '清除图片', value: '2' });
 if (hasCustom) pills.push({ label: '调整图片位置', value: 'fit' });
 if (hasCustom) pills.push({ label: '同图应用到全部图标', value: 'all' });
@@ -3343,8 +3371,8 @@ const drop = new Set(autos.slice(0, autos.length - 4).map(s => s.time));
 list = list.filter(s => !(s && drop.has(s.time) && typeof s.name === 'string' && s.name.indexOf('导入前备份') === 0));
 }
 list.push({ name, time: Date.now(), data: cur });
-saveSchemesList(list);
-const back = getSchemes();
+const wroteBackup = saveSchemesList(list);
+const back = wroteBackup ? getSchemes() : [];
 const saved = back.some(s => s && s.name === name);
 if (saved) { backupName = name; toast('已自动保存原美化 → 方案「' + name + '」'); }
 else { toast('原美化备份失败（可能存储空间不足），建议先导出备份再导入'); }
@@ -3368,7 +3396,13 @@ const SCHEMES_KEY = 'beauty-schemes';
 const getSchemes = () => {
 try { const a = JSON.parse(gStore.get(SCHEMES_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; }
 };
-const saveSchemesList = (arr) => { try { gStore.set(SCHEMES_KEY, JSON.stringify(arr)); } catch (e) {} };
+const schemesWriteBlocked = (store, key, what) => {
+try { return !!(window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, key, what)); } catch (e) { return false; }
+};
+const saveSchemesList = (arr) => {
+if (schemesWriteBlocked(gStore, SCHEMES_KEY, '美化方案')) return false;
+try { gStore.set(SCHEMES_KEY, JSON.stringify(arr)); return true; } catch (e) { return false; }
+};
 const BUILTIN_SCHEMES = [
 { name: '情侣粉', builtin: true, data: { '__accent__': '#e05555', '__theme__': 'light', 'widget-bg-color': '#fff0f0', 'widget-border-color': '#ffd0d0', 'widget-btn-color': '#e05555', 'widget-btn-text-color': '#ffffff', 'widget-heart-color': '#e05555', 'phone-bg-preset': '樱花' } },
 { name: '极简黑白', builtin: true, data: { '__accent__': '#111111', '__theme__': 'light', 'widget-bg-color': '#ffffff', 'widget-border-color': 'rgba(0,0,0,.1)', 'widget-btn-color': '#111111', 'widget-btn-text-color': '#ffffff', 'widget-heart-color': '#111111' } },
@@ -3464,7 +3498,7 @@ const name = (inp.value || '').trim();
 if (!name) { inp.style.borderColor = '#e05a5a'; return; }
 const list = getSchemes();
 list.push({ name, time: Date.now(), data });
-saveSchemesList(list);
+if (!saveSchemesList(list)) return;   // #1342h：没读全这一本账时不写、也不谎报「已保存」
 x.style.display = 'none'; x.hidden = true;
 toast('已保存方案「' + name + '」，所有桌面通用');
 const m = document.getElementById('beauty-scheme-manager');
@@ -3516,7 +3550,7 @@ const ctl = window.openModal('删除方案「' + s.name + '」？', '', (v) => {
 if (v !== 'ok') return;
 const list = getSchemes();
 list.splice(idx, 1);
-saveSchemesList(list);
+if (!saveSchemesList(list)) return;   // #1342h
 toast('已删除方案');
 window.openBeautySchemes();
 }, { noInput: true, pillSubmit: true, staticText: '删除后不可恢复', pills: [{ label: '删除', value: 'ok' }] });
@@ -3753,7 +3787,7 @@ setTimeout(() => { try { clearInterval(timer); openImport(); } catch (e) {} }, 3
 })();
 const FULL_SCHEMES_KEY = 'full-beauty-schemes';
 const getFullSchemes = () => { try { const a = JSON.parse(gStore.get(FULL_SCHEMES_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } };
-const saveFullSchemesList = (arr) => { try { gStore.set(FULL_SCHEMES_KEY, JSON.stringify(arr)); } catch (e) {} };
+const saveFullSchemesList = (arr) => { if (schemesWriteBlocked(gStore, FULL_SCHEMES_KEY, '完整外观方案')) return false; try { gStore.set(FULL_SCHEMES_KEY, JSON.stringify(arr)); return true; } catch (e) { return false; } };
 const collectFullBeauty = () => { const data = { desk: collectBeautyFull() }; try { if (window.collectChatBeauty) data.chat = window.collectChatBeauty(); } catch (e) {} return data; };
 const applyFullBeautyData = (data) => { try { applyBeautyData(data.desk || {}, 'all'); } catch (e) {} try { if (window.applyChatBeautyData && data.chat) window.applyChatBeautyData(data.chat); } catch (e) {} };
 const openFullBeautySchemes = () => {
@@ -3786,7 +3820,7 @@ reloadAfterBeautyWrite();
 if (ctl && ctl.pills) ctl.pills([{ label: '应用', value: 'ok' }], 'ok');
 });
 const del = document.createElement('button'); del.textContent = '删除'; del.style.cssText = 'font-size:12px;padding:4px 10px;border:1px solid rgba(163,45,45,.35);border-radius:8px;background:var(--danger-soft,#fff5f5);color:var(--danger-ink,#a32d2d)';
-del.addEventListener('click', () => { const l2 = getFullSchemes(); l2.splice(i, 1); saveFullSchemesList(l2); toast('已删除'); openFullBeautySchemes(); });
+del.addEventListener('click', () => { const l2 = getFullSchemes(); l2.splice(i, 1); if (!saveFullSchemesList(l2)) return; toast('已删除'); openFullBeautySchemes(); });
 btns.appendChild(apply); btns.appendChild(del); row.appendChild(btns); list.appendChild(row);
 });
 box.appendChild(list);
@@ -3795,7 +3829,7 @@ save.addEventListener('click', () => {
 if (!window.openModal) return;
 const ctl = window.openModal('保存完整方案', '', (name) => {
 name = (name || '').trim(); if (!name) { ctl.hint('名称不能为空'); ctl.stay(); return; }
-const l2 = getFullSchemes(); l2.push({ name, time: Date.now(), data: collectFullBeauty() }); saveFullSchemesList(l2);
+const l2 = getFullSchemes(); l2.push({ name, time: Date.now(), data: collectFullBeauty() }); if (!saveFullSchemesList(l2)) { ctl.stay(); return; }
 toast('已保存完整方案「' + name + '」'); openFullBeautySchemes();
 }, { maxlength: 20, placeholder: '例如：情侣粉全套' });
 });
@@ -3843,7 +3877,8 @@ if (!s || !window.openModal) return;
 const ctl = window.openModal('编辑方案名称', s.name, (name) => {
 name = (name || '').trim();
 if (!name) { ctl.hint('名称不能为空'); ctl.stay(); return; }
-s.name = name; saveSchemesList(list); toast('已重命名');
+s.name = name; if (!saveSchemesList(list)) { ctl.stay(); return; }   // #1342h：没读全这账就不整本写回
+toast('已重命名');
 window.openBeautySchemes();
 }, { maxlength: 20, placeholder: '输入方案名称' });
 }
@@ -4681,10 +4716,7 @@ applyAllWidgetOpacities();
 const openCardBgMenu = (type, name, anchorEl) => {
 const img = store.get('card-bg-' + type);
 const widgetEl = anchorEl ? anchorEl.closest('[data-desk-widget]') : null;
-const pickFile = () => {
-window.mochiFilePick({
-id: 'mochi-card-bg-pick', accept: 'image/*',
-onFiles: (files) => {
+const pickInto = (files) => {
 const f = files && files[0];
 if (!f) { toast('没有取到图片，请再选一次'); return; }
 const reader = new FileReader();
@@ -4695,12 +4727,15 @@ store.set('card-bg-' + type, data);
 applyCardBg(type);
 syncCardBgUIs();
 toast(name + '背景已设置');
+confirmBigKeys(['card-bg-' + type], name + '背景');
 });
 };
 reader.onerror = () => toast('图片读取失败，请换一张再试');
 reader.readAsDataURL(f);
-}
-});
+};
+const cardBgPick = { accept: 'image/*', entry: 'card-bg-' + type, onFiles: pickInto };
+const pickFile = () => {
+window.mochiFilePick({ id: 'mochi-card-bg-pick', accept: 'image/*', onFiles: pickInto });
 };
 const moveWidget = (dir) => {
 if (!widgetEl || !widgetEl.parentNode) return;
@@ -4718,7 +4753,7 @@ const openCardMenuNext = (t, v, fn, opts) => {
 setTimeout(() => { if (window.openModal) window.openModal(t, v, fn, opts); }, 0);
 };
 const pills = [];
-pills.push({ label: img ? '更换图片' : '上传图片', value: '1' });
+pills.push({ label: img ? '更换图片' : '上传图片', value: '1', pick: cardBgPick });
 if (img) pills.push({ label: '清除图片', value: '2' });
 if (img) pills.push({ label: '遮罩浓度', value: 'mask' });
 if (img) pills.push({ label: maskPctOf(type) === 0 ? '原图直出 ✓' : '原图直出', value: 'origin' });
