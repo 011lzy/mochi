@@ -51,6 +51,43 @@
   function getMeLib() { try { return JSON.parse(store.get('avatar-me-lib') || '[]'); } catch (e) { return []; } }
   function saveMeLib(list) { store.set('avatar-me-lib', JSON.stringify(list)); }
   function getMeEnabled() { const v = store.get('avatar-me-lib-enabled'); return v === null ? true : v === '1'; }
+  // FIX 2026-09-27 #1349b：两个头像池的整包写回闸门（荣耀畅玩40Plus／夸克实报「后面添加的头像，头像库
+  // 里不知道为什么直接清空」；用户明说其他设备型号也有出现、要求不要覆盖式修补。无头真跑纯 HEAD 产物
+  // 实测：库里 30 条完好，切一次后台后 store.get 读 NULL 且整场不自愈，页面按「池子空了」做一次最正常
+  // 的追加整包写回 ⇒ 库里剩 1 条）。
+  //   根因不在这一页：头像池是 >200KB 的 IDB-only 大键（写入时 LS 那份被主动剥掉），而 #1195e 每次切
+  //   后台按体积放掉它的内存副本——**打开相册选文件本身就是一发切后台**（那张诊断单【环境变化】里每
+  //   一次 avlib-upload 前后都夹着一发后台/前台）。#1195e 注释承诺的「回前台后首次读自动回填」只对
+  //   idbGet 成立，xyStore.get 只认内存与 LS，两样都没有 ⇒ 空读被读成「真没有」。
+  //   数据层侧 #1349a 已让这一格下一读自愈；闸门仍必须有：落笔那一刻取回可能还在路上（#172 表情包、
+  //   #281、#434 那一条防盲写通路早就认了这个理儿，本批只是把它接到头像池上）。
+  //   判据一律零机型／零 UA：只用两把现成尺子——「同步读到了没有」＋库里那份的证人 idbBigIdxSize
+  //   （#1258 那份旁证，切后台释放刻意不清它、remove 时同步销账，所以它说「该有一份 ≥200KB 的副本」
+  //   而这里读空＝读数不可信），取回走 #1218 的三态 idbEnsureBigKey。'unknown' 一律不写、也不许对
+  //   用户说「已清空」。清空按钮（saveFn([])）不依赖读数，本就不必过闸。
+  function readPool(key) {
+    const v = store.get(key);
+    if (v === null || v === undefined || v === '') return [];
+    if (Array.isArray(v)) return v; // #950 同款：大键可能以数组形态直驻内存缓存
+    try { const a = JSON.parse(v); return Array.isArray(a) ? a : []; } catch (e) { return []; }
+  }
+  function poolWitness(key) { try { return (window.idbBigIdxSize && window.idbBigIdxSize(key)) || 0; } catch (e) { return 0; } }
+  function commitPool(key, mutate, done) {
+    const settle = (next) => { if (next) store.set(key, JSON.stringify(next)); if (done) done(next || null); };
+    const attempt = (tries) => {
+      const cur = readPool(key);
+      if (cur.length || !poolWitness(key) || !window.idbEnsureBigKey) { settle(mutate(cur)); return; }
+      Promise.resolve(window.idbEnsureBigKey(key)).then((st) => {
+        if (st === 'unknown') {
+          if (tries < 2) { setTimeout(() => attempt(tries + 1), 1200 * (tries + 1)); return; }
+          toast('头像库还在读取，请过几秒再试一次（这一次没有改动库里的头像）'); settle(null); return;
+        }
+        settle(mutate(readPool(key))); // 'ok'＝取回后重读；'absent'＝健康连接确认库里没有 ⇒ 空池就是权威
+      }, () => { toast('头像库还在读取，请过几秒再试一次'); settle(null); });
+    };
+    attempt(0);
+  }
+
   // 昵称清洗（FIX 2026-09-16 #616：用户报「我同意了 TA 的换昵称邀请，我的昵称换成了「」」——
   // 引号里是空的）。根因：**只由零宽字符组成的昵称能穿过 trim()**——U+200B 零宽空格等既不是
   // JS 的 WhiteSpace 也不可见，`'   '.trim()` 会清空但 `'\u200B'.trim()` 原样保留，
@@ -375,11 +412,14 @@
         switchAvatarFromLib(src);
       });
       delBtn.addEventListener('click', () => {
-        const l = getLib();
-        l.splice(idx, 1);
-        saveLib(l);
-        renderGrid();
-        syncVal();
+        // FIX 2026-09-27 #1349b：删一条也是整包写回，同过闸门；且按值删不按格子序号删——闸门取回后
+        //   权威池子的长度可能与渲染那一刻不同，拿旧 idx 去 splice 会删错那张（或删不掉还误报成功）。
+        commitPool('avatar-lib', (lib) => {
+          const i = lib.indexOf(src);
+          if (i < 0) return null;
+          lib.splice(i, 1);
+          return lib;
+        }, () => { renderGrid(); syncVal(); });
       });
       avGrid.appendChild(d);
     });
@@ -412,10 +452,13 @@
         switchMyAvatarFromLib(src);
       });
       delBtn.addEventListener('click', () => {
-        const l = getMeLib();
-        l.splice(idx, 1);
-        saveMeLib(l);
-        renderMeGrid();
+        // FIX 2026-09-27 #1349b：同联系人侧——整包写回先过闸门，删按值不按旧序号
+        commitPool('avatar-me-lib', (lib) => {
+          const i = lib.indexOf(src);
+          if (i < 0) return null;
+          lib.splice(i, 1);
+          return lib;
+        }, () => { renderMeGrid(); });
       });
       avMeGrid.appendChild(d);
     });
@@ -716,8 +759,11 @@
     });
   }
   // 上传多张（两个头像池共用）：读取失败的文件会跳过，全部成功/部分失败都有提示
-  function bindPoolUpload(btn, listFn, saveFn, rerender) {
-    if (!btn) return;
+  // FIX 2026-09-27 #1349b：落笔改走 commitPool（键名传进来＝闸门能按这一键问库），本批新增的
+  //   图片先攒在 added 里、在**落笔那一刻**追到权威读数后面——不再拿「打开选择器之前」那一拍的
+  //   读数整包顶回去（选文件期间页面切了一趟后台，那一拍的读数在纯 HEAD 上就是 null）。
+  function bindPoolUpload(btn, key, rerender) {
+    if (!btn || !key) return;
     const input = document.createElement('input');
     input.type = 'file'; input.accept = 'image/*'; input.multiple = true;
     input.id = (btn.id || 'avlib') + '-file-pick'; // FIX 2026-09-18 #717：常驻池选择器身份（诊断/测试句柄，按按钮唯一）
@@ -731,7 +777,7 @@
       const files = Array.prototype.slice.call(input.files || []);
       input.value = '';
       if (!files.length) return;
-      const list = listFn();
+      const added = [];
       let done = 0, okCount = 0, failCount = 0;
       if (!window.mochiImgIngest) { toast('图片处理组件没加载上（缓存过旧或离线），请重新打开页面再试'); return; }
       files.forEach(f => {
@@ -750,20 +796,22 @@
         };
         window.mochiImgIngest(f, { maxSide: 256, quality: 0.85, tag: 'avlib-pool' }).then((r) => {
           if (!r || r.st !== 'ok' || !r.data) { settle(false); return; }
-          list.push(r.data);
+          added.push(r.data);
           settle(true);
         });
       });
       function finish() {
-        saveFn(list);
-        rerender();
-        if (okCount > 0 && failCount === 0) {
-          toast('成功添加 ' + okCount + ' 张头像');
-        } else if (okCount > 0 && failCount > 0) {
-          toast('添加成功 ' + okCount + ' 张，失败 ' + failCount + ' 张');
-        } else {
-          toast('添加失败，请选择有效的图片文件');
-        }
+        commitPool(key, (lib) => lib.concat(added), (out) => {
+          rerender();
+          if (!out) return; // 闸门拦下＝库里那份没动，提示已由 commitPool 给过，这里不再报「成功」
+          if (okCount > 0 && failCount === 0) {
+            toast('成功添加 ' + okCount + ' 张头像');
+          } else if (okCount > 0 && failCount > 0) {
+            toast('添加成功 ' + okCount + ' 张，失败 ' + failCount + ' 张');
+          } else {
+            toast('添加失败，请选择有效的图片文件');
+          }
+        });
       }
     };
     // FIX 2026-09-18 #717：click 失败不再静默——部分机型上 click() 被策略拦截/抛错时给可见提示
@@ -786,8 +834,8 @@
       else _fb();
     });
   }
-  bindPoolUpload(avUpload, getLib, saveLib, () => { renderGrid(); syncVal(); });
-  bindPoolUpload(avMeUpload, getMeLib, saveMeLib, () => { renderMeGrid(); syncVal(); });
+  bindPoolUpload(avUpload, 'avatar-lib', () => { renderGrid(); syncVal(); });
+  bindPoolUpload(avMeUpload, 'avatar-me-lib', () => { renderMeGrid(); syncVal(); });
   // 添加昵称：**多行批量**，一行一个（用户反馈「添加昵称不能批量添加」）。
   // 走全站唯一弹窗方案的多行框——不用 prompt（安卓 IAB 无 prompt），也不自造弹层。
   // 安卓上这个 textarea 会被 mobile-adapt 转成 contenteditable 的 .ce-box，取值靠

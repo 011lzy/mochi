@@ -678,6 +678,35 @@
     if (_lsDirtyKeys && _lsDirtyKeys.delete(k)) lsDirtySave();
   }
 
+  // FIX 2026-09-27 #1349a：大键同步读口的「这一场没人把它读回来」名册（判据零机型／零 UA）
+  //   #1195e 切后台时按体积放掉 memoryCache 里的大键副本，注释里承诺「回前台后首次读自动回填」——
+  //   那一句只对 idbGet 成立：xyStore.get 只认内存缓存与 localStorage，而 IDB-only 大键这两份恰好
+  //   都没有（>200KB 的值在 set 里被主动 removeItem）。于是放掉之后同步口读到的 null，与「用户真的
+  //   没有这条数据」长得一模一样，而且整场不会自愈（荣耀畅玩40Plus／夸克实报「后面添加的头像，头像
+  //   库里不知道为什么直接清空」＝打开相册选文件本身就是一发切后台）。纯 HEAD 产物无头实测：切一次
+  //   后台后 store.get 读 NULL、3 秒后仍 NULL，而库里那 30 条完好；页面按「池子是空的」做一次最正常
+  //   的追加并整包写回 ⇒ 库里剩 1 条。
+  //   名册只收一个当场事实：#1195e 真放掉过的那几键（启动预算挂起那一格为什么刻意不在册，见下方
+  //   bigKeyBlind 的批注）。启动回填还没轮到的键一律不碰 ⇒ 不与 #785 的就绪时序抢跑、不重复读；
+  //   释放动作本身一字未动（那是 iOS 内存压力下的正解，#1197d/#1271/#1300 三批都指着它）。
+  var _memoBlind = {};            // 键 -> true＝在册待问 / 'fly'＝已踢一趟，不叠发
+  function bigMissRehydrate(key) {
+    if (_memoBlind[key] === 'fly') return;
+    _memoBlind[key] = 'fly';
+    try {
+      bigHydAsk(key).then(function (st) {
+        // 问不出结果（读失败／超时）＝这一格还没裁决，摘标允许下一读再问一趟；'ok'/'absent' 都是
+        // 当场问到的事实，不再重复问（问库那条腿与 #1218 共用 bigHydAsk 合流，见下方 #1349i）。
+        if (st === 'unknown') delete _memoBlind[key];
+      }, function () { delete _memoBlind[key]; });
+    } catch (e) { delete _memoBlind[key]; }
+  }
+  // 只认「这一场这一格被 #1195e 真放掉过」这一个当场事实。启动预算挂起（__xyIdbDeferredKeys）那一格
+  // 刻意不在这里补踢：那条路上 #1218/#1258/#172 各消费方本来就按「每个命名空间每会话只踢一趟」在问库
+  // （#1258d 的不变量），数据层再补一脚＝同一个 MB 级原图被读两遍、邻居当场报红（实测 32/0→29/3）。
+  // 头像池这类「读回来还要整包写回去」的通路，那一格由消费方自己的证人闸门兜（#1349d~h）。
+  function bigKeyBlind(key) { return !!_memoBlind[key]; }
+
   window.xyStore = function (prefix) {
     return {
       get(k) {
@@ -689,6 +718,10 @@
         // 权威值且跳过已有键），新鲜度恒 >= localStorage，优先读它保证「已写入的新值立即可见」。
         if (memoryCache && key in memoryCache) return memoryCache[key];
         try { const v = localStorage.getItem(key); if (v !== null) return v; } catch (e) {}
+        // FIX 2026-09-27 #1349a：内存与 LS 双双读空 ＋ 这一格在「被 #1195e 放掉过」的名册里 ⇒ 这不是
+        //   「没有」，是「没读到」。当场补踢一趟按需取回（同键一次不叠发），下一读即库里权威值；本次
+        //   仍返回 null，与旧行为逐字节一致＝零副作用，只是不再让这一格永久沉默到重开。
+        if (bigKeyBlind(key)) bigMissRehydrate(key);
         return null;
       },
       set(k, v) {
@@ -799,7 +832,9 @@
         // 体积口径与 idbMemoStats 同源：字符串按长度、非字符串按 big-idx 的写入时估算值。
         // 估算拿不到（-1/缺项）时**保守跳过**——宁可不放，也不误判一个其实很小的键。
         var len = (typeof v === 'string') ? v.length : (_bigIdx[k] || -1);
-        if (len > 0 && len >= lim) { delete memoryCache[k]; dropped++; }
+        // FIX 2026-09-27 #1349a：放掉＝登记进「本场景该有却没读到」名册（释放动作与体积口径一字未动，
+        //   #1197d 那根针钉的就是这一格）——xyStore.get 撞上这一格不再无声返回 null。
+        if (len > 0 && len >= lim) { delete memoryCache[k]; _memoBlind[k] = true; dropped++; }
       }
       // 刻意**不**清 _bigIdx：它只存「键 → 字节数」的小账（不是那份大 payload），留着才能让
       // 下次切后台、以及设置页内存体检继续按同一口径判断这个键有多大；清掉反而丢判断依据。
@@ -1252,6 +1287,21 @@
   // 零机型／零 UA 分支：判据只有内核回执的三态。
   const bigHydInflight = {};   // 完整键名 -> 进行中的取回（同键并发合流，不重复读 MB 级值）
   const bigHydAbsent = {};     // 完整键名 -> 健康连接确认库里确实没有（本会话不再空读）
+  // FIX 2026-09-27 #1349i：把「同一完整键那一趟取回」收成一个口，#1218 的消费方问库与 xyStore.get
+  //   撞上「被放掉」那一格的补踢（#1349a）共用同一格合流。两条腿各发一趟会把 MB 级原图读两遍，
+  //   还会把 #1258d 那条「每个命名空间只踢一趟按需取回」的不变量撞红（那一句是各页「读空先别拆层、
+  //   等回执」的前提，实测纯底本 32/0 → 29/3）。回执形态与 idbEnsureBigKey 内部逐字一致。
+  function bigHydAsk(full) {
+    if (bigHydInflight[full]) return bigHydInflight[full];
+    if (typeof window.idbHydrateKey !== 'function') return Promise.resolve('unknown');
+    bigHydInflight[full] = Promise.resolve(window.idbHydrateKey(full)).then((v) => {
+      delete bigHydInflight[full];
+      if (v === true) return 'ok';
+      if (v === null) { bigHydAbsent[full] = true; return 'absent'; }
+      return 'unknown';
+    }).catch(() => { delete bigHydInflight[full]; return 'unknown'; });
+    return bigHydInflight[full];
+  }
   // 一个相对键名在「当前桌面」的候选完整键名：命名空间键 + default 桌面的旧顶层键
   //（defaultStore().get 就有这条回退，取回路径必须同口径，否则未迁移老数据上的原图永远取不回）
   window.idbBigKeyCandidates = function (relKey) {
@@ -1301,13 +1351,7 @@
         return step(i + 1);
       };
       if (bigHydInflight[full]) return bigHydInflight[full].then(settle);
-      bigHydInflight[full] = Promise.resolve(hyd(full)).then((v) => {
-        delete bigHydInflight[full];
-        if (v === true) return 'ok';
-        if (v === null) { bigHydAbsent[full] = true; return 'absent'; }
-        return 'unknown';
-      }).catch(() => { delete bigHydInflight[full]; return 'unknown'; });
-      return bigHydInflight[full].then(settle);
+      return bigHydAsk(full).then(settle);
     };
     return step(0);
   };

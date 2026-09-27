@@ -463,12 +463,24 @@ lsDirtySave();
 function lsDirtyDel(k) {
 if (_lsDirtyKeys && _lsDirtyKeys.delete(k)) lsDirtySave();
 }
+var _memoBlind = {};            // 键 -> true＝在册待问 / 'fly'＝已踢一趟，不叠发
+function bigMissRehydrate(key) {
+if (_memoBlind[key] === 'fly') return;
+_memoBlind[key] = 'fly';
+try {
+bigHydAsk(key).then(function (st) {
+if (st === 'unknown') delete _memoBlind[key];
+}, function () { delete _memoBlind[key]; });
+} catch (e) { delete _memoBlind[key]; }
+}
+function bigKeyBlind(key) { return !!_memoBlind[key]; }
 window.xyStore = function (prefix) {
 return {
 get(k) {
 const key = prefix + ':' + k;
 if (memoryCache && key in memoryCache) return memoryCache[key];
 try { const v = localStorage.getItem(key); if (v !== null) return v; } catch (e) {}
+if (bigKeyBlind(key)) bigMissRehydrate(key);
 return null;
 },
 set(k, v) {
@@ -539,7 +551,7 @@ for (var k in memoryCache) {
 if (!Object.prototype.hasOwnProperty.call(memoryCache, k)) continue;
 var v = memoryCache[k];
 var len = (typeof v === 'string') ? v.length : (_bigIdx[k] || -1);
-if (len > 0 && len >= lim) { delete memoryCache[k]; dropped++; }
+if (len > 0 && len >= lim) { delete memoryCache[k]; _memoBlind[k] = true; dropped++; }
 }
 return dropped;
 } catch (e) { return 0; }
@@ -816,6 +828,17 @@ return true;
 };
 const bigHydInflight = {};   // 完整键名 -> 进行中的取回（同键并发合流，不重复读 MB 级值）
 const bigHydAbsent = {};     // 完整键名 -> 健康连接确认库里确实没有（本会话不再空读）
+function bigHydAsk(full) {
+if (bigHydInflight[full]) return bigHydInflight[full];
+if (typeof window.idbHydrateKey !== 'function') return Promise.resolve('unknown');
+bigHydInflight[full] = Promise.resolve(window.idbHydrateKey(full)).then((v) => {
+delete bigHydInflight[full];
+if (v === true) return 'ok';
+if (v === null) { bigHydAbsent[full] = true; return 'absent'; }
+return 'unknown';
+}).catch(() => { delete bigHydInflight[full]; return 'unknown'; });
+return bigHydInflight[full];
+}
 window.idbBigKeyCandidates = function (relKey) {
 let prefix = 'xy-home-v2:default';
 try { if (window.activePrefix) prefix = window.activePrefix() || prefix; } catch (e) {}
@@ -852,13 +875,7 @@ if (r === 'absent') sawAbsent = true; else sawUnknown = true;
 return step(i + 1);
 };
 if (bigHydInflight[full]) return bigHydInflight[full].then(settle);
-bigHydInflight[full] = Promise.resolve(hyd(full)).then((v) => {
-delete bigHydInflight[full];
-if (v === true) return 'ok';
-if (v === null) { bigHydAbsent[full] = true; return 'absent'; }
-return 'unknown';
-}).catch(() => { delete bigHydInflight[full]; return 'unknown'; });
-return bigHydInflight[full].then(settle);
+return bigHydAsk(full).then(settle);
 };
 return step(0);
 };

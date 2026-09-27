@@ -5496,6 +5496,36 @@ const FIX_SENTINELS = [
   { name: '#1347a 未读角标与桌面横幅同由这一条判据驱动（脱钩＝角标涨了而桌面永远不吭声，或反之）', file: 'js/chat.js', needle: "if (notable && !rec.silent && (!chatVisible() || document.visibilityState === 'hidden')) {" },
   { name: '#1347b 卡片预览说不出内容时的通用兜底句（删＝红包/礼物/送花这类正文不住在 rec.text 里的卡片又回到「屏上多一张卡而横幅与系统通知都不弹」）', file: 'js/chat.js', needle: "if (!text && !img && rec.special && rec.special !== 'read') text = '发来一条新消息，点开看看';" },
   { name: '#1347c 删除型：按卡片类型名挑收件的那层白名单不得回流（名单一复活＝名单外的卡片形态重新装死，正是本批报障本体；本行不重复那段代码文本＝删除型哨兵连注释也不许出现裸文本）', file: 'js/chat.js', needle: "(!rec.special || rec.special === 'poke'", absent: true },
+  /* ==== 2026-09-27 #1349 荣耀畅玩40Plus(RKY-AN00)／夸克 10.18.6 实报「后面添加的头像，头像库里不知道为什么
+     直接清空」＋「这个问题其他设备型号也有出现」「不要覆盖修改导致不同型号设备浏览器的 bug 反复出现」。
+     零机型／零 UA 分支＝判据只取「这一格还在不在内存里」「库里那份的证人在不在册」两个事实。
+     根因两处，都在无头真跑产物里量出来（tools/verify-1349-bgdrop-pool-blind-write.mjs：纯底本 8 绿/4 红＝
+     红的恰全本批新契约，收口后 12 绿/0 红）：
+     ① #1195e 每次切后台按体积放掉 ≥256KB 大键的 memoryCache 副本，而它批注承诺的「回前台后首次读自动回填」
+        只对 idbGet 成立——xyStore.get 只认内存缓存与 localStorage，而 IDB-only 大键那两份恰好都没有（>200KB
+        的值在 set 的大键分支里被主动 removeItem）⇒ 放掉之后同步读到的 null 与「用户真没有这条数据」同形，
+        而且整场不自愈（实测 resident 360921→-1、三秒后再读仍空，库里那 30 条一直好好的）。
+     ② 头像池正是这类大键，而 avatar-lib.js 每一次整包写回都拿「同步读数 || '[]'」当全量——而**打开相册选
+        文件这一动作本身就是一发切后台**（报障诊断【文件选择取证】与【环境变化】逐发对齐：20:05:18
+        avlib-upload/surf:hit → 20:05:19 切到后台 → 20:06:29 回到前台 → 20:06:29 surf:files=36；20:07:28→
+        20:07:29→20:08:46→20:08:47 files=54，两发头像池/两发我的头像池全中）。选完回来那一发 NULL 被读成
+        「池子是空的」，一次最正常的追加就把库里 30 条整包顶成 1 条＝用户说的「直接清空」。
+     同一格在读侧已被拆过两次票（#1270l/#1300c 给桌面壁纸、#172/#281/#434 给表情包各自上了闸），而一条通路
+     喂坏的是所有大键消费者＝逐页补闸正是用户说的「覆盖式修补」，故本批两处收口一处不落都在通路上：
+     数据层让同步读口对「被 #1195e 放掉过」的键不再谎报「没有」（#1349a~c＋#1349i：补踢与 #1218 的问库
+     共用同一格合流），消费方在整包写回前按 #1258 的证人＋#1218 的三态取回再落笔（#1349d~h，两格都兜）。
+     #1195e 的释放动作与体积口径一字未动（那是 iOS 内存压力下的正解，#1197d 那根针钉着）；启动预算挂起
+     那一格刻意不在数据层补踢——那条路上各消费方本按「每命名空间每会话只踢一趟」在问库（#1258d），数据层
+     再补一脚＝同一个 MB 级原图被读两遍、邻居当场报红（实测 32/0→29/3，故收在这里）。 ==== */
+  { name: '#1349a 同步读口撞上「内存＋LS 双读空 且 这一格被 #1195e 放掉过」＝不是没有、是没读到，当场补踢一趟按需取回（删＝IDB-only 大键切一次后台后整场读空，用户口径「头像库不知道为什么直接清空」复发）', file: 'js/idb.js', needle: 'if (bigKeyBlind(key)) bigMissRehydrate(key);' },
+  { name: '#1349b #1195e 放掉了哪几键要留名（释放本身与体积口径一字未动＝iOS 内存压力下的正解；只删这一格登记＝下一读的补踢永远等不到触发条件）', file: 'js/idb.js', needle: '_memoBlind[k] = true; dropped++;' },
+  { name: '#1349c 放掉过的键同键只踢一趟、问不出结果才摘标重问（删＝每一次空读都发一趟 MB 级 IDB 读＝把 #975/#1195e 释放掉的内存当场吃回去，iOS 卡顿那一批回退）', file: 'js/idb.js', needle: "if (_memoBlind[key] === 'fly') return;" },
+  { name: '#1349i 同步口的补踢与 #1218 的消费方问库共用同一格合流（两条腿各发一趟＝同一个 MB 级原图被读两遍，且 #1258d「每命名空间只踢一趟」当场被撞红，实测 32/0→29/3）', file: 'js/idb.js', needle: 'return bigHydAsk(full).then(settle);' },
+  { name: '#1349d 头像池整包写回的防盲写闸：读数可信（读到内容／库里根本没有"本该有一份大键"的证人／环境没这把尺）才直接落笔（拆掉闸门＝回到拿空读数整包顶库＝报障本体）', file: 'js/avatar-lib.js', needle: 'if (cur.length || !poolWitness(key) || !window.idbEnsureBigKey)' },
+  { name: '#1349e 三态里问不出结果（unknown）一律不写、也不对用户说"已清空"（改成照写＝把 #1218 那句"读不到≠没有"在这一页再反悔一次；改成报"已丢失"＝吓用户去重传，图其实就在库里）', file: 'js/avatar-lib.js', needle: "if (st === 'unknown') {" },
+  { name: '#1349f 上传落笔走闸门＋新图在落笔那一刻才追到权威读数后面（旧写法拿"打开选择器之前"那一拍的读数整包写回＝选文件期间那一发切后台正好把读数清空）', file: 'js/avatar-lib.js', needle: 'commitPool(key, (lib) => lib.concat(added), (out) => {' },
+  { name: '#1349g 联系人头像池「删一条」同过闸门，且按值删不按渲染那一刻的格子序号（取回回来的读数可能比渲染时更长，拿旧 idx splice＝删错那张、或删不掉还误报成功）', file: 'js/avatar-lib.js', needle: "commitPool('avatar-lib', (lib) => {" },
+  { name: '#1349h 我的头像池同理（两个池子同一条通路，漏一个＝用户切到另一个页签就把同一件事复现出来）', file: 'js/avatar-lib.js', needle: "commitPool('avatar-me-lib', (lib) => {" },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

@@ -29,6 +29,28 @@ try { const h = new Date().getHours(); return h >= 22 || h < 7; } catch (e) { re
 function getMeLib() { try { return JSON.parse(store.get('avatar-me-lib') || '[]'); } catch (e) { return []; } }
 function saveMeLib(list) { store.set('avatar-me-lib', JSON.stringify(list)); }
 function getMeEnabled() { const v = store.get('avatar-me-lib-enabled'); return v === null ? true : v === '1'; }
+function readPool(key) {
+const v = store.get(key);
+if (v === null || v === undefined || v === '') return [];
+if (Array.isArray(v)) return v; // #950 同款：大键可能以数组形态直驻内存缓存
+try { const a = JSON.parse(v); return Array.isArray(a) ? a : []; } catch (e) { return []; }
+}
+function poolWitness(key) { try { return (window.idbBigIdxSize && window.idbBigIdxSize(key)) || 0; } catch (e) { return 0; } }
+function commitPool(key, mutate, done) {
+const settle = (next) => { if (next) store.set(key, JSON.stringify(next)); if (done) done(next || null); };
+const attempt = (tries) => {
+const cur = readPool(key);
+if (cur.length || !poolWitness(key) || !window.idbEnsureBigKey) { settle(mutate(cur)); return; }
+Promise.resolve(window.idbEnsureBigKey(key)).then((st) => {
+if (st === 'unknown') {
+if (tries < 2) { setTimeout(() => attempt(tries + 1), 1200 * (tries + 1)); return; }
+toast('头像库还在读取，请过几秒再试一次（这一次没有改动库里的头像）'); settle(null); return;
+}
+settle(mutate(readPool(key))); // 'ok'＝取回后重读；'absent'＝健康连接确认库里没有 ⇒ 空池就是权威
+}, () => { toast('头像库还在读取，请过几秒再试一次'); settle(null); });
+};
+attempt(0);
+}
 const INVIS_RE = /[\u00AD\u200B-\u200F\u202A-\u202E\u2060-\u2064\u206A-\u206F\uFEFF\u180E]/g;
 function cleanNick(s) {
 return String(s == null ? '' : s).replace(INVIS_RE, '').trim().slice(0, 30);
@@ -257,11 +279,12 @@ img.addEventListener('click', () => {
 switchAvatarFromLib(src);
 });
 delBtn.addEventListener('click', () => {
-const l = getLib();
-l.splice(idx, 1);
-saveLib(l);
-renderGrid();
-syncVal();
+commitPool('avatar-lib', (lib) => {
+const i = lib.indexOf(src);
+if (i < 0) return null;
+lib.splice(i, 1);
+return lib;
+}, () => { renderGrid(); syncVal(); });
 });
 avGrid.appendChild(d);
 });
@@ -290,10 +313,12 @@ img.addEventListener('click', () => {
 switchMyAvatarFromLib(src);
 });
 delBtn.addEventListener('click', () => {
-const l = getMeLib();
-l.splice(idx, 1);
-saveMeLib(l);
-renderMeGrid();
+commitPool('avatar-me-lib', (lib) => {
+const i = lib.indexOf(src);
+if (i < 0) return null;
+lib.splice(i, 1);
+return lib;
+}, () => { renderMeGrid(); });
 });
 avMeGrid.appendChild(d);
 });
@@ -542,8 +567,8 @@ store.set('nick-me-lib-enabled', avMeNickEnabled.checked ? '1' : '0');
 syncVal();
 });
 }
-function bindPoolUpload(btn, listFn, saveFn, rerender) {
-if (!btn) return;
+function bindPoolUpload(btn, key, rerender) {
+if (!btn || !key) return;
 const input = document.createElement('input');
 input.type = 'file'; input.accept = 'image/*'; input.multiple = true;
 input.id = (btn.id || 'avlib') + '-file-pick'; // FIX 2026-09-18 #717：常驻池选择器身份（诊断/测试句柄，按按钮唯一）
@@ -553,7 +578,7 @@ input.onchange = () => {
 const files = Array.prototype.slice.call(input.files || []);
 input.value = '';
 if (!files.length) return;
-const list = listFn();
+const added = [];
 let done = 0, okCount = 0, failCount = 0;
 if (!window.mochiImgIngest) { toast('图片处理组件没加载上（缓存过旧或离线），请重新打开页面再试'); return; }
 files.forEach(f => {
@@ -566,13 +591,14 @@ if (done === files.length) finish();
 };
 window.mochiImgIngest(f, { maxSide: 256, quality: 0.85, tag: 'avlib-pool' }).then((r) => {
 if (!r || r.st !== 'ok' || !r.data) { settle(false); return; }
-list.push(r.data);
+added.push(r.data);
 settle(true);
 });
 });
 function finish() {
-saveFn(list);
+commitPool(key, (lib) => lib.concat(added), (out) => {
 rerender();
+if (!out) return; // 闸门拦下＝库里那份没动，提示已由 commitPool 给过，这里不再报「成功」
 if (okCount > 0 && failCount === 0) {
 toast('成功添加 ' + okCount + ' 张头像');
 } else if (okCount > 0 && failCount > 0) {
@@ -580,6 +606,7 @@ toast('添加成功 ' + okCount + ' 张，失败 ' + failCount + ' 张');
 } else {
 toast('添加失败，请选择有效的图片文件');
 }
+});
 }
 };
 if (window.mochiFilePickLabel) window.mochiFilePickLabel(btn, input);
@@ -592,8 +619,8 @@ if (window.mochiFilePickGuard) window.mochiFilePickGuard(input, _fb);
 else _fb();
 });
 }
-bindPoolUpload(avUpload, getLib, saveLib, () => { renderGrid(); syncVal(); });
-bindPoolUpload(avMeUpload, getMeLib, saveMeLib, () => { renderMeGrid(); syncVal(); });
+bindPoolUpload(avUpload, 'avatar-lib', () => { renderGrid(); syncVal(); });
+bindPoolUpload(avMeUpload, 'avatar-me-lib', () => { renderMeGrid(); syncVal(); });
 function bindNickAdd(btn, listFn, saveFn, rerender) {
 if (!btn) return;
 btn.addEventListener('click', () => {
