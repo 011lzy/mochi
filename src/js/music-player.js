@@ -1189,6 +1189,19 @@
       '</div>' +
       '<div class="mail-actions"><button class="cc-tool" id="sm-local-cancel">取消</button><button class="cc-tool" id="sm-local-ok">选择文件上传</button></div>');
     document.getElementById('sm-local-cancel').addEventListener('click', () => { document.getElementById('tc-mask').hidden = true; });
+    // FIX 2026-09-27 #1348c：这颗按钮是「面板每次打开现画出来的」（上面 openTCPanel 整块重画 innerHTML）
+    // ＝#1323 那套「先丢一发点当学费、下一发才走得通」的自学层在这里结构性失效：学费那一发之后面板
+    // 已经被入口自己关掉，再开时旧层随旧按钮一起没了。iPhone 16／iOS 26 实报「点击上传后软件没有反应，
+    // 没有显示成功和失败，无变化」＝这一格从未弹过选择器。故在面板画好这一刻就把门铺上（走同一个
+    // 模具、同一个宿主、同一口径），手指第一下就落在真 file input 上。
+    // veto 必带：选「新建歌单」时这一发入口走的是 openModal 那条分支、并不请求选择器，闸会取消原生
+    // 默认动作把这一发原样交回入口（不带 veto＝文件选择器和新建歌单弹窗一起弹＝吃掉产品功能）。
+    try {
+      if (window.mochiFilePickDoor) window.mochiFilePickDoor(document.getElementById('sm-local-ok'), {
+        id: 'mochi-door-sm-local-ok', owner: 'mochi-music-local-pick',
+        accept: 'audio/*,.mp3,.m4a,.aac,.ogg,.wav,.flac', multiple: true, veto: 1,
+      });
+    } catch (eD) {}
     document.getElementById('sm-local-ok').addEventListener('click', () => {
       resolveTargetPlSel('sm-local-pl', (pid) => {
         localPlId = pid || 'default';

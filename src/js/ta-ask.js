@@ -1943,6 +1943,14 @@ function openTCPanel(title, html) {
   if (!mask || !body) return;
   if (titleEl) titleEl.textContent = title;
   body.innerHTML = html;
+  // FIX 2026-09-27 #1348a：门要赶在手指落下之前就铺好。上面这行整块重画会带走旧按钮上那张
+  // #1323 自学层，而 #1323 的补装时机是「下一次点按的 pointerdown」——同一发的 click 事件按
+  // mousedown 靶与 mouseup 靶的**最近共同祖先**重新定靶，层是 mousedown 之后才出现的，于是靶
+  // 回到按钮本身（无头实测这一族的取证环：leg:fire ＋ srf:1 ＋ fb:onscreen，一次 surf:hit 都没有）。
+  // ⇒ 「面板里现学现画的上传按钮」这一族在拒绝合成激活的内核上每一发都是死的（本地音乐导入＝
+  // iPhone 16／iOS 26 实报「点击上传后软件没有反应」；同一格在安卓 Chromium 上被 #1230 搬层腿
+  // 兜住，所以只有 iOS 用户在报）。补装时机从「点按起手」提前到「换届这一刻」，层先于手指存在。
+  if (window.mochiPickDoorSweep) { try { window.mochiPickDoorSweep(true); } catch (eS) {} }
   // v3.5.130：滚动位置复位——复用同一容器，上次滚到底会从旧偏移开始显示
   body.scrollTop = 0;
   mask.hidden = false;

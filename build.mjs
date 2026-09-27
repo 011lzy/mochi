@@ -5488,6 +5488,12 @@ const FIX_SENTINELS = [
   { name: '#1343f 无 id 的门按结构锚落盘（#1323 的 B 档要求 tgt.id＝JS 现渲的图片格子基本没 id，iOS 每回收一次页面就重交一发学费）', file: 'index.html', needle: "'fp:' + _anchor.root + '>' + (_anchor.idx || []).join('/')" },
   { name: '#1343g 补装时锚解析到别处就什么都不铺（拿猜错的格子铺门＝把别的入口变成死层，比不铺更糟）', file: 'index.html', needle: 'if (_f && !el.contains(_f)) _f = null;' },
   { name: '#1343h 台账把「命得中」与「命不中」分开数（armed 只数有盒子的层，dead 单列＝下一批不再靠猜哪扇门是假的）', file: 'index.html', needle: 'if (b && b.width && b.height) armed++; else dead++;' },
+  { name: '#1348a 面板换届这一刻就补装自学门（openTCPanel 每次打开都整块重画 innerHTML＝上一次学到的层随旧按钮一起没了；而 #1323 的补装时机是下一次点按的 pointerdown，同一发的 click 按 mousedown/mouseup 最近共同祖先重新定靶＝靶回到按钮本身、这一发仍只走合成腿。改回只在点按起手扫＝「面板里现画出来的上传按钮」这一族在拒绝合成激活的内核上每一发都是死的＝iPhone 16／iOS 26 实报「点击上传后软件没有反应，没有显示成功和失败，无变化」原样复发）', file: 'js/ta-ask.js', needle: 'if (window.mochiPickDoorSweep) { try { window.mochiPickDoorSweep(true); } catch (eS) {} }' },
+  { name: '#1348b 选图门台账第二份副本走 IDB（#1323i 那条「不落盘＝每扇门每次回收重新交一发学费」此前只兑现了一半：落盘只有 localStorage 一份，而报障这台 iPhone 诊断单写着「LS 写探针：写入失败(QuotaExceededError)」＝连 1 字节都抛，这本账在这类机器上从来没落到过盘；同一张单实测页面被回收 50 次）', file: 'index.html', needle: 'try { if (window.idbSet) window.idbSet(PICK_DOOR_KEY, s); } catch (e2) {}' },
+  { name: '#1348c LS 抛过这一场就别把内存账本当已落盘（判据＝这一发 setItem 抛没抛，与 #1335 同一把尺子；恒记 0＝看不出这本账其实没落，下一批又靠猜）', file: 'index.html', needle: '_pickDoorLsDead = 0; } catch (e) { _pickDoorLsDead = 1; }' },
+  { name: '#1348d 并回库里那份门台账时逐条按 t 取新（恒以库为权威＝把 LS 里更新的一条门记录打回去＝#1335 那一族「旧快照顶掉新值」在这本账上复发）', file: 'index.html', needle: 'if (!cur || (Number(n.t) || 0) > (Number(cur.t) || 0)) { d[k] = n; ch++; }' },
+  { name: '#1348e 回填完成后并一次库里的门台账＋事件没派发也要有一发兜底（IDB 打开是异步的而 device.js 跑在它之前；只挂事件＝回填先于注册就永远读不到第二份；只等定时＝白等一场）', file: 'index.html', needle: "document.addEventListener('mochi-restore-done', function () { pickDoorMergeIdb(); });" },
+  { name: '#1348f 本地音乐那颗面板按钮在面板画好时就铺门、且带闸（不带 veto＝选「新建歌单」那一发被文件选择器劫走＝吃掉入口自己的分支；不铺＝这一格要先到过一发学费才弹，而 iOS 那台机器根本存不下学费）', file: 'js/music-player.js', needle: "id: 'mochi-door-sm-local-ok', owner: 'mochi-music-local-pick'," },
   // ==== 2026-09-27 #1347 桌面【聊天】角标与桌面横幅按「卡片类型名白名单」挑收件（OPPO 一加12
   // PJD110／Chrome 153 桌面 PWA 实报「主动发的消息在桌面消息（软件内部的消息）弹出有问题，主动发的
   // 消息桌面的【聊天】角标会不显示数字」＋「其他设备型号也有出现，不要覆盖式修补」）====

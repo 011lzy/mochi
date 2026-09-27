@@ -4552,15 +4552,54 @@ function pickDoorLoad() {
   return _pickDoors;
 }
 var _pickDoorSaveT = 0;
+var _pickDoorLsDead = 0; // 1＝LS 这一发落不下去，台账只活在内存里（每次页面回收清零）
+// FIX 2026-09-27 #1348b：#1323i 那条「不落盘＝每扇门每次回收重新交一发学费」此前只兑现了一半——
+// 落盘只有 localStorage 一份副本，而报障这台 iPhone 的诊断单写着「LS 写探针：写入失败
+// (QuotaExceededError)」（整域 6.1MB，连 1 字节探针都抛）。这台机器上每一次写都静默抛掉，
+// 台账于是仍旧只有内存那一份；iOS 又每隔几分钟回收一次页面（同一张单实测回收 50 次）＝
+// 「自学」在这些机器上永远从头再来。判据与 #1335 同一把尺子＝**这一发 setItem 抛没抛**，
+// 抛过的这一场不再把内存账本当作已经落盘，改由 IDB 那份兜住（零机型／零 UA 分支）。
+function pickDoorSave() {
+  var s = '';
+  try { s = JSON.stringify(_pickDoors || {}); } catch (e0) { return; }
+  try { localStorage.setItem(PICK_DOOR_KEY, s); _pickDoorLsDead = 0; } catch (e) { _pickDoorLsDead = 1; }
+  try { if (window.idbSet) window.idbSet(PICK_DOOR_KEY, s); } catch (e2) {}
+}
 function pickDoorDirty() {
   try {
     if (_pickDoorSaveT) return;
     _pickDoorSaveT = setTimeout(function () {
       _pickDoorSaveT = 0;
-      try { localStorage.setItem(PICK_DOOR_KEY, JSON.stringify(_pickDoors || {})); } catch (e) {}
+      pickDoorSave();
     }, 600);
   } catch (e2) {}
 }
+// 起手把库里那份并回来：逐条按 t 取新，绝不让库里那份盖掉 LS 里更新的一条（#1335 同一口径）。
+function pickDoorMergeIdb() {
+  try {
+    if (!window.idbGet) return;
+    Promise.resolve(window.idbGet(PICK_DOOR_KEY)).then(function (raw) {
+      if (!raw) return;
+      var o = raw;
+      try { if (typeof raw === 'string') o = JSON.parse(raw); } catch (eP) { return; }
+      if (!o || typeof o !== 'object' || Array.isArray(o)) return;
+      var d = pickDoorLoad(), ch = 0;
+      Object.keys(o).forEach(function (k) {
+        var n = o[k], cur = d[k];
+        if (!n || typeof n !== 'object') return;
+        if (!cur || (Number(n.t) || 0) > (Number(cur.t) || 0)) { d[k] = n; ch++; }
+      });
+      if (!ch && !_pickDoorLsDead) return;
+      pickDoorTrim(d);
+      if (_pickDoorLsDead) pickDoorDirty(); // LS 那份本来就是空的＝把库里读到的补回 LS 写得进的那台机器
+      if (window.mochiPickDoorSweep) window.mochiPickDoorSweep(true);
+    }).catch(function () {});
+  } catch (e) {}
+}
+try {
+  document.addEventListener('mochi-restore-done', function () { pickDoorMergeIdb(); });
+  setTimeout(pickDoorMergeIdb, 2500); // 回填事件没派发（首装／无 IDB）也要有一发，两路都只在 t 上取新
+} catch (eM) {}
 function pickDoorTrim(d) {
   try {
     var ks = Object.keys(d || {});

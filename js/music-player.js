@@ -925,6 +925,12 @@ window.openTCPanel('添加本地音乐', '' +
 '</div>' +
 '<div class="mail-actions"><button class="cc-tool" id="sm-local-cancel">取消</button><button class="cc-tool" id="sm-local-ok">选择文件上传</button></div>');
 document.getElementById('sm-local-cancel').addEventListener('click', () => { document.getElementById('tc-mask').hidden = true; });
+try {
+if (window.mochiFilePickDoor) window.mochiFilePickDoor(document.getElementById('sm-local-ok'), {
+id: 'mochi-door-sm-local-ok', owner: 'mochi-music-local-pick',
+accept: 'audio/*,.mp3,.m4a,.aac,.ogg,.wav,.flac', multiple: true, veto: 1,
+});
+} catch (eD) {}
 document.getElementById('sm-local-ok').addEventListener('click', () => {
 resolveTargetPlSel('sm-local-pl', (pid) => {
 localPlId = pid || 'default';

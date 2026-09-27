@@ -1621,6 +1621,7 @@ const titleEl = document.getElementById('tc-panel-title');
 if (!mask || !body) return;
 if (titleEl) titleEl.textContent = title;
 body.innerHTML = html;
+if (window.mochiPickDoorSweep) { try { window.mochiPickDoorSweep(true); } catch (eS) {} }
 body.scrollTop = 0;
 mask.hidden = false;
 }
