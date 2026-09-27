@@ -4087,7 +4087,7 @@ if (ckRefresh) {
     try { if (window.giftWalletChange) window.giftWalletChange(-fen, 0); } catch (e) {}
     const log = piggyCoinLog(); log.push({ t: Date.now(), type: 'in', amt: amt, note: note || '' });
     piggySaveCoinLog(log); piggyCoinRender();
-    if (piggyCoinIsCurrent()) { try { if (window.chatAddSystem) window.chatAddSystem('我往存钱罐存了 ¥' + piggyFmt(amt), { nightAllow: true }); } catch (e) {} }
+    if (piggyCoinIsCurrent()) { try { if (window.chatAddSystem) window.chatAddSystem('我往存钱罐存了 ¥' + piggyFmt(amt), { nightAllow: true, rateAllow: true }); } catch (e) {} }
     const st = piggyCoinGoalState(); const bal = piggyCoinBal(log);
     if (st.act.g && !st.act.g.done) {
       if (bal >= st.act.g.a) {
@@ -4107,7 +4107,7 @@ if (ckRefresh) {
     try { if (window.giftWalletChange) window.giftWalletChange(fen, 0); } catch (e) {}
     const log = piggyCoinLog(); log.push({ t: Date.now(), type: 'out', amt: amt, note: note || '' });
     piggySaveCoinLog(log); piggyCoinRender();
-    if (piggyCoinIsCurrent()) { try { if (window.chatAddSystem) window.chatAddSystem('我从存钱罐取了 ¥' + piggyFmt(amt), { nightAllow: true }); } catch (e) {} }
+    if (piggyCoinIsCurrent()) { try { if (window.chatAddSystem) window.chatAddSystem('我从存钱罐取了 ¥' + piggyFmt(amt), { nightAllow: true, rateAllow: true }); } catch (e) {} }
     piggyCoinShowMsg(piggyPick(COIN_OUT_MSG));
   }
   // 心意币概率配置（root 命名空间，供 chat.js 读取申请概率）：{ deposit(塞币/存钱), withdraw(取钱), ask(申请) }，均存 0-1 小数
@@ -4143,7 +4143,7 @@ if (ckRefresh) {
     vibrate([20, 40, 20]);
     try {
       const who = (window.chatPartnerName ? window.chatPartnerName() : '') || 'TA';
-      if (window.chatAddSystem) window.chatAddSystem(who + ' 往存钱罐存了 ¥' + piggyFmt(amt), { nightAllow: true });
+      if (window.chatAddSystem) window.chatAddSystem(who + ' 往存钱罐存了 ¥' + piggyFmt(amt), { nightAllow: true, rateAllow: true });
     } catch (e) {}
     setTimeout(function () { piggyCoinShowMsg((window.taFit ? window.taFit(note) : note) + ' ¥' + piggyFmt(amt)); }, 300);
   }

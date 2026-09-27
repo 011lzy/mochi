@@ -3603,7 +3603,7 @@ const fen = Math.round(amt * 100);
 try { if (window.giftWalletChange) window.giftWalletChange(-fen, 0); } catch (e) {}
 const log = piggyCoinLog(); log.push({ t: Date.now(), type: 'in', amt: amt, note: note || '' });
 piggySaveCoinLog(log); piggyCoinRender();
-if (piggyCoinIsCurrent()) { try { if (window.chatAddSystem) window.chatAddSystem('我往存钱罐存了 ¥' + piggyFmt(amt), { nightAllow: true }); } catch (e) {} }
+if (piggyCoinIsCurrent()) { try { if (window.chatAddSystem) window.chatAddSystem('我往存钱罐存了 ¥' + piggyFmt(amt), { nightAllow: true, rateAllow: true }); } catch (e) {} }
 const st = piggyCoinGoalState(); const bal = piggyCoinBal(log);
 if (st.act.g && !st.act.g.done) {
 if (bal >= st.act.g.a) {
@@ -3622,7 +3622,7 @@ const fen = Math.round(amt * 100);
 try { if (window.giftWalletChange) window.giftWalletChange(fen, 0); } catch (e) {}
 const log = piggyCoinLog(); log.push({ t: Date.now(), type: 'out', amt: amt, note: note || '' });
 piggySaveCoinLog(log); piggyCoinRender();
-if (piggyCoinIsCurrent()) { try { if (window.chatAddSystem) window.chatAddSystem('我从存钱罐取了 ¥' + piggyFmt(amt), { nightAllow: true }); } catch (e) {} }
+if (piggyCoinIsCurrent()) { try { if (window.chatAddSystem) window.chatAddSystem('我从存钱罐取了 ¥' + piggyFmt(amt), { nightAllow: true, rateAllow: true }); } catch (e) {} }
 piggyCoinShowMsg(piggyPick(COIN_OUT_MSG));
 }
 function piggyCoinProbGet() {
@@ -3652,7 +3652,7 @@ piggySaveCoinLog(log); piggyCoinRender();
 vibrate([20, 40, 20]);
 try {
 const who = (window.chatPartnerName ? window.chatPartnerName() : '') || 'TA';
-if (window.chatAddSystem) window.chatAddSystem(who + ' 往存钱罐存了 ¥' + piggyFmt(amt), { nightAllow: true });
+if (window.chatAddSystem) window.chatAddSystem(who + ' 往存钱罐存了 ¥' + piggyFmt(amt), { nightAllow: true, rateAllow: true });
 } catch (e) {}
 setTimeout(function () { piggyCoinShowMsg((window.taFit ? window.taFit(note) : note) + ' ¥' + piggyFmt(amt)); }, 300);
 }

@@ -814,6 +814,7 @@ function taWishMarkSeen() { try { const s = store(); if (s) s.set(WL_TA_SEEN_KEY
 function wishChatPush(gift) {
 try {
 if (!gift || !gift.id || !window.chatAddGift) return false;
+if (window.chatRateLimitFull && window.chatRateLimitFull()) return false;
 const wishText = '想要「' + (gift.name || '这个') + '」';
 window.chatAddGift({
 side: 'in', special: 'wish',
@@ -1013,7 +1014,7 @@ const w = walletGet();
 if (side === 'out') { w.myBalance -= priceFen; }
 else { w.systemBalance -= priceFen; }
 walletSet(w);
-const rec = { side: side, special: 'gift', giftId: gift.id, giftName: gift.name, giftEmoji: gift.emoji, giftImg: gift.img || '', giftPrice: gift.price, giftWish: wish, giftCat: gift.cat, ts: Date.now() };
+const rec = { side: side, special: 'gift', rateAllow: true, giftId: gift.id, giftName: gift.name, giftEmoji: gift.emoji, giftImg: gift.img || '', giftPrice: gift.price, giftWish: wish, giftCat: gift.cat, ts: Date.now() };
 const entry = recordBox(gift, side, wish);
 if (entry && entry.id) rec.giftBoxId = entry.id;
 if (window.chatAddGift) window.chatAddGift(rec); else if (window.chatAddIn) window.chatAddIn('', { special: 'gift' });
@@ -1028,7 +1029,7 @@ function dayIncr(prefix) { const s = store(); if (s) s.set(prefix + todayKey(), 
 function deliverInGift(cid, gift, wish, delayMs) {
 setTimeout(function () {
 try {
-const rec = { side: 'in', special: 'gift', giftId: gift.id, giftName: gift.name, giftEmoji: gift.emoji, giftImg: gift.img || '', giftPrice: gift.price, giftWish: wish, giftCat: gift.cat, ts: Date.now() };
+const rec = { side: 'in', special: 'gift', rateAllow: true, giftId: gift.id, giftName: gift.name, giftEmoji: gift.emoji, giftImg: gift.img || '', giftPrice: gift.price, giftWish: wish, giftCat: gift.cat, ts: Date.now() };
 if ((window.__activeCid || 'default') === cid) {
 const entry = recordBox(gift, 'in', wish);
 if (entry && entry.id) rec.giftBoxId = entry.id;
@@ -1049,6 +1050,7 @@ const myCid = window.__activeCid || 'default';
 const giftCapped = dayCount(AUTO_DAILY_PREFIX) >= 3;
 const selfCapped = dayCount(SELF_DAILY_PREFIX) >= 3;
 const gifts = giftsLoad(); if (!gifts.length) return;
+if (window.chatRateLimitFull && window.chatRateLimitFull()) return;
 if (st.wlOn && st.giftInOn && !giftCapped) {
 const myWl = wishLoad(WL_MY_KEY);
 if (myWl.length && Math.random() * 100 < st.wlBuyPct) {
@@ -1069,7 +1071,7 @@ const wish0 = gift0.wish || '送给自己';
 w0.systemBalance -= Math.round((gift0.price || 0) * 100); walletSet(w0);
 dayIncr(SELF_DAILY_PREFIX);
 setTimeout(function () {
-const chatRec = { side: 'in', special: 'gift', giftId: gift0.id, giftName: gift0.name, giftEmoji: gift0.emoji, giftImg: gift0.img || '', giftPrice: gift0.price, giftWish: wish0, giftCat: gift0.cat, giftSelf: 1, ts: Date.now() };
+const chatRec = { side: 'in', special: 'gift', rateAllow: true, giftId: gift0.id, giftName: gift0.name, giftEmoji: gift0.emoji, giftImg: gift0.img || '', giftPrice: gift0.price, giftWish: wish0, giftCat: gift0.cat, giftSelf: 1, ts: Date.now() };
 if ((window.__activeCid || 'default') === myCid) {
 const entrySelf = recordBox(gift0, 'self', wish0);
 if (entrySelf && entrySelf.id) chatRec.giftBoxId = entrySelf.id; // #985：卡片与心意柜互指（同 buyAndSend）

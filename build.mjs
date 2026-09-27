@@ -1677,10 +1677,10 @@ const FIX_SENTINELS = [
   { name: '#1023a 单聊「继续说」置一次性跟底标记（删＝上翻态点继续说后 TA 回复落在视口下方不滑过来＝报障复发）', file: 'js/chat.js', needle: 'chatUserFollowScroll = true; // #1023' },
   { name: '#1023b 群聊投递出口收 forceFollow 并透传 followGcBottom（删＝群聊侧强制贴底失效）', file: 'js/group-chat.js', needle: 'followGcBottom(!!forceFollow);' },
   { name: '#1023c 群聊成员回复把 continuation 带进投递（删＝群聊侧强制贴底永不触发）', file: 'js/group-chat.js', needle: "const myIdx = gcDeliverReply(gid, rec, 'in', continuation);" },
-  { name: '#492 帮我决定结果发送接 follow 通道（删则发到聊天后不滑到最新复发；#544 该行追加 dedupExempt，锚点随契约同步）', file: 'js/decision.js', needle: 'window.chatAddIn(replyText, { enter: true, silent: true, follow: true, dedupExempt: true, nightAllow: true }); // FIX 2026-09-15 #492 帮我决定结果' },
+  { name: '#492 帮我决定结果发送接 follow 通道（删则发到聊天后不滑到最新复发；#544 该行追加 dedupExempt，锚点随契约同步）', file: 'js/decision.js', needle: 'window.chatAddIn(replyText, { enter: true, silent: true, follow: true, dedupExempt: true, rateAllow: true, nightAllow: true }); // FIX 2026-09-15 #492 帮我决定结果' },
   // ==== 2026-09-17 拍一拍发出后不自动滑到最新消息（用户报）：sendPoke 是用户主动触发的 in 侧消息，置 #492 同款 chatUserFollowScroll 一次性跟底标记；TA 自发消息与 TA 回拍不受影响 ====
-  { name: '拍一拍发出跟底标记（删则上翻历史后发拍一拍不自动滑到最新复发；#876 该行追加 nightAllow 夜间放行标记，needle 随之换锚）', file: 'js/chat.js', needle: "chatUserFollowScroll = true;\naddRec({ side: 'in', text: text, special: 'poke', nightAllow: true });" },
-  { name: '#492 多人决定结果发送接 follow 通道（删则发到聊天后不滑到最新复发；#544 该行追加 dedupExempt，锚点随契约同步）', file: 'js/group-decision.js', needle: 'window.chatAddIn(replyText, { enter: true, silent: true, follow: true, dedupExempt: true, nightAllow: true }); // FIX 2026-09-15 #492 多人决定结果' },
+  { name: '拍一拍发出跟底标记（删则上翻历史后发拍一拍不自动滑到最新复发；#876 该行追加 nightAllow 夜间放行标记，needle 随之换锚）', file: 'js/chat.js', needle: "chatUserFollowScroll = true;\naddRec({ side: 'in', text: text, special: 'poke', rateAllow: true, nightAllow: true });" },
+  { name: '#492 多人决定结果发送接 follow 通道（删则发到聊天后不滑到最新复发；#544 该行追加 dedupExempt，锚点随契约同步）', file: 'js/group-decision.js', needle: 'window.chatAddIn(replyText, { enter: true, silent: true, follow: true, dedupExempt: true, rateAllow: true, nightAllow: true }); // FIX 2026-09-15 #492 多人决定结果' },
   { name: '#378/#416 单聊手动滚回贴底回钉（解钉后自动跟底可恢复；#416 起只认真的贴到底 ≤8px，防上翻读最新时误回钉拽底；2026-09-18 随 #716d 手势闸演进，锚收到未变的 ≤8px 判定本体，回钉调用点锚归 #716d）', file: 'js/chat.js', needle: 'cb.clientHeight <= 8;' },
   { name: '#378 单聊轻点不杀跟底（位移<10px 且贴底=回钉，点气泡不再永久解钉）', file: 'js/chat.js', needle: 'const dy = Math.abs(e.changedTouches[0].clientY - chatUnpinTsY);' },
   { name: '#378 群聊跟底闸改按接管标记（同单聊距离闸问题）', file: 'js/group-chat.js', needle: 'if (!force && gcUserGcScrollTouched) return;' },
@@ -2515,8 +2515,8 @@ const FIX_SENTINELS = [
   // TA 批次防同款去重与 out 侧 #437 反馈零改动。行为断言 tools/verify-decision-dedup-exempt.mjs（修前产物 RED 1/5＝症状复现） ====
   { name: '#544 addRec 实时去重豁免闸（删则决定答案快速重跑同文撞 2500ms 窗被静默吞＝「联系人消息被吞了几条」复发）', file: 'js/chat.js', needle: 'i >= Math.max(0, len - 5) && !rec.dedupExempt' },
   { name: '#544 刷新归一化豁免（normCollapseRange，删则刷新后带标记答案仍会被相邻合并回吞＝屏上所见≠刷新后所见）', file: 'js/chat.js', needle: 'if (a.dedupExempt || b.dedupExempt) continue; // FIX 2026-09-15 #544' },
-  { name: '#544 帮我决定答案带豁免标记发送（删则决策结果重新裸奔进去重窗＝吞答案复发）', file: 'js/decision.js', needle: '{ enter: true, silent: true, follow: true, dedupExempt: true, nightAllow: true }); // FIX 2026-09-15 #492 帮我决定结果' },
-  { name: '#544 多人决定答案带豁免标记发送（删则决策结果重新裸奔进去重窗＝吞答案复发）', file: 'js/group-decision.js', needle: '{ enter: true, silent: true, follow: true, dedupExempt: true, nightAllow: true }); // FIX 2026-09-15 #492 多人决定结果' },
+  { name: '#544 帮我决定答案带豁免标记发送（删则决策结果重新裸奔进去重窗＝吞答案复发）', file: 'js/decision.js', needle: '{ enter: true, silent: true, follow: true, dedupExempt: true, rateAllow: true, nightAllow: true }); // FIX 2026-09-15 #492 帮我决定结果' },
+  { name: '#544 多人决定答案带豁免标记发送（删则决策结果重新裸奔进去重窗＝吞答案复发）', file: 'js/group-decision.js', needle: '{ enter: true, silent: true, follow: true, dedupExempt: true, rateAllow: true, nightAllow: true }); // FIX 2026-09-15 #492 多人决定结果' },
   // ==== 2026-09-16 #547 表情包面板「每次打开都重新加载」复发 + 拍卖会页面显示不全（小米15Pro Chrome 等多机型同发，用户明说其他设备型号也有）：
   // ①表情面板：#457 内容指纹短路被「令牌化翻转」废掉——池视图卡被 ccTokenizeGiantMedia 异步令牌化
   //  （dataURL→@@m:token）后原文变了、显示没变，按原文签名误判内容变化→整面板 innerHTML 重建+全部图
@@ -2957,7 +2957,7 @@ const FIX_SENTINELS = [
   { name: '#673 过渡期运营判定探针 transitionBlocks（删掉＝回归脚本测不到「过渡期内全新消息放行/重放拦截」，跨机型回归失守）', file: 'js/bg-keep.js', needle: 'transitionBlocks: transitionBlocks,' },
   // ==== 2026-09-17 音乐互动台词静默通道（用户报障 vivo iQOO Z9x Edge 等多机型「播放导入的本地歌时出现消息
   //     提示音、音乐没法正常听」；与后台弹窗 #673 撞编号，本批即该音乐 #673 的哨兵，接在后台 #673 块之后）====
-  { name: '音乐互动台词静默通道·chatAddSystem 带 silent（删掉＝音乐互动系统消息重回响铃通道，听歌时每掷中一次概率就响一次提示音盖在音乐上复发；needle 唯一于 music-player.js 的 taMusicSys）', file: 'js/music-player.js', needle: 'window.chatAddSystem(text, { silent: true, nightAllow: true })' },
+  { name: '音乐互动台词静默通道·chatAddSystem 带 silent（删掉＝音乐互动系统消息重回响铃通道，听歌时每掷中一次概率就响一次提示音盖在音乐上复发；needle 唯一于 music-player.js 的 taMusicSys）', file: 'js/music-player.js', needle: 'window.chatAddSystem(text, { silent: true, rateAllow: byUser === true, nightAllow: true })' },
   { name: '音乐互动台词静默通道·chatAddIn 带 silent（删掉＝「TA 暂停播放/恢复播放」字卡重回响铃通道，听歌时被消息提示音盖住复发；needle 唯一于 music-player.js 的 taMusicSay）', file: 'js/music-player.js', needle: 'window.chatAddIn(text, { silent: true })' },
   { name: '音乐互动台词静默·chatAddSystem 透传 silent：true（删掉＝调用方传的 silent 被就地吞掉，上面两条静默通道全部失效＝听歌提示音复发；needle 唯一于 chat.js 的 chatAddSystem）', file: 'js/chat.js', needle: "special: opts.special || 'poke', silent: opts.silent," },
   { name: '音乐互动静默·TA 暂停交互被用户介入打断也要记账（删掉＝用户点播放打断 TA 暂停后同歌/下一首还能再掷中＝「不管点哪首歌一播放就被打断、还响一声提示音」复发；needle 唯一于 music-player.js 的 cancelTaPause）', file: 'js/music-player.js', needle: 'if (taPauseActive && taPauseFiredId) bookTaPauseFired(taPauseFiredId);' },
@@ -4880,15 +4880,33 @@ const FIX_SENTINELS = [
   { name: '#1151b 入场动画只在聊天页可见时挂（退回隐藏态挂类＝攒成回场一帧集体弹，且摘类接线被拆回原地 add 时本行必消失。#1181a 在同一行尾部追加了 !document.hidden 后台闸，原整行 needle 不再逐字存在——按「换锚而非删除」把 needle 收到该行前段：摘掉 chatVisible() 可见性闸即红）', file: 'js/chat.js', needle: '!batchRendering && chatVisible() && !document.hidden' },
   { name: '#1151c 回聊天页时把窗口内在重播的一次性 CSS 动画直接落终态（摘类只治 .msg-enter，挂在身份类上的 rpsFadeIn/flowerFloat/msg-flash 摘不得；删掉本行＝「退出聊天回桌面再进、或从聊天设置返回」时的重播弹闪复发）', file: 'js/chat.js', needle: 'try { a.finish(); n++; } catch (e) {}' },
   // ==== 2026-09-23 #1180 TA 消息总量限流（用户直派「回复条数只管基础回复，撤回补发/逐卡连发/心情分享/红包捎话/主动发送全都绕过上限，怎么限制」；默认关闭）====
-  { name: '#1180a 限流闸接在 addRec（删掉＝不过 addIn 的入口如 chatAddGift 完全绕开限流，总量闸漏一半）', file: 'js/chat.js', needle: "if (rateBlocksIn(rec.side, rec.special, rec.nightAllow)) return null;" },
-  { name: '#1180b 限流闸同样接在 addIn 音效之前（只留 addRec 那道＝超额消息「响一声却没有气泡」，#1015 夜间闸同族教训）', file: 'js/chat.js', needle: "if (rateBlocksIn('in', opts.special, opts.nightAllow)) return null;" },
-  { name: '#1180c 额度满时不再演「对方正在输入」（删掉＝超额期间每条都变成「打了字又没发出来」）', file: 'js/chat.js', needle: 'if (rateLimitFull()) return;' },
+  { name: '#1180a 限流闸接在 addRec（删掉＝不过 addIn 的入口如 chatAddGift 完全绕开限流，总量闸漏一半）', file: 'js/chat.js', needle: "if (rateBlocksIn(rec)) return null;" },
+  { name: '#1180b 限流闸同样接在 addIn 音效之前（只留 addRec 那道＝超额消息「响一声却没有气泡」，#1015 夜间闸同族教训）', file: 'js/chat.js', needle: "if (rateBlocksIn({ side: 'in', special: opts.special, rateAllow: opts.rateAllow })) return null;" },
+  { name: '#1180c 额度满时不再演「对方正在输入」（删掉＝超额期间每条都变成「打了字又没发出来」）', file: 'js/chat.js', needle: 'if (rateLimitFull() && !rlReserveAvailable()) return;' },
   { name: '#1180d 按 msgs 里 in 侧收件在窗口内计数判额（把 return true 改掉/删掉＝限流永不触发，开关白开）', file: 'js/chat.js', needle: 'if (++n >= max) return true;' },
   { name: '#1180e 限流三个键的默认值行（不登记＝rl-en 永不进 getCfg，开关初值恒空、rl-win/rl-max 读不到兜底值）', file: 'js/reply-settings.js', needle: "'rl-en': 0, 'rl-win': 5, 'rl-max': 15," },
   { name: '#1180f 回复设置·聊天「总量限流」开关行在位（删掉＝用户没有入口打开本功能，功能等于不存在）', file: 'template.html', needle: 'id="rl-en"' },
   { name: '#1180g 「为什么比设的还多」说明指向限流出口（删掉＝用户读完仍不知道只有总量限流能管住这些额外多发，#869 同族报障复发）', file: 'template.html', needle: '想让上面这些一起被管住，打开本面板下方「总量限流」' },
   { name: '#1180h 开屏公告新增「关于 TA 发消息太多」一章（离线兜底源；删＝用户找不到「回复条数管不住这些」的官方解释）', file: 'template.html', needle: '>关于 TA 发消息太多（「回复条数」为什么管不住，以及新增的总量限流）</p>' },
   { name: '#1180i 在线权威源同口径一章（删＝联网用户只看到旧章节，两份必须同改）', file: 'pwa/notice.json', needle: '"h": "关于 TA 发消息太多' },
+  // ==== 2026-09-27 #1341 复核 #1180 四处口径（用户「帮我检查这个功能有没有用、会不会导致无法正常聊天」→「同意，按建议修复这四个问题」）：
+  //      ① 限流与 #1015 夜间闸的豁免位拆成两把钥匙（旧写法共用 nightAllow＝带它的 TA 自发内容既不占额度也拦不住，与设置页文案不符）；
+  //      ② 额度满时仍给「你刚说过的那句话」留一条保底回应（旧行为＝只剩已读回执＝用户视角「发消息给已读不回」）；
+  //      ③ 扣款/记账发生在投递之前的三类 TA 自发机制（自动红包／自动申请心意币／自动送礼）在源头先看额度，钱已动的卡片带 rateAllow 必落；
+  //      ④ 心愿卡投递结果不再谎报成功。判据一律零机型／零 UA 分支。====
+  { name: '#1341a 限流豁免位独立于夜间闸（退回共用 nightAllow＝经期关心/音乐台词这类 TA 自发内容永远不占额度、也拦不住，文案继续说谎）', file: 'js/chat.js', needle: "function rlExempt(p) { return !!p && (p.rateAllow === true || p.special === 'read'); }" },
+  { name: '#1341b 限流计数按 rateAllow/已读回执豁免（改回 p.nightAllow＝①的拆位在计数侧失效，豁免面又变大）', file: 'js/chat.js', needle: "if (!p || (p.side || '') !== 'in' || rlExempt(p)) continue;" },
+  { name: '#1341c 保底判据：你刚说过话且这一发还没用过（删掉本行＝额度满时 TA 对你彻底静音一整个窗口）', file: 'js/chat.js', needle: 'return !!rlUserSpokeAt && rlReserveFor !== rlUserSpokeAt && Date.now() - rlUserSpokeAt <= RL_REPLY_GRACE_MS;' },
+  { name: '#1341d 保底只在真落进 msgs 那一刻烧掉（写成立即烧＝被去重闸退回也烧＝整窗口再没有保底；删掉整行＝同一发可以反复吃保底）', file: 'js/chat.js', needle: 'if (rec.rlReserveUsed) rlReserveFor = rlUserSpokeAt;' },
+  { name: '#1341e 你自己发消息那一刻盖章（out 侧唯一收口＝addRec；删掉＝保底永不自用，回到「已读不回」）', file: 'js/chat.js', needle: "if ((rec.side || '') === 'out') rlUserSpokeAt = Date.now();" },
+  { name: '#1341f TA 自动红包在扣款前先看额度（同 #1015 那行「须在入账前拦」口径；删＝额度满时钱照扣、红包卡被闸吞掉＝心意币凭空消失）', file: 'js/chat.js', needle: 'if (rateLimitFull()) return; // #1341：同一条口径补到总量限流' },
+  { name: '#1341g TA 自动申请心意币在入账前先看额度（删＝askDailyIncr 与 systemBalance 都动了而卡片没上屏）', file: 'js/chat.js', needle: 'if (rateLimitFull()) return; // #1341：同口径补到总量限流——askDailyIncr' },
+  { name: '#1341h 已扣钱的红包卡带限流豁免（源头早退之后的兜底：0.8~2s 投递窗里额度刚满时这张卡仍要落）', file: 'js/chat.js', needle: "addIn('', { special: 'redpacket', rateAllow: true," },
+  { name: '#1341i 自动送礼整轮在扣款前先看额度（gift-shop 的①②④与加心愿同链；删＝钱花了、心愿空了、聊天与心意柜零新增，#585 同族现场）', file: 'js/gift-shop.js', needle: 'if (window.chatRateLimitFull && window.chatRateLimitFull()) return;' },
+  { name: '#1341j 心愿卡投递如实回报成败（旧写法无论投递成败都 return true＝卡片被拦时那份回落提示也跟着被吞，用户既看不见卡也不知道 TA 许了愿）', file: 'js/gift-shop.js', needle: 'if (window.chatRateLimitFull && window.chatRateLimitFull()) return false;' },
+  { name: '#1341k 限流探针只读导出（③ 的跨文件那一半；删＝gift-shop 只能照旧盲发）', file: 'js/chat.js', needle: 'window.chatRateLimitFull = rateLimitFull;' },
+  { name: '#1341l chatAddSystem 白名单透传 rateAllow（#673/#1015 同族教训：不透传＝调用方写的豁免被本函数白名单就地吞掉）', file: 'js/chat.js', needle: 'opts.rateAllow = opts.rateAllow === true;' },
+  { name: '#1341m 设置页文案补三条例外口径（删＝用户按旧文案「谁也不豁免」理解，遇到保底回应/跨桌面补投反而以为功能失灵）', file: 'template.html', needle: '③<b>你刚说过话</b>' },
   { name: '#1161a 壁纸模糊烘焙画布在位（删＝回到「运行时全屏 filter:blur 照片纹理」老路，滑动暂停/恢复整幅重栅格化＝vivo X200s/Edge 实报「背景模糊闪失几秒」复发；本行为烘焙画布白底行，块被整删必随删）', file: 'js/personalize.js', needle: "g.fillStyle = '#ffffff'; g.fillRect(0, 0, cw, ch);" },
   { name: '#1161b applyBgBlur 收进烘焙漏斗（删/改回本地 toggle 类＝「滑杆只挂滤镜」旧机制回流，闪失复发；deskBlurPx 赋值行是该漏斗的唯一接线，滑杆联动失效前必先消失）', file: 'js/personalize.js', needle: 'deskBlurPx = px;' },
   { name: '#1161c 图层显示哪份纹理由烘焙状态裁决（删＝烘好的小纹理永远不铺或原图直铺无兜底，任一方向都破坏「不闪清晰裸图」语义）', file: 'js/personalize.js', needle: 'paintBgLayerImage(deskBlurReady() ? deskBlurBaked : deskWallSrc);' },

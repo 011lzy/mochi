@@ -971,6 +971,11 @@
   function wishChatPush(gift) {
     try {
       if (!gift || !gift.id || !window.chatAddGift) return false;
+      // #1341（复核 #1180）：本函数对调用方承诺的是「卡片真的发出去了」——旧写法无论投递成败都
+      // return true，于是被限流闸拦掉时那份「TA 把 X 加进了心愿单」的回落提示也跟着被吞＝用户既
+      // 看不见卡也不知道 TA 许了愿。开闸时先问额度（同一同步 tick，判据不会漂），没额度就返回
+      // false，让调用方照旧给提示。
+      if (window.chatRateLimitFull && window.chatRateLimitFull()) return false;
       const wishText = '想要「' + (gift.name || '这个') + '」';
       window.chatAddGift({
         side: 'in', special: 'wish',
@@ -1226,7 +1231,7 @@
     if (side === 'out') { w.myBalance -= priceFen; }
     else { w.systemBalance -= priceFen; }
     walletSet(w);
-    const rec = { side: side, special: 'gift', giftId: gift.id, giftName: gift.name, giftEmoji: gift.emoji, giftImg: gift.img || '', giftPrice: gift.price, giftWish: wish, giftCat: gift.cat, ts: Date.now() };
+    const rec = { side: side, special: 'gift', rateAllow: true, giftId: gift.id, giftName: gift.name, giftEmoji: gift.emoji, giftImg: gift.img || '', giftPrice: gift.price, giftWish: wish, giftCat: gift.cat, ts: Date.now() };
     // #985：先落心意柜记录再发卡片，并把记录 id 写进卡片——两处靠 giftBoxId 互指（卡片上追加的
     // 回复要同步到心意柜那件礼物，反之亦然）
     const entry = recordBox(gift, side, wish);
@@ -1262,7 +1267,7 @@
         // 心意柜记录里**（单一事实源，见 giftGiftMeta 的注释），卡片渲染时按这个 id 查。礼物本身
         // 照旧立刻进心意柜：用户选定「数据不丢＋状态仪式」，没点领取只是卡片/柜子上标「待领取」，
         // 绝不因为没点而丢礼物。
-        const rec = { side: 'in', special: 'gift', giftId: gift.id, giftName: gift.name, giftEmoji: gift.emoji, giftImg: gift.img || '', giftPrice: gift.price, giftWish: wish, giftCat: gift.cat, ts: Date.now() };
+        const rec = { side: 'in', special: 'gift', rateAllow: true, giftId: gift.id, giftName: gift.name, giftEmoji: gift.emoji, giftImg: gift.img || '', giftPrice: gift.price, giftWish: wish, giftCat: gift.cat, ts: Date.now() };
         if ((window.__activeCid || 'default') === cid) {
           const entry = recordBox(gift, 'in', wish);
           if (entry && entry.id) rec.giftBoxId = entry.id;
@@ -1290,6 +1295,10 @@
     const giftCapped = dayCount(AUTO_DAILY_PREFIX) >= 3;
     const selfCapped = dayCount(SELF_DAILY_PREFIX) >= 3;
     const gifts = giftsLoad(); if (!gifts.length) return;
+    // #1341（复核 #1180）：与上面那道夜间闸同一条口径——①②④ 的扣款、占额度与「把 TA 的心愿从清单里
+    // 消费掉」都发生在投递之前，额度满时整轮不生成；放在总闸那一侧拦，落下来的就是 #585 当年量过的
+    // 现场：「钱花了、心愿单空了、额度占了，礼物却既没进聊天也没进心意柜」。
+    if (window.chatRateLimitFull && window.chatRateLimitFull()) return;
     // ① 心愿单兑现：TA 买下我心愿单里的礼物送我（扣 TA 余额；先移除心愿防连击重复买）
     if (st.wlOn && st.giftInOn && !giftCapped) {
       const myWl = wishLoad(WL_MY_KEY);
@@ -1315,7 +1324,7 @@
       setTimeout(function () {
         // selfChatOn（用户 2026-09-21 要求，默认开）：TA 给自己买的礼物也发一张礼物卡到聊天，
         // 带 giftSelf 标记让 chat.js 渲染成「XX 自己买的」；心意柜记录不变（仍进 TA 自己买的）。
-        const chatRec = { side: 'in', special: 'gift', giftId: gift0.id, giftName: gift0.name, giftEmoji: gift0.emoji, giftImg: gift0.img || '', giftPrice: gift0.price, giftWish: wish0, giftCat: gift0.cat, giftSelf: 1, ts: Date.now() };
+        const chatRec = { side: 'in', special: 'gift', rateAllow: true, giftId: gift0.id, giftName: gift0.name, giftEmoji: gift0.emoji, giftImg: gift0.img || '', giftPrice: gift0.price, giftWish: wish0, giftCat: gift0.cat, giftSelf: 1, ts: Date.now() };
         if ((window.__activeCid || 'default') === myCid) {
           const entrySelf = recordBox(gift0, 'self', wish0);
           if (entrySelf && entrySelf.id) chatRec.giftBoxId = entrySelf.id; // #985：卡片与心意柜互指（同 buyAndSend）

@@ -3039,7 +3039,7 @@ function syncFloatToggle() {
 const cb = document.getElementById('music-float-en');
 if (cb) cb.checked = settings.floatEn;
 }
-function taMusicSys(text) { try { if (window.chatAddSystem) window.chatAddSystem(text, { silent: true, nightAllow: true }); } catch (e) {} }
+function taMusicSys(text, byUser) { try { if (window.chatAddSystem) window.chatAddSystem(text, { silent: true, rateAllow: byUser === true, nightAllow: true }); } catch (e) {} }
 function taMusicSay(text) { try { if (window.chatAddIn) window.chatAddIn(text, { silent: true }); } catch (e) {} }
 function taFavList() {
 try {
@@ -3448,7 +3448,7 @@ reqData = null;
 history.push({ id: 'smh_' + Date.now(), trackId: '', trackName: '', triggerType: '拒绝了 TA 的听歌邀请《' + esc(trackName) + '》', rejected: true, ts: Date.now() });
 if (history.length > 500) history = history.slice(-500);
 saveHistory(); renderHistory();
-taMusicSys('你拒绝了 ' + name + ' 的听歌邀请');
+taMusicSys('你拒绝了 ' + name + ' 的听歌邀请', true);
 });
 yesBtn.addEventListener('click', () => {
 document.getElementById('tc-mask').hidden = true;
@@ -3465,7 +3465,7 @@ playTrack(trackId);
 addRecord(trackId, '接受了 TA 的听歌邀请');
 taMusicSys(switchNow
 ? '你接受了邀请，已切换到《' + trackName + '》'
-: '你接受了 ' + name + ' 的听歌邀请，一起听《' + trackName + '》');
+: '你接受了 ' + name + ' 的听歌邀请，一起听《' + trackName + '》', true);
 toast('开始播放');
 armInvitePlayCheck(); // #904b
 renderFloat(); // #904a：hold 藏起的小框随新播放意图立刻恢复（本地歌异步起播由 onplay 再刷新）
