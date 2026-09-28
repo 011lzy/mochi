@@ -5624,6 +5624,19 @@ const FIX_SENTINELS = [
   { name: '#1360m 旧那把「字符串谁长」的尺子已整块撤掉（不是加宽：复活＝尾巴又赢了）', file: 'js/data-backup.js', needle: "full.join('')", absent: true },
   // ===== #1360 end =====
 
+
+  // —— #1363 朋友圈载荷「先落盘、后换引用」（OPPO Find X9／Edge 153 实报「朋友圈发的表情包消失，剩下那个
+  //   贴纸，梦角朋友圈消失了几条发过的朋友圈」；判据零机型／零 UA＝只取「这一格存的是巨型载荷还是内容寻址
+  //   引用」；#1257 只治了「我发布配图」、#1219 只治了「贴纸」，TA 发帖配图／评论贴图／feedAddPost 三条腿
+  //   照旧把整张 dataURL 塞进主键 ⇒ 实测 7 条动态＝276,920B 越 LS 大键线 200KB ⇒ localStorage 那份副本被
+  //   xyStore.set 主动剥掉（lsLen=null）⇒ 切后台放掉内存副本后屏幕只能拿剥图快照顶，而那份快照里 56 张图
+  //   一张都没有＝无头红侧逐字复现「屏上 0 图、只剩那张底纸」；小键档则有同步落盘的 LS 副本，回收碰不掉）
+  { name: '#1363a 落盘前整包媒体归一这一处闸在（删＝TA 发帖配图／评论贴图／外部发帖三条腿继续把整张 dataURL 塞进主键，朋友圈又回到「一发图就撑过 LS 大键线」那一族）', file: 'js/feed.js', needle: 'if (!_feedTokInPass) scheduleFeedTokPass();' },
+  { name: '#1363b 池确认落盘之后才让引用落库（#186 顺序不可反：反了就是令牌进了库、图体只在内存，回收即永久空白气泡）', file: 'js/feed.js', needle: 'const okPool = await window.mochiMediaFlush();' },
+  { name: '#1363c 只认内存真相：手上没有整包就什么也不做（＝#667/#1336「降级读数不得抬成内存真相」同口径；也刻意不在这条路上调 feedAskIdb——那条自愈链自带整列表重绘，本批不该为「换个存放位置」旁路 #496 的局部刷新）', file: 'js/feed.js', needle: 'if (!feedMem || feedMem.length === 0) { scheduleFeedTokPass(6000); return; }' },
+  { name: '#1363d 写池失败整批回滚原件＋抹掉形状签名好重试（删＝半套令牌进库＝图永久看不到而账上显示已修）', file: 'js/feed.js', needle: '_feedTokSig.delete(touched[r])' },
+  { name: '#1363e 按内容形状签名决定重扫（永久跳过＝后来贴进评论/回复的那张图永远留在内联形态，本批尺子 A2 抓到；每趟全量重扫＝大库长任务，两头都实测踩过）', file: 'js/feed.js', needle: 'if (_feedTokSig.get(p) === sg) continue;' },
+  { name: '#1363f 启动合并也过同一道闸（存量自愈那一发：老动态里原样存着的 dataURL 只有这一条路能换回引用）', file: 'js/feed.js', needle: 'if (!degraded) scheduleFeedTokPass(2500);' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

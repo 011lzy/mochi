@@ -666,10 +666,153 @@
     feedWriteTimer = null;
     if (arr) { try { feedGuardWrite(JSON.stringify(arr)); scheduleSnap(arr); lastFeedWriteAt = performance.now(); } catch (e) {} }
   }
+  // FIX 2026-09-28 #1363 落盘前整包媒体归一——把「图片载荷必须先是可自愈引用」这条纪律收在一处闸
+  //   （OPPO Find X9／Edge 153 实报「朋友圈发的表情包消失，剩下那个贴纸；梦角朋友圈消失了几条发过的
+  //   朋友圈」，用户明说其他机型同现、不要覆盖式修补；零机型／零 UA 分支＝判据只取「这一格里存的是
+  //   巨型载荷还是内容寻址引用」一个事实）：
+  //   #1257 只给「我发布配图」、#1219 只给「贴纸」接了媒体池令牌化，其余每一个写入口（TA 自动发动态的
+  //   配图、评论/回复贴图、外部模块 feedAddPost、以及以后新增的任何一条）一直把整张 dataURL 原样塞进
+  //   主键。逐入口补正是用户说的「覆盖式修补」，而且实测证明这条路走不完——纯产物无头真跑（报障机同型：
+  //   Edge／standalone PWA／该页被系统回收 56 次），只让 TA 自己发 6 条带表情包 的动态：
+  //   ①主键 234,383B 越过 LS 大键线 200KB ⇒ localStorage 那份副本被 xyStore.set 主动剥掉（读数 lsLen=null），
+  //     于是「同步层交得出整包」这件事从此再也不成立；切后台那一次放掉内存副本，当场 store.get=NULL 而
+  //     __big-idx 证人写着 277,328B＝库明明好好的。
+  //   ②唯一兜底那一层（剥图快照）此刻成了屏幕的来源，而它里面 64 张表情包一张都不剩（snapLen 仅 1,306B
+  //     对 277,331B）＝用户所见「表情包消失、剩下那个贴纸」（配图栏被剥空就画 .feed-imgs-blank 那张底纸）；
+  //     快照又按 200KB 从新到旧裁剪，更早的动态整条不在兜底层里＝「梦角朋友圈消失了几条」。
+  //   ③这一发大值此后只靠一次异步 IDB 事务活着，而这台机每小时被系统回收好几次＝#1257 记过的老账
+  //     「未提交的 IDB 值随进程一起没了」；小键那一档则有 localStorage 同步落盘，回收碰不掉。
+  //   改法＝聊天那套已经入库验证过的同一模具（chat.js mediaNormalizePass / #186）：落盘这一处闸上整包扫
+  //   一遍，凡 ≥1024 的图片载荷一律换成 44 字符的 @@m:hash 引用（池里读得回真图），主键恒为小键 ⇒ ①②③
+  //   同时不再成立，#667「快照保留令牌」那条口径到这里才真正吃满（快照与权威同形）。存量一并自愈：
+  //   老动态里原样存着的 dataURL，下一轮落盘即换成令牌。
+  //   纪律照抄 #186：池确认落盘之后才让引用落库，写池失败整批回滚原件（绝不让令牌先进库、图体只在内存）；
+  //   <1024 的载荷媒体池本就不收（mochiMediaTokenize 那道闸门），保持内联＝原样，不更坏。
+  //   只动内存真相层 feedMem：它只由 save() 与非降级的 feedMergeFromIdb 抬起来（#667/#1336 的口径），
+  //   所以这一闸永远不会拿剥图快照那份残缺读数去改写权威键。
+  const FEED_TOK_PAYLOAD_RE = /data:image\/[a-zA-Z0-9.+-]+(?:;[a-zA-Z0-9.+-]*(?:=[^;,]*)?)*,[^\s"'<>]+/g;
+  let _feedTokT = null, _feedTokBusy = false, _feedTokInPass = false;
+  // 每条动态按「内容形状签名」记账：签名没变＝这一格整场扫过（大库不逐趟重扫，#441/#496 长任务纪律），
+  //   签名变了＝有新评论/回复/贴纸/配图长进来（那些正是载荷的入口）→ 重新扫这一格。
+  //   刻意不用「扫过就永久跳过」的集合：实测那样会让后来贴进评论的那张图永远留在内联形态（本脚本 A2 抓到）。
+  const _feedTokSig = new WeakMap();
+  function feedTokSig(p) {
+    const cms = Array.isArray(p.comments) ? p.comments : [];
+    const stk = Array.isArray(p.stickers) ? p.stickers : [];
+    const imgs = Array.isArray(p.imgs) ? p.imgs : [];
+    let repN = 0, repLen = 0, cmtLen = 0;
+    for (let i = 0; i < cms.length; i++) {
+      const c = cms[i] || {};
+      cmtLen += String(c.content || '').length;
+      const rp = Array.isArray(c.replies) ? c.replies : [];
+      repN += rp.length;
+      for (let j = 0; j < rp.length; j++) repLen += String((rp[j] || {}).content || '').length;
+    }
+    return imgs.length + '|' + stk.length + '|' + cms.length + '|' + repN + '|' + String(p.content || '').length + '|' + cmtLen + '|' + repLen;
+  }
+  const _feedTokMemo = new Map();      // 载荷串 → 令牌（同一份表情包被 20 条动态引用也只哈希一次）
+  function scheduleFeedTokPass(delay) {
+    if (!window.mochiMediaTokenize || !window.mochiMediaFlush) return;
+    clearTimeout(_feedTokT);
+    _feedTokT = setTimeout(feedNormalizeMediaPass, delay || 1500);
+  }
+  async function feedNormalizeMediaPass() {
+    if (_feedTokBusy) { scheduleFeedTokPass(4000); return; }
+    if (!feedDbReady) { scheduleFeedTokPass(6000); return; }  // 权威还没交出来＝不改写，等下一轮
+    // 只认内存真相：手上没有整包就什么也不做（下一发 save()／启动合并会把它抬起来，届时再接上）。
+    //   刻意不在这儿调 feedAskIdb()——那条链自带一次整列表 render()，本批只是「换个存放位置」，
+    //   不该为它多打一次库读＋整列表重绘（邻族 verify-feed-comment-perf D3/E4 实测：定时器路径
+    //   的兄弟卡片 DOM 身份被这一次重绘打掉＝#496 局部刷新那条纪律被旁路）
+    if (!feedMem || feedMem.length === 0) { scheduleFeedTokPass(6000); return; }
+    const list = feedMem;
+    _feedTokBusy = true;
+    let changed = 0;
+    const rollback = [];               // [{o,p,v}]——写池失败时逐格退回原件
+    const touched = [];                // 本轮改过的动态，回滚时把形状签名抹掉好重试
+    let cur = null;
+    const mark = (p) => { if (p && cur !== p) { cur = p; touched.push(p); } };
+    async function tokSlot(holder, prop, p) {
+      if (!holder || typeof holder[prop] !== 'string' || holder[prop].length < 1024) return;
+      const raw = holder[prop];
+      if (raw.indexOf('data:') !== 0) return;
+      let t = _feedTokMemo.get(raw);
+      if (t === undefined) {
+        try { t = await window.mochiMediaTokenize(raw) || ''; } catch (e) { t = ''; }
+        if (_feedTokMemo.size > 600) _feedTokMemo.clear();
+        _feedTokMemo.set(raw, t);
+      }
+      if (!t || t === raw) return;
+      rollback.push({ o: holder, p: prop, v: raw });
+      holder[prop] = t; changed++; mark(p);
+    }
+    async function tokInStr(holder, prop, p) {
+      const s = holder && holder[prop];
+      if (typeof s !== 'string' || s.length < 1024 || s.indexOf('data:') < 0) return;
+      let out = s, n = 0;
+      const found = s.match(FEED_TOK_PAYLOAD_RE);
+      if (!found) return;
+      for (let i = 0; i < found.length; i++) {
+        const raw = found[i];
+        if (raw.length < 1024 || out.indexOf(raw) < 0) continue;
+        let t = _feedTokMemo.get(raw);
+        if (t === undefined) {
+          try { t = await window.mochiMediaTokenize(raw) || ''; } catch (e) { t = ''; }
+          if (_feedTokMemo.size > 600) _feedTokMemo.clear();
+          _feedTokMemo.set(raw, t);
+        }
+        if (!t) continue;
+        out = out.split(raw).join(t); n++;
+      }
+      if (!n || out === s) return;
+      rollback.push({ o: holder, p: prop, v: s });
+      holder[prop] = out; changed++; mark(p);
+    }
+    try {
+      for (let i = 0; i < list.length; i++) {
+        const p = list[i];
+        if (!p || typeof p !== 'object') continue;
+        const sg = feedTokSig(p);
+        if (_feedTokSig.get(p) === sg) continue;   // 这一格形状没变＝整场扫过，不重扫（大库长任务纪律）
+        _feedTokSig.set(p, sg);
+        const imgs = Array.isArray(p.imgs) ? p.imgs : [];
+        for (let j = 0; j < imgs.length; j++) await tokSlot(imgs, j, p);
+        await tokInStr(p, 'content', p);
+        const stks = Array.isArray(p.stickers) ? p.stickers : [];
+        for (let j = 0; j < stks.length; j++) await tokSlot(stks[j], 'src', p);
+        const cms = Array.isArray(p.comments) ? p.comments : [];
+        for (let j = 0; j < cms.length; j++) {
+          await tokInStr(cms[j], 'content', p);
+          const rp = (cms[j] && Array.isArray(cms[j].replies)) ? cms[j].replies : [];
+          for (let k = 0; k < rp.length; k++) await tokInStr(rp[k], 'content', p);
+        }
+        await new Promise(r => setTimeout(r, 0)); // 整包扫描让出主线程（#441 大库冻结同款纪律）
+      }
+      if (!changed) return;
+      const okPool = await window.mochiMediaFlush(); // 池先落盘，引用后落盘（顺序不可反，#186）
+      if (okPool === false) {
+        for (let r = 0; r < rollback.length; r++) { try { rollback[r].o[rollback[r].p] = rollback[r].v; } catch (e) {} }
+        for (let r = 0; r < touched.length; r++) { try { _feedTokSig.delete(touched[r]); } catch (e) {} }
+        scheduleFeedTokPass(8000);
+        return;
+      }
+      // 整包在飞这几秒里可能易主（新评论/新动态经 load() 的并集抬成另一份数组）＝本轮作废：
+      //   绝不拿旧读数写回（#1336「自愈那一发不得顶掉排队中的新整包」同一条纪律；本批被邻族
+      //   verify-feed-comment-perf A5 实测抓到过一发：旧数组写回把刚落下的第二条评论顶掉了）
+      if (feedMem !== list) { scheduleFeedTokPass(1500); return; }
+      _feedTokInPass = true;
+      try { save(list); } finally { _feedTokInPass = false; }
+      // 刻意不重绘：这一发换的是「同一张图的存放位置」，屏幕上那张 img 的 src 早已解析成真图，
+      //   重绘反而会把兄弟卡片整列表换掉（邻族 verify-feed-comment-perf A3/D3/E4 实测：#496 局部
+      //   刷新那条 DOM 身份纪律被打破），下一次自然渲染自会按令牌走观察器解析。
+    } catch (e) {
+      for (let r = 0; r < rollback.length; r++) { try { rollback[r].o[rollback[r].p] = rollback[r].v; } catch (e2) {} }
+    } finally { _feedTokBusy = false; }
+  }
   function save(list) {
     const arr = list || [];
     // #496：内存真相立即生效（load() 不再重读持久层），落盘延后到空闲窗口
     feedMem = arr;
+    if (!_feedTokInPass) scheduleFeedTokPass(); // #1363：任何一写入口带进来的巨型载荷，都在这一处闸换回引用
     // FIX 2026-09-27 #1336：残缺期这次整包没有写回资格，当场就把它并入既有的 feedPending——
     //   只挂在延后落盘的 feedWritePending 上不够：自愈那一发是 feedMergeFromIdb，它按
     //   base＋store.get＋feedPending 三方合流、算完就顶掉 feedMem，排在后面的那发根本不知道，
@@ -3434,6 +3577,9 @@ if (comInput) comInput.addEventListener('keydown', (e) => { if (e.key === 'Enter
       //   可读（idbRestore 回填 / LS 恢复）下一次 load() 就恢复完整内容，与守卫同源。
       const degraded = !authOk && curFromSnap;
       if (!degraded) feedMem = merged;
+      // #1363：启动这一发也要过同一道闸——存量用户主键里那些原样存着的 dataURL 靠这一次自愈搬进池，
+      //   主键从此回到小键档（有 localStorage 副本、快照与权威同形）；降级兜底那一份不去动它。
+      if (!degraded) scheduleFeedTokPass(2500);
       // #187：写回走守卫——权威读失败且手上可能是剥图快照时，探测确认权威键仍在就绝不写回
       feedGuardWrite(JSON.stringify(merged)).then(written => {
         if (written) {

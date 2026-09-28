@@ -458,9 +458,115 @@ feedWritePending = null;
 feedWriteTimer = null;
 if (arr) { try { feedGuardWrite(JSON.stringify(arr)); scheduleSnap(arr); lastFeedWriteAt = performance.now(); } catch (e) {} }
 }
+const FEED_TOK_PAYLOAD_RE = /data:image\/[a-zA-Z0-9.+-]+(?:;[a-zA-Z0-9.+-]*(?:=[^;,]*)?)*,[^\s"'<>]+/g;
+let _feedTokT = null, _feedTokBusy = false, _feedTokInPass = false;
+const _feedTokSig = new WeakMap();
+function feedTokSig(p) {
+const cms = Array.isArray(p.comments) ? p.comments : [];
+const stk = Array.isArray(p.stickers) ? p.stickers : [];
+const imgs = Array.isArray(p.imgs) ? p.imgs : [];
+let repN = 0, repLen = 0, cmtLen = 0;
+for (let i = 0; i < cms.length; i++) {
+const c = cms[i] || {};
+cmtLen += String(c.content || '').length;
+const rp = Array.isArray(c.replies) ? c.replies : [];
+repN += rp.length;
+for (let j = 0; j < rp.length; j++) repLen += String((rp[j] || {}).content || '').length;
+}
+return imgs.length + '|' + stk.length + '|' + cms.length + '|' + repN + '|' + String(p.content || '').length + '|' + cmtLen + '|' + repLen;
+}
+const _feedTokMemo = new Map();      // 载荷串 → 令牌（同一份表情包被 20 条动态引用也只哈希一次）
+function scheduleFeedTokPass(delay) {
+if (!window.mochiMediaTokenize || !window.mochiMediaFlush) return;
+clearTimeout(_feedTokT);
+_feedTokT = setTimeout(feedNormalizeMediaPass, delay || 1500);
+}
+async function feedNormalizeMediaPass() {
+if (_feedTokBusy) { scheduleFeedTokPass(4000); return; }
+if (!feedDbReady) { scheduleFeedTokPass(6000); return; }  // 权威还没交出来＝不改写，等下一轮
+if (!feedMem || feedMem.length === 0) { scheduleFeedTokPass(6000); return; }
+const list = feedMem;
+_feedTokBusy = true;
+let changed = 0;
+const rollback = [];               // [{o,p,v}]——写池失败时逐格退回原件
+const touched = [];                // 本轮改过的动态，回滚时把形状签名抹掉好重试
+let cur = null;
+const mark = (p) => { if (p && cur !== p) { cur = p; touched.push(p); } };
+async function tokSlot(holder, prop, p) {
+if (!holder || typeof holder[prop] !== 'string' || holder[prop].length < 1024) return;
+const raw = holder[prop];
+if (raw.indexOf('data:') !== 0) return;
+let t = _feedTokMemo.get(raw);
+if (t === undefined) {
+try { t = await window.mochiMediaTokenize(raw) || ''; } catch (e) { t = ''; }
+if (_feedTokMemo.size > 600) _feedTokMemo.clear();
+_feedTokMemo.set(raw, t);
+}
+if (!t || t === raw) return;
+rollback.push({ o: holder, p: prop, v: raw });
+holder[prop] = t; changed++; mark(p);
+}
+async function tokInStr(holder, prop, p) {
+const s = holder && holder[prop];
+if (typeof s !== 'string' || s.length < 1024 || s.indexOf('data:') < 0) return;
+let out = s, n = 0;
+const found = s.match(FEED_TOK_PAYLOAD_RE);
+if (!found) return;
+for (let i = 0; i < found.length; i++) {
+const raw = found[i];
+if (raw.length < 1024 || out.indexOf(raw) < 0) continue;
+let t = _feedTokMemo.get(raw);
+if (t === undefined) {
+try { t = await window.mochiMediaTokenize(raw) || ''; } catch (e) { t = ''; }
+if (_feedTokMemo.size > 600) _feedTokMemo.clear();
+_feedTokMemo.set(raw, t);
+}
+if (!t) continue;
+out = out.split(raw).join(t); n++;
+}
+if (!n || out === s) return;
+rollback.push({ o: holder, p: prop, v: s });
+holder[prop] = out; changed++; mark(p);
+}
+try {
+for (let i = 0; i < list.length; i++) {
+const p = list[i];
+if (!p || typeof p !== 'object') continue;
+const sg = feedTokSig(p);
+if (_feedTokSig.get(p) === sg) continue;   // 这一格形状没变＝整场扫过，不重扫（大库长任务纪律）
+_feedTokSig.set(p, sg);
+const imgs = Array.isArray(p.imgs) ? p.imgs : [];
+for (let j = 0; j < imgs.length; j++) await tokSlot(imgs, j, p);
+await tokInStr(p, 'content', p);
+const stks = Array.isArray(p.stickers) ? p.stickers : [];
+for (let j = 0; j < stks.length; j++) await tokSlot(stks[j], 'src', p);
+const cms = Array.isArray(p.comments) ? p.comments : [];
+for (let j = 0; j < cms.length; j++) {
+await tokInStr(cms[j], 'content', p);
+const rp = (cms[j] && Array.isArray(cms[j].replies)) ? cms[j].replies : [];
+for (let k = 0; k < rp.length; k++) await tokInStr(rp[k], 'content', p);
+}
+await new Promise(r => setTimeout(r, 0)); // 整包扫描让出主线程（#441 大库冻结同款纪律）
+}
+if (!changed) return;
+const okPool = await window.mochiMediaFlush(); // 池先落盘，引用后落盘（顺序不可反，#186）
+if (okPool === false) {
+for (let r = 0; r < rollback.length; r++) { try { rollback[r].o[rollback[r].p] = rollback[r].v; } catch (e) {} }
+for (let r = 0; r < touched.length; r++) { try { _feedTokSig.delete(touched[r]); } catch (e) {} }
+scheduleFeedTokPass(8000);
+return;
+}
+if (feedMem !== list) { scheduleFeedTokPass(1500); return; }
+_feedTokInPass = true;
+try { save(list); } finally { _feedTokInPass = false; }
+} catch (e) {
+for (let r = 0; r < rollback.length; r++) { try { rollback[r].o[rollback[r].p] = rollback[r].v; } catch (e2) {} }
+} finally { _feedTokBusy = false; }
+}
 function save(list) {
 const arr = list || [];
 feedMem = arr;
+if (!_feedTokInPass) scheduleFeedTokPass(); // #1363：任何一写入口带进来的巨型载荷，都在这一处闸换回引用
 if (feedSyncCold) { try { feedPending = mergePosts(feedPending || [], arr); } catch (e) {} }
 for (let i = 0; i < arr.length; i++) {
 const p = arr[i];
@@ -2667,6 +2773,7 @@ const merged = mergePosts(base, mergePosts(cur, pending));
 if (!merged.length) { if (authOk && feedPending === pending) feedPending = null; return; }
 const degraded = !authOk && curFromSnap;
 if (!degraded) feedMem = merged;
+if (!degraded) scheduleFeedTokPass(2500);
 feedGuardWrite(JSON.stringify(merged)).then(written => {
 if (written) {
 if (feedPending === pending) feedPending = null;
