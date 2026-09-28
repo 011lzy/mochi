@@ -1289,7 +1289,61 @@
     return lines.join('\n');
   }
 
-  // 导入
+  // FIX 2026-09-28 #1359（小米MIX 4／Edge 153 桌面 PWA 实报「一直在丢失字卡、表情包那些，最近存的
+  // 表情包都没了；我直接导出一个聊天记录，然后导入数据后会自己消失」；随附诊断单里
+  // 「启动挂起未读回 31 格」＋「库里 cc-groups-public 67.26MB、chat-msgs 292.2MB」）——
+  // #440 那批把「清单读不到」当成了未知去中止，但 retain 的【值】那一发仍旧把「没读到」当「不需要保留」：
+  // idbGetMany 超时 resolve 的是「已经回执的那部分」——没答上来的键根本不在 map 里（!(k in map)），
+  // 而 map[k]===undefined 才是「读到了、库里确实没有这个键」。旧写法两样都用 map[k] 判，于是几十 MB 的
+  // 表情包／字卡／媒体池在这种大库慢机上整批没回执＝按「无需保留」放行＝下面 idbReplaceAll 的 clear
+  // 把它们永久删掉（备份越不完整、库越大越必中＝用户口径「导入数据后会自己消失」且高频）。
+  // 判据一律零机型／零 UA 分支＝只取「这一发内核回执了没有」。
+  const RETAIN_BATCH = 8; // 一批八键：整库残留键挤同一趟只读事务，几十 MB 必然超 idbGetMany 的 4s+4s
+  // 返回 值数组（clear 之后要原样 put 回去的旧键），或 { abort: true, unknownKey }＝有键问不出
+  async function readRetainKeys(retain) {
+    const kept = [];
+    for (let i = 0; i < retain.length; i += RETAIN_BATCH) {
+      const slice = retain.slice(i, i + RETAIN_BATCH);
+      let map = {};
+      try { map = (await window.idbGetMany(slice)) || {}; } catch (e) { map = {}; }
+      for (let j = 0; j < slice.length; j++) {
+        const k = slice[j];
+        if (k in map) { // 这一格有回执：值就保留，undefined/null 就是库里确实没有
+          const v = map[k];
+          if (v !== undefined && v !== null) kept.push({ k: k, v: v });
+          continue;
+        }
+        const one = await readRetainedKey(k);
+        if (one.unknown) return { abort: true, unknownKey: k }; // 问不出＝未知，绝不清掉
+        if (one.v !== undefined && one.v !== null) kept.push({ k: k, v: one.v });
+      }
+    }
+    return kept;
+  }
+  // 单键补问三态：{v}＝读到了值／{none:true}＝读到了且库里没有这个键／{unknown:true}＝这一发问不出。
+  // 等待窗按 __big-idx 那份体积尺放大（idbBigSize 免读值，公式同 #716 的聊天大读）——批量那一发
+  // 读不完的正是在慢机上超 4s+4s 的几十 MB 键，不放大等待窗等于没补问。
+  async function readRetainedKey(key) {
+    if (typeof window.idbGet !== 'function') return { unknown: true }; // 连问的口子都没有＝未知，不许按「库里没有」清掉
+    // 先附议「还在飞的那一发」（#1360 第七型的口径：别为同一格另起一整包重读＝堆尖峰＝页面被系统回收）。
+    // 那一发回 undefined 分不出「库里真没有」还是「读挂了」，所以一律算未知——宁可中止，不拿含糊当答案。
+    try {
+      const late = window.idbLateRead && window.idbLateRead(key);
+      if (late) {
+        const lv = await late;
+        if (lv !== undefined && lv !== null) return { v: lv };
+        return { unknown: true };
+      }
+    } catch (e) {}
+    let size = 0;
+    try { size = (window.idbBigSize && window.idbBigSize(key)) || 0; } catch (e) {}
+    const info = { minWaitMs: 4000 + Math.min(28000, Math.ceil(Math.max(size, 1) / 1048576) * 2000) };
+    let v;
+    try { v = await window.idbGet(key, info); } catch (e) { v = undefined; }
+    if (v !== undefined && v !== null) return { v: v };
+    return info.ambiguous ? { unknown: true } : { none: true };
+  }
+
   async function doImport(file) {
     // 大备份读取/解析耗时较长，先亮进度遮罩
     impShow('正在读取数据文件…', '大备份（上百 MB）解析需要几秒，请稍候', null);
@@ -1560,6 +1614,7 @@
     // 再逐条 idbSet，清空与写入之间有几秒~几分钟无原子窗口，中途崩溃/杀进程会留下
     // 半空库，旧数据无法恢复。单事务失败自动回滚到事务前（旧数据完整保留），
     // 导入真正变成「要么全部替换、要么原样不动」。
+    let retainUnknownKey = ''; // #1359c：有键问不出＝未知 → 这一发中止，并把键名留给回执环与文案（不当「没有」）
     const idbRestored = new Promise((resolve) => {
       if (!data.idb || typeof data.idb !== 'object') { resolve(true); return; }
       const idbKeys = Object.keys(data.idb).filter(k => k.indexOf('xy-home-v2:') === 0 && k !== SNAPSHOT_KEY);
@@ -1578,8 +1633,11 @@
         try { Object.keys(data.ls || {}).forEach(k => { if (k.indexOf('xy-home-v2:') === 0) lsKeySet[k] = true; }); } catch (e) {}
         const backupKeySet = {};
         try { idbKeys.forEach(k => { backupKeySet[k] = true; }); } catch (e) {}
-        const retainStep = (window.idbListKeys && window.idbGetMany)
-          ? window.idbListKeys().then(function (curKeys) {
+        const havePorts = !!(window.idbListKeys && window.idbGetMany);
+        // #1359d：连「问一句」的口子都没有＝未知，绝不能按「无需保留」照常清库（同 #440 那一格的口径）
+        if (!havePorts) { retainUnknownKey = '(no-port)'; }
+        const retainStep = havePorts
+          ? window.idbListKeys().then(async function (curKeys) {
               // FIX 2026-09-14 #440 清单读不到（idbListKeys 严格版 null＝「未知」）绝不能按
               // 「无需保留」继续：保留清单是 #118 防 clear 丢数据的唯一防线，「只备份文字」
               // 备份不含媒体池键，此处放行＝idbReplaceAll clear 把整个媒体池抹掉＝全部图片
@@ -1595,16 +1653,17 @@
                   !backupKeySet[k] && !lsKeySet[k];
               });
               if (!retain.length) return [];
-              return window.idbGetMany(retain).then(function (map) {
-                const kept = [];
-                retain.forEach(function (k) {
-                  const v = map[k];
-                  if (v !== undefined && v !== null) kept.push({ k: k, v: v });
-                });
-                return kept;
+              return readRetainKeys(retain).then(function (r) {
+                if (r && r.abort) {
+                  retainUnknownKey = String(r.unknownKey || '');
+                  impLog('retain:unknown ' + retainUnknownKey.slice(0, 48));
+                } else {
+                  impLog('retain:kept=' + r.length + '/' + retain.length);
+                }
+                return r;
               }).catch(function () { return { abort: true }; });
             }).catch(function () { return { abort: true }; })
-          : Promise.resolve([]);
+          : Promise.resolve({ abort: true }); // #1359d：未知即中止（原因已由上面 havePorts 那格记进 retainUnknownKey）
         retainStep.then(function (kept) {
           if (kept && kept.abort) { resolve(false); return; } // #440 清单未知＝无法安全替换式导入 → 中止（原数据保留）
           const keptPairs = kept || [];
@@ -1642,7 +1701,10 @@
     function clearLs() {
       try {
         Object.keys(localStorage)
-          .filter(k => k.indexOf('xy-home-v2:') === 0)
+          // #1359f：导入回执环是【本机取证】、不是用户数据——导出两侧早就各自跳过它（#1272），
+          // 唯独导入这一发把它连同 xy-home-v2:* 一起清掉＝每次成功导入后「数据导入回执」必为空。
+          // 报障那张单写着「本机还没记录过数据导入动作」而用户明说导入过，根子就在这格。
+          .filter(k => k.indexOf('xy-home-v2:') === 0 && k !== IMPORT_LOG_KEY)
           .forEach(k => localStorage.removeItem(k));
       } catch (e) {}
     }
@@ -1657,7 +1719,14 @@
         // #814：导入中止＝留在本会话继续用，撤屏障恢复卸载收口写（否则之后新消息在离页时不落盘）
         try { window.__resetting = false; } catch (e2) {}
         impHide();
-        toast('导入失败：大文件写入未成功，原有数据已保留，请重试');
+        // #1359c：问不出＝中止时这一发不能沿用「大文件写入未成功」——原数据其实没被写过，
+        // 真因是本机那一格太大/太慢这次确认不了，为防它被 clear 掉才停手（键名进回执环，不进文案）
+        if (retainUnknownKey) {
+          toast('导入已中止：本机有一项大文件这次没能读出来（多半是表情包／字卡这类几十 MB 的库），' +
+            '为防它被清掉，原有数据一字未动；等手机空闲时再试一次');
+        } else {
+          toast('导入失败：大文件写入未成功，原有数据已保留，请重试');
+        }
         return;
       }
       impShow('正在导入…', '正在写入设置与聊天记录', 62);
@@ -2127,6 +2196,7 @@
       preview.push('导入将覆盖对应桌面/群聊的全部聊天记录（不可恢复），其他数据不受影响。');
       if (!window.openModal) return;
       window.openModal('确认导入聊天记录？', '', () => {
+        impLog('chat:go 桌=' + chatKeys.length + ' 群=' + groupKeys.length + ' 媒体=' + mediaKeys.length + ' 单桌=' + (Array.isArray(singleMsgs) ? singleMsgs.length : 0)); // #1359e：这条通路此前在回执环里一行都不留（单桌那格按「是不是数组」取，标准备份那一型里 singleMsgs 恒 null＝不兜会把整个回调打死）
         importChatAllGo(chatKeys, groupKeys, singleMsgs, mediaKeys, pickRaw);
       }, { noInput: true, staticText: preview.join('\n') });
     };

@@ -928,6 +928,45 @@ lines.push('· 摸鱼累计：' + (fish !== null ? fish : '✗无'));
 lines.push('若这里显示「聊天记录：无/头像✗」等，说明不是最新完整备份，请勿导入。');
 return lines.join('\n');
 }
+const RETAIN_BATCH = 8; // 一批八键：整库残留键挤同一趟只读事务，几十 MB 必然超 idbGetMany 的 4s+4s
+async function readRetainKeys(retain) {
+const kept = [];
+for (let i = 0; i < retain.length; i += RETAIN_BATCH) {
+const slice = retain.slice(i, i + RETAIN_BATCH);
+let map = {};
+try { map = (await window.idbGetMany(slice)) || {}; } catch (e) { map = {}; }
+for (let j = 0; j < slice.length; j++) {
+const k = slice[j];
+if (k in map) { // 这一格有回执：值就保留，undefined/null 就是库里确实没有
+const v = map[k];
+if (v !== undefined && v !== null) kept.push({ k: k, v: v });
+continue;
+}
+const one = await readRetainedKey(k);
+if (one.unknown) return { abort: true, unknownKey: k }; // 问不出＝未知，绝不清掉
+if (one.v !== undefined && one.v !== null) kept.push({ k: k, v: one.v });
+}
+}
+return kept;
+}
+async function readRetainedKey(key) {
+if (typeof window.idbGet !== 'function') return { unknown: true }; // 连问的口子都没有＝未知，不许按「库里没有」清掉
+try {
+const late = window.idbLateRead && window.idbLateRead(key);
+if (late) {
+const lv = await late;
+if (lv !== undefined && lv !== null) return { v: lv };
+return { unknown: true };
+}
+} catch (e) {}
+let size = 0;
+try { size = (window.idbBigSize && window.idbBigSize(key)) || 0; } catch (e) {}
+const info = { minWaitMs: 4000 + Math.min(28000, Math.ceil(Math.max(size, 1) / 1048576) * 2000) };
+let v;
+try { v = await window.idbGet(key, info); } catch (e) { v = undefined; }
+if (v !== undefined && v !== null) return { v: v };
+return info.ambiguous ? { unknown: true } : { none: true };
+}
 async function doImport(file) {
 impShow('正在读取数据文件…', '大备份（上百 MB）解析需要几秒，请稍候', null);
 let data;
@@ -1128,6 +1167,7 @@ const k = localStorage.key(i);
 if (k && k.indexOf('xy-home-v2:') === 0) backup[k] = localStorage.getItem(k);
 }
 } catch (e) { backup = null; }
+let retainUnknownKey = ''; // #1359c：有键问不出＝未知 → 这一发中止，并把键名留给回执环与文案（不当「没有」）
 const idbRestored = new Promise((resolve) => {
 if (!data.idb || typeof data.idb !== 'object') { resolve(true); return; }
 const idbKeys = Object.keys(data.idb).filter(k => k.indexOf('xy-home-v2:') === 0 && k !== SNAPSHOT_KEY);
@@ -1139,8 +1179,10 @@ const lsKeySet = {};
 try { Object.keys(data.ls || {}).forEach(k => { if (k.indexOf('xy-home-v2:') === 0) lsKeySet[k] = true; }); } catch (e) {}
 const backupKeySet = {};
 try { idbKeys.forEach(k => { backupKeySet[k] = true; }); } catch (e) {}
-const retainStep = (window.idbListKeys && window.idbGetMany)
-? window.idbListKeys().then(function (curKeys) {
+const havePorts = !!(window.idbListKeys && window.idbGetMany);
+if (!havePorts) { retainUnknownKey = '(no-port)'; }
+const retainStep = havePorts
+? window.idbListKeys().then(async function (curKeys) {
 if (!Array.isArray(curKeys)) return { abort: true };
 const retain = curKeys.filter(function (k) {
 return k && k.indexOf('xy-home-v2:') === 0 &&
@@ -1148,16 +1190,17 @@ k !== SNAPSHOT_KEY &&
 !backupKeySet[k] && !lsKeySet[k];
 });
 if (!retain.length) return [];
-return window.idbGetMany(retain).then(function (map) {
-const kept = [];
-retain.forEach(function (k) {
-const v = map[k];
-if (v !== undefined && v !== null) kept.push({ k: k, v: v });
-});
-return kept;
+return readRetainKeys(retain).then(function (r) {
+if (r && r.abort) {
+retainUnknownKey = String(r.unknownKey || '');
+impLog('retain:unknown ' + retainUnknownKey.slice(0, 48));
+} else {
+impLog('retain:kept=' + r.length + '/' + retain.length);
+}
+return r;
 }).catch(function () { return { abort: true }; });
 }).catch(function () { return { abort: true }; })
-: Promise.resolve([]);
+: Promise.resolve({ abort: true }); // #1359d：未知即中止（原因已由上面 havePorts 那格记进 retainUnknownKey）
 retainStep.then(function (kept) {
 if (kept && kept.abort) { resolve(false); return; } // #440 清单未知＝无法安全替换式导入 → 中止（原数据保留）
 const keptPairs = kept || [];
@@ -1192,7 +1235,7 @@ p.then(() => resolve(failed === 0)).catch(() => resolve(false));
 function clearLs() {
 try {
 Object.keys(localStorage)
-.filter(k => k.indexOf('xy-home-v2:') === 0)
+.filter(k => k.indexOf('xy-home-v2:') === 0 && k !== IMPORT_LOG_KEY)
 .forEach(k => localStorage.removeItem(k));
 } catch (e) {}
 }
@@ -1201,7 +1244,12 @@ impLog('write:idb=' + (!!idbOk ? 'ok' : 'fail'));
 if (!idbOk) {
 try { window.__resetting = false; } catch (e2) {}
 impHide();
+if (retainUnknownKey) {
+toast('导入已中止：本机有一项大文件这次没能读出来（多半是表情包／字卡这类几十 MB 的库），' +
+'为防它被清掉，原有数据一字未动；等手机空闲时再试一次');
+} else {
 toast('导入失败：大文件写入未成功，原有数据已保留，请重试');
+}
 return;
 }
 impShow('正在导入…', '正在写入设置与聊天记录', 62);
@@ -1540,6 +1588,7 @@ if (mediaKeys.length) preview.push('· 附带图片/语音 ' + mediaKeys.length 
 preview.push('导入将覆盖对应桌面/群聊的全部聊天记录（不可恢复），其他数据不受影响。');
 if (!window.openModal) return;
 window.openModal('确认导入聊天记录？', '', () => {
+impLog('chat:go 桌=' + chatKeys.length + ' 群=' + groupKeys.length + ' 媒体=' + mediaKeys.length + ' 单桌=' + (Array.isArray(singleMsgs) ? singleMsgs.length : 0)); // #1359e：这条通路此前在回执环里一行都不留（单桌那格按「是不是数组」取，标准备份那一型里 singleMsgs 恒 null＝不兜会把整个回调打死）
 importChatAllGo(chatKeys, groupKeys, singleMsgs, mediaKeys, pickRaw);
 }, { noInput: true, staticText: preview.join('\n') });
 };

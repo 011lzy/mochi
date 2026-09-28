@@ -5646,6 +5646,16 @@ const FIX_SENTINELS = [
   { name: '#1363d 写池失败整批回滚原件＋抹掉形状签名好重试（删＝半套令牌进库＝图永久看不到而账上显示已修）', file: 'js/feed.js', needle: '_feedTokSig.delete(touched[r])' },
   { name: '#1363e 按内容形状签名决定重扫（永久跳过＝后来贴进评论/回复的那张图永远留在内联形态，本批尺子 A2 抓到；每趟全量重扫＝大库长任务，两头都实测踩过）', file: 'js/feed.js', needle: 'if (_feedTokSig.get(p) === sg) continue;' },
   { name: '#1363f 启动合并也过同一道闸（存量自愈那一发：老动态里原样存着的 dataURL 只有这一条路能换回引用）', file: 'js/feed.js', needle: 'if (!degraded) scheduleFeedTokPass(2500);' },
+  { name: '#1359a 导入 retain 判据取「这一格有没有回执」（!(k in map)＝没答上来≠库里没有；改回 map[k] 定生死＝慢机上几十 MB 表情包/字卡被 clear 掉复发，用户口径「导入数据后会自己消失」）', file: 'js/data-backup.js', needle: 'if (k in map) {' },
+  { name: '#1359b 单键补问答不出＝未知，整次导入中止（删＝又按「无需保留」放行 idbReplaceAll 的 clear，数据不可追回）', file: 'js/data-backup.js', needle: "if (one.unknown) return { abort: true, unknownKey: k };" },
+  { name: '#1359c 三态收口：值／库里确认没有／这一发问不出（塌成两态就把「没读到」讲成「没有」）', file: 'js/data-backup.js', needle: "return info.ambiguous ? { unknown: true } : { none: true };" },
+  { name: '#1359d retain 分批读回（一整库残留键挤同一趟只读事务＝几十 MB 必超 idbGetMany 的 4s+4s）', file: 'js/data-backup.js', needle: 'const RETAIN_BATCH = 8;' },
+  { name: '#1359e 单键补问的等待窗按 __big-idx 体积尺放大（公式同 #716；不放大等于没补问，慢机大键永远「未知」）', file: 'js/data-backup.js', needle: 'Math.ceil(Math.max(size, 1) / 1048576) * 2000)' },
+  { name: '#1359f 连问句都没有＝未知即中止（无 idbListKeys/idbGetMany 或 idbGet 不在），不许按「无需保留」清库（同 #440 口径）', file: 'js/data-backup.js', needle: "if (!havePorts) { retainUnknownKey = '(no-port)'; }" },
+  { name: '#1359g 未知中止那一发走如实文案（并回＝谎报「大文件写入未成功」；原数据其实一字未动）', file: 'js/data-backup.js', needle: 'if (retainUnknownKey) {' },
+  { name: '#1359h 导入清 LS 那一步跳过回执环（删＝每次成功导入把「本机导入过」这条证据自己抹掉——报障单【数据导入回执】为空的根子）', file: 'js/data-backup.js', needle: 'k !== IMPORT_LOG_KEY' },
+  { name: '#1359i 聊天记录导入通路开始记账（红侧＝用户明说导入过而回执环一行都没有；单桌那格按是否数组取，标准备份那一型 singleMsgs 恒 null）', file: 'js/data-backup.js', needle: "impLog('chat:go" },
+  { name: '#1359j 单键补问先附议「还在飞的那一发」（#1360 第七型口径：同一格另起一整包重读＝堆尖峰＝页面被系统回收）', file: 'js/data-backup.js', needle: 'window.idbLateRead && window.idbLateRead(key)' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
