@@ -5691,6 +5691,20 @@ const FIX_SENTINELS = [
   { name: '#1371g 自愈重注入按开机求值序补发（jsFiles 下标＝依赖序；改回按下标乱序＝contacts.js 的 activeStore 还没挂上时调用方整段 IIFE 中止＝字卡/表情包这一场全空）', file: 'index.html', needle: 'const q = byBootOrder(list);' },
   { name: '#1371h 动态插入的脚本按插入序执行（async=true＝执行序退回到达序，defer 那份「依赖先于调用方」的保证整张丢掉）', file: 'index.html', needle: 's.async = false;' },
   { name: '#1371i 换址逃生那条腿同样按依赖序串成一条链（并发 fetch＋到手就插＝同一把尺子的第二个口子；每发各带天花板，挂死一发不拖住后面全部）', file: 'index.html', needle: 'byBootOrder(list).forEach' },
+  // FIX 2026-09-28 #1374（安卓 iQOO 10／Chrome 150 实报「后台播放音乐…息屏之后不会显示后台播放音乐的横幅」
+  //   ＋「网站内播放音乐的时候一直有嘟嘟声，是其他音频设置混进来了，而不是只有音乐的声音」，并明说多机型同现、
+  //   不要覆盖式修补）：站内「谁在出声」此前有四处各写各的音量、让位判据只核验了一个方向、#780 那条自愈调的是
+  //   元素上根本不存在的方法名（TypeError 被外层 try 吞掉＝从未跑过），消息类音效也不管音乐在不在响。
+  //   五针判据一律零机型／零 UA 分支＝只取「这一路此刻在不在出声」「用户此刻在不在看着这一页」两个代码事实。
+  //   配套行为尺＝tools/verify-1374-music-audio-owner.mjs（25 断言，红侧读数即症状本体）；
+  //   同批重锚 tools/verify-bg-freeze.mjs 的 T5（旧写法把那条单向短路当「实效核验」证据）＋ T5b 新增、
+  //   tools/verify-keep-audio.mjs 的两支音量锚（旧写法把「volume = 常数」那一行本身当证据）。
+  { name: '#1374a 保活音量只有一个写入方：自定义原音量／前台 0／后台该档（三态在一条表达式里，缺任何一态＝要么打扰要么豁免丢）', file: 'js/bg-keep.js', needle: 'keepAudio.el.volume = kaCustomAudio ? 1 : (kaVisibleNow() ? 0 : kaToneLevel);' },
+  { name: '#1374b 前台静音闸的换档时机＝可见性变化本身（删＝只在启动那刻定档，回前台后仍一路常播＝用户所见「站内嘟嘟」）', file: 'js/bg-keep.js', needle: "document.addEventListener('visibilitychange', function () { kaApplyToneVolume(); });" },
+  { name: '#1374c 让位判据先读元素真值、意图标志只作退路（旧短路＝元素在响而标志还是 false 时判成「没在播」＝两路音频同时出声）', file: 'js/bg-keep.js', needle: 'try { return !!window.__musicPlaying; } catch (e) { return false; }' },
+  { name: '#1374d 假死自愈真起播（#780 那条写成元素上没有的方法名＝自愈从未跑过＝歌不响而「后台保活」条霸着媒体条）', file: 'js/bg-keep.js', needle: 'const pr = m.el.play();' },
+  { name: '#1374e 音乐正在出声时不叠消息类音效，来电铃声照旧（判据＝那一个元素此刻 paused===false）', file: 'js/sfx.js', needle: "if (type !== 'ring' && siteMusicAudible()) return;" },
+
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

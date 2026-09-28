@@ -297,8 +297,22 @@
   }
 
   // 播放音效：自定义上传（dataURL）优先，其次内置音效（'none'=静音，缺省=默认内置）
+  // FIX 2026-09-28 #1374e：站内自己的音乐正在出声时，消息类音效不再叠上去。
+  //   用户实报（安卓 iQOO 10／Chrome 150，并明说「这个问题其他设备型号也有出现」「不要覆盖
+  //   修改导致不同型号设备浏览器的 bug 反复出现」）：「网站内播放音乐的时候一直有嘟嘟声，
+  //   一直边放音乐边嘟嘟响，是其他音频设置混进来了，而不是只有音乐的声音」。
+  //   #673 那批把「音乐互动台词」改成静默、并特意留下「普通 TA 对话消息照常响音效」——
+  //   听歌时每来一条回复就响一次，正是用户此刻要消灭的那一路。判据只取一个代码事实：
+  //   那一个 <audio> 元素此刻在不在出声（paused===false，与 bg-keep #1374c 同一把尺），
+  //   零机型／零 UA 分支；用户没在站内放歌时行为一字不变。
+  //   只管消息类（in/out/gc-in/gc-out，群聊 playSfxGc 也是转进来调本函数）：
+  //   来电铃声（ring）是「错过就没了」的单发事件照旧响，且来电时 musicHoldForCall 已把音乐停掉。
+  function siteMusicAudible() {
+    try { const m = window.__mochiMusic; return !!(m && m.el && m.el.paused === false); } catch (e) { return false; }
+  }
   window.playSfx = function (type, opts) {
     try {
+      if (type !== 'ring' && siteMusicAudible()) return;
       const loop = !(opts && opts.loop === false);
       const custom = store.get(KEYS[type]);
       if (custom && typeof custom === 'string' && custom.length > 10) {

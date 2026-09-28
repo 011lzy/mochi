@@ -60,6 +60,10 @@
     try {
       if (keepAudio.el.src !== kaCustomAudio) {
         keepAudio.el.src = kaCustomAudio;
+        // #1374a：换 src 之后必须重新落一次档——自定义音频可能在 startKeepAlive 之后
+        // 才从 IDB 取回（kaLoadCustomAudio 是异步的），那一刻音量还停在默认档 0.2，
+        // 用户选的白噪音/助眠会以近无声播放。音量只有一个写入方，这里请它重算。
+        kaApplyToneVolume();
         if (!musicNowPlaying()) {
           const p = keepAudio.el.play();
           if (p && p.catch) p.catch(function () {});
@@ -92,7 +96,7 @@
     if (keepEnabled && keepAudio && keepAudio.el) {
       try {
         keepAudio.el.src = ensureKeepAudioDataUrl();
-        keepAudio.el.volume = KA_VOL_BASE; // #724：与启动档同源（原硬编码 0.05）
+        kaSetToneLevel(KA_VOL_BASE); // #724 基础档＋#1374b 前台静音闸的唯一落点（原直写 0.05→0.2 常数）
         if (!musicNowPlaying()) { const p = keepAudio.el.play(); if (p && p.catch) p.catch(function () {}); }
       } catch (e) {}
     }
@@ -118,7 +122,8 @@
           window.xyStore(GNS).set('__ka-audio-name', kaCustomAudioName);
         } catch (e) {}
         if (keepEnabled && keepAudio && keepAudio.el) {
-          try { keepAudio.el.volume = 1; } catch (e) {}
+          // #1374a：自定义音频也走同一落点（gate 内 kaCustomAudio 非空＝按原音量，不吃前台静音闸）
+          try { kaApplyToneVolume(); } catch (e) {}
           kaApplyCustomAudio();
         }
         syncKaAudioUI();
@@ -216,18 +221,17 @@
   // 音乐自带活跃媒体会话（playbackState=playing），后台同样不被冻结，保活目的不丢；
   // 音乐停止/暂停后自动把保活音频拉回来。
   function musicNowPlaying() {
-    try { if (!window.__musicPlaying) return false; } catch (e) { return false; }
-    // #780 实效核验：标志说「在播」时再看元素真值。ROM/浏览器静默掐掉音频流不必然触发
-    // onpause ⇒ 标志卡在 true，而这里一卡就让位（主动 pause 保活音频），主豁免当场丢失、
-    // 整页冻结——红米 Chrome 151 取证形态「音频=暂停 · 媒体条=playing」即此。读到元素
-    // 明确 paused 才判「没在播」；拿不到只读出口时退回原语义（宁可让位，不回归 v3.10.x
-    // 修的音频拉锯）。
+    // FIX 2026-09-28 #1374c：元素真值优先。#780 的「实效核验」只补了一个方向（标志说在播、
+    //   元素实为暂停），反方向漏了——元素正在出声而 __musicPlaying 还是 false 时，第一条
+    //   `if (!window.__musicPlaying) return false` 直接判成「没在播」＝保活音频照播不误，
+    //   两路音频同时出声＝用户所见「边放音乐边嘟嘟响」（标志是「意图」，元素 paused 才是「出声」，
+    //   让位判据只能按出声判）。读不到元素真值时退回原语义（宁可让位，不回归 v3.10.x 的拉锯修复）。
     try {
       const m = window.__mochiMusic;
       if (m && m.el && m.el.paused === false) return true;
       if (m && m.el && m.el.paused === true) return false;
     } catch (e) {}
-    return true;
+    try { return !!window.__musicPlaying; } catch (e) { return false; }
   }
   function syncKeepForMusic() {
     if (!keepAudio || !keepAudio.el) return;
@@ -242,7 +246,15 @@
         // want() 为假＝用户主动暂停，绝不越权恢复。
         try {
           const m = window.__mochiMusic;
-          if (window.__musicPlaying && m && m.el && m.el.paused && m.want && m.want()) m.el.unpause();
+          if (window.__musicPlaying && m && m.el && m.el.paused && m.want && m.want()) {
+            // FIX 2026-09-28 #1374d：这一发此前调的是媒体元素上根本不存在的那个方法名（ unpause
+            //   那种括号写法），TypeError 被外层 try 整个吞掉＝#780 这条自愈从来没跑过（歌停着不响、
+            //   保活音频与「后台保活」媒体条一直接管＝用户所见「息屏之后没有后台播放音乐那条横幅」）。
+            //   照注释本意改成真起播；want() 已经是闸（通话 hold 时 musicHoldForCall 把 wantPlay
+            //   清成 false，所以通话期间不会被这里推响）。
+            const pr = m.el.play();
+            if (pr && pr.catch) pr.catch(function () {});
+          }
         } catch (e) {}
         const p = keepAudio.el.play();
         if (p && p.catch) p.catch(function () {});
@@ -292,6 +304,37 @@
   // iOS 分支 amp 0.002 且 WebKit 忽略 <audio>.volume（#340），完全不受影响；自定义音频仍 volume=1。
   const KA_VOL_BASE = 0.2, KA_VOL_MAX = 0.35;
   let KEEP_AUDIO_DATAURL = '';
+  // ================= #1374b/#1374c 唯一音量写入方 + 前台静音闸 =================
+  // FIX 2026-09-28 #1374b（用户实报「安卓 iQOO10／Chrome：网站内播放音乐的时候一直有嘟嘟声，
+  //   一直边放音乐边嘟嘟响，是其他音频设置混进来了，而不是只有音乐的声音」，并明说
+  //   「这个问题其他设备型号也有出现」「不要覆盖修改导致不同型号设备浏览器的 bug 反复出现」）：
+  //   #190/#207/#340 三轮把这颗内置音的「幅度＋频率」调了个遍，却没人问过「它此刻该不该出声」——
+  //   按页面生命周期规范，只有 hidden 的页面才可能被冻结，前台放它没有任何豁免收益，只有打扰；
+  //   而且它是 loop 常播，用户正在站内听歌时＝实打实的第二路音频混进来（报障机诊断当场读数
+  //   「音频=播放 vol=0.2」＝这颗内置音在响，不是用户自己选的自定义音频）。
+  //   判据只取一个代码事实：document.visibilityState（与本模块 #780/#924 让位闸、
+  //   bgNotifyCheck「前台不弹」闸门同一把尺）＝零机型／零 UA 分支。
+  //     visible ⇒ volume=0（字面静音，什么都听不见）
+  //     hidden  ⇒ 恢复 #724 那一档（基础 0.2，断流过则 0.35）
+  //   刻意只动 volume：play/pause/退避/首次交互解锁那条时序一个字都不碰——自动播放策略要的是
+  //   「这个元素 play 过」，把前台改成不 play 会让第一次切后台那一发 play() 被拒＝保活当场失效。
+  //   用户上传的自定义保活音频不吃这道闸：v3.44.x 那是用户主动选的白噪音/助眠，前台出声是用途本身。
+  // FIX 2026-09-28 #1374a：音量此前有四处各自直写常数（启动／恢复默认／自定义／断流升档 KA_VOL_MAX），
+  //   多写入方＝新增任何一档都会被另一档按回旧值（#707 同款病灶）。收成一个状态量 kaToneLevel
+  //   ＋一个落点 kaApplyToneVolume()，其余各处只改状态或只请它落一次。
+  let kaToneLevel = KA_VOL_BASE; // #724 分级读数：断流命中一次升 KA_VOL_MAX，本会话不回改
+  function kaVisibleNow() { try { return document.visibilityState === 'visible'; } catch (e) { return false; } }
+  function kaApplyToneVolume() {
+    try {
+      if (!keepAudio || !keepAudio.el) return;
+      keepAudio.el.volume = kaCustomAudio ? 1 : (kaVisibleNow() ? 0 : kaToneLevel);
+    } catch (e) {}
+  }
+  function kaSetToneLevel(v) { kaToneLevel = v; kaApplyToneVolume(); }
+  // #1374b 的换档时机＝可见性变化本身（回前台立刻压到 0，切后台立刻恢复到 #724 那一档）。
+  // 独立监听器、不并进 #153 那条 hidden 补播监听：那条在音乐在播时会提前 return，语义不同。
+  document.addEventListener('visibilitychange', function () { kaApplyToneVolume(); });
+
   // v3.26.x 收口第二批：iOS 判定改读唯一判定源 device.js（mochiDevice.isIOS，
   // 含 iPadOS Macintosh 伪装分支 #144）——此前这里自拼一份 UA 正则 + 伪装检测，
   // 与 device.js 各算一遍（v3.16.x 收口漏网的角落，device.js 判定规则升级时
@@ -604,7 +647,9 @@
         // 并把保活音量升到 KA_VOL_MAX（余量自愈一档、本会话不回改；iOS 忽略 volume 不受影响）
         if (kaHb.ts && kaHb.resumed - kaHb.ts > 90000) {
           kaEv.stall++; kaEvSave();
-          try { if (keepAudio && keepAudio.el && !kaCustomAudio) keepAudio.el.volume = KA_VOL_MAX; } catch (e) {}
+          // #724：余量升一档改走唯一落点（#1374a）——此刻正回前台，gate 会把音量压到 0，
+          // 升上去的那一档在下次切后台时生效，语义与「本会话不回改」一致
+          try { if (keepAudio && keepAudio.el && !kaCustomAudio) kaSetToneLevel(KA_VOL_MAX); } catch (e) {}
           // #977 长后台失效当面提示（用户直派「当后台长时间挂着，功能会失效，需要重新关掉网页
           //   打开并重新打开功能」）：心跳断流＝这段后台里页面被系统冻结过，保活/后台弹窗在这段
           //   时间实际停摆。只在「本次后台挂满 10 分钟且发生过冻结」的回前台提示一次（短冻结高频，
@@ -855,7 +900,11 @@
       keepEl.loop = true;
       // 自定义音频是用户主动选的（白噪音/助眠等），按原音量播放；默认静音音频压到近无声
       // #724：基础档音量升级 KA_VOL_BASE（0.05→0.2，见上方分级说明），治新内核 audible 收紧后豁免丢失
-      keepEl.volume = kaCustomAudio ? 1 : KA_VOL_BASE;
+      // FIX 2026-09-28 #1374b：档位只有一个写入方，且要先在册再落档——keepAudio 登记从 playIt
+      //   之后提到这里（同一个同步函数内，不改变任何时序），否则 kaApplyToneVolume() 找不到元素，
+      //   前台静音闸就得在这里再写一遍常数＝两个写入方（#707 同款病灶）。
+      keepAudio = { el: keepEl };
+      kaSetToneLevel(KA_VOL_BASE); // #724 基础档＋#1374b：visible⇒0 / hidden⇒0.2（自定义音频恒原音量）
       keepEl.src = src;
       keepEl.setAttribute('playsinline', '');
       // v3.13.x：play/pause 事件跟踪——play 成功刷新"最近播过"，外部打断（pause）
@@ -874,7 +923,7 @@
         if (p && p.catch) p.catch(function () {});
       };
       playIt();
-      keepAudio = { el: keepEl };
+      // #1374b：keepAudio 已在建元素那一刻登记（见上），这里不再重复赋值
 
       // v3.5.155：媒体会话标记——Chrome 安卓把「有活跃媒体会话 + 音频输出」的页面
       // 视为"正在播放媒体"，后台几乎不冻结（Youtube 网页版后台持续播放即此原理）。

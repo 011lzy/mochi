@@ -35,6 +35,7 @@ if (!kaCustomAudio || !keepAudio || !keepAudio.el) return;
 try {
 if (keepAudio.el.src !== kaCustomAudio) {
 keepAudio.el.src = kaCustomAudio;
+kaApplyToneVolume();
 if (!musicNowPlaying()) {
 const p = keepAudio.el.play();
 if (p && p.catch) p.catch(function () {});
@@ -67,7 +68,7 @@ window.xyStore(GNS).remove('__ka-audio-name');
 if (keepEnabled && keepAudio && keepAudio.el) {
 try {
 keepAudio.el.src = ensureKeepAudioDataUrl();
-keepAudio.el.volume = KA_VOL_BASE; // #724：与启动档同源（原硬编码 0.05）
+kaSetToneLevel(KA_VOL_BASE); // #724 基础档＋#1374b 前台静音闸的唯一落点（原直写 0.05→0.2 常数）
 if (!musicNowPlaying()) { const p = keepAudio.el.play(); if (p && p.catch) p.catch(function () {}); }
 } catch (e) {}
 }
@@ -92,7 +93,7 @@ window.xyStore(GNS).set('__ka-audio-on', '1');
 window.xyStore(GNS).set('__ka-audio-name', kaCustomAudioName);
 } catch (e) {}
 if (keepEnabled && keepAudio && keepAudio.el) {
-try { keepAudio.el.volume = 1; } catch (e) {}
+try { kaApplyToneVolume(); } catch (e) {}
 kaApplyCustomAudio();
 }
 syncKaAudioUI();
@@ -166,13 +167,12 @@ function kaStopTimer() { if (kaTimer) { clearTimeout(kaTimer); kaTimer = null; }
 function kaResetBackoff() { kaStopTimer(); kaPauseStreak = 0; kaPlayFailStreak = 0; }
 function kaMarkPlayed() { kaLastPlayAt = Date.now(); }
 function musicNowPlaying() {
-try { if (!window.__musicPlaying) return false; } catch (e) { return false; }
 try {
 const m = window.__mochiMusic;
 if (m && m.el && m.el.paused === false) return true;
 if (m && m.el && m.el.paused === true) return false;
 } catch (e) {}
-return true;
+try { return !!window.__musicPlaying; } catch (e) { return false; }
 }
 function syncKeepForMusic() {
 if (!keepAudio || !keepAudio.el) return;
@@ -183,7 +183,10 @@ if (!keepAudio.el.paused) keepAudio.el.pause(); // 让位：音乐在播，保�
 if (kaTimer || kaDelay) return;
 try {
 const m = window.__mochiMusic;
-if (window.__musicPlaying && m && m.el && m.el.paused && m.want && m.want()) m.el.unpause();
+if (window.__musicPlaying && m && m.el && m.el.paused && m.want && m.want()) {
+const pr = m.el.play();
+if (pr && pr.catch) pr.catch(function () {});
+}
 } catch (e) {}
 const p = keepAudio.el.play();
 if (p && p.catch) p.catch(function () {});
@@ -208,6 +211,16 @@ setTimeout(syncKeepForMusic, 0);
 })();
 const KA_VOL_BASE = 0.2, KA_VOL_MAX = 0.35;
 let KEEP_AUDIO_DATAURL = '';
+let kaToneLevel = KA_VOL_BASE; // #724 分级读数：断流命中一次升 KA_VOL_MAX，本会话不回改
+function kaVisibleNow() { try { return document.visibilityState === 'visible'; } catch (e) { return false; } }
+function kaApplyToneVolume() {
+try {
+if (!keepAudio || !keepAudio.el) return;
+keepAudio.el.volume = kaCustomAudio ? 1 : (kaVisibleNow() ? 0 : kaToneLevel);
+} catch (e) {}
+}
+function kaSetToneLevel(v) { kaToneLevel = v; kaApplyToneVolume(); }
+document.addEventListener('visibilitychange', function () { kaApplyToneVolume(); });
 function kaIsIOS() {
 try { return !!(window.mochiDevice || {}).isIOS; } catch (e) {}
 return false;
@@ -413,7 +426,7 @@ if (kaHb) {
 kaHb.resumed = Date.now();
 if (kaHb.ts && kaHb.resumed - kaHb.ts > 90000) {
 kaEv.stall++; kaEvSave();
-try { if (keepAudio && keepAudio.el && !kaCustomAudio) keepAudio.el.volume = KA_VOL_MAX; } catch (e) {}
+try { if (keepAudio && keepAudio.el && !kaCustomAudio) kaSetToneLevel(KA_VOL_MAX); } catch (e) {}
 if (kaHb.hid && kaHb.resumed - kaHb.hid >= 600000) {
 toast('⚠ 挂后台太久，保活被系统冻结截断过\n这段时间的后台消息/后台弹窗可能失效（回本页已自动恢复）\n经常失效：彻底关闭网页重新打开，再把「后台保活」「后台弹窗」开关重新打开', 6000);
 }
@@ -607,7 +620,8 @@ const src = kaCustomAudio || ensureKeepAudioDataUrl();
 if (!src) { if (showToast) toast('后台保活启动失败（无法生成保活音频）'); return; }
 const keepEl = document.createElement('audio');
 keepEl.loop = true;
-keepEl.volume = kaCustomAudio ? 1 : KA_VOL_BASE;
+keepAudio = { el: keepEl };
+kaSetToneLevel(KA_VOL_BASE); // #724 基础档＋#1374b：visible⇒0 / hidden⇒0.2（自定义音频恒原音量）
 keepEl.src = src;
 keepEl.setAttribute('playsinline', '');
 keepEl.addEventListener('play', function () { kaMarkPlayed(); });
@@ -623,7 +637,6 @@ const p = keepEl.play();
 if (p && p.catch) p.catch(function () {});
 };
 playIt();
-keepAudio = { el: keepEl };
 setKeepMediaSession();
 kaWebrtcDeferredStart(10000);
 const resumeOnInteraction = function () {

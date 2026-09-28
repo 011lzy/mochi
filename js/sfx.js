@@ -232,8 +232,12 @@ toast(wasLoop ? '自定义铃声无法播放，已改用内置铃声' : '自定�
 }
 if (wasLoop) playBuiltin(ringBuiltinFallbackId(), true); // 来电兜底：保证不无声
 }
+function siteMusicAudible() {
+try { const m = window.__mochiMusic; return !!(m && m.el && m.el.paused === false); } catch (e) { return false; }
+}
 window.playSfx = function (type, opts) {
 try {
+if (type !== 'ring' && siteMusicAudible()) return;
 const loop = !(opts && opts.loop === false);
 const custom = store.get(KEYS[type]);
 if (custom && typeof custom === 'string' && custom.length > 10) {
