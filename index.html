@@ -10495,7 +10495,7 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
              口径与 clock.js 的锁定态 tip / 解锁弹窗 / 进入后提醒弹窗一致（#1216 起开屏必读摘要块已撤除，指路走第一页目录）-->
         <div class="splash-alert splash-cardlock" data-anti-scam="l" id="splash-cardlock">
           <div class="splash-alert-t">防未成年人 · 系统内置字卡已锁定</div>
-          <p id="splash-cardlock-tip">系统内置字卡已全部锁定，这是面向未成年人的保护措施。如你已年满 18 周岁，可输入二级验证密码解锁使用。锁定不影响：聊天情绪字卡、TA 的心情、聊天回应字卡、你自建的字卡均照常可用。密码非常简单，答案就在开屏第一页的章节目录里：点开第一页顶部的「目录」，逐章翻一下就能找到（不是第二页「进入前 · 作者必读公告」上那两个日期）。解锁用的密码与开屏问答页的「暗号」是同一个（同一串 6 位数字，两个入口都用它）；解开密码请勿二传（不要告诉别人），一旦有人二传，密码就会被重新设置。继续使用即视为你确认已年满 18 周岁。</p>
+          <p id="splash-cardlock-tip">系统内置字卡已全部锁定，这是面向未成年人的保护措施。如你已年满 18 周岁，可输入二级验证密码解锁使用。锁定不影响：聊天情绪字卡、TA 的心情、聊天回应字卡、你自建的字卡均照常可用。密码非常简单，答案就在开屏第一页的章节目录里：点开第一页顶部的「目录」，逐章翻一下就能找到（第一页第一章与第二页最顶那张时间线卡都写着——日期就是字面意思，不是隐藏答案）。解锁用的密码与开屏问答页的「暗号」是同一个（同一串 6 位数字，两个入口都用它）；解开密码请勿二传（不要告诉别人），一旦有人二传，密码就会被重新设置。继续使用即视为你确认已年满 18 周岁。</p>
           <div class="cardlock-actions" id="splash-cardlock-actions"></div>
         </div>
       </div>
@@ -10705,9 +10705,9 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
       <!-- #570：第三行开屏新版检测（ver-check.js 渲染）：检测中 / ✓已是最新 / ⇩有新版本可点更新 -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1790603134540">
+      <div class="splash-ver" id="splash-ver" data-build-ts="1790605406535">
         <span class="sv-app">Mochi 字卡传讯 <b>v8.45</b></span>
-        <span class="sv-deploy">部署于 2026-09-28 21:45<span id="splash-ver-live"></span></span>
+        <span class="sv-deploy">部署于 2026-09-28 22:23<span id="splash-ver-live"></span></span>
         <span class="sv-check" id="splash-ver-check" hidden></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
@@ -10743,6 +10743,25 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
           <div class="splash-mandatory-title">进入前 · 作者必读公告</div>
           <!-- #315c：进入前最后一屏补年龄红线——与开屏免责卡口径一致，防御链收口 -->
           <div class="splash-mandatory-sub">本站禁止未满 18 周岁的未成年人使用；以下为作者停更公告，请阅读（滑到底部后可确认进入）</div>
+        </div>
+        <!-- 2026-09-28（用户直派「公告第二页最顶写」并给出定稿原文）：原文一字未动，只补标题＋分卡＝本页卡片体例；
+             本页最顶那张 pinned 卡刻意不带 `.splash-mandatory-date`（本卡自己就是日期表，再挂一个日期会多出一个假诱饵）；
+             纯静态 DOM：不改门控（clock.js 的 mandBottom / finishEnter 一字未动，仍须滑到底才能确认进入）、不进 notice.json。
+             ⚠ 本卡第一行「2026.08.12 开始制作」＝二级密码的后 4 位（99+0812）。作者 2026-09-28 拍板：日期一直是很简单的字面意思、
+             不是隐藏答案，所以同批把九处指路改成「第一页的章节目录里和第二页最顶那张时间线卡都写着」（clock.js 3／applock.js 3／本页 tip 与摘要行／notice.json 摘要行）；
+             #1000 系列的针与 tools/verify-1000-pw-hint.mjs 的 S7・B4 两条断言要同批换锚，落点见 WORKLOG。 -->
+        <div class="splash-mandatory-card" id="splash-mandatory-timeline">
+          <div class="splash-mandatory-h">关于永久停更</div>
+          <div class="splash-mandatory-body">
+            <p>mochi 字卡 · 时间线</p>
+            <p>2026.08.12 开始制作</p>
+            <p>2026.08.15 开始内测</p>
+            <p>2026.08.29 正式公开</p>
+            <p>2026.09.30 完结停更</p>
+            <p>2026.08.12 ～ 2026.09.30，制作 50 天，正式完结。</p>
+            <p>这个网站不会再继续更新，但不会关闭，内容永久保留，网站依然可以正常使用和下载，GitHub 库开源代码也可继续下载。</p>
+            <p>并不懂代码，网站是 AI 辅助制作，目前来说只有三个月的制作经验。以后如果有时间，可能会做出更成熟的作品吧。</p>
+          </div>
         </div>
         <!-- v8.44 #1215（用户 2026-09-25 直派「开屏公告的第二页新增内容：关于设备兼容问题和自己修bug」并给定稿原文）
              ＋同日追改 #1215b（用户：「把今天最新的刚刚叫你加的内容放在第二页的公告放在最顶上，默认打开，其他的折叠起来」）——
@@ -10787,7 +10806,7 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
           </div>
         </div>
         <details class="splash-mandatory-fold" id="splash-mandatory-older">
-          <summary class="splash-mandatory-fold-sum">更早的公告 · 2026.09.12 ~ 09.22</summary>
+          <summary class="splash-mandatory-fold-sum">更早的公告 · 2026.09.12 ~ 09.28</summary>
         <div class="splash-mandatory-card">
           <div class="splash-mandatory-date">2026.09.12</div>
           <div class="splash-mandatory-h">月底停更，说点心里话</div>
@@ -10866,6 +10885,24 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
             <p>我一直都说这是免费网站，有人不清楚现状有对外说类似「网站是免费的，但除了作者谁都不要给钱」——完全自相矛盾，这网站本来就是免费的，一直是免费的，请不要在外面乱传。我真怕有人在外面乱传，明明网站一直是免费的，却被说成「免费但作者私下收费」之类的话。</p>
             <p>还有更怕永久停更后有人借着这个网站的名义收费，到时候真传成「这网站收费」，也是说不清了。</p>
             <p>说实话，这个网站是我用了非常多的精力和心血做成的，我做不到对外面那些话语完全零反应。就算对我的网站，我的话不认可，也请互相尊重彼此。</p>
+          </div>
+        </div>
+        <!-- 2026-09-28（用户直派「帮我把这个内容加进公告第二页」并给出定稿原文）：原文一字未动（含「ios／chrome」原样小写、编号「1.2.3.4.」与两处【】段），只补 日期＋标题＋分卡＝本页卡片体例；
+             落点＝页 2「更早的公告」折叠块内末尾（#1215 之后本页＝标题条→置顶两卡→折叠块→公告完）：既按日期排在 09.22 之后，又不挤开「公告完」前那几行（#995e 的 needle 与 verify-1215 的 B5 索引都钉在结构上）；
+             折叠块标题的日期范围同批从 09.22 改到 09.28（#1215h 的针是块 id，不钉这句文案）。纯静态 DOM：不改门控、不进 notice.json。 -->
+<div class="splash-mandatory-card" id="splash-mandatory-usage-advice">
+          <div class="splash-mandatory-date">2026.09.28</div>
+          <div class="splash-mandatory-h">关于使用如果出现问题</div>
+          <div class="splash-mandatory-body">
+            <p>1.不同手机型号设备、不同手机系统、不同浏览器，有可能出现不同的bug。</p>
+            <p>主要原因可能还是因为功能设计太多了，这个项目无法装下这么多设置，会有很多限制，所以除了设备限制外的其他具体原因作者也不是很清楚。【只能说作者手机使用没什么问题，一般正常来说别的设备使用基础功能应该没什么问题，但是不同设备可能还是会碰到不同奇奇怪怪的小问题。】</p>
+            <p>2.建议安卓不要使用默认浏览器，安卓手机的默认浏览器可能出现很多不同的兼容问题。</p>
+            <p>3.然后如果有出现问题，都可以试试什么浏览器问题少就用什么浏览器。如果有出现小问题，刷新重新打开网站使用就行。</p>
+            <p>4.如果长期使用因手机浏览器内存占用太多出现问题，建议只单独保存字卡库的数据，重新清除数据后使用。</p>
+            <p>【作者是安卓用chrome浏览器，现在是连续使用了四十多天基本上没什么问题，但这个项目月底是永久停更，所以给到建议是这样。】</p>
+            <p>并且iOS卡顿的问题，因为作者没有iOS手机，所以只能每次有人报一次就改善一点点，也可能没有改善。不同ios型号和ios系统出现的问题也不一样，反正就是盲修，除了我自己的手机外可以修复测试复现问题，其他所有人的全部都是盲修。</p>
+            <p>马上月底也停修了，ios因设备限制很多，盲修解决不了卡顿问题，安卓会好很多正常使用很流畅。</p>
+            <p>实在不行就自适应凑合用或自己拿开源代码真机测试修改或换网站吧，或者建议也是只保存字卡库的数据，清除数据重新使用。</p>
           </div>
         </div>
         </details>
@@ -22513,4 +22550,4 @@ window.__mochiBootRetry = function () { try { location.reload(); } catch (e) {} 
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mulavh3g -->
+<!-- __MOCHI_EOF__ mulc866f -->

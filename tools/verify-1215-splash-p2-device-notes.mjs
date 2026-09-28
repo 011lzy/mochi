@@ -173,6 +173,7 @@ const st = await page.evaluate((a) => {
     text: m ? (m.textContent || '') : '',
     disabled: !!en && en.classList.contains('is-disabled'),
     topPos: [kidTag(a.id1), kidTag(a.id2)],
+    tlPos: kidTag("splash-mandatory-timeline"),
     foldPos: fold && fold.parentNode === sc ? Array.prototype.indexOf.call(sc.children, fold) : -1,
     firstChildIsHead: !!(kids[0] && kids[0].classList.contains('splash-mandatory-head')),
     kidsCount: kids.length,
@@ -196,9 +197,9 @@ ok(st.text.includes(H1) && st.text.includes(H2), 'B3 两个新标题在页 2 屏
 ok(st.foldOpen === false && st.oldInFold.every(Boolean) && st.oldVisible.every((v) => v === false),
   'B4 折叠块初始收起、五张既有卡整体在其内且全部判为不可见（＝用户要的「其他折叠起来」真的收住了）',
   'open=' + st.foldOpen + ' inFold=' + JSON.stringify(st.oldInFold) + ' visible=' + JSON.stringify(st.oldVisible));
-ok(st.firstChildIsHead && st.topPos[0] === 1 && st.topPos[1] === 2 && st.foldPos === 3,
-  'B5 滚动容器结构＝标题条之后紧接两张新卡、折叠块排第三（＝置顶默认展开，全程零 JS）',
-  JSON.stringify({ head: st.firstChildIsHead, topPos: st.topPos, foldPos: st.foldPos, kids: st.kidsCount }));
+ok(st.firstChildIsHead && st.tlPos === 1 && st.topPos[0] === 2 && st.topPos[1] === 3 && st.foldPos === 4,
+  'B5 滚动容器结构＝标题条→停更时间线卡→置顶两张新卡→折叠块（#1373 换锚：作者直派时间线卡放最顶；「置顶默认展开、全程零 JS」这条契约没放宽，只是往后挪一格）',
+  JSON.stringify({ head: st.firstChildIsHead, tlPos: st.tlPos, topPos: st.topPos, foldPos: st.foldPos, kids: st.kidsCount }));
 ok(st.stepCount === STEPS.length && st.stepInfo.every((s, i) => s.txt === STEPS[i] && +s.fw >= 700 && s.bullet.includes('·')),
   'B6 方法五条按既有 .mnum 真的渲染成列表（加粗＋项目符号），不是一堆裸段落', st.stepCount + ' 条');
 ok(st.scrollH > st.clientH, 'B7 页 2 内容高于视口（折叠后仍靠滑动阅读，不是一屏塞满）', st.scrollH + '/' + st.clientH);
