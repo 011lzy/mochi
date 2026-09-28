@@ -4665,7 +4665,7 @@ const FIX_SENTINELS = [
   { name: '#997e 壁纸图库「＋ 上传新图（可多选）」下小字（删＝壁纸批量上传入口无浏览器限制说明）', file: 'js/personalize.js', needle: "bgHint.id = 'phonebg-upload-hint';" },
   { name: '#997f 塔罗牌面批量上传小字（删＝牌面批量上传入口无浏览器限制说明）', file: 'js/divination.js', needle: 'id="divf-batch-hint"' },
   { name: '#997g 使用说明「功能说明」列全四节长文（删/改回三节＝新章节没进入口说明，用户看不到它）', file: 'js/settings-help.js', needle: '再到四节长文——' },
-  { name: '#997h 说明页第 11 节计数与条目数对齐（漂移＝章标题上的条数与实际条数不符；HEAD 起 19≠20）', file: 'template.html', needle: '手机卡顿怎么办（安卓 / iPhone）</span><span class="lg-count">20</span>' },
+  { name: '#997h 说明页第 11 节计数与条目数对齐（漂移＝章标题上的条数与实际条数不符；#1370 换锚：本批该节 20→23 条）', file: 'template.html', needle: '手机卡顿怎么办（安卓 / iPhone）</span><span class="lg-count">23</span>' },
   { name: '#997i 头像库小字在「添加头像」按钮上方（挪回按钮下方＝360×640 上落在滚动区折叠线以下，用户看不到）', file: 'template.html', needle: '还没有头像，点击下方按钮添加</div>\n          <div style="font-size:11px;line-height:1.6;color:var(--muted);margin:6px 0 8px" id="avlib-upload-hint">' },
   { name: '#997j 我的表情「添加」行小字（删＝表情图片批量导入入口无浏览器限制说明）', file: 'template.html', needle: 'id="myemoji-add-hint">选不了多张或点了没反应' },
   { name: '#997k 朋友圈发动态配图行小字（删＝一次最多 9 张的入口无浏览器限制说明）', file: 'template.html', needle: 'id="feed-pick-hint-note">选不了多张或点了没反应' },
@@ -4783,8 +4783,8 @@ const FIX_SENTINELS = [
   { name: '#1041c 竞价台图片贯通在位（删＝背包有图、开拍回退 emoji，图非所见复发）', file: 'js/auction.js', needle: "const auImg = item.mystery ? '' : auSafeImg(item.img);" },
   { name: "#1034a 诊断回收警告补可行动作（删＝用户只知道被回收，不知道怎么止住；#1199 换锚：旧 needle 的 Chrome「内存节省程序/始终保持活动」只管标签页、对桌面快捷方式与独立 PWA 无效，用户实报「上面写的方法也没有用」，现锚真有效的系统省电/后台管控那条；device.js 是内联件，文件归 index.html）", file: "index.html", needle: "别从最近任务划掉本站，改为在系统设置→应用→本浏览器→省电" },
   { name: "#1034b 回收提示条「怎么清」给出真能生效的方法（删＝提示只说明成因不给出路；#1199 换锚同 #1034a：旧文案的 Chrome 标签页开关对 PWA 无效）", file: "js/bg-keep.js", needle: "系统设置 → 应用 → 你用的浏览器 → 省电/电池" },
-  { name: "#1034c 功能说明补「止住回收最有效的一步」章（删＝挂几分钟就被丢的用户无解可循）", file: "js/settings-help.js", needle: "【止住回收最有效的一步】Chrome：设置 → 性能 →「内存节省程序」关掉" },
-  { name: "#1034d 行下红条补白名单动作与自动恢复口径（删＝「失效后重开开关」被理解成功能又坏了）", file: "template.html", needle: "止住它最有效的一步＝Chrome 设置→性能→「内存节省程序」关掉、或把本站加入「始终保持活动」名单" },
+  { name: "#1034c 功能说明补「止住回收最有效的一步」章（删＝挂几分钟就被丢的用户无解可循；#1370 换锚：旧 needle 那句把 Chrome 标签页开关说成最有效的一步，#1199 已据实报改掉）", file: "js/settings-help.js", needle: "那两个只管浏览器里的标签页" },
+  { name: "#1034d 行下红条补白名单动作与自动恢复口径（删＝「失效后重开开关」被理解成功能又坏了；#1370 换锚同 #1034c：旧 needle 正是被撤掉的那句标签页开关结论）", file: "template.html", needle: "已经加到手机桌面的本站是独立应用，那两处管不到它" },
   { name: "#1034e 功能说明补「装桌面图标＋离线消息提醒」兜底层（删＝页面被回收后连一条兜底通知都没有）", file: "js/settings-help.js", needle: "页面被回收甚至全部关掉后，浏览器也会定时唤醒弹一条" },
   { name: "#1034f 口径量化「内存紧张时几分钟也会被丢」（删＝用户拿「约 30 分钟」对不上自己的几分钟，以为网站坏了）", file: "js/settings-help.js", needle: "手机内存紧张时更快——本页越重，几分钟也可能被丢" },
   { name: '#1039a 进聊天页「先上屏一帧再跑重活」（原 #1017a 号被 bg-keep 那批占用、本侧锚点曾被并行批抹掉，本条为重挂；删＝进度条置位与撤销又落回同一任务＝「没有加载动画缓冲」复发）', file: 'js/chat.js', needle: "requestAnimationFrame(function () { requestAnimationFrame(function () { setTimeout(run, 0); }); });" },
@@ -5622,6 +5622,15 @@ const FIX_SENTINELS = [
   { name: '#1360k 恢复以拼出来的整本为准、两段一起对齐（删/改回按字符串长度比＝有损尾巴永远赢，块键随后被删光）', file: 'js/data-backup.js', needle: 'idbObj[msgKey] = full; lsObj[msgKey] = full;' },
   { name: '#1360l 分块组装用的 lsObj/idbObj 必须先声明（改回到使用之后＝TDZ 被外层 catch 吞掉，分块备份的组装静默不跑）', file: 'js/data-backup.js', needle: "const lsObj = (data && typeof data.ls === 'object') ? data.ls : {};" },
   { name: '#1360m 旧那把「字符串谁长」的尺子已整块撤掉（不是加宽：复活＝尾巴又赢了）', file: 'js/data-backup.js', needle: "full.join('')", absent: true },
+  /* ==== 2026-09-28 #1370 用户直派「需要在使用说明和功能里说明 手机需要关省电模式之类的防止卡顿」：把 #1199 已经定下的口径（真正收回后台网页的是系统省电与后台管控，Edge「睡眠标签页」/Chrome「内存节省程序」只管浏览器标签页、管不到已加到桌面的 PWA）补到剩下的镜子——使用说明第 10 节（前提 5＋挂久失效）、第 11 节（新增三条）、第 12 节、关于 #about-perf-note、设置页 #bg-keep-sub、settings-help「后台保活」「后台通知」两条；同时撤掉「关 Chrome 内存节省程序＝最有效的一步」这句旧结论（#1034c/#1034d 两支针随之重锚） ==== */
+  { name: '#1370a 使用说明第 11 节新增「另一种卡＝手机把网页收回了」条目（删＝用户只剩「数据多才会卡」一条路，切回来白一下无从对症）', file: 'template.html', needle: '<b>还有一类「卡」不是数据多，是手机把网页收回了</b>' },
+  { name: '#1370b 安卓四步给的是系统级那只手（省电/电池策略→无限制/允许后台活动＋别让它优化这个应用），不是浏览器内的标签页开关', file: 'template.html', needle: '别让它「优化」这个应用' },
+  { name: '#1370c 「标签页开关管不到桌面 PWA」这条纠偏写进第 11 节（删＝用户继续去关睡眠标签页/内存节省程序，白忙活之后判定网站坏了）', file: 'template.html', needle: '<b>去改那两处没有用</b>' },
+  { name: '#1370d 设置页「后台保活」行下红条的最有效一步已换成系统省电＋最近任务锁定（改回标签页开关＝#1199 用户实报「上面写的方法也没有用」复发）', file: 'template.html', needle: '止住它最有效的一步＝去 系统设置 → 应用' },
+  { name: '#1370e 功能说明「止住回收最有效的一步」章给出的动作在系统设置侧（与 #1370d 同口径的另一面镜子）', file: 'js/settings-help.js', needle: '【止住回收最有效的一步】先去 系统设置 → 应用' },
+  { name: '#1370f 旧结论不许回到功能说明（复活＝同一件事在三处镜子互相打架，用户按哪一处做都不对）', file: 'js/settings-help.js', needle: '【止住回收最有效的一步】Chrome：设置 → 性能', absent: true },
+  { name: '#1370g 同一句旧结论不许回到设置页行下红条（删掉型针：本文件注释里也不写裸串）', file: 'template.html', needle: '止住它最有效的一步＝Chrome 设置→性能', absent: true },
+  { name: '#1370h iPhone 侧两条写进第 11 节（装桌面躲 7 天规则＋别开低电量模式；删＝iOS 用户只剩安卓那四条可照做）', file: 'template.html', needle: '② <b>别开「低电量模式」</b>' },
   // ===== #1360 end =====
 
 

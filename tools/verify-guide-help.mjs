@@ -95,8 +95,8 @@ A('S17 #997 独立一节讲清能力边界（无服务器 / 网页没有相册�
   tpl.includes('本站是一个网页，不是 App，也没有服务器') && tpl.includes('网页没有「相册权限 / 存储权限」这回事')
   && tpl.includes('网站能提的建议只有两条') && tpl.includes('换浏览器 / 装到主屏幕不会带走数据')
   && tpl.includes('本站是纯前端网页，能用的能力都是浏览器借给它的'));
-A('S18 #997 第 11 节计数漂移已校正（19→20，与实际条目一致）',
-  tpl.includes('手机卡顿怎么办（安卓 / iPhone）</span><span class="lg-count">20</span>'));
+A('S18 #997 第 11 节计数漂移已校正（19→20，与实际条目一致；#1370 该节加三条 20→23，仍与实条目数一致）',
+  tpl.includes('手机卡顿怎么办（安卓 / iPhone）</span><span class="lg-count">23</span>'));
 const fhAlready = read('js/feature-hub.js');
 A('S19 #997 功能大全「使用说明」条目列全章节并补关键词（搜「批量上传 / 设备限制」要能找到入口）',
   fh.includes('设备限制 浏览器限制 批量上传') && fh.includes('本站只是一个网页（批量上传图片只能选一张')
