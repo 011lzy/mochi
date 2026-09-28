@@ -1353,6 +1353,31 @@ try {
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') applyBgVisibility(); });
 document.addEventListener('mochi-fg-resume', applyBgVisibility);
 } catch (e) {}
+const HELD_BG_LAYERS = [['phone-bg-layer', 'page-phone'], ['cs-bg-layer', 'page-chat']];
+const heldBgArmed = {};
+function armHeldBgPaint() {
+for (let i = 0; i < HELD_BG_LAYERS.length; i++) {
+const lid = HELD_BG_LAYERS[i][0];
+const l = document.getElementById(lid);
+const pg = document.getElementById(HELD_BG_LAYERS[i][1]);
+if (!l || !pg || pg.hidden || !l.style.backgroundImage) continue;
+if (l.style.opacity === '0' || l.style.display === 'none') continue; // 这一层此刻根本没在屏上画（桌面那层 opacity 0／聊天那层 display none）＝它不是壁纸的画布，别动
+l.style.transform = 'none'; // ① 收回提升：这一帧壁纸改由页面自己的绘制缓冲画（回场必然重栅格）
+if (heldBgArmed[lid]) continue; // 还原已经排上了＝同一轮只重建一次合成层（写在收回之后：快速连着两次回前台，第二次仍要把提升收回，不许被这一发去重吞掉）
+heldBgArmed[lid] = 1;
+const back = function () {
+if (!heldBgArmed[lid]) return;
+heldBgArmed[lid] = 0;
+l.style.transform = ''; // ② 交还给 CSS（#765d/#765a 的 translateZ(0) 原样回来，稳态成本一字未改）
+};
+if (window.requestAnimationFrame) requestAnimationFrame(back);
+setTimeout(back, 120);
+}
+}
+try {
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') armHeldBgPaint(); });
+document.addEventListener('mochi-fg-resume', armHeldBgPaint);
+} catch (e) {}
 pbgHydrateBgOnce();
 try {
 document.addEventListener('mochi-restore-done', () => {

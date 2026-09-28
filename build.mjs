@@ -5636,6 +5636,13 @@ const FIX_SENTINELS = [
   { name: '#1370f 旧结论不许回到功能说明（复活＝同一件事在三处镜子互相打架，用户按哪一处做都不对）', file: 'js/settings-help.js', needle: '【止住回收最有效的一步】Chrome：设置 → 性能', absent: true },
   { name: '#1370g 同一句旧结论不许回到设置页行下红条（删掉型针：本文件注释里也不写裸串）', file: 'template.html', needle: '止住它最有效的一步＝Chrome 设置→性能', absent: true },
   { name: '#1370h iPhone 侧两条写进第 11 节（装桌面躲 7 天规则＋别开低电量模式；删＝iOS 用户只剩安卓那四条可照做）', file: 'template.html', needle: '② <b>别开「低电量模式」</b>' },
+  { name: '#1375a 回前台对常驻合成壁纸层重铺那一发本体（删＝纹理被系统作废后再没人要求重画＝「切回来壁纸空白、非得点一下标签页」当场复发）', file: 'js/personalize.js', needle: "l.style.transform = 'none';" },
+  { name: '#1375b 重铺的另一半：下一帧把提升交还给 CSS（缺它＝#765d/#765a 的常驻合成层语义整段被削掉＝「退聊天回桌面巨卡」复发）', file: 'js/personalize.js', needle: "l.style.transform = '';" },
+  { name: '#1375c 两次写入跨帧＋rAF 迟到兜底（并成一帧＝内核算「没变化」、合成层不重建＝本批零效果；光靠 rAF＝页面没恢复产帧时提升回不来）', file: 'js/personalize.js', needle: "setTimeout(back, 120);" },
+  { name: '#1375d 证人闸：这一屏真在屏上＋这一层真挂着背景载荷才动手（改成无条件＝没设壁纸的设备每次回场多两次样式写入＋一次合成层重建）', file: 'js/personalize.js', needle: "if (!l || !pg || pg.hidden || !l.style.backgroundImage) continue;" },
+  { name: '#1375e 证人闸另一半：这一层此刻真被画在屏上（桌面层 opacity 0／聊天层 display none 都不动——#1270 读空不拆层会把旧纹理留在隐藏层上，只看「挂着图」会给根本不是画布的那层白重建一次）', file: 'js/personalize.js', needle: "if (l.style.opacity === '0' || l.style.display === 'none') continue;" },
+  { name: '#1375f 回前台双通道接线（#1270 同款：部分内核只发 focus/pageshow、不发 visibilitychange）', file: 'js/personalize.js', needle: "document.addEventListener('mochi-fg-resume', armHeldBgPaint);" },
+  { name: '#1375g 一轮只重铺一次的在途去重（缺它＝visibilitychange 与 mochi-fg-resume 各来一发＝同一帧重建两次合成层）', file: 'js/personalize.js', needle: "if (heldBgArmed[lid]) continue;" },
   // ===== #1360 end =====
 
 

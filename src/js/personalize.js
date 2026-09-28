@@ -1811,6 +1811,52 @@ try {
     // bg-keep 的回前台统一信号（#967 同款双通道）：部分内核只发 focus/pageshow、不发 visibilitychange
     document.addEventListener('mochi-fg-resume', applyBgVisibility);
   } catch (e) {}
+
+  // ===== #1375：回前台把「常驻合成的壁纸图层」的绘制重新要求一次 =====
+  // 症状（iPhone 12 Pro Max／iOS 16.6 桌面 PWA 实报「每次切到后台再切回来壁纸就没了、变成没有背景的
+  // 空白，点进聊天页面再退出来又正常」＋「这个问题其他设备型号也有出现」）。
+  // 为什么只有壁纸空、屏上其余一切正常：手机端壁纸只由这一层画（applyBodyBg 在非宽屏形态不往 body 写图，
+  // personalize.js:1024），而 #phone-bg-layer／#cs-bg-layer 各自被 CSS 常驻提成独立合成层
+  //（home.css:51 #765d、chat-main.css:618 #765a 的 transform:translateZ(0)）。系统挂起页面时会作废合成层
+  // 的纹理，回前台只重栅格「脏了」的东西——普通绘制的内容整页重新画（所以图标卡片都好好的），常驻合成层
+  // 没被弄脏就永远拿回那一块空纹理。
+  // 取证（无头真跑 HEAD 产物＝tools/verify-1375-held-bg-paint-arm.mjs 的 B 组夹具）：切后台确实按 #1195e 放掉
+  //（307,222B→0），回前台按需取回也把值送回来了（0→307,222B），可整段窗口里这一层的 style 被写过 **0 次**
+  //（内联图一字未动、opacity 恒 1）——上面那条 #1270 通道把「数据」修好了，但它和所有重铺一样全是
+  //「值变才写」，于是「样式还在」被当成了「画出来了」。而用户那个恢复动作恰好对这一层写 2 次（opacity 0→1）
+  //＝唯一能让纹理重生的动作掌握在用户手里。
+  // 怎么做：回前台那一发把这一层的常驻提升临时收回（写 transform:none），下一帧再交还给 CSS——合成层
+  // 销毁重建＝纹理必然按当前 DOM 重新生成；两次写入必须跨帧（同一帧里写两次会被并成「没变化」）。全程
+  // 不重赋 backgroundImage：那是 #147/#1295 明令不许加回回场这一帧的主线程整幅解码。判据只有四个当场事实
+  //「这一发刚从后台回来」「这一屏此刻在屏上（读 .hidden 属性＝零布局、零 getComputedStyle）」「这一层此刻
+  // 挂着背景载荷」「这一层此刻真被画着（桌面层 opacity 0／聊天层 display none＝它不是壁纸的画布，别动）」
+  //，零机型、零 UA 分支；没设壁纸的设备一个字节都不写（同 #1300 证人闸口径）。
+  const HELD_BG_LAYERS = [['phone-bg-layer', 'page-phone'], ['cs-bg-layer', 'page-chat']];
+  const heldBgArmed = {};
+  function armHeldBgPaint() {
+    for (let i = 0; i < HELD_BG_LAYERS.length; i++) {
+      const lid = HELD_BG_LAYERS[i][0];
+      const l = document.getElementById(lid);
+      const pg = document.getElementById(HELD_BG_LAYERS[i][1]);
+      if (!l || !pg || pg.hidden || !l.style.backgroundImage) continue;
+      if (l.style.opacity === '0' || l.style.display === 'none') continue; // 这一层此刻根本没在屏上画（桌面那层 opacity 0／聊天那层 display none）＝它不是壁纸的画布，别动
+      l.style.transform = 'none'; // ① 收回提升：这一帧壁纸改由页面自己的绘制缓冲画（回场必然重栅格）
+      if (heldBgArmed[lid]) continue; // 还原已经排上了＝同一轮只重建一次合成层（写在收回之后：快速连着两次回前台，第二次仍要把提升收回，不许被这一发去重吞掉）
+      heldBgArmed[lid] = 1;
+      const back = function () {
+        if (!heldBgArmed[lid]) return;
+        heldBgArmed[lid] = 0;
+        l.style.transform = ''; // ② 交还给 CSS（#765d/#765a 的 translateZ(0) 原样回来，稳态成本一字未改）
+      };
+      // rAF 之外再兜一发：页面刚回来还没恢复产帧时 rAF 可能迟迟不来，光靠它就会把常驻语义整段丢掉。
+      if (window.requestAnimationFrame) requestAnimationFrame(back);
+      setTimeout(back, 120);
+    }
+  }
+  try {
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') armHeldBgPaint(); });
+    document.addEventListener('mochi-fg-resume', armHeldBgPaint);
+  } catch (e) {}
   // v3.5.93：桌面壁纸大键可能只存在 IndexedDB（导入兜底写入/大键只进 IDB）——启动时补读后重新应用
   // FIX 2026-09-25 #1218：把「裸 idbGet（超时定死、失败静默、读空就当没有）」换成数据层的三态
   // 按需取回：取回成功才重铺，确认查无才认丢失，读失败保持可重试（下一次进桌面 applyBgVisibility
