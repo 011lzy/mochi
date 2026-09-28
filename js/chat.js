@@ -10976,18 +10976,35 @@ if (!t) { t = [g[0], []]; merged.push(t); }
 g[1].forEach(item => { if (t[1].indexOf(item) < 0) t[1].push(item); });
 });
 }
-function finish(merged) {
+function myeMigCommit(json) {
+const stamp = () => {
 try {
-if (cntOf(merged)) gStore.set('my-emoji-groups', JSON.stringify(merged));
 (window.getContacts ? window.getContacts() : [{ id: 'default' }]).forEach(c => {
-try { window.storeFor(c.id || 'default').remove('my-emoji-groups'); } catch (e) {}
+try { window.storeFor(c.id || 'default').remove('my-emoji-groups'); } catch (e0) {}
 });
-try { gStore.set('mye-global-migrated', '1'); } catch (e) {}
-} catch (e) { try { gStore.set('mye-global-migrated', '1'); } catch (e2) {} }
-if (cntOf(merged) && cntOf(merged) !== cntOf(myGroups)) {
+} catch (e1) {}
+try { myEmojiStore().set('mye-global-migrated', '1'); } catch (e2) {}
+};
+if (!window.idbSet) { stamp(); return; }
+let p = null;
+try { p = window.idbSet(MYE_KEY(), json); } catch (e4) { p = null; }
+if (p && p.then) p.then(ok => {
+if (ok === true) stamp();
+else { try { window.__myeMigHold = (window.__myeMigHold || 0) + 1; } catch (e5) {} }
+}, () => { try { window.__myeMigHold = (window.__myeMigHold || 0) + 1; } catch (e6) {} });
+else stamp();
+}
+function finish(merged, auth) {
+const n = cntOf(merged);
+if (!auth) { try { window.__myeMigHold = (window.__myeMigHold || 0) + 1; } catch (e) {} return; }
+if (!n) { try { gStore.set('mye-global-migrated', '1'); } catch (e) {} return; } // 每一发都确认没有＝真没有
+const json = JSON.stringify(merged);
+gStore.set('my-emoji-groups', json);
+if (n !== cntOf(myGroups)) {
 myGroups = merged;
 if (!emojiPanel.hidden) renderEmojiPanel();
 }
+myeMigCommit(json);
 }
 function run() {
 if (started) return;
@@ -10999,15 +11016,17 @@ const cur = window.__activeCid || 'default';
 const order = cids.indexOf(cur) >= 0 ? [cur].concat(cids.filter(c => c !== cur)) : cids;
 const merged = [];
 order.forEach(c => { try { mergeInto(merged, parseArr(window.storeFor(c).get('my-emoji-groups'))); } catch (e) {} });
-mergeInto(merged, parseArr(gStore.get('my-emoji-groups'))); // 顶层旧键快照（= 全局键）
-if (!window.idbGet) { finish(merged); return; }
+mergeInto(merged, parseArr(gStore.get('my-emoji-groups'))); // 顶层旧键快照（= 顶层键）
+if (!window.idbGet) { finish(merged, true); return; }
 const reads = order.map(c => MYE_G_PREFIX + ':' + c + ':my-emoji-groups');
 reads.push(MYE_KEY()); // 顶层旧键 IDB 权威
-Promise.all(reads.map(k => window.idbGet(k).catch(() => null))).then(vals => {
-vals.forEach(v => { const d = parseArr(v); if (d) mergeInto(merged, d); });
-finish(merged);
+const amb = reads.map(() => ({}));
+Promise.all(reads.map((k, i) => window.idbGet(k, amb[i]).catch(() => { amb[i].ambiguous = true; return undefined; }))).then(vals => {
+let unread = 0;
+vals.forEach((v, i) => { const d = parseArr(v); if (d) mergeInto(merged, d); else if (amb[i] && amb[i].ambiguous) unread++; });
+finish(merged, unread === 0);
 });
-} catch (e) { try { gStore.set('mye-global-migrated', '1'); } catch (e2) {} }
+} catch (e) { try { window.__myeMigHold = (window.__myeMigHold || 0) + 1; } catch (e2) {} }
 }
 if (window.__mochiDataReady) run();
 else document.addEventListener('mochi-restore-done', function h() {

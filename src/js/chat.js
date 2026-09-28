@@ -13779,18 +13779,46 @@ if (!t) { t = [g[0], []]; merged.push(t); }
 g[1].forEach(item => { if (t[1].indexOf(item) < 0) t[1].push(item); });
 });
 }
-function finish(merged) {
+// FIX 2026-09-28 #1371b：拆源与盖章是两件不可逆的事，收到「全局那一本确认落进库里」这一条回执之后
+// 才做（顺序不可反＝#186／#1363 已入库验证的同一条纪律；idbSet 的 true＝oncomplete 已到）。
+// 写库没回执＝源键原样留着、戳不盖＝下次开页再合一次（合并按组名并集＝幂等，不丢也不重）。
+function myeMigCommit(json) {
+const stamp = () => {
 try {
-if (cntOf(merged)) gStore.set('my-emoji-groups', JSON.stringify(merged));
 (window.getContacts ? window.getContacts() : [{ id: 'default' }]).forEach(c => {
-try { window.storeFor(c.id || 'default').remove('my-emoji-groups'); } catch (e) {}
+try { window.storeFor(c.id || 'default').remove('my-emoji-groups'); } catch (e0) {}
 });
-try { gStore.set('mye-global-migrated', '1'); } catch (e) {}
-} catch (e) { try { gStore.set('mye-global-migrated', '1'); } catch (e2) {} }
-if (cntOf(merged) && cntOf(merged) !== cntOf(myGroups)) {
+} catch (e1) {}
+try { myEmojiStore().set('mye-global-migrated', '1'); } catch (e2) {}
+};
+if (!window.idbSet) { stamp(); return; }
+let p = null;
+try { p = window.idbSet(MYE_KEY(), json); } catch (e4) { p = null; }
+if (p && p.then) p.then(ok => {
+if (ok === true) stamp();
+else { try { window.__myeMigHold = (window.__myeMigHold || 0) + 1; } catch (e5) {} }
+}, () => { try { window.__myeMigHold = (window.__myeMigHold || 0) + 1; } catch (e6) {} });
+else stamp();
+}
+// FIX 2026-09-28 #1371a：这一本一生只走一次，而原实现把「每一发都没读到」折叠成「库里没有」——
+// merged 为空照样把每个桌面的 my-emoji-groups 删掉（xyStore.remove 在数据层是连 IndexedDB 权威副本
+// 一起删的）再盖 mye-global-migrated 永不重跑＝用户所见「表情包什么的都没了」且再也回不来。
+// 这台报障机「本页被系统回收过 100 次」＝每一发都可能没读到，而其他机型同现（与内核无关）。
+// auth＝这一场每一发源键都有终态（读到值／健康连接确认无此键）；判据只问「这一发完成没有」。零机型／零 UA。
+function finish(merged, auth) {
+const n = cntOf(merged);
+// FIX 2026-09-28 #1371a：auth=false（有源键这一发没读到）＝整件事一件都不做——不拆源、不盖章，
+// 也**不写**全局那一本：写它＝xyStore.set 顺手 idbSet 把库里可能更全的那本顶掉＝#1361 那把尺正指着
+// 的动作。源键原样留着，下次开页再合一次（按组名并集＝幂等，不丢也不重）。
+if (!auth) { try { window.__myeMigHold = (window.__myeMigHold || 0) + 1; } catch (e) {} return; }
+if (!n) { try { gStore.set('mye-global-migrated', '1'); } catch (e) {} return; } // 每一发都确认没有＝真没有
+const json = JSON.stringify(merged);
+gStore.set('my-emoji-groups', json);
+if (n !== cntOf(myGroups)) {
 myGroups = merged;
 if (!emojiPanel.hidden) renderEmojiPanel();
 }
+myeMigCommit(json);
 }
 function run() {
 if (started) return;
@@ -13802,15 +13830,21 @@ const cur = window.__activeCid || 'default';
 const order = cids.indexOf(cur) >= 0 ? [cur].concat(cids.filter(c => c !== cur)) : cids;
 const merged = [];
 order.forEach(c => { try { mergeInto(merged, parseArr(window.storeFor(c).get('my-emoji-groups'))); } catch (e) {} });
-mergeInto(merged, parseArr(gStore.get('my-emoji-groups'))); // 顶层旧键快照（= 全局键）
-if (!window.idbGet) { finish(merged); return; }
+mergeInto(merged, parseArr(gStore.get('my-emoji-groups'))); // 顶层旧键快照（= 顶层键）
+// FIX 2026-09-28 #1371a：没有 IDB 这一层时同步层就是全部真相（xyStore.get 读空＝确认没有）；
+// 有 IDB 时同步读空只是「LS 那份被剥掉／回填还没轮到」，终态一律由下面那一批发决定。
+if (!window.idbGet) { finish(merged, true); return; }
 const reads = order.map(c => MYE_G_PREFIX + ':' + c + ':my-emoji-groups');
 reads.push(MYE_KEY()); // 顶层旧键 IDB 权威
-Promise.all(reads.map(k => window.idbGet(k).catch(() => null))).then(vals => {
-vals.forEach(v => { const d = parseArr(v); if (d) mergeInto(merged, d); });
-finish(merged);
+// FIX 2026-09-28 #1371a：旧写法 reads.map(k => idbGet(k).catch(() => null)) 把「事务挂起／连接被杀／
+// 等待窗到点」与「库里真没有」压成同一个 null（#665a 给 idbGet 加的就是这个三态出口，本处一直没接）。
+const amb = reads.map(() => ({}));
+Promise.all(reads.map((k, i) => window.idbGet(k, amb[i]).catch(() => { amb[i].ambiguous = true; return undefined; }))).then(vals => {
+let unread = 0;
+vals.forEach((v, i) => { const d = parseArr(v); if (d) mergeInto(merged, d); else if (amb[i] && amb[i].ambiguous) unread++; });
+finish(merged, unread === 0);
 });
-} catch (e) { try { gStore.set('mye-global-migrated', '1'); } catch (e2) {} }
+} catch (e) { try { window.__myeMigHold = (window.__myeMigHold || 0) + 1; } catch (e2) {} }
 }
 if (window.__mochiDataReady) run();
 else document.addEventListener('mochi-restore-done', function h() {

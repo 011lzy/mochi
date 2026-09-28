@@ -5672,6 +5672,25 @@ const FIX_SENTINELS = [
   { name: '#1359h 导入清 LS 那一步跳过回执环（删＝每次成功导入把「本机导入过」这条证据自己抹掉——报障单【数据导入回执】为空的根子）', file: 'js/data-backup.js', needle: 'k !== IMPORT_LOG_KEY' },
   { name: '#1359i 聊天记录导入通路开始记账（红侧＝用户明说导入过而回执环一行都没有；单桌那格按是否数组取，标准备份那一型 singleMsgs 恒 null）', file: 'js/data-backup.js', needle: "impLog('chat:go" },
   { name: '#1359j 单键补问先附议「还在飞的那一发」（#1360 第七型口径：同一格另起一整包重读＝堆尖峰＝页面被系统回收）', file: 'js/data-backup.js', needle: 'window.idbLateRead && window.idbLateRead(key)' },
+  // ===== #1371 iPhone 14 Plus／Safari 实报「自定义字卡表情包什么的都没了，总是丢失数据」（随附
+  //         mochi-diag-2026-09-28-09-03-37…docx；同案两条根因，判据一律零机型／零 UA 分支）=====
+  // ①真丢了：两处「一生只跑一次」的存量迁移把「这一发没读到」当「库里没有」——xyStore.remove 在数据层
+  //   是连 IndexedDB 权威副本一起删的（idb.js 的 remove＝memoryCache＋localStorage＋idbDelete），删完再
+  //   盖 mye-global-migrated／cc-scope-migrated 永不重跑＝报障机 自定义字卡=0／sticker=0／image=0 而媒体池
+  //   256 条还在（＝引用没了、图还在）。②屏上没了：外置包自愈那条腿用 async=true 重注入＝执行序退回
+  //   「谁先下完谁先跑」，把 <script defer> 的依赖序整张丢掉，报障件 00:06 四条 window.activeStore is not a
+  //   function（fav-settings／records／loc-lib／sfx）正是 70 包首拉全灭后乱序那一场，整段 IIFE 中止＝库里
+  //   一字未动而界面上「都没了」。收口全部接现成的三态出口（#665a 的 idbGet 歧义标记、#1361n 的
+  //   xyPackageEmptyRead、#172/#281 的 idbHydrateKey、#434 的 idbSet 提交回执），不新造尺子。
+  { name: '#1371a 表情包全局化迁移把「每一发读回有没有终态」交给落笔决定（没读到＝不写不删不盖章；塌成两态就是把「没读到」讲成「没有」＝整本表情包永久没了）', file: 'js/chat.js', needle: 'finish(merged, unread === 0)' },
+  { name: '#1371b 拆源与盖章排在「全局那一本确认落进库里」的提交回执之后（顺序不可反＝#186/#1363 那条纪律；反了＝引用落了库而图体只在内存，回收即永久空白）', file: 'js/chat.js', needle: 'if (ok === true) stamp();' },
+  { name: '#1371c 字卡作用域迁移同一条三态判据（auth 才动 st.remove＝连 IDB 权威一起删那一发；没读到就整件事一件不做，下次开页再合）', file: 'js/chatcard.js', needle: 'pick(local, unread === 0)' },
+  { name: '#1371d 迁移那批发不许再把读不回与库里确认没有压成同一个空值（复活＝#1359/#1360 同一把尺在最后一本迁移账上失守，用户所见「自定义字卡没了」）', file: 'js/chatcard.js', needle: 'idbGet(k).catch(() => null)', absent: true },
+  { name: '#1371e 今日情话自定义卡整包写回前问「这一发空读有没有权威」（#1361n 那句判断接进这本 #1361 当时漏掉的账；删＝拿一份空表顶掉库里那一本）', file: 'js/quote-cards.js', needle: 'if (!window.xyPackageEmptyRead || !window.xyPackageEmptyRead(store, KEY) || qcAuth) { qcRun(); return; }' },
+  { name: '#1371f 暂存的是「这一发要做的动作」而不是算好的那一份表（取回后作用在真读到的那一本上＝删除不会把补回来的旧条目又塞回去）', file: 'js/quote-cards.js', needle: 'ops.forEach(op => { const r = op(out); if (Array.isArray(r)) out = r; });' },
+  { name: '#1371g 自愈重注入按开机求值序补发（jsFiles 下标＝依赖序；改回按下标乱序＝contacts.js 的 activeStore 还没挂上时调用方整段 IIFE 中止＝字卡/表情包这一场全空）', file: 'index.html', needle: 'const q = byBootOrder(list);' },
+  { name: '#1371h 动态插入的脚本按插入序执行（async=true＝执行序退回到达序，defer 那份「依赖先于调用方」的保证整张丢掉）', file: 'index.html', needle: 's.async = false;' },
+  { name: '#1371i 换址逃生那条腿同样按依赖序串成一条链（并发 fetch＋到手就插＝同一把尺子的第二个口子；每发各带天花板，挂死一发不拖住后面全部）', file: 'index.html', needle: 'byBootOrder(list).forEach' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

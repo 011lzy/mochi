@@ -915,15 +915,32 @@
     for (let i = 0; i < fail.length; i++) if (loaded.indexOf(fail[i]) < 0 && out.indexOf(fail[i]) < 0) out.push(fail[i]);
     return out;
   }
+  // FIX 2026-09-28 #1371e：开机求值序＝build.mjs 的 jsFiles 下标（device/idb/contacts 在前、
+  // mobile-adapt 在最后＝那一份数组本身就是依赖序）。自愈的两条腿都必须按它补发，见下方 reinject。
+  function byBootOrder(list) {
+    const seq = window.__mochiJsFiles || [];
+    const rank = {};
+    for (let i = 0; i < seq.length; i++) if (rank[seq[i]] === undefined) rank[seq[i]] = i;
+    const at = f => (rank[f] === undefined ? seq.length : rank[f]);
+    return (list || []).slice().sort((a, b) => at(a) - at(b));
+  }
   function reinject(list) {
     const now = Date.now();
-    for (let i = 0; i < list.length; i++) {
-      const f = list[i];
+    // FIX 2026-09-28 #1371e：原实现按下标顺序 append＋s.async=true＝执行序退回「谁先下完谁先跑」，
+    // 把 <script defer> 那份「依赖先于调用方」的保证整张丢掉。window.activeStore 要到 contacts.js
+    // 自己跑到它那一行才挂上（jsFiles 第 3 位），而 quote-cards／fav-settings／records／loc-lib／sfx／
+    // chat／chatcard 都在 IIFE 第一行就调它——报障件 00:06 那四条「window.activeStore is not a function」
+    // 正是 70 个包首拉全灭后自愈乱序的那一场：抛错那一发整段 IIFE 中止＝自定义字卡／表情包／收藏这一场
+    // 全空，而库里一字未动＝用户所见「都没了」。零机型／零 UA 分支，判据只问「谁必须先跑」。
+    const q = byBootOrder(list);
+    for (let i = 0; i < q.length; i++) {
+      const f = q[i];
       if (lastTry[f] && now - lastTry[f] < 4000) continue;
       lastTry[f] = now;
       const s = document.createElement('script');
       s.src = 'js/' + f;
-      s.async = true;
+      // async=false＝动态插入的脚本按插入序执行（与 defer 同一份序），下一发不抢跑
+      s.async = false;
       s.onerror = function () { try { window.__mochiExtFail = (window.__mochiExtFail || []).concat(f); } catch (x) {} };
       document.head.appendChild(s);
     }
@@ -933,32 +950,48 @@
   function looksLikeJs(txt) {
     return typeof txt === 'string' && txt.length > 64 && !/^\s*<\w/.test(txt);
   }
+  // FIX 2026-09-28 #1371e：换址逃生这条腿同形——并发 fetch＋到手就 append＝执行序仍是完成序，
+  // 与 reinject 是同一把尺子的两个口子（用户口径：不要覆盖式修补）。改成一串按依赖序的链：
+  // 上一发执行完（或这一发判定放弃）才发下一发，就地执行的 inline 脚本因此与 <script defer> 同序。
+  // 链上每一发各带一个天花板——弱网正是一发不回来的常态，挂死一发不能拖住后面全部；到点放弃的那一发
+  // 即使后来才到手也不再插回去（同一文件跑两遍＝#897 记过的双绑定风险）。
+  const BYPASS_WAIT_MS = 12000;
+  function bypassOne(f) {
+    if (healing[f] || (bust[f] || 0) >= HEAL_MAX) return Promise.resolve();
+    const now0 = Date.now();
+    if (lastTry[f] && now0 - lastTry[f] < 4000) return Promise.resolve();
+    lastTry[f] = now0;
+    healing[f] = 1;
+    bust[f] = (bust[f] || 0) + 1;
+    let gaveUp = false;
+    let tid = 0;
+    const work = fetch('js/' + f + '?mb=' + HEAL_NS + '.' + bust[f], { cache: 'reload' }).then(function (res) {
+      if (!res || !res.ok) throw new Error('status');
+      return res.text();
+    }).then(function (txt) {
+      healing[f] = 0;
+      if (!looksLikeJs(txt)) throw new Error('bad-body');
+      // 等字节这段时间里原标签可能只是慢、终于跑完了（或前一次换址已成功）＝不再执行第二遍
+      if ((window.__mochiLoaded || []).indexOf(f) >= 0) return;
+      if (gaveUp) return; // 天花板已到＝链已经往下走了，这一发插回来就是同一文件第二遍
+      const s = document.createElement('script');
+      s.textContent = txt;
+      s.onerror = function () { try { window.__mochiExtFail = (window.__mochiExtFail || []).concat(f); } catch (x) {} };
+      document.head.appendChild(s);
+    }).catch(function () {
+      healing[f] = 0;
+      try { window.__mochiExtFail = (window.__mochiExtFail || []).concat(f); } catch (x) {}
+    });
+    return new Promise(function (resolve) {
+      const next = function () { if (tid) clearTimeout(tid); resolve(); };
+      tid = setTimeout(function () { gaveUp = true; healing[f] = 0; tid = 0; resolve(); }, BYPASS_WAIT_MS);
+      work.then(next, next);
+    });
+  }
   function healByBypass(list) {
-    const now = Date.now();
-    for (let i = 0; i < list.length; i++) {
-      const f = list[i];
-      if (healing[f] || (bust[f] || 0) >= HEAL_MAX) continue;
-      if (lastTry[f] && now - lastTry[f] < 4000) continue;
-      lastTry[f] = now;
-      healing[f] = 1;
-      bust[f] = (bust[f] || 0) + 1;
-      fetch('js/' + f + '?mb=' + HEAL_NS + '.' + bust[f], { cache: 'reload' }).then(function (res) {
-        if (!res || !res.ok) throw new Error('status');
-        return res.text();
-      }).then(function (txt) {
-        healing[f] = 0;
-        if (!looksLikeJs(txt)) throw new Error('bad-body');
-        // 等字节这段时间里原标签可能只是慢、终于跑完了（或前一次换址已成功）＝不再执行第二遍
-        if ((window.__mochiLoaded || []).indexOf(f) >= 0) return;
-        const s = document.createElement('script');
-        s.textContent = txt;
-        s.onerror = function () { try { window.__mochiExtFail = (window.__mochiExtFail || []).concat(f); } catch (x) {} };
-        document.head.appendChild(s);
-      }).catch(function () {
-        healing[f] = 0;
-        try { window.__mochiExtFail = (window.__mochiExtFail || []).concat(f); } catch (x) {}
-      });
-    }
+    let p = Promise.resolve();
+    byBootOrder(list).forEach(function (f) { p = p.then(function () { return bypassOne(f); }); });
+    return p;
   }
   function syncBar(miss) {
     if (!miss.length) { if (bar) bar.hidden = true; return; }

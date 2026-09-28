@@ -3583,6 +3583,7 @@ let started = false;
 function run() {
 if (started) return;
 started = true;
+const hold = () => { try { window.__ccMigHold = (window.__ccMigHold || 0) + 1; } catch (e0) {} };
 try {
 if (gRoot.get('cc-scope-migrated') === '1') return;
 const cs = (window.getContacts && window.getContacts()) || [{ id: 'default', name: '默认' }];
@@ -3595,35 +3596,47 @@ try { local = buildGroupsFrom(st.get('cc-groups')); } catch (e) {}
 if (isDefault && !countOf(local)) {
 try { local = buildGroupsFrom(gRoot.get('cc-groups')); } catch (e) {}
 }
-const pick = function (data) {
+const pick = function (data, auth) {
+if (!auth) { hold(); return; }
+if (!countOf(data)) { try { gRoot.set('cc-scope-migrated', '1'); } catch (e0) {} return; }
 try {
-if (!countOf(data)) { try { gRoot.set('cc-scope-migrated', '1'); } catch (e2) {} return; }
-gRoot.set(PUB_KEY, JSON.stringify(data));
-pubInvalidate();
+const json = JSON.stringify(data);
+gRoot.set(PUB_KEY, json);
+const done = () => {
 try { st.remove('cc-groups'); } catch (e2) {} // 迁走即清，防回复池公用+专属重复
 if (isDefault) { try { gRoot.remove('cc-groups'); } catch (e2) {} }
+pubInvalidate();
 libCounts.pub = -1; libCounts.own = -1; libCounts.fun = -1; libCounts.pubFun = -1;
 if (cid === (window.__activeCid || 'default')) {
 if (ccScope === 'own' && ccPageOpen()) { groups = loadGroups(); try { renderGroupsBar(); render(); } catch (e2) {} }
 else refreshLibCounts(false);
 } else refreshLibCounts(false);
 try { gRoot.set('cc-scope-migrated', '1'); } catch (e2) {}
-} catch (e) { try { gRoot.set('cc-scope-migrated', '1'); } catch (e3) {} }
+};
+if (!window.idbSet) { done(); return; }
+let p = null;
+try { p = window.idbSet(PUB_PREFIX + ':' + PUB_KEY, json); } catch (e4) { p = null; }
+if (p && p.then) p.then(ok => { if (ok === true) done(); else hold(); }, hold);
+else done();
+} catch (e) { hold(); }
 };
 if (window.idbGet) {
 const reads = [PUB_PREFIX + ':' + cid + ':cc-groups'];
 if (isDefault) reads.push(PUB_PREFIX + ':cc-groups');
-Promise.all(reads.map(k => window.idbGet(k).catch(() => null))).then(vals => {
-vals.forEach(v => {
+const amb = reads.map(() => ({}));
+Promise.all(reads.map((k, i) => window.idbGet(k, amb[i]).catch(() => { amb[i].ambiguous = true; return undefined; }))).then(vals => {
+let unread = 0;
+vals.forEach((v, i) => {
+if (amb[i] && amb[i].ambiguous) { unread++; return; }
 try {
 const d = typeof v === 'string' ? JSON.parse(v) : v;
 if (d && d.text && countOf(d) > countOf(local)) local = d;
 } catch (e) {}
 });
-pick(local);
+pick(local, unread === 0);
 });
-} else pick(local);
-} catch (e) { try { gRoot.set('cc-scope-migrated', '1'); } catch (e2) {} }
+} else pick(local, true);
+} catch (e) { hold(); }
 }
 let restoreReady = !!window.__mochiDataReady;
 if (restoreReady) ownRestoreP.then(run);

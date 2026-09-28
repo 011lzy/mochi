@@ -4536,6 +4536,7 @@
     function run() {
       if (started) return;
       started = true;
+      const hold = () => { try { window.__ccMigHold = (window.__ccMigHold || 0) + 1; } catch (e0) {} };
       try {
         if (gRoot.get('cc-scope-migrated') === '1') return;
         const cs = (window.getContacts && window.getContacts()) || [{ id: 'default', name: '默认' }];
@@ -4550,37 +4551,61 @@
         if (isDefault && !countOf(local)) {
           try { local = buildGroupsFrom(gRoot.get('cc-groups')); } catch (e) {}
         }
-        const pick = function (data) {
+        // FIX 2026-09-28 #1371c：「迁走」是两个不可逆动作——st.remove('cc-groups') 在数据层连
+        // IndexedDB 权威副本一起删（idb.js 的 remove＝memoryCache＋localStorage＋idbDelete），
+        // 再盖 cc-scope-migrated＝一生只跑一次。原实现把「这一发同步读到什么」当全部真相，下面
+        // 那一路 reads 又把「事务挂起／连接被杀／等待窗到点」与「库里真没有」压成同一个 null
+        //（#665a 给 idbGet 加的三态出口本处一直没接）＝启动回填没轮到这一格的那一发空读，轻则把
+        // 这批字卡永远留在未迁形态，重则拿一份残缺包顶掉库里那本再删源＝用户所见「自定义字卡没了」。
+        // 现在：auth＝这一场每一发都有终态（读到值／健康连接确认无此键）才动手；动手时先确认公用
+        // 那一本真落进库里（idbSet 提交回执）再拆源（#186／#1363 已入库验证的顺序纪律）。零机型／零 UA。
+        const pick = function (data, auth) {
+          if (!auth) { hold(); return; }
+          if (!countOf(data)) { try { gRoot.set('cc-scope-migrated', '1'); } catch (e0) {} return; }
           try {
-            if (!countOf(data)) { try { gRoot.set('cc-scope-migrated', '1'); } catch (e2) {} return; }
-            gRoot.set(PUB_KEY, JSON.stringify(data));
-            pubInvalidate();
-            try { st.remove('cc-groups'); } catch (e2) {} // 迁走即清，防回复池公用+专属重复
-            if (isDefault) { try { gRoot.remove('cc-groups'); } catch (e2) {} }
-            libCounts.pub = -1; libCounts.own = -1; libCounts.fun = -1; libCounts.pubFun = -1;
-            if (cid === (window.__activeCid || 'default')) {
-              // v3.42.x #455：同 refreshAfter——管理页开着才重载编辑树
-              if (ccScope === 'own' && ccPageOpen()) { groups = loadGroups(); try { renderGroupsBar(); render(); } catch (e2) {} }
-              else refreshLibCounts(false);
-            } else refreshLibCounts(false);
-            try { gRoot.set('cc-scope-migrated', '1'); } catch (e2) {}
-          } catch (e) { try { gRoot.set('cc-scope-migrated', '1'); } catch (e3) {} }
+            const json = JSON.stringify(data);
+            gRoot.set(PUB_KEY, json);
+            const done = () => {
+              try { st.remove('cc-groups'); } catch (e2) {} // 迁走即清，防回复池公用+专属重复
+              if (isDefault) { try { gRoot.remove('cc-groups'); } catch (e2) {} }
+              // FIX 2026-09-28 #1371c：池缓存的失效排在**拆源之后**。本批把拆源搬到提交回执之后，于是多出
+              // 一段「公用已写好、专属还没拆」的窗口，这一发里同一张卡会被公用与专属两条作用域各读一遍
+              //（邻族 verify-cc-scope A4/A5 实测抓到：期望 3 张读到 6 张、拍一拍「抱抱我」出现两次）。
+              // 失效放在窗口末尾＝下一读从「只剩一份真相」重建，用户看不到重复，也不用把落盘顺序退回旧写法。
+              pubInvalidate();
+              libCounts.pub = -1; libCounts.own = -1; libCounts.fun = -1; libCounts.pubFun = -1;
+              if (cid === (window.__activeCid || 'default')) {
+                // v3.42.x #455：同 refreshAfter——管理页开着才重载编辑树
+                if (ccScope === 'own' && ccPageOpen()) { groups = loadGroups(); try { renderGroupsBar(); render(); } catch (e2) {} }
+                else refreshLibCounts(false);
+              } else refreshLibCounts(false);
+              try { gRoot.set('cc-scope-migrated', '1'); } catch (e2) {}
+            };
+            if (!window.idbSet) { done(); return; }
+            let p = null;
+            try { p = window.idbSet(PUB_PREFIX + ':' + PUB_KEY, json); } catch (e4) { p = null; }
+            if (p && p.then) p.then(ok => { if (ok === true) done(); else hold(); }, hold);
+            else done();
+          } catch (e) { hold(); }
         };
         if (window.idbGet) {
           // IDB 权威值参与比较（回填刚完成时两者一致；12s 保险丝提前放行时以 IDB 为准）
           const reads = [PUB_PREFIX + ':' + cid + ':cc-groups'];
           if (isDefault) reads.push(PUB_PREFIX + ':cc-groups');
-          Promise.all(reads.map(k => window.idbGet(k).catch(() => null))).then(vals => {
-            vals.forEach(v => {
+          const amb = reads.map(() => ({}));
+          Promise.all(reads.map((k, i) => window.idbGet(k, amb[i]).catch(() => { amb[i].ambiguous = true; return undefined; }))).then(vals => {
+            let unread = 0;
+            vals.forEach((v, i) => {
+              if (amb[i] && amb[i].ambiguous) { unread++; return; }
               try {
                 const d = typeof v === 'string' ? JSON.parse(v) : v;
                 if (d && d.text && countOf(d) > countOf(local)) local = d;
               } catch (e) {}
             });
-            pick(local);
+            pick(local, unread === 0);
           });
-        } else pick(local);
-      } catch (e) { try { gRoot.set('cc-scope-migrated', '1'); } catch (e2) {} }
+        } else pick(local, true);
+      } catch (e) { hold(); }
     }
     let restoreReady = !!window.__mochiDataReady;
     if (restoreReady) ownRestoreP.then(run);
