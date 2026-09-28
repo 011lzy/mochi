@@ -5566,6 +5566,23 @@ const FIX_SENTINELS = [
   { name: '#1351e 弹窗「确定」那条腿的回调异常如实出账', file: 'index.html', needle: "o.entry || 'modal-ok', e9, files.length" },
   { name: '#1351f 判出线上有新版就去请 sw.js 重装一次（全站此前没有一处 registration.update()：新包只能等浏览器自己的更新检查，规范上限 24h 且只在导航时做，而桌面 PWA 一开几天不重新导航＝上一批修好的门对这台手机等于没修过）', file: 'js/pwa.js', needle: "if (r && typeof r.update === 'function') r.update();" },
   { name: '#1351g 换版落地时机一字未动（#965 待换版登记／#992 保活闸门／手动更新条照旧；本批只把「取新包」这一脚补上，改回恒 update＝后台保活被反复打断，删掉＝送达这一半又回到赌用户点条）', file: 'js/pwa.js', needle: 'if (ts > baseTs) askSwUpdate();' },
+
+  // ==== 2026-09-28 #1353 心情日记「只能记录对方三天心情／第四天把之前的清空」＋「日历上也不显示TA的心情」
+  // （vivo X200s／Edge 152、华为 nova12 活力版／Edge，均附「其他设备型号也有出现」「不要覆盖式修补」）====
+  // 两条各自独立的事实：① 整本写回拿「本机此刻同步读到的那份」当全量（LS 配额满→LS 停在旧包而 xyStore.get
+  // 只认内存与 LS；页面被回收后内存清零＋这一格还挂在挂起名单→读到 NULL），一次最正常的保存把库里更早的记录
+  // 整包顶掉；② 「那天有没有互动」每次现算，输入＝此刻本机那一段聊天（大历史只有尾部窗口／LS 快照只剩尾巴／
+  // 还没回填），已出现过的日子随窗口滑动消失，而日历那句开页画的是终态文案、读回来也不重画。判据一律零机型／
+  // 零 UA：只取「库里那一格现在有什么」＋「这一发到底读到没读到聊天」两个当场事实。
+  { name: '#1353a 日记整本写回前先与库里那份按日并集（删＝一次「记下今天」把库里更早的日记顶掉＝用户原话「第四天把之前的清空」复发）', file: 'js/mood-diary.js', needle: 'function unionPkg(lib, ours) {' },
+  { name: '#1353b 本机这一份先落内存＋LS、刻意不走会顺手盖库的那条腿（删＝要么保存手感退化、要么合并前就顶掉库里那份）', file: 'js/mood-diary.js', needle: 'window.idbMemoSet(libKey(), s)' },
+  { name: '#1353c 库里那一发读不到＝取消整本写回（删＝把一次超时/挂起讲成「库里没有」，正是要根治的那件事）', file: 'js/mood-diary.js', needle: '&& info.ambiguous) { bail(); return; }' },
+  { name: '#1353d 取消那一发只补试一次（删＝变成常驻轮询；不补＝读时窗口过去了今天这条永远落不进库）', file: 'js/mood-diary.js', needle: 'if (!retry) { setTimeout(queueLibMerge, 4000, true); return; }' },
+  { name: '#1353e 互动日从「每次现算」改成「看到一次就落账」（删＝聊天窗口一滑、已出现过的 TA 心情凭空消失）', file: 'js/mood-diary.js', needle: 'pkg.days = set;' },
+  { name: '#1353f 「没读到聊天」与「真没互动」分成两种答案（删＝对不知道的事宣布「TA 今天还没有互动」）', file: 'js/mood-diary.js', needle: 'function interactionUnknown(dateKey) {' },
+  { name: '#1353g 并回来的日子重认一遍且只重画月视图（删＝旧日子并回来了屏上还是那两天／改成重画 renderToday＝盖掉用户正在输入的备注）', file: 'js/mood-diary.js', needle: 'if (grewDy) _interactCache.built = false;' },
+  { name: '#1353h 日历入口卡不许对「不知道」宣布「还没有互动」（删＝用户原话「日历上也不显示TA的心情」整场挂着）', file: 'js/calendar.js', needle: '((md && md.taUnknown) ? (window.mochiLoadingText' },
+  { name: '#1353i 记下互动日那一刻广播、日历那句据此补渲（删＝聊天读回来后那一行停在谎话上，要重开一次才对）', file: 'js/calendar.js', needle: "document.addEventListener('mood-interact-recorded'" },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
