@@ -136,6 +136,7 @@ try { restoreAppIconOrder(); } catch (e) {}
 try { applyBgVisibility(); } catch (e) {}
 try { refreshDeskVisuals(); } catch (e) {}
 try { rescueDeskVisuals(); } catch (e) {}
+try { paintDeskNames(); } catch (e) {} // #1358a 这一行在「回填完成后重绘」清单里：删掉它＝库里那一份昵称整场不上屏
 setTimeout(function () {
 try { refreshDeskVisuals(); } catch (e) {}
 }, 1800);
@@ -668,11 +669,21 @@ try { fire(); } finally { if (_openSeq === _s) close(); }
 }
 });
 })();
+function deskNameText(key) {
+const v = store.get(key);
+if (v) return v;
+return key === 'lbl-partner' ? (window.taWord ? window.taWord() : 'TA') : '我';
+}
+function paintDeskNames() {
+const lu = document.getElementById('lbl-user');
+if (lu) lu.textContent = deskNameText('lbl-user');
+const lp = document.getElementById('lbl-partner');
+if (lp) lp.textContent = deskNameText('lbl-partner');
+}
 function bindLabel(id, key) {
 const el = document.getElementById(id);
 if (!el) return;
-const saved = store.get(key);
-if (saved) el.textContent = saved;
+paintDeskNames();
 el.addEventListener('click', (e) => {
 e.stopPropagation();
 if (window.openModal) {
@@ -696,6 +707,13 @@ if (newEff !== oldEff) { try { if (window.chatSysNickChanged) window.chatSysNick
 }
 bindLabel('lbl-user', 'lbl-user');
 bindLabel('lbl-partner', 'lbl-partner');
+try {
+document.addEventListener('ta-word-changed', function (ev) {
+const id = ev && ev.detail && ev.detail.id;
+if (id && id !== (window.__activeCid || 'default')) return;
+try { paintDeskNames(); } catch (e) {}
+});
+} catch (e) {}
 const phoneEl = document.querySelector('.phone');
 const bgRow = document.getElementById('row-bg-upload');
 const bgVal = document.getElementById('bg-val');
@@ -9098,12 +9116,7 @@ try { syncRelUI(); } catch (e) {}
 try { renderQuoteOfDay(); } catch (e) {}
 try { renderExtras(); } catch (e) {}
 try { renderDeskWidgets(); } catch (e) {}
-try {
-const lu = document.getElementById('lbl-user');
-if (lu) { const v = store.get('lbl-user'); lu.textContent = v || '我'; }
-const lp = document.getElementById('lbl-partner');
-if (lp) { const v = store.get('lbl-partner'); lp.textContent = v || 'TA'; }
-} catch (e) {}
+try { paintDeskNames(); } catch (e) {}
 });
 })();
 if (window.__mochiLoaded) window.__mochiLoaded.push("personalize.js");

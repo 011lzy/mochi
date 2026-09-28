@@ -92,6 +92,22 @@ set(k, v) {
 window.xyStore(ns).set(k, v);
 try { window.xyStore(G).remove(k); } catch (e) {}
 },
+awaitingBigKey(k) {
+try { if (window.xyStore(ns).awaitingBigKey(k)) return true; } catch (e) {}
+try { return window.xyStore(G).awaitingBigKey(k); } catch (e2) { return false; }
+},
+requestBigKey(k) {
+try { window.xyStore(ns).requestBigKey(k); } catch (e) {}
+try { window.xyStore(G).requestBigKey(k); } catch (e2) {}
+},
+whenBigKeyBack(k, cb) {
+try {
+const s = window.xyStore(ns);
+if (s && s.whenBigKeyBack) { s.whenBigKeyBack(k, cb); return; }
+} catch (e) {}
+try { const r = window.xyStore(G); if (r && r.whenBigKeyBack) { r.whenBigKeyBack(k, cb); return; } } catch (e2) {}
+try { if (cb) cb(); } catch (e3) {}
+},
 remove(k) {
 window.xyStore(ns).remove(k);
 try { window.xyStore(G).remove(k); } catch (e) {}
@@ -106,7 +122,14 @@ return cid === 'default' ? defaultStore() : window.xyStore(G + ':' + cid);
 return {
 get: (k) => dyn().get(k),
 set: (k, v) => dyn().set(k, v),
-remove: (k) => dyn().remove(k)
+remove: (k) => dyn().remove(k),
+awaitingBigKey: (k) => { const d = dyn(); return !!(d.awaitingBigKey && d.awaitingBigKey(k)); },
+requestBigKey: (k) => { const d = dyn(); try { if (d.requestBigKey) d.requestBigKey(k); } catch (e) {} },
+whenBigKeyBack: (k, cb) => {
+const d = dyn();
+if (d.whenBigKeyBack) { d.whenBigKeyBack(k, cb); return; }
+try { if (cb) cb(); } catch (e2) {}
+}
 };
 };
 window.storeFor = function (cid) { return window.xyStore(G + ':' + cid); };

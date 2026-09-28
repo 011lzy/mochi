@@ -515,6 +515,22 @@ return null;
 },
 awaitingBigKey(k) { return bigReadUnconfirmed(prefix + ':' + k); },
 requestBigKey(k) { try { bigMissRehydrate(prefix + ':' + k); } catch (e) {} },
+whenBigKeyBack(k, cb) {
+const full = prefix + ':' + k;
+let unconfirmed = true;
+try { unconfirmed = bigReadUnconfirmed(full); } catch (e) { unconfirmed = false; }
+if (!unconfirmed) {
+try { if (cb) cb(); } catch (e1) {}
+return;
+}
+try { bigMissRehydrate(full); } catch (e2) {}
+try {
+Promise.resolve(bigHydAsk(full)).then(function (st) {
+if (st !== 'ok') return;
+try { if (cb) cb(); } catch (e3) {}
+}, function () {});
+} catch (e4) {}
+},
 set(k, v) {
 const key = prefix + ':' + k;
 if (!memoryCache) memoryCache = {};

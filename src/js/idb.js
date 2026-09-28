@@ -781,6 +781,31 @@
       // FIX 2026-09-27 #1342r：被拦下的那一发顺手请它去问一次库——复用 #1349 那一只单次飞行闸
       //（'fly' 不叠发）与 #1218 那条合流 bigHydAsk，绝不新挂第二脚；用户再点一次保存时值就回来了。
       requestBigKey(k) { try { bigMissRehydrate(prefix + ':' + k); } catch (e) {} },
+      // FIX 2026-09-28 #1358d：光「问一次」不够——消费方还得在它回来时再画一遍。
+      // 信箱／朋友圈那两页在 #1195e 切后台放掉大键内存副本之后，回前台那一发同步读交不出主键，
+      // 页面就把「没读到」画成「没有」（OPPO Reno14／Edge 实报「前一秒还有，后一秒点进去突然没了，
+      // 没有刷新或者更新」；无头实测同一条键：屏上 0 条＋空态宣告「还没有」，而库里 20 条完好、
+      // 几百毫秒后那一份已经回到内存却没人再画一次）。
+      // 本口不新挂第二脚：踢趟用 #1349 那一只单次飞行闸、取回用 #1218 那条合流 bigHydAsk；
+      // 只有库里真交出整包（'ok'）才回调，'absent'（确无此键）与 'unknown'（这次问不出）都不回调——
+      // 既不把「没读到」讲成「没有」，也不替「没有」作证。判据＝这一格此刻读不读得到，零机型／零 UA 分支。
+      whenBigKeyBack(k, cb) {
+        const full = prefix + ':' + k;
+        let unconfirmed = true;
+        try { unconfirmed = bigReadUnconfirmed(full); } catch (e) { unconfirmed = false; }
+        if (!unconfirmed) {
+          // 现在就读得到＝没什么可等的，按同一口径直接叫一声（调用方自己会画对，也不留一个永不触发的回调）
+          try { if (cb) cb(); } catch (e1) {}
+          return;
+        }
+        try { bigMissRehydrate(full); } catch (e2) {}
+        try {
+          Promise.resolve(bigHydAsk(full)).then(function (st) {
+            if (st !== 'ok') return;
+            try { if (cb) cb(); } catch (e3) {}
+          }, function () {});
+        } catch (e4) {}
+      },
       set(k, v) {
         const key = prefix + ':' + k;
         // v3.5.111：内存缓存无条件初始化并写入——大键（壁纸/头像池等）只进 IDB + 内存、

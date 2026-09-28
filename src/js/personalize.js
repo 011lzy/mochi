@@ -234,6 +234,9 @@ try {
         //   回填完成后界面一直停留在空白。现在补齐 + 直读兜底 + 延迟二次刷新。
         try { refreshDeskVisuals(); } catch (e) {}
         try { rescueDeskVisuals(); } catch (e) {}
+        // FIX 2026-09-28 #1358a：桌面「我 / TA」两格小字同病——只在脚本执行期拿一次同步读数画过，
+        //   昵称只剩 IndexedDB 一份的设备上那一发读到 null，整场停在模板字面量。列进这份清单。
+        try { paintDeskNames(); } catch (e) {} // #1358a 这一行在「回填完成后重绘」清单里：删掉它＝库里那一份昵称整场不上屏
         setTimeout(function () {
           try { refreshDeskVisuals(); } catch (e) {}
         }, 1800);
@@ -939,11 +942,32 @@ try {
   })();
 
   // 昵称（点击「我」/「TA」下方文字，弹层修改）
+  // FIX 2026-09-28 #1358a：桌面「我 / TA」两格小字的读数＋回退，全站只留这一份口径，并且
+  //   在「回填完成」之后重画一次。旧写法只有脚本执行期那一次同步读（bindLabel）＋切桌面重绘，
+  //   而 LS 整域失效的机器上（本机诊断：LS 写探针 QuotaExceededError、整域 202 键 ≈10MB 里
+  //   143 键 ≈10MB 是同源兄弟站点占的）昵称只剩 IndexedDB 一份，回填是异步的 ⇒ 那一发同步读拿到
+  //   null，界面整场停在 template 的字面量「TA／我」＝用户口径「退出就会刷新成原始状态」；
+  //   同一条回填后重绘清单（v3.5.113/#265/v3.5.116/#769）里的摸鱼值标签同场已经画对，只差这两格
+  //   没进清单（无头实测：库里那份回到内存后 store='宝贝'、摸鱼卡小字='宝贝 摸鱼值'，而
+  //   #lbl-partner 仍是 'TA'，切一次桌面才归位）。
+  // FIX 2026-09-28 #1358b：TA 侧的回退值改问 window.taWord()——称呼存在 partner-gender（他/她/TA），
+  //   而这两格拿写死的 'TA' 当回退，主页永远看不到用户设的「他/她」＝实报「昵称小字 TA 他 她
+  //   设置了但是没用，每次都是TA」。判据只取「这一格当前读数有没有值」，零机型／零 UA 分支。
+  function deskNameText(key) {
+    const v = store.get(key);
+    if (v) return v;
+    return key === 'lbl-partner' ? (window.taWord ? window.taWord() : 'TA') : '我';
+  }
+  function paintDeskNames() {
+    const lu = document.getElementById('lbl-user');
+    if (lu) lu.textContent = deskNameText('lbl-user');
+    const lp = document.getElementById('lbl-partner');
+    if (lp) lp.textContent = deskNameText('lbl-partner');
+  }
   function bindLabel(id, key) {
     const el = document.getElementById(id);
     if (!el) return;
-    const saved = store.get(key);
-    if (saved) el.textContent = saved;
+    paintDeskNames();
     el.addEventListener('click', (e) => {
       e.stopPropagation();
       if (window.openModal) {
@@ -971,6 +995,16 @@ try {
   }
   bindLabel('lbl-user', 'lbl-user');
   bindLabel('lbl-partner', 'lbl-partner');
+  // FIX 2026-09-28 #1358b：称呼（他/她/TA）改完，主页那格小字当场跟随——旧写法只有切一次桌面才重画，
+  //   用户所见＝「设置了但是没用」。事件由 contacts.js 的称呼设置弹窗派发（detail.id＝归属桌面），
+  //   只画当前桌面那一格，别的桌面等它自己切过来时按同一口径画。
+  try {
+    document.addEventListener('ta-word-changed', function (ev) {
+      const id = ev && ev.detail && ev.detail.id;
+      if (id && id !== (window.__activeCid || 'default')) return;
+      try { paintDeskNames(); } catch (e) {}
+    });
+  } catch (e) {}
 
   // 上传手机背景图片：设为 .phone 全屏背景铺满整个手机屏幕，仅桌面显示；localStorage 持久化
   const phoneEl = document.querySelector('.phone');
@@ -11111,11 +11145,7 @@ try {
     // v3.6.x：桌面双方昵称（lbl-user / lbl-partner）只在加载时写一次，
     // 切换联系人后必须按新桌面的 store 重新渲染，否则残留上一个联系人的名字
     // （新联系人未设昵称时回退默认「我 / TA」）
-    try {
-      const lu = document.getElementById('lbl-user');
-      if (lu) { const v = store.get('lbl-user'); lu.textContent = v || '我'; }
-      const lp = document.getElementById('lbl-partner');
-      if (lp) { const v = store.get('lbl-partner'); lp.textContent = v || 'TA'; }
-    } catch (e) {}
+    // FIX 2026-09-28 #1358a：这两行与初始化那一次共用同一个 paintDeskNames（回退口径含称呼，见上）
+    try { paintDeskNames(); } catch (e) {}
   });
 })();

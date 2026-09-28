@@ -128,12 +128,27 @@
     let list = [];
     const raw = cs.get(KEY);
     if (raw !== null) list = cachedParse(prefixFor(cid) + ':' + KEY, raw);
+    // FIX 2026-09-28 #1358f：信箱补齐 #1336 给朋友圈那条尺——「这一轮同步层交不出主键」与
+    //   「库里没信」是两件事。判据一律借数据层现成的那把（#1342 awaitingBigKey＝这一格内存与 LS
+    //   双双为空，而 #1349 名册／#975 挂起名单说库里本该有一份），零机型／零 UA 分支。
+    //   旧写法在 raw===null 时直接往下走 LS 剥图快照兜底；快照本身是 LS 那一层（v3.7.x 写它就是为了
+    //   兜 Edge 丢库），而 LS 整域失效的机器上它恒 0 字节（本机诊断：LS 写探针 QuotaExceededError、
+    //   本会话 2251 次写入被拒）⇒ 兜不出任何东西，页面却据此当面宣告「还没有收到信」，而库里 20 封
+    //   完好、几百毫秒后那一份就回到了内存——只是没人再画一次。用户所见＝「前一秒还有，后一秒点进去
+    //   突然没了，没有刷新或者更新」。
+    //   现在：①这一轮标成残缺读数（空态改说「正在读取」，见 mailEmptyIsLie）；②这份残缺读数没有
+    //   整包写回资格（见 save）；③借 #1358d 那个口，库里真交出整包时重画一次这一屏。
+    if (raw === null && !cid && cs.awaitingBigKey && cs.awaitingBigKey(KEY)) {
+      mailSyncCold = true;
+      try { if (cs.whenBigKeyBack) cs.whenBigKeyBack(KEY, function () { try { render(); updateBadge(); } catch (e0) {} }); } catch (e) {}
+    } else if (raw !== null) mailSyncCold = false;
     // v3.7.x：主键缺失兜底——大列表只进 IDB（Edge 丢 IDB / LS 被清）时读剥图快照，
     //   文本+标题+时间保留；IDB 存活时模块底部 idbGet 会随后用完整数据重渲染
     if (!list.length) { try { const v = loadSnap(cid); if (v.length) list = v; } catch (e) {} }
     // v3.7.x：暂存合并仅对当前桌面（cid undefined）生效——mailPending 是当前桌面
     //   contact-switched 时的暂存，后台遍历其它 cid 时不并入（避免串桌面）
-    if (!cid && !mailWriteOpen() && mailPending && mailPending.length) {
+    // FIX 2026-09-28 #1358f：残缺期同样要并入——这一轮不写权威键，增量只靠 mailPending 留在屏上
+    if (!cid && (!mailWriteOpen() || mailSyncCold) && mailPending && mailPending.length) {
       const map = {};
       list.forEach(x => { if (x && x.id) map[x.id] = x; });
       mailPending.forEach(x => { if (x && x.id) map[x.id] = x; });
@@ -211,7 +226,10 @@
   // 写闸＝两把锁都在：mailDbReady（暂存期结束）＋ mailAuthOk（权威确实回过话）。
   // 只认前一把＝本批要收口的病灶（保险丝也能单独开门，见 mailFuseFlush）。
   function mailWriteOpen() { return mailDbReady && mailAuthOk; }
-  function mailEmptyIsLie() { return !mailAuthOk || !!(window.mochiDataPending && window.mochiDataPending()); }
+  // FIX 2026-09-28 #1358f：本轮同步层交不出主键（#1195e 放掉内存副本／启动预算挂起）＝读数残缺，
+  //   不是「没信」。与 #1336 给朋友圈那条同名同判据，值回到内存的那一读会把旗摘掉。
+  let mailSyncCold = false;
+  function mailEmptyIsLie() { if (mailSyncCold) return true; return !mailAuthOk || !!(window.mochiDataPending && window.mochiDataPending()); }
   // 15s 保险丝同样不许把「读不到」当成「没有」：库里确实有这一键却读不回值时落盘＝用读空的
   // 列表整包抹掉那些读不到的旧信；此时保持关闸，让有界重试继续跑（重试预算耗尽才放行）。
   function mailFuseFlush(cb) {
@@ -274,6 +292,14 @@
     //   QQ浏览器 X5 IDB 挂起实测）。快照仅文本兜底，IDB 权威读回后 mailMergeFromIdb
     //   按 id 合并恢复完整数据（含图片），不破坏权威防护（主键 store.set 仍等就绪）。
     if (!cid && !mailWriteOpen()) { try { mailPending = (list || []).slice(); } catch (e) {} writeSnap(list, cid); return; }
+    // FIX 2026-09-28 #1358f：残缺读数没有整包写回资格（#1336 给朋友圈的那条，信箱侧原本没有）——
+    //   手上一页空纸盖进库里那 20 封，就是「点进去没了、之后真的没了」。增量并进 mailPending 留在
+    //   屏上，等 #1358d 那一趟把整包问回来再照常落盘；快照照写（那是更小的一份文本兜底，不是权威）。
+    if (!cid && mailSyncCold) {
+      try { mailPending = mergeLists(mailPending || [], list || []); } catch (e) {}
+      writeSnap(list, cid);
+      return;
+    }
     csFor(cid).set(KEY, JSON.stringify(list));
     writeSnap(list, cid);
   }

@@ -289,6 +289,28 @@
         // 写入后彻底清掉旧顶层键（含内存缓存）——否则 get 回退路径会读到残留旧值
         try { window.xyStore(G).remove(k); } catch (e) {}
       },
+      // FIX 2026-09-28 #1358j：数据层那三句问话（#1342 的 awaitingBigKey／requestBigKey 与
+      //   #1358d 的 whenBigKeyBack）必须从这份门面也够得着。各页顶上的 store 都是 defaultStore()/
+      //   activeStore()，门面原样只转 get/set/remove ⇒ 「这一格现在读不到、而名册说库里本该有」
+      //   这把尺对走门面的消费方结构性失明——信箱就是这一型：尺子写得对，调用方拿到的是 undefined，
+      //   于是冷读那一发照旧把「没读到」画成「没有」。判据取「命名空间键与旧顶层键都空」这一个事实，
+      //   与上面 get 的回退链同口径，零机型／零 UA 分支。
+      awaitingBigKey(k) {
+        try { if (window.xyStore(ns).awaitingBigKey(k)) return true; } catch (e) {}
+        try { return window.xyStore(G).awaitingBigKey(k); } catch (e2) { return false; }
+      },
+      requestBigKey(k) {
+        try { window.xyStore(ns).requestBigKey(k); } catch (e) {}
+        try { window.xyStore(G).requestBigKey(k); } catch (e2) {}
+      },
+      whenBigKeyBack(k, cb) {
+        try {
+          const s = window.xyStore(ns);
+          if (s && s.whenBigKeyBack) { s.whenBigKeyBack(k, cb); return; }
+        } catch (e) {}
+        try { const r = window.xyStore(G); if (r && r.whenBigKeyBack) { r.whenBigKeyBack(k, cb); return; } } catch (e2) {}
+        try { if (cb) cb(); } catch (e3) {}
+      },
       remove(k) {
         window.xyStore(ns).remove(k);
         // 旧顶层键同样彻底清（memoryCache + LS + IDB 三处）——
@@ -313,7 +335,17 @@
     return {
       get: (k) => dyn().get(k),
       set: (k, v) => dyn().set(k, v),
-      remove: (k) => dyn().remove(k)
+      remove: (k) => dyn().remove(k),
+      // FIX 2026-09-28 #1358j：那三句问话一并从门面转出（dyn() 动态绑定当前桌面，与 get/set 同规格）——
+      //   缺了它们，各页顶上的 store 就够不到数据层那把「这一格读空而库里本该有」的尺。
+      //   够不到的那一页不许被当成「库里没有」：回调照叫一次，让调用方按自己那条链正常画。
+      awaitingBigKey: (k) => { const d = dyn(); return !!(d.awaitingBigKey && d.awaitingBigKey(k)); },
+      requestBigKey: (k) => { const d = dyn(); try { if (d.requestBigKey) d.requestBigKey(k); } catch (e) {} },
+      whenBigKeyBack: (k, cb) => {
+        const d = dyn();
+        if (d.whenBigKeyBack) { d.whenBigKeyBack(k, cb); return; }
+        try { if (cb) cb(); } catch (e2) {}
+      }
     };
   };
 

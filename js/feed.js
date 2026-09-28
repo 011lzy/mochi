@@ -378,7 +378,7 @@ try {
 const a = JSON.parse(raw);
 if (Array.isArray(a)) list = a.map(normPost);
 } catch (e) {}
-} else if (feedAuthSeen) {
+} else if (feedAuthSeen || (store.awaitingBigKey && store.awaitingBigKey(KEY))) {
 feedSyncCold = true;
 feedAskIdb();
 }

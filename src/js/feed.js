@@ -541,10 +541,16 @@
         const a = JSON.parse(raw);
         if (Array.isArray(a)) list = a.map(normPost);
       } catch (e) {}
-    } else if (feedAuthSeen) {
+    } else if (feedAuthSeen || (store.awaitingBigKey && store.awaitingBigKey(KEY))) {
       // FIX 2026-09-27 #1336：本会话已经交出过一次整包，此刻却交不出——唯一可能是内存副本被切后台
       //   释放（#975/#1195e），不是动态被删。旧注释说「模块底部 idbGet 会随后重渲染」只对启动那一轮
       //   成立（那条链整场会话只跑一次），所以残缺期由这里按需问回来。
+      // FIX 2026-09-28 #1358e：判据补上数据层那把现成的尺（#1342 的 awaitingBigKey）——「本会话还
+      //   没见过权威」不等于「库里没有」。启动那一发 idbGet 没交出整包（慢内核／回填未完成就被点
+      //   进来）时，旧写法既不打残缺旗也不问库，于是拿一份交不出货的快照当面宣告「还没有动态」，
+      //   而同一条键几百毫秒后就能交出 20 条（OPPO Reno14／Edge 实报「朋友圈前一秒还有后一秒点进去
+      //   突然没了，没有刷新或者更新」；无头实测屏上 0 条＋空态、下一读 store＝20、库里 20 条完好）。
+      //   全新安装那一格不在名册也不在挂起名单 ⇒ awaitingBigKey 回 false ⇒ 空态照旧，不放新闸。
       feedSyncCold = true;
       feedAskIdb();
     }

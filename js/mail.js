@@ -85,8 +85,12 @@ const cs = csFor(cid);
 let list = [];
 const raw = cs.get(KEY);
 if (raw !== null) list = cachedParse(prefixFor(cid) + ':' + KEY, raw);
+if (raw === null && !cid && cs.awaitingBigKey && cs.awaitingBigKey(KEY)) {
+mailSyncCold = true;
+try { if (cs.whenBigKeyBack) cs.whenBigKeyBack(KEY, function () { try { render(); updateBadge(); } catch (e0) {} }); } catch (e) {}
+} else if (raw !== null) mailSyncCold = false;
 if (!list.length) { try { const v = loadSnap(cid); if (v.length) list = v; } catch (e) {} }
-if (!cid && !mailWriteOpen() && mailPending && mailPending.length) {
+if (!cid && (!mailWriteOpen() || mailSyncCold) && mailPending && mailPending.length) {
 const map = {};
 list.forEach(x => { if (x && x.id) map[x.id] = x; });
 mailPending.forEach(x => { if (x && x.id) map[x.id] = x; });
@@ -140,7 +144,8 @@ let mailAuthOk = false;   // 权威真回过话：读到值 / count 探针证实
 let mailAuthTries = 0;
 const MAIL_AUTH_BACKOFF = [600, 1500, 4000, 9000, 20000];
 function mailWriteOpen() { return mailDbReady && mailAuthOk; }
-function mailEmptyIsLie() { return !mailAuthOk || !!(window.mochiDataPending && window.mochiDataPending()); }
+let mailSyncCold = false;
+function mailEmptyIsLie() { if (mailSyncCold) return true; return !mailAuthOk || !!(window.mochiDataPending && window.mochiDataPending()); }
 function mailFuseFlush(cb) {
 if (mailAuthOk || !window.idbHasKey) { cb(); return; }
 try {
@@ -187,6 +192,11 @@ setTimeout(function () { mailAuthAsk(cid, guard, after); }, wait);
 }
 function save(list, cid) {
 if (!cid && !mailWriteOpen()) { try { mailPending = (list || []).slice(); } catch (e) {} writeSnap(list, cid); return; }
+if (!cid && mailSyncCold) {
+try { mailPending = mergeLists(mailPending || [], list || []); } catch (e) {}
+writeSnap(list, cid);
+return;
+}
 csFor(cid).set(KEY, JSON.stringify(list));
 writeSnap(list, cid);
 }
