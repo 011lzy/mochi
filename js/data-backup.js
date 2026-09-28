@@ -1466,6 +1466,8 @@ try { data = JSON.parse(String(reader.result || '')); } catch (e) { toast('无�
 if (!data || typeof data !== 'object') { toast('无效的聊天记录文件'); return; }
 const chatKeyRe = /^xy-home-v2:(?:chat-msgs|(?:default|c[0-9a-z]{5,}):chat-msgs)$/;
 const mediaKeyRe = /^xy-home-v2:media:/;
+const lsObj = (data && typeof data.ls === 'object') ? data.ls : {};
+const idbObj = (data && typeof data.idb === 'object') ? data.idb : {};
 try {
 Object.keys(idbObj).forEach(function (k) {
 if (!/:chat-blk-idx$/.test(k)) return;
@@ -1482,14 +1484,14 @@ if (!Array.isArray(part)) return;
 full = full.concat(part);
 }
 const msgKey = prefix + ':chat-msgs';
-const cur = idbObj[msgKey];
-const curLen = typeof cur === 'string' ? cur.length : (Array.isArray(cur) ? -1 : -2);
-if (cur === undefined || (curLen >= 0 && full.join('').length > curLen) || curLen === -1) idbObj[msgKey] = full;
-try { if (lsObj[msgKey] === undefined) lsObj[msgKey] = full; } catch (e) {}
+const nOfRaw = (raw) => {
+if (raw === undefined || raw === null) return -1;
+try { const a = typeof raw === 'string' ? JSON.parse(raw) : raw; return Array.isArray(a) ? a.length : -1; } catch (e) { return -1; }
+};
+const curN = Math.max(nOfRaw(idbObj[msgKey]), nOfRaw(lsObj[msgKey]));
+if (full.length >= curN) { idbObj[msgKey] = full; lsObj[msgKey] = full; }
 });
 } catch (e) {}
-const lsObj = (data && typeof data.ls === 'object') ? data.ls : {};
-const idbObj = (data && typeof data.idb === 'object') ? data.idb : {};
 const pickRaw = (k) => {
 if (lsObj[k] !== undefined) return { v: lsObj[k], from: 'ls' };
 if (idbObj[k] !== undefined) return { v: idbObj[k], from: 'idb' };

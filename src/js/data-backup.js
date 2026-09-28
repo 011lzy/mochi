@@ -2031,6 +2031,12 @@
       // 各桌面 chat-msgs（含默认桌面旧顶层键 xy-home-v2:chat-msgs）
       const chatKeyRe = /^xy-home-v2:(?:chat-msgs|(?:default|c[0-9a-z]{5,}):chat-msgs)$/;
       const mediaKeyRe = /^xy-home-v2:media:/;
+      // FIX 2026-09-28 #1360：lsObj/idbObj 必须**先声明再用**——下面那段分块组装读的是它们，
+      // 声明在后就是 TDZ ReferenceError，而整段被外层 `catch (e) {}` 兜住＝分块备份的组装
+      // 静默不跑（无头实测：库里 900 条的分块桌面，恢复一份自带尾巴的备份之后屏上只剩 1 条、
+      // 块键被删光）。#1066 当年就是按这条理由把声明前置的，后来被并行批的回写打回过。
+      const lsObj = (data && typeof data.ls === 'object') ? data.ls : {};
+      const idbObj = (data && typeof data.idb === 'object') ? data.idb : {};
       // #722 分块格式备份：把各桌面的 chat-blk-idx + chat-blk-<seq> 组装回整包，以旧键形态
       // （<prefix>:chat-msgs）注入 idbObj——下游选择/预览/导入按旧键流转，零改动。缺任一块
       // ＝组装失败宁可不导（绝不导出半份历史）。
@@ -2050,16 +2056,25 @@
             full = full.concat(part);
           }
           const msgKey = prefix + ':chat-msgs';
-          const cur = idbObj[msgKey];
-          const curLen = typeof cur === 'string' ? cur.length : (Array.isArray(cur) ? -1 : -2);
-          if (cur === undefined || (curLen >= 0 && full.join('').length > curLen) || curLen === -1) idbObj[msgKey] = full;
-          try { if (lsObj[msgKey] === undefined) lsObj[msgKey] = full; } catch (e) {}
+          // ===== FIX 2026-09-28 #1360 备份恢复：分块拼出来的整本才是这一桌的全部历史
+          // 同一张文件里可能既有「blk-idx + 块键」又有一条 chat-msgs——在分块桌面上那条
+          // chat-msgs 只可能是 localStorage 的**有损尾巴快照**（整包键在 #722 落盘时已删，
+          // 导出的 LS 兜底循环把这条快照当同名键打包进文件）。旧尺子是「按那份字符串有多长比」：
+          // 把整本数组直接 join 起来对对象恒等于每条 "[object Object]"（15 字符），几千条也只有几
+          // 万字符，永远输给那条 2MB 的尾巴 ⇒ 尾巴赢 ⇒ 预览按尾巴报条数、导入把整桌历史写成
+          // 尾巴，而写入方随后把所有块键删光（无头实测：库里 900 条，恢复一份自带尾巴的备份
+          // 之后屏上 1 条、块键 0 把）＝用户口径的「刚备份完记录反而更少／被吞」。
+          // 尺子换成「这一桌到底有多少条」，两段一起对齐（提取规则 LS 段优先，只改 idb 段无效）。
+          const nOfRaw = (raw) => {
+            if (raw === undefined || raw === null) return -1;
+            try { const a = typeof raw === 'string' ? JSON.parse(raw) : raw; return Array.isArray(a) ? a.length : -1; } catch (e) { return -1; }
+          };
+          const curN = Math.max(nOfRaw(idbObj[msgKey]), nOfRaw(lsObj[msgKey]));
+          if (full.length >= curN) { idbObj[msgKey] = full; lsObj[msgKey] = full; }
         });
       } catch (e) {}
       // 提取规则：LS 段优先（导出的 ls 段里 chat-msgs 存的也是 IDB 权威值——见 runExport 的
-      // 权威键路由），IDB 段兜底同键
-      const lsObj = (data && typeof data.ls === 'object') ? data.ls : {};
-      const idbObj = (data && typeof data.idb === 'object') ? data.idb : {};
+      // 权威键路由），IDB 段兜底同键（lsObj/idbObj 已在上面为分块组装前置声明 #1360）
       const pickRaw = (k) => {
         if (lsObj[k] !== undefined) return { v: lsObj[k], from: 'ls' };
         if (idbObj[k] !== undefined) return { v: idbObj[k], from: 'idb' };

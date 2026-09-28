@@ -430,13 +430,20 @@ blocks.push({ k: k, bytes: msgsBytes(a), n: a.length });
 });
 });
 p = p.then(function () {
-const idx2 = { v: 1, blocks: blocks, total: arr.length, nextSeq: s };
+// #1360：total 是「这一桌全量条数」的账，不是「内存里这一段」——头部冷块一个字节都没动，
+// 却原来被写成 arr.length（只有热片），于是每重写一次尾块，索引就宣称自己短了一截。
+// 下游三把尺子全部跟着塌：① chatBlkHotLoad 的 headN=total-热片 ⇒ 归零即 chatColdDone=true，
+// 头部从此不再被取回（实测 900 条一场之内报成 306，另一次打开后只剩 303 条）＝用户口径的
+// 「聊天记录一天比一天少、莫名其妙被吞」；② chat-meta 账本按 total 落盘＝缩水守卫的尺子
+// 自己变短，之后真丢数据也判不出来；③ 只读账本/索引的统计、导出、诊断跟着少报。
+const headCnt = (function (hs) { let t = 0; for (let i = 0; i < hs.length; i++) t += (hs[i] && hs[i].n) || 0; return t; })(head);
+const idx2 = { v: 1, blocks: blocks, total: headCnt + arr.length, nextSeq: s };
 const idxStrT = JSON.stringify(idx2); // #954
 return window.idbSet(prefix + ':chat-blk-idx', idxStrT).then(function (ok) {
 if (ok === false) throw new Error('idx-write-fail');
 chatHotCacheSet(prefix + ':chat-blk-idx', idxStrT); // #954t
 chatHotCacheSyncLive(prefix, blocks); // #954t 死块缓存随写清除
-chatBlkIdx = idx2; chatBlkTotal = arr.length;
+chatBlkIdx = idx2; chatBlkTotal = headCnt + arr.length;
 // 重写后块边界变了：热片重新对齐到末尾整块
 chatHotFrom = head.length;
 const live = {}; blocks.forEach(function (b) { live[b.k] = 1; });
@@ -690,7 +697,11 @@ try { if (window.activePrefix() === prefix) loadMsgs(true); } catch (e) {}
 } catch (e) {}
 return false;
 }
-chatLedgerSave(prefix, n, msgsBytes(arr));
+// #1360：账本记的是「库里有多少条」，分块格式下库里＝没动过的头块＋内存这一段。原来直接记
+// arr.length（只有内存这一段）＝和 ① 同一个错误换了个地方：索引的全量账修好了，账本这侧照旧
+// 被写成热片条数，#90 缩水守卫的尺子照样变短（实测 900 条的桌被记成 304）。
+const ledgerN = (chatBlkIdx && typeof chatBlkTotal === 'number' && chatBlkTotal > n) ? chatBlkTotal : n;
+chatLedgerSave(prefix, ledgerN, msgsBytes(arr));
 return true;
 }
 // 精简快照：大历史时剥掉 img/voice/long-text 及 parts 里的图片/语音负载（保留占位与 _lsLite
@@ -1862,6 +1873,46 @@ return false;
 //   改走 loadMsgs(true)（forceIdb 天然绕过去重）＝读库真失败的重试永不被本闸吞掉。
 let _lmChainBusy = null;
 let _lmChainBusyUntil = 0;
+// ===== FIX 2026-09-28 #1360 大键整包读「等待窗到点」不等于「这一发没读出来」
+// 现场（OPPO K13 Turbo Pro／Edge 153 桌面 PWA，IDB default:chat-msgs=102MB、localStorage 只剩
+// 2.2MB 有损尾巴、诊断「本页被系统回收过 59 次」）：idbGet 的窗（#716 已放大到 60s）到点后只
+// resolve(undefined) 并把这一发真读**丢弃**，而内核其实还在反序列化它。于是①上层每 5~15s 的重试
+// 各发一整包重读（同一份 102MB 读第二遍、第三遍＝堆尖峰，看着就是「卡＋被回收」）、②屏上长期
+// 只剩那条尾巴（＝「记录一天比一天少」）、③#722 的分块迁移只挂在「整包读成功」那一条路上＝包
+// 越大越读不成、读不成永远分不了块＝永久锁死。
+// 收口＝同一把键只要有还挂在内核里的一发，就等它落地，绝不另起第二发；晚到但读成的那份照样走
+// 原来那条权威合并/守卫/迁移链。判据只问「这一发完成没有」，零机型／零 UA 分支。
+let chatLateReadKey = null;
+// 在飞标记：这一桌的整包读「已经交给内核了」（含被等待窗放弃、内核还在反序列化的那一发）。
+// 旧行为＝窗一到点结果被丢掉、上层每 5~15s 再发一整包，102MB 级历史在同一场里被读第二遍第三遍
+// （＝堆尖峰、＝页面被系统回收，＝诊断里「本页被系统回收过 59 次」那一行）；而 #722 的分块迁移
+// 又只挂在「整包读成功」这一条路上＝包越大越读不成、读不成永远分不了块＝永久锁死。
+// 有了这个标记：同一把键在飞期间进来的读（含 forceIdb 的重试与看门狗）一律让路，等那一发落地。
+// 有墙：内核那一发最迟在 idb.js 的天花板（180s）落地或被判死，标记过期后照常允许新读＝不会永久锁。
+let chatWholeReadKey = null;
+let chatWholeReadAt = 0;
+const CHAT_WHOLE_READ_LIVE_MAX = 200000;
+function chatWholeReadSettle(key) { if (chatWholeReadKey === key) { chatWholeReadKey = null; chatWholeReadAt = 0; } }
+function chatLateClear(key) { if (chatLateReadKey === key) chatLateReadKey = null; }
+// 起一发「等得起」的大键读：这一把键只要有还挂在内核里的一发（哪怕它的等待窗早就到点了），
+// 就附议等它落地，绝不再另起第二发——旧行为＝每 5~15s 的重试各发一整包重读。
+function chatReadAwaitable(key, startRead) {
+chatWholeReadKey = key; chatWholeReadAt = Date.now();
+const pending = window.idbLateRead ? window.idbLateRead(key) : null;
+if (pending) {
+chatLateReadKey = key;
+return pending.then(function (pv) { chatLateClear(key); chatWholeReadSettle(key); return (pv === undefined || pv === null) ? undefined : pv; },
+function () { chatLateClear(key); chatWholeReadSettle(key); return undefined; });
+}
+return startRead().then(function (v) {
+if (v !== undefined && v !== null) { chatLateClear(key); chatWholeReadSettle(key); return v; }
+const late = window.idbLateRead ? window.idbLateRead(key) : null;
+if (!late) { chatWholeReadSettle(key); return v; }
+chatLateReadKey = key;
+return late.then(function (lv) { chatLateClear(key); chatWholeReadSettle(key); return (lv === undefined || lv === null) ? v : lv; },
+function () { chatLateClear(key); chatWholeReadSettle(key); return v; });
+}, function (e) { chatLateClear(key); chatWholeReadSettle(key); return undefined; });
+}
 function loadMsgs(forceIdb) {
 armReadyFuse();
 // FIX 2026-09-07 #245：权威未就绪期间照常解析 LS 兜底快照（旧门 !persistTimer&&!msgs.length
@@ -1901,6 +1952,12 @@ const myPrefix = window.activePrefix();
 // FIX 2026-09-21 #952：同桌面读库链在飞去重（见 _lmChainBusy 声明处注释）——
 //   forceIdb（重试/显式强读）不受本闸限制；墙=12s，读库链若真死也有重试与保险丝兜底。
 if (!forceIdb && _lmChainBusy === myPrefix && Date.now() < _lmChainBusyUntil) return;
+// #1360：这一桌的整包读已经在内核里跑（哪怕它的等待窗早就到点、上层已经当成读不到在重试）＝
+// 本次一律让路，不再另起第二发整包重读。forceIdb（5s 重试／15s 看门狗／保险丝补挂）也照让——
+// 旧行为正是「每一发都超时、每一发都重读 102MB」；标记有墙（见 CHAT_WHOLE_READ_LIVE_MAX），
+// 那一发最迟在 idb.js 的天花板上落地或判死，过期后照常允许新读＝不会永远读不到。
+const _pkgKey = myPrefix + ':chat-msgs';
+if (chatWholeReadKey === _pkgKey && Date.now() - chatWholeReadAt < CHAT_WHOLE_READ_LIVE_MAX) return;
 _lmChainBusy = myPrefix;
 _lmChainBusyUntil = Date.now() + 12000;
 chatAuthPending = true; // #967：本条链起读＝权威未达（进度条据此保持，"数据到没到"不再由保险丝冒充）
@@ -1931,7 +1988,9 @@ if (window.activePrefix() !== myPrefix) return null;
 if (bidxRaw && typeof bidxRaw === 'string' && bidxRaw.indexOf('"v"') >= 0) {
 return chatBlkHotLoad(myPrefix, bidxRaw, !!forceIdb);
 }
+return chatReadAwaitable(myPrefix + ':chat-msgs', function () {
 return window.idbGet(myPrefix + ':chat-msgs', bigReadMs > 4000 ? { minWaitMs: bigReadMs } : undefined);
+});
 }).then(v => {
 if (window.activePrefix() !== myPrefix) return;
 if (v === undefined || v === null) {
@@ -1947,11 +2006,17 @@ const idbKey = myPrefix + ':chat-msgs';
 // FIX 2026-09-17 #127：「确认空库」必须把增量日志键一起算进去——只认 chat-msgs 会把
 // 「基准包读超时（undefined）但日志在」误判成空库，随后 LS 有损快照晋升覆盖整段历史。
 const idbArchKey = myPrefix + ':chat-arch';
+// #1360：「这个桌面没有历史」这句话必须由**全部三种存法**一起作证。#722 之后大历史既不存
+// chat-msgs 也不存 chat-arch（整包被删、改住 chat-blk-idx + chat-blk-<seq>），而这里原来只问
+// 前两个 ⇒ 分块桌面的热片一旦读不成（块键值 2MB 级、内核慢就超时＝chatBlkHotLoad 返回 null，
+// 与「读空」在旧判据里同形），三个条件全票通过＝当场确认空库 → 把内存里那条尾巴当权威整包
+// 写回 IDB、并把账本对齐成尾巴条数（无头实测：库里 900 条、一场之内被写成 2 条＋账本 n=2）。
+const idbIdxKey = myPrefix + ':chat-blk-idx';
 const confirmMiss = window.idbHasKey
-? Promise.all([window.idbHasKey(idbKey), window.idbHasKey(idbArchKey)]).then(function (r) { return r[0] === false && r[1] === false; })
+? Promise.all([window.idbHasKey(idbKey), window.idbHasKey(idbArchKey), window.idbHasKey(idbIdxKey)]).then(function (r) { return r[0] === false && r[1] === false && r[2] === false; })
 : (window.idbGetAllKeys
 ? window.idbGetAllKeys().then(function (keys) {
-return !(keys || []).some(function (k) { return k === idbKey || k === idbArchKey; });
+return !(keys || []).some(function (k) { return k === idbKey || k === idbArchKey || k === idbIdxKey; });
 }).catch(function () { return false; })
 : Promise.resolve(true));
 confirmMiss.then(function (isMiss) {
@@ -1978,7 +2043,7 @@ try { updateChatLoading(); } catch (e) {}
 setTimeout(function () {
 try { if (window.activePrefix() !== myPrefix) return; } catch (e) {}
 const reprobe = window.idbHasKey
-? Promise.all([window.idbHasKey(idbKey), window.idbHasKey(idbArchKey)]).then(function (r) { return (r[0] === true || r[1] === true) ? true : null; })
+? Promise.all([window.idbHasKey(idbKey), window.idbHasKey(idbArchKey), window.idbHasKey(idbIdxKey)]).then(function (r) { return (r[0] === true || r[1] === true || r[2] === true) ? true : null; })
 : Promise.resolve(null);
 Promise.resolve(reprobe).then(function (has2) {
 try { if (window.activePrefix() !== myPrefix) return; } catch (e) {}
@@ -1989,7 +2054,13 @@ if (v2 !== undefined && v2 !== null) { scheduleIdbRetry(); return; }
 window.idbGet(idbArchKey).then(function (v3) {
 try { if (window.activePrefix() !== myPrefix) return; } catch (e) {}
 if (v3 !== undefined && v3 !== null) { scheduleIdbRetry(); return; }
+// #1360：二次复核同样要把分块索引当证人——hasKey 说「在」而 idbGet 说「读不到」＝内核在忙，
+// 更不是「这个桌面没有历史」。
+window.idbGet(idbIdxKey).then(function (v4) {
+try { if (window.activePrefix() !== myPrefix) return; } catch (e) {}
+if (v4 !== undefined && v4 !== null) { scheduleIdbRetry(); return; }
 enterConfirmedEmpty();
+}).catch(function () { scheduleIdbRetry(); });
 }).catch(function () { scheduleIdbRetry(); });
 }).catch(function () { scheduleIdbRetry(); });
 }).catch(function () { scheduleIdbRetry(); });
@@ -11622,6 +11693,21 @@ const d = new Date(ts);
 const p = (n) => (n < 10 ? '0' + n : '' + n);
 return p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
 }
+// ===== FIX 2026-09-28 #1360 搜索的尺子＝「这一桌的全部记录」，不是「此刻内存里的那一段」
+// 现场（OPPO K13 Turbo Pro／Edge 153 桌面 PWA 实报「在搜索聊天记录里搜也搜不出来」）：本函数
+// 原来只扫内存 msgs。而 #722 分块桌面在用户上滑到头之前 msgs 只有末尾热片（更早的整段还在
+// chat-blk-* 块里）、整包读不成的设备 msgs 只是 localStorage 那条有损尾巴——这些形态下消息
+// **确实在库里**，却与「这条没说过」同形，界面上还写着「没有找到」。
+// 判据只取两个当场事实：① 扫的对象＝全量口径（已取回的头部先并进内存再扫，用的就是「上滑到
+// 头」那一路现成的 chatRebaseCold——并完窗口/DOM data-idx 一起位移，点结果照样跳得到）；
+// ② 还没取回的那一截不谎称「没有」：如实说「还在取回」，取回后自动重搜一次。零机型／零 UA 分支。
+function chatSearchSource() {
+try { if (!chatRebased && chatColdHead.length) chatRebaseCold(); } catch (e) {}
+const all = window.getChatMsgs ? window.getChatMsgs() : msgs;
+return Array.isArray(all) ? all : msgs;
+}
+let chatSearchRetryT = null;
+let chatSearchRetries = 0;
 function runChatSearch() {
 if (!chatSearchResults) return;
 const q = (chatSearchInput.value || '').trim();
@@ -11638,7 +11724,8 @@ loadMsgs();
 const partnerName = chatPartnerName();
 const myName = chatUserName();
 const results = [];
-msgs.forEach((m, i) => {
+const src = chatSearchSource(); // #1360：全量口径（下面命中项的 i 就是这个数组的下标；rebase 之后它与 msgs 同一份）
+src.forEach((m, i) => {
 if (!m || m.special) return;
 if (fromTs != null && (!m.ts || m.ts < fromTs)) return;
 if (toTs != null && (!m.ts || m.ts >= toTs)) return;
@@ -11652,10 +11739,27 @@ results.push({ i: i, m: m, txt: txt });
 });
 const esc = (x) => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 if (!results.length) {
+// #1360：库里还有没取回的那一截（权威没到手／冷头还没并进来／账本说有更多条）时，「没有找到」
+// 是把「读不到」报成「没有」——正是用户报的「搜也搜不出来」。这句改口：如实说还在取回，并自动重搜。
+let _ledN2 = 0;
+try { _ledN2 = chatLedger[window.activePrefix()] || 0; } catch (e) {}
+const awaitingMore = !chatAuthSettled() || !chatColdDone || _ledN2 > src.length;
+if (awaitingMore && chatSearchRetries < 3) {
+chatSearchRetries++;
+try { chatColdEnsureHydrated(); } catch (e) {}
+chatSearchResults.innerHTML = '<div class="chat-search-empty">更早的记录还在取回，取回后自动再搜一次…</div>';
+if (chatSearchRetryT) clearTimeout(chatSearchRetryT);
+chatSearchRetryT = setTimeout(function () {
+chatSearchRetryT = null;
+try { if (chatSearchEl && !chatSearchEl.hidden && chatSearchInput && chatSearchInput.value.trim() === q) runChatSearch(); } catch (e) {}
+}, 2000);
+return;
+}
 const emptyMsg = q ? ('没有找到包含「' + esc(q) + '」' + (dateLabel ? '（' + dateLabel + '）' : '') + '的消息') : (dateLabel ? dateLabel + ' 没有聊天记录' : '输入关键词，或选择日期范围搜索聊天记录');
 chatSearchResults.innerHTML = '<div class="chat-search-empty">' + emptyMsg + '</div>';
 return;
 }
+chatSearchRetries = 0;
 const hl = (x) => esc(x).split(q).join('<span class="chat-search-hl">' + esc(q) + '</span>');
 let head = '共 ' + results.length + ' 条 · 点击结果跳转到对应消息';
 if (dateLabel) head = dateLabel + ' · 共 ' + results.length + ' 条 · 点击结果跳转';

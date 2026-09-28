@@ -5605,6 +5605,24 @@ const FIX_SENTINELS = [
   { name: '#1361i 朋友圈 TA 自动收藏那条跨模块直写静默让路（它不经 chat.js 的 favAuth 闸，且没有任何用户动作＝用户口径的「莫名其妙」）', file: 'js/feed.js', needle: "if (window.xyBigWriteHold(s, 'fav-msgs')) return;" },
   { name: '#1361n 整包读-改-写落笔前真正该问的是「这一发读空了没有」而不是「这一格是不是大键」（名册／挂起名单／__big-idx 三格证据都只认 ≥200KB 的副本，压缩令牌化之后的小库与回填整轮 bail out 两型全都看不见＝报障机现状 228B／21.6KB 都在这一档）', file: 'js/idb.js', needle: 'window.xyPackageEmptyRead = function (store, key) {' },
   { name: '#1361m 回填未落定这一格也算「没读到」（沿用 #785 现成的数据就绪三态 mochiDataPending，自带 2 分钟上限焊不死）——上面三把证据都只认「该有一份 ≥200KB 的副本」，对压缩／令牌化之后的小键天生失明，而那正是被回收过 200 次那台机的现状', file: 'js/idb.js', needle: 'if (window.mochiDataPending && window.mochiDataPending()) return true;' },
+  // ===== #1360（2026-09-28 用户直派，OPPO K13 Turbo Pro／Edge 153 桌面 PWA）聊天记录「尾部被当成全量」=====
+  //   症状：记录乱跳（一会显示以前的一会显示现在的）、一天比一天少、恢复完备份反而更少、搜索搜不出来。
+  //   四条判据一处口径：全量账按「头块＋尾段」记；「这个桌面没历史」要三种存法一起作证；搜索扫全量口径；
+  //   恢复以拼出来的整本为准（不再拿字符串长度当尺子）。外加一条：等待窗到点不等于那一发没读出来。
+  { name: '#1360a 尾块重写的全量账＝头块条数＋尾段条数（删＝索引把自己报短，读侧 headN 归零＝更早的记录永不再取回）', file: 'js/chat.js', needle: 'total: headCnt + arr.length' },
+  { name: '#1360b 账本也按全量记（删＝#90 缩水守卫的尺子自己变短，之后真丢数据判不出来）', file: 'js/chat.js', needle: 'const ledgerN = (chatBlkIdx && typeof chatBlkTotal' },
+  { name: '#1360c 「没有历史」要整包/增量日志/分块索引三把键一起说没有（删＝热片读不成即被确认空库，尾巴整包写回顶掉全量）', file: 'js/chat.js', needle: 'r[0] === false && r[1] === false && r[2] === false' },
+  { name: '#1360d 二次复核同样把分块索引当证人（删＝#358 那把复尺仍只问旧两键，慢内核照旧进空库分支）', file: 'js/chat.js', needle: 'window.idbGet(idbIdxKey)' },
+  { name: '#1360e 整包读走「附议在飞那一发」的入口（删＝每 5~15s 重发一整包 102MB 读＝堆尖峰与页面被回收的上游）', file: 'js/chat.js', needle: "chatReadAwaitable(myPrefix + ':chat-msgs'" },
+  { name: '#1360f 同键在飞期间的新读一律让路（含 forceIdb 重试与看门狗；删＝重读的群发照旧）', file: 'js/chat.js', needle: 'chatWholeReadKey === _pkgKey && Date.now() - chatWholeReadAt' },
+  { name: '#1360g 搜索的尺子＝全量口径（删/改回只扫内存 msgs＝库里在的旧消息与「这条没说过」同形）', file: 'js/chat.js', needle: 'const src = chatSearchSource();' },
+  { name: '#1360h 冷头先并进内存再扫（现成的上滑收口，点结果才跳得到老记录）', file: 'js/chat.js', needle: 'chatColdHead.length) chatRebaseCold()' },
+  { name: '#1360i 还没取回的那一截不写「没有找到」（删＝把读不到谎报成没有，且不再自动重搜）', file: 'js/chat.js', needle: '更早的记录还在取回' },
+  { name: '#1360j 数据层给出「迟到但读成」那一发一个可等的口子（删＝晚到的结果被丢掉，上层只能重读）', file: 'js/idb.js', needle: 'window.idbLateRead = function (key) {' },
+  { name: '#1360k 恢复以拼出来的整本为准、两段一起对齐（删/改回按字符串长度比＝有损尾巴永远赢，块键随后被删光）', file: 'js/data-backup.js', needle: 'idbObj[msgKey] = full; lsObj[msgKey] = full;' },
+  { name: '#1360l 分块组装用的 lsObj/idbObj 必须先声明（改回到使用之后＝TDZ 被外层 catch 吞掉，分块备份的组装静默不跑）', file: 'js/data-backup.js', needle: "const lsObj = (data && typeof data.ls === 'object') ? data.ls : {};" },
+  { name: '#1360m 旧那把「字符串谁长」的尺子已整块撤掉（不是加宽：复活＝尾巴又赢了）', file: 'js/data-backup.js', needle: "full.join('')", absent: true },
+  // ===== #1360 end =====
 
 ];
 try {

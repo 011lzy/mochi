@@ -197,6 +197,34 @@ tx.onabort = () => { if (done) return; done = true; clearTimeout(t); _idbFailLas
 window.idbGet = function (key, info) {
 const ambiable = (info && typeof info === 'object') ? info : null;
 const amb = () => { if (ambiable) ambiable.ambiguous = true; };
+const LATE_READ_MAX_MS = 180000;
+const _late = {};
+function lateTake(k, v) {
+const e = _late[k];
+if (!e || e.done) return;
+e.done = true; delete _late[k];
+try { e.res(v); } catch (err) {}
+}
+function lateArm(k, rq) {
+const e = _late[k];
+if (!e || e.done || !rq || typeof rq.addEventListener !== 'function') return;
+try { rq.addEventListener('success', function () { let v; try { v = rq.result; } catch (err2) { v = undefined; } lateTake(k, v); }); } catch (err) {}
+try { rq.addEventListener('error', function () { lateTake(k, undefined); }); } catch (err) {}
+try { rq.addEventListener('abort', function () { lateTake(k, undefined); }); } catch (err) {}
+}
+function lateGiveUp(k, rq) {
+if (!_late[k]) {
+let res;
+const pr = new Promise(function (r) { res = r; });
+_late[k] = { p: pr, res: res, done: false };
+}
+lateArm(k, rq);
+setTimeout(function () { lateTake(k, undefined); }, LATE_READ_MAX_MS);
+}
+window.idbLateRead = function (key) {
+const e = _late[key];
+return (e && !e.done) ? e.p : undefined;
+};
 const minWait = (ambiable && typeof ambiable.minWaitMs === 'number' && ambiable.minWaitMs > 4000) ? Math.min(60000, ambiable.minWaitMs) : 4000;
 return open().then(db => new Promise((resolve) => {
 let done = false;
@@ -205,26 +233,29 @@ function finish(val) { if (done) return; done = true; if (timer) clearTimeout(ti
 function run() {
 try {
 const tx = db.transaction(STORE, 'readonly');
-const req = tx.objectStore(STORE).get(key);
+req = tx.objectStore(STORE).get(key); // #1360：这发请求提到外层，放弃等待窗之后还要给它加落地监听
 req.onsuccess = () => finish(req.result);
 req.onerror = () => { if (connLost(req.error)) dbPromise = null; amb(); finish(undefined); };
 } catch (e) { if (connLost(e)) dbPromise = null; amb(); finish(undefined); }
 }
+let req = null; // #1360
 let retried = false;
 timer = setTimeout(function () {
 if (done) return;
 if (!retried) {
 retried = true;
+lateGiveUp(key, req); // #1360：第一次到点也登记这一发（它才是跑得最久的那次）；重试的新事务只是加第二个证人
 dbPromise = null;
 open().then(function (db2) {
 db = db2;
 run();
-timer = setTimeout(function () { dbPromise = null; amb(); finish(undefined); }, minWait);
+timer = setTimeout(function () { dbPromise = null; amb(); lateGiveUp(key, req); finish(undefined); }, minWait);
 }).catch(function () { amb(); finish(undefined); });
 return;
 }
 dbPromise = null;
 amb();
+lateGiveUp(key, req); // #1360：这一发不再等人，但结果照旧登记，还挂着的人能拿到
 finish(undefined);
 }, minWait);
 run();

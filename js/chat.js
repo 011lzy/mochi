@@ -328,13 +328,14 @@ blocks.push({ k: k, bytes: msgsBytes(a), n: a.length });
 });
 });
 p = p.then(function () {
-const idx2 = { v: 1, blocks: blocks, total: arr.length, nextSeq: s };
+const headCnt = (function (hs) { let t = 0; for (let i = 0; i < hs.length; i++) t += (hs[i] && hs[i].n) || 0; return t; })(head);
+const idx2 = { v: 1, blocks: blocks, total: headCnt + arr.length, nextSeq: s };
 const idxStrT = JSON.stringify(idx2); // #954
 return window.idbSet(prefix + ':chat-blk-idx', idxStrT).then(function (ok) {
 if (ok === false) throw new Error('idx-write-fail');
 chatHotCacheSet(prefix + ':chat-blk-idx', idxStrT); // #954t
 chatHotCacheSyncLive(prefix, blocks); // #954t 死块缓存随写清除
-chatBlkIdx = idx2; chatBlkTotal = arr.length;
+chatBlkIdx = idx2; chatBlkTotal = headCnt + arr.length;
 chatHotFrom = head.length;
 const live = {}; blocks.forEach(function (b) { live[b.k] = 1; });
 (idx.blocks || []).forEach(function (b) { if (!live[b.k] && window.idbDelete) window.idbDelete(prefix + ':' + b.k); });
@@ -535,7 +536,8 @@ try { if (window.activePrefix() === prefix) loadMsgs(true); } catch (e) {}
 } catch (e) {}
 return false;
 }
-chatLedgerSave(prefix, n, msgsBytes(arr));
+const ledgerN = (chatBlkIdx && typeof chatBlkTotal === 'number' && chatBlkTotal > n) ? chatBlkTotal : n;
+chatLedgerSave(prefix, ledgerN, msgsBytes(arr));
 return true;
 }
 function liteSnapArray(arr) {
@@ -1367,6 +1369,29 @@ return false;
 }
 let _lmChainBusy = null;
 let _lmChainBusyUntil = 0;
+let chatLateReadKey = null;
+let chatWholeReadKey = null;
+let chatWholeReadAt = 0;
+const CHAT_WHOLE_READ_LIVE_MAX = 200000;
+function chatWholeReadSettle(key) { if (chatWholeReadKey === key) { chatWholeReadKey = null; chatWholeReadAt = 0; } }
+function chatLateClear(key) { if (chatLateReadKey === key) chatLateReadKey = null; }
+function chatReadAwaitable(key, startRead) {
+chatWholeReadKey = key; chatWholeReadAt = Date.now();
+const pending = window.idbLateRead ? window.idbLateRead(key) : null;
+if (pending) {
+chatLateReadKey = key;
+return pending.then(function (pv) { chatLateClear(key); chatWholeReadSettle(key); return (pv === undefined || pv === null) ? undefined : pv; },
+function () { chatLateClear(key); chatWholeReadSettle(key); return undefined; });
+}
+return startRead().then(function (v) {
+if (v !== undefined && v !== null) { chatLateClear(key); chatWholeReadSettle(key); return v; }
+const late = window.idbLateRead ? window.idbLateRead(key) : null;
+if (!late) { chatWholeReadSettle(key); return v; }
+chatLateReadKey = key;
+return late.then(function (lv) { chatLateClear(key); chatWholeReadSettle(key); return (lv === undefined || lv === null) ? v : lv; },
+function () { chatLateClear(key); chatWholeReadSettle(key); return v; });
+}, function (e) { chatLateClear(key); chatWholeReadSettle(key); return undefined; });
+}
 function loadMsgs(forceIdb) {
 armReadyFuse();
 if (!chatDbReady) {
@@ -1393,6 +1418,8 @@ try {
 if (window.idbGet) {
 const myPrefix = window.activePrefix();
 if (!forceIdb && _lmChainBusy === myPrefix && Date.now() < _lmChainBusyUntil) return;
+const _pkgKey = myPrefix + ':chat-msgs';
+if (chatWholeReadKey === _pkgKey && Date.now() - chatWholeReadAt < CHAT_WHOLE_READ_LIVE_MAX) return;
 _lmChainBusy = myPrefix;
 _lmChainBusyUntil = Date.now() + 12000;
 chatAuthPending = true; // #967：本条链起读＝权威未达（进度条据此保持，"数据到没到"不再由保险丝冒充）
@@ -1414,17 +1441,20 @@ if (window.activePrefix() !== myPrefix) return null;
 if (bidxRaw && typeof bidxRaw === 'string' && bidxRaw.indexOf('"v"') >= 0) {
 return chatBlkHotLoad(myPrefix, bidxRaw, !!forceIdb);
 }
+return chatReadAwaitable(myPrefix + ':chat-msgs', function () {
 return window.idbGet(myPrefix + ':chat-msgs', bigReadMs > 4000 ? { minWaitMs: bigReadMs } : undefined);
+});
 }).then(v => {
 if (window.activePrefix() !== myPrefix) return;
 if (v === undefined || v === null) {
 const idbKey = myPrefix + ':chat-msgs';
 const idbArchKey = myPrefix + ':chat-arch';
+const idbIdxKey = myPrefix + ':chat-blk-idx';
 const confirmMiss = window.idbHasKey
-? Promise.all([window.idbHasKey(idbKey), window.idbHasKey(idbArchKey)]).then(function (r) { return r[0] === false && r[1] === false; })
+? Promise.all([window.idbHasKey(idbKey), window.idbHasKey(idbArchKey), window.idbHasKey(idbIdxKey)]).then(function (r) { return r[0] === false && r[1] === false && r[2] === false; })
 : (window.idbGetAllKeys
 ? window.idbGetAllKeys().then(function (keys) {
-return !(keys || []).some(function (k) { return k === idbKey || k === idbArchKey; });
+return !(keys || []).some(function (k) { return k === idbKey || k === idbArchKey || k === idbIdxKey; });
 }).catch(function () { return false; })
 : Promise.resolve(true));
 confirmMiss.then(function (isMiss) {
@@ -1438,7 +1468,7 @@ try { updateChatLoading(); } catch (e) {}
 setTimeout(function () {
 try { if (window.activePrefix() !== myPrefix) return; } catch (e) {}
 const reprobe = window.idbHasKey
-? Promise.all([window.idbHasKey(idbKey), window.idbHasKey(idbArchKey)]).then(function (r) { return (r[0] === true || r[1] === true) ? true : null; })
+? Promise.all([window.idbHasKey(idbKey), window.idbHasKey(idbArchKey), window.idbHasKey(idbIdxKey)]).then(function (r) { return (r[0] === true || r[1] === true || r[2] === true) ? true : null; })
 : Promise.resolve(null);
 Promise.resolve(reprobe).then(function (has2) {
 try { if (window.activePrefix() !== myPrefix) return; } catch (e) {}
@@ -1449,7 +1479,11 @@ if (v2 !== undefined && v2 !== null) { scheduleIdbRetry(); return; }
 window.idbGet(idbArchKey).then(function (v3) {
 try { if (window.activePrefix() !== myPrefix) return; } catch (e) {}
 if (v3 !== undefined && v3 !== null) { scheduleIdbRetry(); return; }
+window.idbGet(idbIdxKey).then(function (v4) {
+try { if (window.activePrefix() !== myPrefix) return; } catch (e) {}
+if (v4 !== undefined && v4 !== null) { scheduleIdbRetry(); return; }
 enterConfirmedEmpty();
+}).catch(function () { scheduleIdbRetry(); });
 }).catch(function () { scheduleIdbRetry(); });
 }).catch(function () { scheduleIdbRetry(); });
 }).catch(function () { scheduleIdbRetry(); });
@@ -9166,6 +9200,13 @@ const d = new Date(ts);
 const p = (n) => (n < 10 ? '0' + n : '' + n);
 return p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
 }
+function chatSearchSource() {
+try { if (!chatRebased && chatColdHead.length) chatRebaseCold(); } catch (e) {}
+const all = window.getChatMsgs ? window.getChatMsgs() : msgs;
+return Array.isArray(all) ? all : msgs;
+}
+let chatSearchRetryT = null;
+let chatSearchRetries = 0;
 function runChatSearch() {
 if (!chatSearchResults) return;
 const q = (chatSearchInput.value || '').trim();
@@ -9182,7 +9223,8 @@ loadMsgs();
 const partnerName = chatPartnerName();
 const myName = chatUserName();
 const results = [];
-msgs.forEach((m, i) => {
+const src = chatSearchSource(); // #1360：全量口径（下面命中项的 i 就是这个数组的下标；rebase 之后它与 msgs 同一份）
+src.forEach((m, i) => {
 if (!m || m.special) return;
 if (fromTs != null && (!m.ts || m.ts < fromTs)) return;
 if (toTs != null && (!m.ts || m.ts >= toTs)) return;
@@ -9196,10 +9238,25 @@ results.push({ i: i, m: m, txt: txt });
 });
 const esc = (x) => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 if (!results.length) {
+let _ledN2 = 0;
+try { _ledN2 = chatLedger[window.activePrefix()] || 0; } catch (e) {}
+const awaitingMore = !chatAuthSettled() || !chatColdDone || _ledN2 > src.length;
+if (awaitingMore && chatSearchRetries < 3) {
+chatSearchRetries++;
+try { chatColdEnsureHydrated(); } catch (e) {}
+chatSearchResults.innerHTML = '<div class="chat-search-empty">更早的记录还在取回，取回后自动再搜一次…</div>';
+if (chatSearchRetryT) clearTimeout(chatSearchRetryT);
+chatSearchRetryT = setTimeout(function () {
+chatSearchRetryT = null;
+try { if (chatSearchEl && !chatSearchEl.hidden && chatSearchInput && chatSearchInput.value.trim() === q) runChatSearch(); } catch (e) {}
+}, 2000);
+return;
+}
 const emptyMsg = q ? ('没有找到包含「' + esc(q) + '」' + (dateLabel ? '（' + dateLabel + '）' : '') + '的消息') : (dateLabel ? dateLabel + ' 没有聊天记录' : '输入关键词，或选择日期范围搜索聊天记录');
 chatSearchResults.innerHTML = '<div class="chat-search-empty">' + emptyMsg + '</div>';
 return;
 }
+chatSearchRetries = 0;
 const hl = (x) => esc(x).split(q).join('<span class="chat-search-hl">' + esc(q) + '</span>');
 let head = '共 ' + results.length + ' 条 · 点击结果跳转到对应消息';
 if (dateLabel) head = dateLabel + ' · 共 ' + results.length + ' 条 · 点击结果跳转';

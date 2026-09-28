@@ -321,6 +321,43 @@
   window.idbGet = function (key, info) {
     const ambiable = (info && typeof info === 'object') ? info : null;
     const amb = () => { if (ambiable) ambiable.ambiguous = true; };
+  // ===== FIX 2026-09-28 #1360 等待窗到点 ≠ 这一发没读出来：真读还在内核里跑就别把结果丢掉
+  // 整包 chat-msgs 上百 MB 级（本次报障机 IDB default:chat-msgs=102MB、localStorage 只剩 2.2MB 有损
+  // 尾巴）时，下面两个超时分支只 resolve(undefined)，而那一发 get 请求其实还在内核里反序列化。上层据此
+  // 得到三个后果：① 屏上只剩那条尾巴＝用户所见「记录一天比一天少」；② 每 5~15s 的重试各发一整包重读
+  // （同一份 102MB 读第二遍第三遍＝堆尖峰；该机诊断「本页被系统回收过 59 次」）；③ #722 的分块迁移只挂在
+  // 「整包读成功」这一条路上＝包越大越读不成、读不成永远分不了块＝永久锁死。
+  // 收口＝放弃那一刻给还挂着的那一发加一个落地监听，把结果登记成一个可等的口子（window.idbLateRead），
+  // 谁在等这份权威就继续等它；带天花板，真挂死的事务不会永远占着口子。判据只问「这一发完成没有」一个
+  // 事实，零机型／零 UA 分支。⚠ 本批只在 run() 那两行针脚（#665a/#665c）之外加工具，针脚行一字未动。
+  const LATE_READ_MAX_MS = 180000;
+  const _late = {};
+  function lateTake(k, v) {
+    const e = _late[k];
+    if (!e || e.done) return;
+    e.done = true; delete _late[k];
+    try { e.res(v); } catch (err) {}
+  }
+  function lateArm(k, rq) {
+    const e = _late[k];
+    if (!e || e.done || !rq || typeof rq.addEventListener !== 'function') return;
+    try { rq.addEventListener('success', function () { let v; try { v = rq.result; } catch (err2) { v = undefined; } lateTake(k, v); }); } catch (err) {}
+    try { rq.addEventListener('error', function () { lateTake(k, undefined); }); } catch (err) {}
+    try { rq.addEventListener('abort', function () { lateTake(k, undefined); }); } catch (err) {}
+  }
+  function lateGiveUp(k, rq) {
+    if (!_late[k]) {
+      let res;
+      const pr = new Promise(function (r) { res = r; });
+      _late[k] = { p: pr, res: res, done: false };
+    }
+    lateArm(k, rq);
+    setTimeout(function () { lateTake(k, undefined); }, LATE_READ_MAX_MS);
+  }
+  window.idbLateRead = function (key) {
+    const e = _late[key];
+    return (e && !e.done) ? e.p : undefined;
+  };
     // #716：读等待窗可按值体积放大（minWaitMs>4000 才生效，其余调用方行为一字不变）——
     //   41MB 级 chat-msgs 在手机上单次读取+反序列化就超默认 4s+4s，每次尝试都超时=undefined，
     //   上层重试 6 次每次重读整包全部失败＝「正在加载聊天记录」挂很久也进不去（红米 K80 实报）。
@@ -333,28 +370,31 @@
       function run() {
         try {
           const tx = db.transaction(STORE, 'readonly');
-          const req = tx.objectStore(STORE).get(key);
+          req = tx.objectStore(STORE).get(key); // #1360：这发请求提到外层，放弃等待窗之后还要给它加落地监听
           req.onsuccess = () => finish(req.result);
           req.onerror = () => { if (connLost(req.error)) dbPromise = null; amb(); finish(undefined); };
         } catch (e) { if (connLost(e)) dbPromise = null; amb(); finish(undefined); }
       }
+      let req = null; // #1360
       let retried = false;
       timer = setTimeout(function () {
         if (done) return;
         if (!retried) {
           retried = true;
+          lateGiveUp(key, req); // #1360：第一次到点也登记这一发（它才是跑得最久的那次）；重试的新事务只是加第二个证人
           // v3.25.x：重建连接再试——挂起超时多因连接已死（iOS 挂后台杀 IDB 服务），
           // 原地重试只会再等 4 秒；重开后新连接通常当场返回
           dbPromise = null;
           open().then(function (db2) {
             db = db2;
             run();
-            timer = setTimeout(function () { dbPromise = null; amb(); finish(undefined); }, minWait);
+            timer = setTimeout(function () { dbPromise = null; amb(); lateGiveUp(key, req); finish(undefined); }, minWait);
           }).catch(function () { amb(); finish(undefined); });
           return;
         }
         dbPromise = null;
         amb();
+        lateGiveUp(key, req); // #1360：这一发不再等人，但结果照旧登记，还挂着的人能拿到
         finish(undefined);
       }, minWait);
       run();
