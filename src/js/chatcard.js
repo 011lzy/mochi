@@ -4935,6 +4935,21 @@
     document.querySelectorAll('.page').forEach(p => p.hidden = true);
     const ccPage = document.getElementById('page-custom-cards');
     if (ccPage) ccPage.hidden = false;
+    // FIX 2026-09-28 #1351a「页面已画出、编辑树还在路上」这一段窗口里点批量导入＝静默没反应
+    //   （iPhone 15／iOS 17.6.1 复报「表情包和图片添加不了」；判据零机型／零 UA＝只问「这一格现在
+    //   有没有树」）：#455 把树做成懒加载（离页置 null 释放 153MB 级 parse 副本），并在批注里立下
+    //   规矩「所有读 groups 的路径必须先判空」——可这页是 hidden=false 之后【立刻可点】，而 groups
+    //   要等 maybeAutoSlimLib().then(hydrateCurScope().then(...)) 两跳 promise 才被赋值；#574 自己
+    //   量过这一段「iOS 挂后台杀 IDB 连接后单次读最长 6s、重试链最长 14s」。窗口期里 ccImportMedia
+    //   第一行就是 groups[cur]（无判空）⇒ TypeError 被选择器层的空 catch 吞掉（无头真跑取证逐字：
+    //   页面可见＋本地读 0 字节＋列表亮「正在加载字卡…」时点那一发＝chooser=1、文件回来 surfIn=1、
+    //   err="Cannot read properties of null (reading 'sticker')"、toast 零条＝用户所见「点了没反应、
+    //   没有成功也没有失败、无变化」。修法＝把 #455 那条规矩做成事实上的不变量：**页可见期间树必非空**，
+    //   画页这一刻先按本地读数把树立起来（loadGroups 恒返回对象，本机读不到＝空壳，不解析大串＝零成本；
+    //   本机读得到说明根本不必 hydrate，与旧行为同一份读数）。此时 ccAuthSeen 仍未置＝权威没确认，
+    //   任何写回照旧走 #193/#455 的 rescueCcOverwrite（按分组合并进权威库，绝不整包顶掉），
+    //   树被 hydrate 覆盖也不丢这一发（rescue 已把增量落进库里，hydrate 读回来的就是含它的那本）。
+    try { groups = loadGroups(); } catch (eCcTree) {}
     // FIX 2026-09-16 #632：超大库先自动瘦身，再 parse 编辑树（详见 maybeAutoSlimLib）。
     //   maybeLowCardsRemind 移入门后，避免与瘦身确认弹窗同帧互顶。
     maybeAutoSlimLib().then(function () {

@@ -3921,6 +3921,7 @@ syncLinkImportVis();
 document.querySelectorAll('.page').forEach(p => p.hidden = true);
 const ccPage = document.getElementById('page-custom-cards');
 if (ccPage) ccPage.hidden = false;
+try { groups = loadGroups(); } catch (eCcTree) {}
 maybeAutoSlimLib().then(function () {
 maybeLowCardsRemind(); // v3.32.x：自建聊天字卡很少时提醒默认字卡 30% 概率
 try { if (!curStore().get(curKey())) showLibLoadingSoon(); } catch (eL) {}

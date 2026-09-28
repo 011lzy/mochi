@@ -4265,6 +4265,22 @@ window.mochiPickLog = function (entry, step) {
     if (arr.length > 6) arr.splice(0, arr.length - 6);
   } catch (e) {}
 };
+// ===== FIX 2026-09-28 #1351b「选了文件之后那一步抛了」不再是查不到的病（判据零机型／零 UA） =====
+// 本族十一波修的都是「选择器弹不弹」，而选择器弹了、文件也回来了、交给入口管线之后那一句
+// `try { onFiles(files) } catch (e) {}` 把异常吞得干干净净＝用户看到「点了没反应、没有成功也没有
+// 失败、无变化」，报障里除了「无法添加」什么都给不出（本次 iPhone 15 那一族就是这个形状：字卡库
+// 开页的窗口期里 groups 还是 null，ccImportMedia 第一行就抛 TypeError，而【最近错误】段零条＝
+// 这一族的取证黑洞——异常被 catch 在离屏幕最近的地方，诊断看不见、用户看不见、下一位也看不见）。
+// 三条腿（真层 surface／统一入口 mochiFilePick／弹窗确定 mochiModalPickOk）的回调都过这里：
+// 记进取证环（cb:err＋原因，随诊断单出账）、记进 __jsErrors（【最近错误】段）、并如实 toast。
+// 只加反馈与取证，不改任何一条腿的行为、不重试、不吞也不弹第二层。
+window.mochiPickCbFail = function (entry, e, nFiles) {
+  var msg = '';
+  try { msg = String((e && e.message) || e || '').slice(0, 60); } catch (x) {}
+  try { if (window.mochiPickLog) window.mochiPickLog(entry || 'pick', 'cb:err'); } catch (x2) {}
+  try { if (window.__jsErrors) window.__jsErrors.push('[选图导入] ' + String(entry || '') + ' ×' + (nFiles || 0) + '：' + msg); } catch (x3) {}
+  try { if (window.toast) window.toast('选好 ' + (nFiles || 0) + ' 个文件，导入这一步没走完（' + (msg || '未知原因') + '），请再点一次'); } catch (x4) {}
+};
 // ===== #1272：数据导入回执环（localStorage 持久，扛页面回收）=====
 // #1014 取证环的困局在导入场景被放大：vivo X200s 实报一份诊断里页面被回收 25 次，内存日志
 // 随每次回收清零——用户四份诊断报告「文件选择取证」全是空，导入失败没留下任何证据。
@@ -4358,7 +4374,7 @@ window.mochiModalPickOk = function (cfg) {
     try { input.value = ''; } catch (e8) {} // 允许重选同一文件
     var mode = (typeof o.mode === 'function') ? o.mode() : null;
     if (window.mochiPickLog) window.mochiPickLog(o.entry || 'modal-ok', files.length ? ('files=' + files.length) : 'files=0');
-    if (files.length && typeof o.onFiles === 'function') { try { o.onFiles(files, mode); } catch (e9) {} }
+    if (files.length && typeof o.onFiles === 'function') { try { o.onFiles(files, mode); } catch (e9) { if (window.mochiPickCbFail) window.mochiPickCbFail(o.entry || 'modal-ok', e9, files.length); } }
     // 延后一拍撤层：撤层发生在 change 派发过程中会连带撤掉刚武装好的下一次选择
     var tok = input.__armTok = (input.__armTok || 0) + 1;
     setTimeout(function () { if (input.__armTok === tok) window.mochiModalPickOkClear(); }, 0);
@@ -4479,7 +4495,7 @@ window.mochiFilePickSurface = function (btn, opts) {
       if (window.mochiPickLog) window.mochiPickLog((btn && btn.id) || (input.id || 'surf'), files.length ? ('surf:files=' + files.length) : 'surf:files=0');
       if (!files.length) return;
       // ① 直接回调（入口自建管线的入口 / tap 时由 mochiFilePick 登记的最新回调）
-      if (typeof rec.onFiles === 'function') { try { rec.onFiles(files); } catch (e) {} return; }
+      if (typeof rec.onFiles === 'function') { try { rec.onFiles(files); } catch (eCb) { if (window.mochiPickCbFail) window.mochiPickCbFail((btn && btn.id) || input.id || 'surf', eCb, files.length); } return; }
       // ② 转交宿主 input：沿用入口原有 onchange 管线（零改动接入）。
       //    owner 允许写成 id 字符串 —— 统一入口（mochiFilePick）的 input 是点按时才建的，
       //    宿主在登记那一刻可能还不存在，故这里再按 id 兜底解析一次（#1230）。
@@ -5264,7 +5280,7 @@ window.mochiFilePick = function (opts) {
     var files = Array.prototype.slice.call(input.files || []);
     try { input.value = ''; } catch (e) {} // 允许重选同一文件
     if (window.mochiPickLog) window.mochiPickLog((input && input.id) || 'pick', files.length ? ('files=' + files.length) : 'files=0');
-    if (input.__mochiOnFiles) { try { input.__mochiOnFiles(files); } catch (e) {} }
+    if (input.__mochiOnFiles) { try { input.__mochiOnFiles(files); } catch (eCb2) { if (window.mochiPickCbFail) window.mochiPickCbFail((input && input.id) || 'pick', eCb2, files.length); } }
   };
   // 原生 label 激活层（部分分叉内核忽略 JS 合成 click；注意 #756 实测：label 在国产内核上
   // 也可能既不转发也不报错，故它只是「加速路径」，真正的兜底见下方 activate()）

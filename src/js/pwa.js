@@ -313,6 +313,24 @@
     // #386：file:// 直开本地文件时浏览器禁止 fetch 同目录 json（origin 'null'），
     // 版本轮询只会每 5s 刷一条 CORS 报错并误弹「网络异常」，直接跳过（线上 http/https 才启用）。
     if (location.protocol === 'file:') return;
+    // FIX 2026-09-28 #1351c「知道有线上新版，却从没去取过那个新包」——换版送达的那半件事
+    //   （iPhone 15／iOS 17.6.1 复报「上次的大部分需要添加图片的功能都已修复，但……还是无法添加」，
+    //   随附诊断单里【更新状态】逐字写着：远端部署于 23:26、本机构建 13:28＝落后约 10 小时，
+    //   而同一张单【保活现场】写着 保活=开／通知=开＝#992 那道「后台不落地换版」的闸门永久生效，
+    //   更新条用户没点＝这一场永远停在旧包。上一批修好的门，对这台手机等于没修过）。
+    //   全站没有一处调用 registration.update()：新 sw.js 只能等浏览器自己的更新检查
+    //   （规范上限 24h，且只在导航时做），而 PWA 桌面快捷方式一开就是几天不重新导航。
+    //   本函数只在「线上 version.json 的 ts 比这一页的构建 ts 新」这一刻调用一次，
+    //   判据零机型／零 UA；它只让新 sw 装上（新缓存就位、旧缓存按 sw 自己的 activate 清掉），
+    //   换版【落地】时机一字未动——#965 的待换版登记、#992 的保活闸门、手动更新条全照旧。
+    function askSwUpdate() {
+      try {
+        if (!navigator.serviceWorker || !navigator.serviceWorker.getRegistration) return;
+        navigator.serviceWorker.getRegistration().then(function (r) {
+          try { if (r && typeof r.update === 'function') r.update(); } catch (e) {}
+        }).catch(function () {});
+      } catch (e2) {}
+    }
     let baseTs = null;      // 当前页面的版本时间戳（基线）
     let baseGot = false;
     // v3.7.x：基线在页面加载时直接从 splash-ver data-build-ts 确定（构建时注入），
@@ -352,6 +370,7 @@
           // #965：前台轮询发现新版也走自动通道（不只弹条）——长开会话（用户几天不关）也能
           // 后台预取，转后台即换版；tryAutoUpgrade 返回 false（无 controller／本版本已试过）才回更新条
           if (ts > baseTs) { if (!tryAutoUpgrade(ts)) showVerBar(ts); }
+          askSwUpdate(); // FIX 2026-09-28 #1351c：判出「线上比这一页新」这一刻就去请 sw.js 重新装一次（见函数注释）
         })
         .catch(function () { failCount++; maybeNetHint(); });
     }
@@ -407,6 +426,7 @@
         if (!ts || isNaN(ts)) return;
         if (!baseGot) { baseTs = ts; baseGot = true; return; }
         if (ts > baseTs && !tryAutoUpgrade(ts)) showVerBar(ts);
+        if (ts > baseTs) askSwUpdate(); // FIX 2026-09-28 #1351c：冷启动/重进这一发同样顺手请一次
       }).catch(function () { /* 网络不可用：不动静，等周期轮询网络恢复后弹条 */ });
     });
   })();

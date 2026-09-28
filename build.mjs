@@ -5551,6 +5551,21 @@ const FIX_SENTINELS = [
   { name: '#1342j 聊天美化方案接同一把闸', file: 'js/chat-settings.js', needle: "if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(gStoreChat, CHAT_SCHEMES_KEY, '聊天美化方案')) return false;" },
   { name: '#1342k 群聊美化方案接同一把闸', file: 'js/group-chat.js', needle: "if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(s, GC_SCHEMES_KEY, '群聊美化方案')) return false;" },
   { name: '#1342l 占卜历史分页上界认列表实长（#1049 只信 histShown＝记录少于 30 条的每一台机器都在 i=list.length 取到 undefined，异常打断在 innerHTML 之前＝整块记录一片空白，正是报障件那条 h.mode TypeError）', file: 'js/divination.js', needle: 'if (histShown > list.length) histShown = list.length;' },
+  // ==== 2026-09-28 #1351 字卡库「页面已画出、编辑树还在取回途中」那一发批量导入静默没反应
+  // （iPhone 15／iOS 17.6.1 复报「上次的大部分需要添加图片的功能都已修复，但表情包和图片，以及
+  // 通话背景还是无法添加」＋「不要覆盖修改导致不同型号设备浏览器的 bug 反复出现，其他设备型号也有出现」）====
+  // 无头真跑取证：顽固内核仿真下 页面可见＋本地读 0 字节＋列表亮「正在加载字卡…」时点那一发＝
+  // chooser=1、文件回来 surfIn=1、err="Cannot read properties of null (reading 'sticker')"、toast 零条。
+  // 通话背景那一格量出来是好的（surf:hit＋files=1，LS 全抛的机器上照样落库、重载仍在）——那张诊断单
+  // 自己写着本机构建落后线上约 10 小时，本批因此补上「知道有线上新版却从没去取新包」那半件事。
+  // 判据一律零机型／零 UA：①「这一格现在有没有编辑树」②「这一发回调抛没抛」③「线上 ts 比本页新不新」。
+  { name: '#1351a 字卡库画页这一刻先把编辑树立起来（#455 立的规矩是「读 groups 前必须判空」，可整页在 hidden=false 那一帧就已可点，而 groups 要等 maybeAutoSlimLib→hydrateCurScope 两跳 promise；#574 量过这一段 iOS 单次读 6s、重试链 14s＝窗口期点「批量导入」的每一发都落在 null 树上）', file: 'js/chatcard.js', needle: 'try { groups = loadGroups(); } catch (eCcTree) {}' },
+  { name: '#1351b 选完文件之后那一步抛错有人报（本族十一波都在修「选择器弹不弹」，而弹了、文件也回来了、入口管线抛掉时被离屏幕最近的空 catch 吞干净＝「点了没反应、没有成功也没有失败、无变化」，诊断单【最近错误】零条＝取证黑洞）', file: 'index.html', needle: 'window.mochiPickCbFail = function (entry, e, nFiles) {' },
+  { name: '#1351c 真层（surface）那条腿的回调异常如实出账（只修统一入口＝铺了门的这一族仍旧静默）', file: 'index.html', needle: "(btn && btn.id) || input.id || 'surf', eCb, files.length" },
+  { name: '#1351d 统一入口那条腿的回调异常如实出账', file: 'index.html', needle: "(input && input.id) || 'pick', eCb2, files.length" },
+  { name: '#1351e 弹窗「确定」那条腿的回调异常如实出账', file: 'index.html', needle: "o.entry || 'modal-ok', e9, files.length" },
+  { name: '#1351f 判出线上有新版就去请 sw.js 重装一次（全站此前没有一处 registration.update()：新包只能等浏览器自己的更新检查，规范上限 24h 且只在导航时做，而桌面 PWA 一开几天不重新导航＝上一批修好的门对这台手机等于没修过）', file: 'js/pwa.js', needle: "if (r && typeof r.update === 'function') r.update();" },
+  { name: '#1351g 换版落地时机一字未动（#965 待换版登记／#992 保活闸门／手动更新条照旧；本批只把「取新包」这一脚补上，改回恒 update＝后台保活被反复打断，删掉＝送达这一半又回到赌用户点条）', file: 'js/pwa.js', needle: 'if (ts > baseTs) askSwUpdate();' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
