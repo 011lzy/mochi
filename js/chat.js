@@ -9593,6 +9593,14 @@ try { favPending[cid] = (list || []).slice(); } catch (e) {}
 try { if (window.__mochiPhase) window.__mochiPhase('fav-hold:' + ((list || []).length)); } catch (e) {}
 return;
 }
+if (store.get('fav-msgs') === null || window.xyBigWriteHold(store, 'fav-msgs')) {
+try { if (window.xyPackageEmptyRead(store, 'fav-msgs')) { try { if (store.requestBigKey) store.requestBigKey('fav-msgs'); } catch (e5) {} } } catch (e6) {}
+try { favPending[cid] = (list || []).slice(); } catch (e0) {}
+try { if (window.__mochiPhase) window.__mochiPhase('fav-blind-hold:' + ((list || []).length)); } catch (e1) {}
+favAuth[cid] = 'pending';
+setTimeout(favAskAuth, 1500);
+return;
+}
 favTouched[cid] = true; // #1330b：闸已开＝这一发是用户在自己看得见的列表上写的，此后不再补
 store.set('fav-msgs', JSON.stringify(list));
 try { scheduleFavImgPass(2500); } catch (e) {}

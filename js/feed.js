@@ -2128,6 +2128,7 @@ if (!mine.length) return;
 const pick = mine[Math.floor(Math.random() * mine.length)];
 const f = { kind: 'feed', text: pick.content || '', imgs: (pick.imgs || []).slice(), ts: pick.ts || Date.now() };
 const s = window.storeFor(cid);
+if (window.xyBigWriteHold(s, 'fav-msgs')) return;
 let fav = [];
 try { fav = JSON.parse(s.get('fav-msgs') || '[]'); } catch (e) { fav = []; }
 if (!Array.isArray(fav)) fav = [];

@@ -12106,6 +12106,23 @@ function saveFav(list) {
     try { if (window.__mochiPhase) window.__mochiPhase('fav-hold:' + ((list || []).length)); } catch (e) {}
     return;
   }
+  // FIX 2026-09-28 #1361g/h：#1309/#1330 那把 favAuth 闸只问「本次权威读回没回话」；回过话之后
+  // 这一格的同步读数还能再变空——收藏包跨过 200KB 就是 IDB-only（LS 那份被主动剥掉），切一次后台
+  // #1195e 放掉内存副本、或页面被回收后启动回填还没轮到这一格，getFav() 拿到的都是「读空」。
+  // 而小收藏包（被 #139/#142 压缩令牌化压回 200KB 以下）在「回填整轮 bail out」那一型里同样读空，
+  // 大键那三格证据谁都看不见它 ⇒ 本条认的是「这一发读空了没有」：读数非空照旧直接落笔，读空就不许
+  // 拿它当全量。旧写法直接整包写回＝库里几百条被这一发顶掉＝用户报的「收藏莫名其妙消失」（TA 自动
+  // 收藏我发的动态／卡片时根本没有用户动作＝「莫名其妙」）。这里不新造暂存：退回本模块已有的
+  // favPending 那一路，并补发一次权威问话（favAskAuth→favSeal→favDrain 按 favItemKey 并集落盘＝
+  // 库里确认没有（'absent'→raw 为空）时那一发照样落地，不把闸门变成「存不进去」）。零机型／零 UA。
+  if (store.get('fav-msgs') === null || window.xyBigWriteHold(store, 'fav-msgs')) {
+    try { if (window.xyPackageEmptyRead(store, 'fav-msgs')) { try { if (store.requestBigKey) store.requestBigKey('fav-msgs'); } catch (e5) {} } } catch (e6) {}
+    try { favPending[cid] = (list || []).slice(); } catch (e0) {}
+    try { if (window.__mochiPhase) window.__mochiPhase('fav-blind-hold:' + ((list || []).length)); } catch (e1) {}
+    favAuth[cid] = 'pending';
+    setTimeout(favAskAuth, 1500);
+    return;
+  }
   favTouched[cid] = true; // #1330b：闸已开＝这一发是用户在自己看得见的列表上写的，此后不再补
   store.set('fav-msgs', JSON.stringify(list));
   try { scheduleFavImgPass(2500); } catch (e) {}

@@ -724,7 +724,27 @@
     try { if (localStorage.getItem(key) !== null) return false; } catch (e) { return true; }
     if (bigKeyBlind(key)) return true;
     var di = window.__xyIdbDeferredKeys;
-    return !!(Array.isArray(di) && di.indexOf(key) >= 0);
+    if (Array.isArray(di) && di.indexOf(key) >= 0) return true;
+    // FIX 2026-09-28 #1361a：第三格证人——上面两本账（#1195e 的「被放掉过」名册、#975 的启动挂起名单）
+    // 都活在**本页这一场**的内存里。而荣耀 X70／Edge 153 这类机器一页要被系统回收 200 次（报障件
+    // 【保活现场】逐字写着「本页被系统回收过 200 次」）＝每一次冷启动两本账都从零开始，这一格就永不成立：
+    // IDB-only 大键（>200KB 的值在 xyStore.set 里被主动 removeItem）此刻内存＋LS 双读空，同步口照旧
+    // 谎报「没有」。可库里那份的证人 __big-idx 就躺在 localStorage 里，回收杀不掉它、#1195e 释放刻意
+    // 不清它、xyStore.remove 与小值写回才同步销账——它说这一格本该有一份 >200KB 的副本，而这里读空
+    // ＝「没读到」不是「没有」，这一格不许整包写回。判据仍是当场事实，零机型／零 UA 分支。
+    // 只有健康连接确认过库里真没这一键（bigHydAbsent）才作废这个证人，否则一次 IDB 挂起会把闸永久焊死
+    // 在「不许写」上＝#1342 那条「不把这道闸变成新的存不进去」的约束照旧管着这一格。
+    if (typeof _bigIdx[key] === 'number' && _bigIdx[key] > LS_BIG_LIMIT && !bigHydAbsent[key]) return true;
+    // FIX 2026-09-28 #1361m：第四格＝启动回填这一发还没落定（直接沿用 #785 现成的数据就绪三态
+    // mochiDataPending，它自带 2 分钟上限＝永不把这道闸焊死成「存不进去」）。上面三把证据都只认
+    // **「这一格本该有一份 ≥200KB 的副本」**，于是对**小键**这一型天生看不见：收藏包／字卡库被
+    // #139/#142 压缩与令牌化压回 200KB 以下之后就不再有证人，而 LS 那份照样可能不在——配额满时
+    // setItem 抛掉（这台报障机整域 8.7MB／1388 键、最大单键 chat-msgs 3.7MB）、或回收前最后一次
+    // 同步写根本没落盘。此时同步读数 null ＋ 库里那本还在回填队列里排队 ⇒ 「没读到」不是「没有」。
+    // 这台机的现状正是这一型：诊断里 default:cc-groups 只剩 228B、公用 21.6KB，两本都在 200KB 以下。
+    // 判据仍是当场事实（回填状态），零机型／零 UA 分支。
+    if (window.mochiDataPending && window.mochiDataPending()) return true;
+    return false;
   }
 
   // FIX 2026-09-27 #1342i：「读空未确认 ⇒ 这一格不许整包写回」这句判断＋这一句提示，全站只留一份。
@@ -738,6 +758,28 @@
     try { if (store.requestBigKey) store.requestBigKey(key); } catch (e3) {}
     if (window.toast) { try { window.toast((what || '这份数据') + '这次没读全（存储正忙）：等几秒再点一次即可，不需要重新设置'); } catch (e2) {} }
     return true;
+  };
+  // FIX 2026-09-28 #1361b：同一句判断的**静默**版，给没有任何用户动作的自动写入方（TA 自动收藏别人的
+  // 动态、梦角自由造句自动入库……）。这些通路没有「请用户再点一次」可说：弹提示＝凭空冒出来的话，
+  // 硬写＝用一发空读数顶掉库里那本账（＝用户看到的「莫名其妙被清空」）。所以只拦不下＋顺手请一次库
+  // （复用 #1349 那只单次飞行闸），让调用方自己决定让路还是暂存。判断仍然只有一份＝数据层的那一句
+  // awaitingBigKey（#1342d），本函数不另起第二把尺。零机型／零 UA 分支。
+  window.xyBigWriteHold = function (store, key) {
+    try {
+      if (!store || typeof store.awaitingBigKey !== 'function' || !store.awaitingBigKey(key)) return false;
+    } catch (e) { return false; }
+    try { if (store.requestBigKey) store.requestBigKey(key); } catch (e3) {}
+    return true;
+  };
+  // FIX 2026-09-28 #1361n：整包读-改-写的账在落笔前真正该问的不是「这一格是不是大键」，而是「这一发
+  // 的空读有没有权威可言」。xyBigWriteHold 那三格证据（名册／挂起名单／大键证人）都只认「该有一份
+  // ≥200KB 的副本」，于是对两种真实形状天生失明：①收藏包／字卡库被压缩与令牌化压回 200KB 以下；
+  // ②启动回填整轮 bail out（idbListKeys 读失败时 restore 照样 finish→就绪，可一个键都没灌回来）。
+  // 这两种情况下同步读空照样被当成「没有」＝照样清库。本函数把话说到根上：**读数非空一律放行；
+  // 读空就不许直接落笔**——调用方必须先去库里问一趟（三态里只有 'absent'＝健康连接确认库里真没这一键，
+  // 才允许把「空」当成答案，那正是 #1218/#1349 已经认下的口径）。零机型／零 UA 分支。
+  window.xyPackageEmptyRead = function (store, key) {
+    try { return !!store && store.get(key) === null; } catch (e) { return true; }
   };
   // #1342f 取证出口（只读、零副作用）：这一场被放掉过几格、还有几格读空没问出结果。
   // 报障件里「方案没了／壁纸重开就空」从来不留任何痕迹——加了这一行才分得清「库里真没有」

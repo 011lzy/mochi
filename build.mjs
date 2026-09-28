@@ -1171,7 +1171,7 @@ const FIX_SENTINELS = [
   { name: '#189 iPad 全屏可见效果·tablet standalone 全屏隐藏模拟状态栏（#111 手机保留不动；iPad 系统栏网页盖不住，保留=开关零视觉变化「没有生效」）', file: 'css/base.css', needle: 'html.tablet.ios-pwa-standalone.ios-fs-active .phone .statusbar { display:none; }' },
   { name: '#193 字卡库写路径防覆盖守卫（权威大库未取回进内存前绝不整包写回——iPhone 17 Pro Safari 批量导入后 17.67MB 公用库旧字卡全部消失；#188/#120 同族第三例）', file: 'js/chatcard.js', needle: 'if (!ccAuthSeen[ccScope] && window.idbHasKey) {' },
   { name: '#193 残缺库写回改为合并营救（取回权威库后按分组把内存增量并进去再写，旧字卡与本次导入都不丢）', file: 'js/chatcard.js', needle: 'groups = mergeCcGroupsInto(loadGroups(), mem);' },
-  { name: '#193 权威已取回标记·探测确认 IDB 无键才放行直写（新装/空库合法直写通道，防守卫误伤）', file: 'js/chatcard.js', needle: 'if (!exists) { ccAuthMark(); saveGroupsNow(groups); return null; }' },
+  { name: '#193 权威已取回标记·探测确认 IDB 无键才放行直写（新装/空库合法直写通道，防守卫误伤；#1361c 起改认 idbHasKey 三态——null＝这一发没读到不再当「库里没有」，判据更严不更宽）', file: 'js/chatcard.js', needle: 'if (exists === false) { ccAuthMark(); saveGroupsNow(groups); return null; }' },
   { name: '#196 经期温柔语态·前缀/动作近期不重复（池仅 6 条纯均匀随机连抽同几句被当 bug；改回裸均匀随机此行即消失）', file: 'js/period.js', needle: 'var fresh = avail.filter(function (x) { return warmRecent[hist].indexOf(x) < 0; });' },
   { name: '#197 ce-box change 补派·blur 内容有变才派（contenteditable 不自发派 change，安卓全站挂 change 的保存永不触发；删掉 dispatchEvent 此行全站回退）', file: 'js/mobile-adapt.js', needle: "box.dispatchEvent(new Event('change', { bubbles: true }));" },
   { name: '#197 ce-box change 补派·聚焦基线记录（无基线则 blur 永不比对；删掉此行补派即哑火）', file: 'js/mobile-adapt.js', needle: "box.addEventListener('focus', function () { ceChangeVal = box.textContent || ''; });" },
@@ -1487,7 +1487,7 @@ const FIX_SENTINELS = [
   { name: '#327 撤回式截断·词间隙切尾前缀成新句（删则造句变回随机截补＝句子离奇，用户明确否决）', file: 'js/dream-free.js', needle: "const out = toks.slice(0, gi).join('').replace(/[，、,\\s]+$/, '');" },
   { name: '#329/#414 造句手法三选一·mjf-style 语气词式/撤回式/换字卡内容式（删则手法选择失效＝三模式不可切，回退固定撤回式；#414 改 let 供混合模式重掷）', file: 'js/dream-free.js', needle: "let style = Math.max(0, Math.min(2, Number(c['mjf-style']) || 1));" },
   { name: '#326 词边界来源·内置词典正向最大匹配切词（删则插入点随机＝可能截在词中间出病句）', file: 'js/dream-free.js', needle: 'if (dict.has(str.slice(i, i + L))) { len = L; break; }' },
-  { name: '#317/324 造句入库·ccAppendCards 双作用域写 mjfree 分类（删则新句不进「梦角自由造句」字卡分类；#324 加 scope 分库参数）', file: 'js/chatcard.js', needle: "window.ccAppendCards = function (type, group, cards, scope) {" },
+  { name: '#317/324 造句入库·ccAppendCards 双作用域写 mjfree 分类（删则新句不进「梦角自由造句」字卡分类；#324 加 scope 分库参数；#1361d 起末尾多一个内部自重放计数，调用方一律不传）', file: 'js/chatcard.js', needle: "window.ccAppendCards = function (type, group, cards, scope, _retry) {" },
   // ==== 2026-09-16 #622「其他互动功能字卡」角标误计梦角自由造句（用户报「梦角自由造句的点数显示在其他功能字卡里」）：#353 起 mjfree 只在【可自定义字卡】公用/专属入口显示、功能入口 tab 已隐藏，但角标仍按 CC_FUNC_KEYS 全量计数 ====
   { name: '#622a 功能字卡角标键剔除 mjfree（删/改回 CC_FUNC_KEYS＝梦角自由造句的点数又跑进「其他互动功能字卡」角标，用户报障复发）', file: 'js/chatcard.js', needle: "const CC_FUN_COUNT_KEYS = CC_FUNC_KEYS.filter(k => k !== 'mjfree');" },
   { name: '#622b 专属功能字卡角标计数走剔除后的键（定义在、计数却用回 CC_FUNC_KEYS 则 #622a 形同虚设）', file: 'js/chatcard.js', needle: 'if (libCounts.fun < 0) libCounts.fun = countOfKeys(og, CC_FUN_COUNT_KEYS);' },
@@ -5593,6 +5593,19 @@ const FIX_SENTINELS = [
   { name: '#1353g 并回来的日子重认一遍且只重画月视图（删＝旧日子并回来了屏上还是那两天／改成重画 renderToday＝盖掉用户正在输入的备注）', file: 'js/mood-diary.js', needle: 'if (grewDy) _interactCache.built = false;' },
   { name: '#1353h 日历入口卡不许对「不知道」宣布「还没有互动」（删＝用户原话「日历上也不显示TA的心情」整场挂着）', file: 'js/calendar.js', needle: '((md && md.taUnknown) ? (window.mochiLoadingText' },
   { name: '#1353i 记下互动日那一刻广播、日历那句据此补渲（删＝聊天读回来后那一行停在谎话上，要重开一次才对）', file: 'js/calendar.js', needle: "document.addEventListener('mood-interact-recorded'" },
+  /* ==== 2026-09-28 #1361 收藏 fav-msgs／字卡库 cc-groups 两本「整包读-改-写」的账在同步口读空那一发被程序自己写回（荣耀 X70 MTN-AN80／MagicOS 10／Edge 153 桌面 PWA 实报「收藏数据和自定义专属字卡数据会莫名其妙消失，更新后点一个弹窗确认又复现」；用户明说其他设备型号也有出现、要求不要覆盖式修补。报障件【保活现场】＝本页被系统回收过 200 次＝每次进来都是一发冷启动；【数据】段同一个 default:cc-groups 两个读数 284B／228B 而两样都只剩空壳。无头真跑纯 HEAD 产物复现：库里 1600 张字卡 → 冷启动 100ms 时 store.get('cc-groups')=NULL → 程序自己的梦角自由造句（dream-free.js 每次自动回复后）调 ccAppendCards → 库里 1 张；收藏同一发 70 条 → 1 条。根因不是机型也不是配额：判据一律零机型／零 UA＝只取「这一格读到了没有」＋「库里那份的证人在不在册」两个事实） ==== */
+  { name: '#1361a 读空那格的第三把证人尺：__big-idx 在册就说不许整包写回（#1342d 只认两本活在内存里的账＝切后台名册＋启动挂起名单，被回收 200 次的机器每次冷启动这两本都是空的，那道闸对「冷启动读空」结构性失明；改回只认那两本＝复发）', file: 'js/idb.js', needle: '_bigIdx[key] > LS_BIG_LIMIT && !bigHydAbsent[key]' },
+  { name: '#1361b 自动写入方用的静默让路口（没有「用户再点一次」可说：弹提示＝凭空冒话，硬写＝清库；删掉＝下面三条接线无处可接）', file: 'js/idb.js', needle: 'window.xyBigWriteHold = function (store, key) {' },
+  { name: '#1361c 字卡库编辑树落笔前过闸且保留 ccDirty（离页/回前台的 flushCcSave 拿取回后的权威库重来；删这一句＝读空那一发把整本库顶成骨架）', file: 'js/chatcard.js', needle: "if (window.xyBigWriteBlocked(curStore(), curKey(), '字卡库')) { ccDirty = true; return; }" },
+  { name: '#1361d 营救路径取回没落地也不落笔（hydrateCurScope 之后仍读不到＝loadGroups 还是空库，并进去也是拿空树顶权威键）', file: 'js/chatcard.js', needle: 'if (window.xyBigWriteHold(curStore(), curKey())) { ccDirty = true; return null; }' },
+  { name: '#1361e 专属库页外直写（懒加载态 groups=null）读数不可信时让路（#455 只挡 null 编辑树，没挡「同步读数本身是读空」＝buildGroupsFrom(null) 画空树追加一张整包写回）', file: 'js/chatcard.js', needle: "if (ccHold(store, 'cc-groups', window.activePrefix() + ':cc-groups')) return false;" },
+  { name: '#1361f 公用库页外直写同一条（公用整本 17MB 级被一张造句顶掉＝同一件事的另一作用域，漏一个用户切页签就复现）', file: 'js/chatcard.js', needle: "if (ccHold(pubStore(), PUB_KEY, PUB_PREFIX + ':' + PUB_KEY)) return false;" },
+  { name: '#1361g 收藏整包落盘前让路走已有的 favPending（权威回话后按 favItemKey 并集落盘＝既不等用户再点一次，也不复活他删过的；新写一份暂存＝#1342i「全站只留一份」的反面）', file: 'js/chat.js', needle: "if (store.get('fav-msgs') === null || window.xyBigWriteHold(store, 'fav-msgs')) {" },
+  { name: '#1361h 让路那一发顺手重新问一次权威（favAuth 已经是 ok 时读空不会再有人替它开门，闸门就会永久挂在暂存态＝#1342「不把这道闸变成新的存不进去」）', file: 'js/chat.js', needle: 'setTimeout(favAskAuth, 1500);' },
+  { name: '#1361i 朋友圈 TA 自动收藏那条跨模块直写静默让路（它不经 chat.js 的 favAuth 闸，且没有任何用户动作＝用户口径的「莫名其妙」）', file: 'js/feed.js', needle: "if (window.xyBigWriteHold(s, 'fav-msgs')) return;" },
+  { name: '#1361n 整包读-改-写落笔前真正该问的是「这一发读空了没有」而不是「这一格是不是大键」（名册／挂起名单／__big-idx 三格证据都只认 ≥200KB 的副本，压缩令牌化之后的小库与回填整轮 bail out 两型全都看不见＝报障机现状 228B／21.6KB 都在这一档）', file: 'js/idb.js', needle: 'window.xyPackageEmptyRead = function (store, key) {' },
+  { name: '#1361m 回填未落定这一格也算「没读到」（沿用 #785 现成的数据就绪三态 mochiDataPending，自带 2 分钟上限焊不死）——上面三把证据都只认「该有一份 ≥200KB 的副本」，对压缩／令牌化之后的小键天生失明，而那正是被回收过 200 次那台机的现状', file: 'js/idb.js', needle: 'if (window.mochiDataPending && window.mochiDataPending()) return true;' },
+
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

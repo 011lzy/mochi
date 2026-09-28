@@ -479,7 +479,10 @@ if (memoryCache && (key in memoryCache)) return false;
 try { if (localStorage.getItem(key) !== null) return false; } catch (e) { return true; }
 if (bigKeyBlind(key)) return true;
 var di = window.__xyIdbDeferredKeys;
-return !!(Array.isArray(di) && di.indexOf(key) >= 0);
+if (Array.isArray(di) && di.indexOf(key) >= 0) return true;
+if (typeof _bigIdx[key] === 'number' && _bigIdx[key] > LS_BIG_LIMIT && !bigHydAbsent[key]) return true;
+if (window.mochiDataPending && window.mochiDataPending()) return true;
+return false;
 }
 window.xyBigWriteBlocked = function (store, key, what) {
 try {
@@ -488,6 +491,16 @@ if (!store || typeof store.awaitingBigKey !== 'function' || !store.awaitingBigKe
 try { if (store.requestBigKey) store.requestBigKey(key); } catch (e3) {}
 if (window.toast) { try { window.toast((what || '这份数据') + '这次没读全（存储正忙）：等几秒再点一次即可，不需要重新设置'); } catch (e2) {} }
 return true;
+};
+window.xyBigWriteHold = function (store, key) {
+try {
+if (!store || typeof store.awaitingBigKey !== 'function' || !store.awaitingBigKey(key)) return false;
+} catch (e) { return false; }
+try { if (store.requestBigKey) store.requestBigKey(key); } catch (e3) {}
+return true;
+};
+window.xyPackageEmptyRead = function (store, key) {
+try { return !!store && store.get(key) === null; } catch (e) { return true; }
 };
 window.__xyBigReadDiag = function () {
 try {

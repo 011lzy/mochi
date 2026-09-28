@@ -374,6 +374,7 @@ return ccScope === 'public' ? (PUB_PREFIX + ':' + PUB_KEY) : (window.activePrefi
 }
 function saveGroups(groups) {
 if (!groups) { ccDirty = false; return; }
+if (window.xyBigWriteBlocked(curStore(), curKey(), '字卡库')) { ccDirty = true; return; }
 if (!ccAuthSeen[ccScope] && window.idbHasKey) {
 ccDirty = true;
 rescueCcOverwrite();
@@ -435,8 +436,9 @@ function rescueCcOverwrite() {
 if (ccRescueInflight) return;
 const mem = groups; // hydrateCurScope 落定后会用权威库重载 groups，先保住内存增量
 ccRescueInflight = Promise.resolve(window.idbHasKey(curFullKey())).then(exists => {
-if (!exists) { ccAuthMark(); saveGroupsNow(groups); return null; }
+if (exists === false) { ccAuthMark(); saveGroupsNow(groups); return null; }
 return hydrateCurScope().then(() => {
+if (window.xyBigWriteHold(curStore(), curKey())) { ccDirty = true; return null; }
 groups = mergeCcGroupsInto(loadGroups(), mem);
 ccAuthMark();
 saveGroupsNow(groups);
@@ -3457,13 +3459,29 @@ if (body.length >= CC_MEDIA_TOKEN_THRESHOLD && body.indexOf('data:image/') === 0
 return card.length > 120 ? (card.slice(0, 60) + '~' + card.length) : card;
 } catch (e) { return String(card); }
 };
-window.ccAppendCards = function (type, group, cards, scope) {
+window.ccAppendCards = function (type, group, cards, scope, _retry) {
 try {
 if (CC_ALL_TYPES.indexOf(type) < 0 || type === 'sticker' || type === 'image' || type === 'voice') return false;
 const arr = (Array.isArray(cards) ? cards : [cards]).filter(c => typeof c === 'string' && c && c.indexOf('data:') !== 0 && c.indexOf('|||') < 0);
 if (!arr.length || !group) return false;
 const isPub = scope === 'public';
+const authorized = _retry === 'asked';
+const retry = authorized ? 0 : (_retry || 0);
+const again = function (n) { setTimeout(function () { try { window.ccAppendCards(type, group, cards, scope, n); } catch (e0) {} }, 1200 * n); };
+const ccHold = function (st, k, full) {
+if (authorized) return false;
+if (st.get(k) !== null && !window.xyBigWriteHold(st, k)) return false;
+if (st.get(k) === null) { try { if (st.requestBigKey) st.requestBigKey(k); } catch (e5) {} }
+let asked = 'unknown';
+try { if (retry < 4 && window.idbEnsureBigKey) asked = window.idbEnsureBigKey(full); } catch (e3) { asked = 'unknown'; }
+Promise.resolve(asked).then(function (state) {
+if (state === 'ok' || state === 'absent') { try { window.ccAppendCards(type, group, cards, scope, 'asked'); } catch (e4) {} return; }
+if (retry < 4) again(retry + 1);
+}, function () { if (retry < 4) again(retry + 1); });
+return true;
+};
 if (isPub) {
+if (ccHold(pubStore(), PUB_KEY, PUB_PREFIX + ':' + PUB_KEY)) return false;
 const g = buildGroupsFrom(pubStore().get(PUB_KEY));
 if (!g[type]) g[type] = [];
 let grp = g[type].find(p => p[0] === group);
@@ -3479,6 +3497,7 @@ if (cur === type && !document.getElementById('page-custom-cards').hidden) { try 
 return added > 0;
 }
 if (!groups) {
+if (ccHold(store, 'cc-groups', window.activePrefix() + ':cc-groups')) return false;
 const g0 = buildGroupsFrom(store.get('cc-groups'));
 if (!g0[type]) g0[type] = [];
 let grp0 = g0[type].find(p => p[0] === group);

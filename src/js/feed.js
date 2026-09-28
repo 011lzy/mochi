@@ -2781,6 +2781,12 @@ if (comInput) comInput.addEventListener('keydown', (e) => { if (e.key === 'Enter
           const pick = mine[Math.floor(Math.random() * mine.length)];
           const f = { kind: 'feed', text: pick.content || '', imgs: (pick.imgs || []).slice(), ts: pick.ts || Date.now() };
           const s = window.storeFor(cid);
+          // FIX 2026-09-28 #1361f：这一发不经过 chat.js 的 favAuth 闸（跨模块直接 s.set 整包），
+          // 而它恰恰是**没有任何用户动作**的那一发——发完动态各桌面 TA 各自掷概率，命中就自动收藏。
+          // 读数不可信时这一写＝把该桌面库里那一本整包顶成「只有 TA 刚收藏的这一条」＝用户看到的
+          // 「收藏莫名其妙被清空」。自动通路没有「再点一次」可说 ⇒ 静默让路＋请一次库，下一发动态
+          // 或下一次自动收藏照样走得通。判据＝数据层那一句，零机型／零 UA 分支。
+          if (window.xyBigWriteHold(s, 'fav-msgs')) return;
           let fav = [];
           try { fav = JSON.parse(s.get('fav-msgs') || '[]'); } catch (e) { fav = []; }
           if (!Array.isArray(fav)) fav = [];

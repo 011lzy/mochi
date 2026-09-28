@@ -533,6 +533,10 @@
     // v3.42.x #455：懒加载态（管理页未开）没有编辑树可落盘——直接拒绝，绝不把
     // null/空树整包写回权威键（等价 #193 防覆盖守卫在懒加载态的收口）
     if (!groups) { ccDirty = false; return; }
+    // FIX 2026-09-28 #1361c：编辑树来自同步读数（loadGroups→curStore().get），而这一格的同步读数在
+    // 「库里那份还没进内存」的窗口里就是空库——#455 只挡住了 groups=null，挡不住「读空之后建出来的
+    // 那棵空树」。ccDirty 保持置位：离页/回前台的 flushCcSave 会拿取回后的权威库重来一趟。
+    if (window.xyBigWriteBlocked(curStore(), curKey(), '字卡库')) { ccDirty = true; return; }
     if (!ccAuthSeen[ccScope] && window.idbHasKey) {
       // 未确认权威库已取回：先探测 IDB 是否真有权威数据——有 = 绝不整包写回，
       // 走 rescueCcOverwrite 合并营救；健康连接确认无键（新装/空库）才放行直写
@@ -617,8 +621,14 @@
     if (ccRescueInflight) return;
     const mem = groups; // hydrateCurScope 落定后会用权威库重载 groups，先保住内存增量
     ccRescueInflight = Promise.resolve(window.idbHasKey(curFullKey())).then(exists => {
-      if (!exists) { ccAuthMark(); saveGroupsNow(groups); return null; }
+      // FIX 2026-09-28 #1361c：三态里只有「确认库里没有」才允许拿内存这一本直接整包写回。
+      // idbHasKey 的 null＝这一发没读到（挂起内核／事务被回收杀掉），旧写法 if (!exists) 把
+      // 「问不出结果」当成「库里没有」＝#1309/#1330 那一族「把没回话当没有」在字卡库这一格的尾巴。
+      if (exists === false) { ccAuthMark(); saveGroupsNow(groups); return null; }
       return hydrateCurScope().then(() => {
+        // FIX 2026-09-28 #1361c：取回没落地（'unknown'）时 loadGroups() 还是空库，并进去也是拿空树
+        // 顶掉权威键——让路等下一发（这一条静默：上一步已经对用户说过一次「这次没读全」了）
+        if (window.xyBigWriteHold(curStore(), curKey())) { ccDirty = true; return null; }
         groups = mergeCcGroupsInto(loadGroups(), mem);
         ccAuthMark();
         saveGroupsNow(groups);
@@ -4358,13 +4368,44 @@
   // 延迟持久化（scheduleSave）与手动添加完全同路；当前页若开着同分类列表则局部刷新。
   // #324 scope：'own'=专属库（默认，当前联系人）/ 'public'=公用库（全桌面共享）——
   // 公用库走 pubGroupsRaw 缓存 + pubStore 整包回写 + pubInvalidate，与公用页保存同路。
-  window.ccAppendCards = function (type, group, cards, scope) {
+  // FIX 2026-09-28 #1361d：第五参 _retry＝本批让路重排的自重放计数（调用方一律不传，旧调用零变化）
+  window.ccAppendCards = function (type, group, cards, scope, _retry) {
     try {
       if (CC_ALL_TYPES.indexOf(type) < 0 || type === 'sticker' || type === 'image' || type === 'voice') return false;
       const arr = (Array.isArray(cards) ? cards : [cards]).filter(c => typeof c === 'string' && c && c.indexOf('data:') !== 0 && c.indexOf('|||') < 0);
       if (!arr.length || !group) return false;
       const isPub = scope === 'public';
+      // 本函数两条「页外直写」分支（公用／专属懒加载）都是 JSON.parse(同步读数) → 追加 → 整包 set，
+      // 而 #455/#387 对齐的是「groups=null 别拿空编辑树」，没对齐「同步读数本身可能是没读回来的空」：
+      // IDB-only 大键在冷启动窗口（库里那份还没进内存）与切后台放掉之后读回来就是 null ⇒
+      // buildGroupsFrom(null) 画出一棵空树，追加一张，整包写回＝库里几百张卡被这一张顶掉。
+      // 触发它不需要任何用户动作——梦角自由造句每次自动回复后都会走这里（dream-free.js）。
+      // 让路＋请一次库，然后把「下一班」交给库里那份读回来这件事本身：idbEnsureBigKey 与 #1218／#1349
+      // 共用同一格合流（bigHydAsk）＝绝不多踢一趟；它回 'ok'／'absent' 的那一刻才重放这一发。
+      // 只按定时器重放在慢机上要么白等要么丢句（实测 MB 级库要十几秒才读回来），问不出结果
+      // （'unknown'）仍按有界自重放兜底。判据＝数据层那一句 awaitingBigKey，零机型／零 UA 分支。
+      // 第五参的两个内部取值：数字＝让路重排的计数；'asked'＝「库里已经问过、这一发就是落笔那一发」
+      // ——没有这一档，自重放到底那一发会再次进 ccHold 被自己拦死（实测 A3/A5/E4 三条因此在落库侧红：
+      // 闸门把这一句造句永远挡在外面＝#1342 那句「不许把这道闸变成新的存不进去」被自己犯了一次）
+      const authorized = _retry === 'asked';
+      const retry = authorized ? 0 : (_retry || 0);
+      const again = function (n) { setTimeout(function () { try { window.ccAppendCards(type, group, cards, scope, n); } catch (e0) {} }, 1200 * n); };
+      const ccHold = function (st, k, full) {
+        if (authorized) return false;
+        // 读数非空且那道闸没拦 ⇒ 照旧直接落笔（正常路径一次多余的问库都不发）；读空＝这一发的「空」
+        // 还没有权威可言，先去库里问一趟
+        if (st.get(k) !== null && !window.xyBigWriteHold(st, k)) return false;
+        if (st.get(k) === null) { try { if (st.requestBigKey) st.requestBigKey(k); } catch (e5) {} }
+        let asked = 'unknown';
+        try { if (retry < 4 && window.idbEnsureBigKey) asked = window.idbEnsureBigKey(full); } catch (e3) { asked = 'unknown'; }
+        Promise.resolve(asked).then(function (state) {
+          if (state === 'ok' || state === 'absent') { try { window.ccAppendCards(type, group, cards, scope, 'asked'); } catch (e4) {} return; }
+          if (retry < 4) again(retry + 1);
+        }, function () { if (retry < 4) again(retry + 1); });
+        return true;
+      };
       if (isPub) {
+        if (ccHold(pubStore(), PUB_KEY, PUB_PREFIX + ':' + PUB_KEY)) return false;
         // FIX 2026-09-13 #387 写回泄漏堵口——pubGroupsRaw() 是 #377 令牌化后的内存缓存，
         // 整包 set(PUB_KEY) 会把全库令牌持久化进原始键，随公用库/备份传到无池数据设备
         // ＝纯白图/空分组/乱码。改用原始键现解析（本路径低频，一次性 40MB parse 可接受），
@@ -4387,6 +4428,7 @@
       // 回写＝清库——对齐公用分支 #387 口径：原始键现解析→追加→直写（本路径低频，
       // 一次性 parse 可接受），带完整快照确认落盘，池视图失效后下次取池即含新卡。
       if (!groups) {
+        if (ccHold(store, 'cc-groups', window.activePrefix() + ':cc-groups')) return false;
         const g0 = buildGroupsFrom(store.get('cc-groups'));
         if (!g0[type]) g0[type] = [];
         let grp0 = g0[type].find(p => p[0] === group);
