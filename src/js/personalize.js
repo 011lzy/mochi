@@ -8888,10 +8888,14 @@ try {
     }
     function closePanel() { if (panel) { panel.remove(); panel = null; unwindAdjPages(); } }
     // #962：切到桌面/聊天现场（面板里那两枚切页页签用）——切完自动收成胶囊，一眼看到那一页
+    // #1409：切桌面那一跳抽成 gotoDeskTab＝设置页入口复用同一句，但它不收胶囊（面板要保持展开好边拖边看）
+    function gotoDeskTab() {
+      try { const t = document.querySelector('.tab[data-page="page-phone"]'); if (t) t.click(); } catch (e) {}
+    }
     function goPage(which) {
       try {
         if (which === 'chat') { if (typeof window.enterChat === 'function') window.enterChat(); }
-        else { const t = document.querySelector('.tab[data-page="page-phone"]'); if (t) t.click(); }
+        else gotoDeskTab();
       } catch (e) {}
       setMini(true);
       applyAdjPos();
@@ -8911,7 +8915,15 @@ try {
     // #982：聊天侧入口由「更多 → 工具」改为「聊天设置 → 美化」（用户直派），按钮 id 随行 id 一并换掉。
     window.mochiOpenScreenAdj = openAdjPanel;
     const entry = document.getElementById('row-screen-adj');
-    if (entry) entry.addEventListener('click', openAdjPanel);
+    // #1409（作者直派「点击打开【屏幕适配微调】没有自动跳转到桌面」）：这枚入口此前只开面板、不切页，
+    // 于是人还站在设置列表前、面板盖住下半屏——要看自己正在调的东西得再点一次面板里「桌面」那枚页签
+    // （顶上那句「当前不在桌面/聊天页（设置）：点『桌面』或『聊天』切过去」本就是给这一跳兜底的）。
+    // 作者定的口径＝点入口把这一跳合并进去：开面板 + 立刻站到桌面现场，且**面板保持展开**（收胶囊等于
+    // 又要点一下才能拖滑杆，边拖边看断在半路）；关掉面板**留在桌面**、不回设置页（它不是一层归还页面的弹窗）。
+    // 切页后的落位与页面名由 watchAdjPages 那双眼睛跟上，这里不重复落位。
+    // 只收设置页这一枚：聊天设置里那枚（cs-screen-adj）本就在聊天现场、装修那枚（decor-fit）本就在桌面，
+    // 把它们也拽走＝把人踢离自己正在看的页面。
+    if (entry) entry.addEventListener('click', function () { openAdjPanel(); gotoDeskTab(); });
     const chatSetEntry = document.getElementById('cs-screen-adj');
     if (chatSetEntry) chatSetEntry.addEventListener('click', openAdjPanel);
     const decorEntry = document.getElementById('decor-fit');

@@ -5818,7 +5818,11 @@ const FIX_SENTINELS = [
      翻到过它才说的这句）。判据／开关 id／默认值／执行器一字未动＝纯归属面，行为与旧版逐字相同；随带把屏幕
      适配诊断报告里那句「开启上方【顶部避让修正】开关」改成「到 设置→工具 开启」（报告仍开在诊断段，那句
      「上方」搬走后人会被指空）。行为层归位由 tools/verify-settings-tags.mjs 的 S16a/S16b＋B16b/B18b/B18c 钉。 ==== */
-  { name: '#1408a 顶部避让修正落在「工具」段首组（锚在该组闭合注释：行被搬回「信息诊断」时注释随组留下、行不在＝该组闭合回到无标记形态，针消失）', file: 'template.html', needle: '</div><!-- /set-group tools · safe-top-force -->' }
+  { name: '#1408a 顶部避让修正落在「工具」段首组（锚在该组闭合注释：行被搬回「信息诊断」时注释随组留下、行不在＝该组闭合回到无标记形态，针消失）', file: 'template.html', needle: '</div><!-- /set-group tools · safe-top-force -->' },
+  // ==== 2026-09-29 #1409 作者直派「点击打开【屏幕适配微调】没有自动跳转到桌面」：设置页那枚入口此前只开面板、不切页＝人站在设置列表前对着列表调屏幕，要再点一次面板里「桌面」页签才看得见现场（顶上那句「当前不在桌面/聊天页（设置）：点『桌面』或『聊天』切过去」本就是给这一跳兜底的）。作者定口径＝点入口合并这一跳：切到桌面＋面板保持展开，关掉面板留在桌面不回设置页。a 钉「入口＝开面板＋跳桌面」这条写法在（改回把裸函数引用挂 click＝名字全在、跳页整块丢失，正是「名字在逻辑变」那一类）；b 钉入口这一发不得顺手收胶囊（回流＝展开着的面板被自己收起，用户又得点一下才能拖滑杆）；c 钉另两处入口仍直挂开面板（聊天设置本就在聊天现场、装修本就在桌面，一并拽走＝把人踢离自己正在看的页面）。判据零机型／零 UA 分支：只问「点完这枚入口，屏上哪一页没被 hidden、面板还是不是展开」。尺子＝tools/verify-962-screen-adj-entry.mjs 的 N1~N4 四支＋B5 期望值随新口径由「设置」翻成「桌面」。 ====
+  { name: '#1409a 设置页入口＝开面板同时跳到桌面现场（改回直挂开面板函数＝作者实报的「点了没跳到桌面」复发）', file: 'js/personalize.js', needle: "if (entry) entry.addEventListener('click', function () { openAdjPanel(); gotoDeskTab(); });" },
+  { name: '#1409b 删除型：设置页入口这一发不得顺手收成小胶囊（回流＝面板被自己收起，用户还得再点一下才能拖滑杆）', file: 'js/personalize.js', needle: 'openAdjPanel(); setMini(true);', absent: true },
+  { name: '#1409c 聊天设置与装修两处入口仍直挂开面板（被一并拽去桌面＝把人踢离自己正在看的页面，本批刻意不收这两处）', file: 'js/personalize.js', needle: "if (chatSetEntry) chatSetEntry.addEventListener('click', openAdjPanel);" },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

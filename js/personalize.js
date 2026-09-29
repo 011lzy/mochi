@@ -7183,10 +7183,13 @@ setMini(false); // 每次新建都从展开态起步（落位自动摆到底部�
 watchAdjPages();
 }
 function closePanel() { if (panel) { panel.remove(); panel = null; unwindAdjPages(); } }
+function gotoDeskTab() {
+try { const t = document.querySelector('.tab[data-page="page-phone"]'); if (t) t.click(); } catch (e) {}
+}
 function goPage(which) {
 try {
 if (which === 'chat') { if (typeof window.enterChat === 'function') window.enterChat(); }
-else { const t = document.querySelector('.tab[data-page="page-phone"]'); if (t) t.click(); }
+else gotoDeskTab();
 } catch (e) {}
 setMini(true);
 applyAdjPos();
@@ -7201,7 +7204,7 @@ syncMiniLabel();
 }
 window.mochiOpenScreenAdj = openAdjPanel;
 const entry = document.getElementById('row-screen-adj');
-if (entry) entry.addEventListener('click', openAdjPanel);
+if (entry) entry.addEventListener('click', function () { openAdjPanel(); gotoDeskTab(); });
 const chatSetEntry = document.getElementById('cs-screen-adj');
 if (chatSetEntry) chatSetEntry.addEventListener('click', openAdjPanel);
 const decorEntry = document.getElementById('decor-fit');
