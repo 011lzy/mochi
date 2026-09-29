@@ -633,6 +633,7 @@ function renderCheckinHistory() {
       // 下标按**原始数组**取（key＝'i'+n），删完立刻重画，键在两次渲染之间不需要稳定
       const valid = (Array.isArray(h) ? h : []).map((x, i) => ({ x, i })).filter(o => o.x && (o.x.place || o.x.action));
       histEl.innerHTML = window.mochiHistFold(valid.map(o => ({ ts: Number(o.x.ts) || 0, html: ckHistRow(o.x, o.i) })), {
+        key: 'checkin-hist',
         empty: '<div class="div-result-empty">暂无寻踪记录</div>',
         todayEmpty: '<div class="dc-h-day-empty">今天暂无寻踪记录</div>'
       });

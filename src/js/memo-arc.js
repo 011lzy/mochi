@@ -586,6 +586,7 @@
     return window.mochiHistFold(idx.map(function (o) {
       return { ts: Number(o.ev.time) || 0, html: '<div class="narc-hist"><span class="nh-dot"></span><div class="nh-wrap"><div class="nh-date">' + mdstr(o.ev.time) + '</div><div class="nh-text">' + String(o.ev.text || '').replace(/〈([^〈]*)〉/g, '<em>「$1」</em>') + '</div>' + opBtn('del-hist', '删除', ' data-id="' + o.i + '"', 1) + '</div></div>' };
     }), {
+      key: 'memo-hist',
       todayEmpty: '<div class="dc-h-day-empty">今天没有新的理解变化</div>'
     });
   }
@@ -683,7 +684,7 @@
       // 折叠交站内唯一那把尺子（当天直显＋更早按月折）；各来源自己的「编辑/删除」仍走本文件
       // 既有 data-op 链（bond/record/moment 早有 del-entry），本批只补上原先没有删除位的
       // 「理解变化」那一行（changesHTML 里的 del-hist）
-      return h + window.mochiHistFold(items, { todayEmpty: '<div class="dc-h-day-empty">今天还没有新的共同记录</div>' });
+      return h + window.mochiHistFold(items, { key: 'memo-moment', todayEmpty: '<div class="dc-h-day-empty">今天还没有新的共同记录</div>' });
     }
     const catLabel = (tabsOf('shared', arc).find(t => t[0] === tab.shared) || [])[1] || BOND_CATS[tab.shared] || '';
     const isBuiltinCat = !!BOND_CATS[tab.shared];

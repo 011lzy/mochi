@@ -125,7 +125,7 @@ window.replyCfg = getCfg;
 window.replyCfgFor = function (cid) {
 const out = {};
 let s = null;
-try { s = (cid && window.storeFor) ? window.storeFor(cid) : ls; } catch (e) { s = ls; }
+try { s = (cid && window.storeForCid) ? window.storeForCid(cid) : (cid && window.storeFor) ? window.storeFor(cid) : ls; } catch (e) { s = ls; }
 Object.keys(DEFAULTS).forEach(k => {
 const v = k.indexOf('gc-') === 0 ? gcRead(k) : (s ? s.get('reply-' + k) : null);
 let n = (v === null || v === undefined || v === '') ? DEFAULTS[k] : Number(v);

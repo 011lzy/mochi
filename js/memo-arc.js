@@ -510,6 +510,7 @@ return '<div class="narc-empty">还没有理解上的变化。<br>当有一天�
 return window.mochiHistFold(idx.map(function (o) {
 return { ts: Number(o.ev.time) || 0, html: '<div class="narc-hist"><span class="nh-dot"></span><div class="nh-wrap"><div class="nh-date">' + mdstr(o.ev.time) + '</div><div class="nh-text">' + String(o.ev.text || '').replace(/〈([^〈]*)〉/g, '<em>「$1」</em>') + '</div>' + opBtn('del-hist', '删除', ' data-id="' + o.i + '"', 1) + '</div></div>' };
 }), {
+key: 'memo-hist',
 todayEmpty: '<div class="dc-h-day-empty">今天没有新的理解变化</div>'
 });
 }
@@ -595,7 +596,7 @@ ops = '<span class="nk-ops">' + opBtn('edit-entry', '编辑', ' data-kind="' + x
 }
 items.push({ ts: Number(x.t) || 0, html: itemShell(inner, '<span class="ni-date">' + esc(x.date) + '</span>' + ops) });
 });
-return h + window.mochiHistFold(items, { todayEmpty: '<div class="dc-h-day-empty">今天还没有新的共同记录</div>' });
+return h + window.mochiHistFold(items, { key: 'memo-moment', todayEmpty: '<div class="dc-h-day-empty">今天还没有新的共同记录</div>' });
 }
 const catLabel = (tabsOf('shared', arc).find(t => t[0] === tab.shared) || [])[1] || BOND_CATS[tab.shared] || '';
 const isBuiltinCat = !!BOND_CATS[tab.shared];

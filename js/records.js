@@ -37,6 +37,7 @@ function catchesLoad() {
 try { return JSON.parse(store.get('records-fishcatch') || '[]'); } catch (e) { return []; }
 }
 function catchesSave(list) { store.set('records-fishcatch', JSON.stringify(list)); } // v3.15.x：用户要求保留全部历史，不设上限（事件本身低频，量级可控）
+function histKey(x) { return 'k|' + ((x && x.ts) || 0) + '|' + ((x && x.type) || ''); }
 window.addFishCatchRecord = function (type, text) {
 const list = catchesLoad();
 list.unshift({ type: type, text: text || '', ts: Date.now() });
@@ -57,10 +58,11 @@ el.innerHTML = window.mochiHistFold(list.map((x, n) => ({ ts: Number(x.ts) || 0,
 (x.type === 'ta'
 ? '<svg class="st-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>' + name + ' 抓到我摸鱼'
 : '<svg class="st-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>' + '抓到 ' + name + ' 摸鱼') +
-'</span><span class="tc-li-time">' + fmtDT(x.ts) + '</span>' + window.mochiHistDel('i' + n, (x.type === 'ta' ? name + ' 抓到我摸鱼' : '抓到 ' + name + ' 摸鱼')) + '</div>' +
+'</span><span class="tc-li-time">' + fmtDT(x.ts) + '</span>' + window.mochiHistDel(histKey(x), (x.type === 'ta' ? name + ' 抓到我摸鱼' : '抓到 ' + name + ' 摸鱼')) + '</div>' +
 (x.text ? '<div class="tc-li-line">' + (window.taFit ? window.taFit(esc(x.text)) : esc(x.text)) + '</div>' : '') +
 '</div>'
 })), {
+key: 'records-catch',
 empty: recEmpty('<div class="ta-empty">暂无摸鱼抓包记录（桌面浮字可点击抓包 TA；点太快会被 TA 反向抓包）</div>'),
 todayEmpty: '<div class="dc-h-day-empty">今天没有被抓包</div>'
 });
@@ -68,8 +70,10 @@ window.mochiHistDelBind(el, {
 title: '删除这条抓包记录？',
 onDel: function (k) {
 const arr = catchesLoad();
-const i = parseInt(String(k).replace(/^i/, ''), 10);
-if (!(i >= 0) || !(i < arr.length)) return;
+const p = String(k).split('|');
+const ts = Number(p[1]) || 0, ty = p[2] || '';
+const i = arr.findIndex(function (x) { return x && (Number(x.ts) || 0) === ts && String(x.type || '') === ty; });
+if (i < 0) { if (typeof window.toast === 'function') window.toast('这条已经变了，没有删掉任何内容'); return; }
 arr.splice(i, 1);
 catchesSave(arr);
 render();
@@ -179,6 +183,7 @@ rows.push({ icon: KIND_ICON.deskcheck, main: '桌面查岗 · ' + esc(cname) + '
 if (!rows.length) { el.innerHTML = recEmpty('<div class="ta-empty">暂无联系人的关心记录（TA 会主动查岗、提醒你喝水吃饭、关心经期、陪你专注）</div>'); return; }
 rows.sort((a, b) => (b.ts || 0) - (a.ts || 0));
 el.innerHTML = window.mochiHistFold(rows.map(r => ({ ts: Number(r.ts) || 0, html: '<div class="tc-listitem"><div class="tc-li-top"><span class="tc-li-q">' + r.icon + ' ' + r.main + '</span><span class="tc-li-time">' + r.sub + '</span></div></div>' })), {
+key: 'records-care',
 todayEmpty: '<div class="dc-h-day-empty">今天暂无关心记录</div>'
 });
 }
@@ -201,7 +206,7 @@ const sub = (out ? myName + ' 发给 ' + name : name + ' 发给 ' + myName) + ' 
 (m.rpWish ? ' · 「' + esc(m.rpWish) + '」' : '');
 return { ts: Number(m.rpTs || m.ts) || 0, html: '<div class="tc-listitem"><div class="tc-li-top"><span class="tc-li-q">' + (out ? '🧧 我发红包 ¥' + amt : '🧧 ' + esc(name) + ' 发红包 ¥' + amt) + '</span><span class="tc-li-time">' + fmtDT(m.rpTs || m.ts) + '</span></div>' +
 '<div class="tc-li-line">' + sub + '</div></div>' };
-}), { todayEmpty: '<div class="dc-h-day-empty">今天没有红包往来</div>' });
+}), { key: 'records-rp', todayEmpty: '<div class="dc-h-day-empty">今天没有红包往来</div>' });
 }
 function renderDivinePanel() {
 const el = document.getElementById('home-divine');
@@ -249,6 +254,7 @@ function dayValList(el, list, key, name, rowFn, afterDel, headHtml) {
 el.innerHTML = (headHtml || '') + window.mochiHistFold(list.map(function (x) {
 return { ts: dayKeyTs(x.date), html: '<div class="tc-listitem">' + rowFn(x) + window.mochiHistDel(x.date, x.date + ' 的' + name) + '</div>' };
 }), {
+key: key,
 empty: recEmpty('<div class="ta-empty">暂无' + name + '记录</div>'),
 todayEmpty: '<div class="dc-h-day-empty">今天暂无' + name + '</div>'
 });

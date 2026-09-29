@@ -1075,6 +1075,25 @@
   // 折叠用原生 <details>⇒ 零 JS 展开状态要维护，也不会出现「名字在、逻辑变」那种自绘开关。
   // items: [{ts:Number, html:String}] 顺序任意（内部按新在前排）；没有 ts 的条目**不猜日期**，
   // 统一落进末尾那个月块（label「更早」），保证「折叠 ≠ 丢条目」。
+  // FIX 2026-09-29 #1416：开合态不能只活在 details 节点里——每一个调用方都是整栏 el.innerHTML= 重画
+  //   （来一条新抓包／新的一日常／送出礼物／切记录页 tab 都会重画），于是用户刚展开的「8 月」下一次
+  //   重绘自己就收回去。同批 mail.js 早已把状态收进模块级 map（#993 统计页 stats-fold 的站内惯例），
+  //   这里对齐：调用方给 opts.key（每张列表一个前缀），状态存 map，toggle 事件委托一次（toggle 不冒泡，
+  //   用捕获阶段挂 document）。默认前缀 'hist' 兜住没给 key 的调用，行为不会比现在更差。
+  const HIST_FOLD_OPEN = {};
+  function histFoldRemember(e) {
+    try {
+      const el = e.target;
+      if (!el || el.tagName !== 'DETAILS' || !el.getAttribute) return;
+      const fk = el.getAttribute('data-hist-fold');
+      if (!fk) return;
+      HIST_FOLD_OPEN[fk] = el.open ? 1 : 0;
+    } catch (err) {}
+  }
+  if (!window.__mochiHistFoldBound) {
+    window.__mochiHistFoldBound = 1;
+    try { document.addEventListener('toggle', histFoldRemember, true); } catch (err) {}
+  }
   window.mochiHistFold = function (items, opts) {
     const o = opts || {};
     const list = (Array.isArray(items) ? items : []).filter(x => x && typeof x.html === 'string');
@@ -1094,10 +1113,12 @@
     });
     monthKeys.sort((a, b) => months[b].rank - months[a].rank);
     let html = todayItems.length ? todayItems.map(x => x.html).join('') : (o.todayEmpty || '');
+    const fkBase = (typeof o.key === 'string' && o.key) ? o.key : 'hist';
     return html + monthKeys.map(mk => {
       const m = months[mk];
       const cnt = m.dayKeys.reduce((n, k) => n + m.days[k].items.length, 0);
-      return '<details class="dc-h-more"><summary class="dc-h-more-sum">' + m.label + '<span class="dc-h-more-cnt">' + cnt + ' 条</span></summary><div class="dc-h-more-body">' +
+      const fk = fkBase + '|' + mk;
+      return '<details class="dc-h-more"' + (HIST_FOLD_OPEN[fk] ? ' open' : '') + ' data-hist-fold="' + fk + '"><summary class="dc-h-more-sum">' + m.label + '<span class="dc-h-more-cnt">' + cnt + ' 条</span></summary><div class="dc-h-more-body">' +
         m.dayKeys.map(dk => '<div class="dc-h-day"><div class="dc-h-day-label">' + m.days[dk].label + '</div>' + m.days[dk].items.map(x => x.html).join('') + '</div>').join('') +
         '</div></details>';
     }).join('');

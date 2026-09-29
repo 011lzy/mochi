@@ -1686,6 +1686,7 @@ window.mochiHistDel(it.id, it.name) +
 '</div>';
 })() }; });
 el.innerHTML = window.mochiHistFold(rows, {
+key: 'gift-' + boxTab,
 empty: '<div class="gift-empty">' + (boxTab === 'in' ? (esc(partnerName()) + ' 还没送你礼物<br>' + (window.taFit ? window.taFit('他偶尔会主动从市集挑一份给你，耐心等等') : '他偶尔会主动从市集挑一份给你，耐心等等')) : boxTab === 'self' ? (esc(partnerName()) + ' 还没给自己买过礼物<br>TA 偶尔会按概率给自己挑一件，收进自己的心意柜') : ('你还没送出礼物<br>去心意市集挑一份送给 ' + esc(partnerName()) + ' 吧')) + '</div>',
 todayEmpty: '<div class="dc-h-day-empty">今天没有新的心意</div>'
 });

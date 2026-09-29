@@ -1286,7 +1286,9 @@
   }
   // 这条动态落在哪一页：回忆闪回／通知跳转要先切到那一页，节点才在 DOM 里
   function feedBucketKeyFor(ts) {
-    return (ts || 0) >= feedWeekStart(Date.now()) ? 'week' : feedMonthKeyOf(ts || 0);
+    const t = Number(ts) || 0;
+    if (!t) return 'none'; // #1416：没有 ts 的老动态不猜日期（下面分桶同口径，归「更早」）
+    return t >= feedWeekStart(Date.now()) ? 'week' : feedMonthKeyOf(t);
   }
   function feedBuckets(posts) {
     const ws = feedWeekStart(Date.now());
@@ -1295,12 +1297,15 @@
     const months = {};
     for (let i = 0; i < posts.length; i++) {
       const p = posts[i];
-      const ts = (p && p.ts) || 0;
-      if (ts >= ws) { week.push(p); continue; }
-      const k = feedMonthKeyOf(ts);
+      // FIX 2026-09-29 #1416：缺 ts 的历史动态原来一律算成 0 ⇒ 落进 feedMonthKeyOf(0) 那个桶，
+      //   组标题直书「1970年1月」＝拿默认值冒充日期（同批 idb.js 的 mochiHistFold 对同一事实的
+      //   口径是「不猜日期、归『更早』」）。判据只问「这条到底带没带 ts」，带了才换算年月。
+      const ts = Number(p && p.ts) || 0;
+      if (ts && ts >= ws) { week.push(p); continue; }
+      const k = ts ? feedMonthKeyOf(ts) : 'none';
       if (!months[k]) {
-        const d = new Date(ts);
-        months[k] = { key: k, y: d.getFullYear(), m: d.getMonth() + 1, items: [] };
+        const d = ts ? new Date(ts) : null;
+        months[k] = { key: k, y: d ? d.getFullYear() : 0, m: d ? d.getMonth() + 1 : 0, unknown: !d, items: [] };
       }
       months[k].items.push(p);
     }
@@ -1309,7 +1314,7 @@
     keys.sort((a, b) => (months[b].y - months[a].y) || (months[b].m - months[a].m));
     for (let i = 0; i < keys.length; i++) {
       const b = months[keys[i]];
-      out.push({ key: b.key, items: b.items, label: (b.y === nowY ? '' : b.y + '年') + b.m + '月' });
+      out.push({ key: b.key, items: b.items, label: b.unknown ? '更早' : (b.y === nowY ? '' : b.y + '年') + b.m + '月' });
     }
     return out;
   }

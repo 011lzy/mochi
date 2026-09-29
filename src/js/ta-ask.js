@@ -3852,6 +3852,7 @@ window.openTCPanel = openTCPanel;
       const label = String(x.q || x.roast || x.my || '').slice(0, 30);
       return { ts: Number(x.ts) || 0, html: '<div class="tc-listitem">' + rowFn(x) + window.mochiHistDel((x.__cid || '') + '|' + (Number(x.ts) || 0), label) + '</div>' };
     }), {
+      key: key,
       empty: '<div class="ta-empty">暂无' + name + '记录</div>',
       todayEmpty: '<div class="dc-h-day-empty">今天暂无' + name + '记录</div>'
     });

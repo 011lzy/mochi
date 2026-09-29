@@ -5869,7 +5869,7 @@ const FIX_SENTINELS = [
   //   （作者直派，与信箱 #1402 同族；周界同口径＝自然周周一起。判据只取 ts 与正文行/字数，零机型／零 UA 分支）
   //   九针分别钉：周界、分桶、本页数据源、单页不画条、跨页先切页、折叠判据、签名并入页键、空页不谎报、CSS 六行裁剪。
   { name: '#1406a 周界＝本周一 00:00 的自然周（改回滚动 7 天或周日开头＝「本周」每天变长、界线与用户心里对不上，且与信箱 #1402c 分叉）', file: 'js/feed.js', needle: "d.setDate(d.getDate() - ((d.getDay() + 6) % 7));" },
-  { name: '#1406b 分桶互不重叠：本周之外的才按月归组（删掉这道分支＝回到整箱平铺，「太杂」正是本批要治的）', file: 'js/feed.js', needle: "if (ts >= ws) { week.push(p); continue; }" },
+  { name: '#1406b 分桶互不重叠：本周之外的才按月归组（删掉这道分支＝回到整箱平铺，「太杂」正是本批要治的）', file: 'js/feed.js', needle: 'if (ts && ts >= ws) { week.push(p); continue; }' },
   { name: '#1406c 主列表数据源＝当前选中的那一页（保留全量＝翻页条成了装饰，切页屏上还是几百条）', file: 'js/feed.js', needle: "feedMainPosts = bucket.items;" },
   { name: '#1406d 只剩一页时连翻页条都不画（动态全在本周的用户不该看见一条空骨架）', file: 'js/feed.js', needle: "if (buckets.length <= 1) { bar.hidden = true; bar.innerHTML = ''; return; }" },
   { name: '#1406e 点往月通知/回忆卡先切到那条所在页再找节点（不切页＝命中隐藏的同名卡，用户所见「点了没反应」）', file: 'js/feed.js', needle: "if (hit) { feedRangeKey = feedBucketKeyFor(hit.ts); render(); el = feedMainPostEl(pid); }" },
@@ -5898,7 +5898,7 @@ const FIX_SENTINELS = [
   { name: '#1403b 关闭态在寻踪页顶挂「已禁用」说明条（删＝页面开着、下面的日常停在上一次却不交代为什么，作者要的「功能里需文字显示已禁用」落空）', file: 'js/p2-features.js', needle: 'card.insertBefore(el, card.firstChild);' },
   { name: '#1403c 关闭态点「刷新」给一句可执行的说明而不是空转（删回裸 doCheckin＝闸门仍在、不再生成，但用户点了毫无反应＝静默失败）', file: 'js/p2-features.js', needle: "if (!ckEn()) { toast('寻踪已禁用：设置 → 工具 → 寻踪 重新开启后才能刷新日常'); return; }" },
   { name: '#1403d 寻踪记录交给站内唯一那把折叠尺子（删＝回到整条历史平铺，几周后这一卡比整页还长＝作者报的「记录很长」复发）', file: 'js/p2-features.js', needle: 'histEl.innerHTML = window.mochiHistFold(' },
-  { name: '#1403e 更早的记录默认收在原生 details 里（复用 #1053 的 .dc-h-more 皮；改回平铺＝折叠失效，改成自绘 JS 开关＝又造一套与决定记录不一样的折叠、还要自己维护展开态）', file: 'js/idb.js', needle: "<details class=\"dc-h-more\"><summary class=\"dc-h-more-sum\">' + m.label" },
+  { name: '#1403e 更早的记录默认收在原生 details 里（复用 #1053 的 .dc-h-more 皮；改回平铺＝折叠失效，改成自绘 JS 开关＝又造一套与决定记录不一样的折叠、还要自己维护展开态）', file: 'js/idb.js', needle: '<details class="dc-h-more"\' + (HIST_FOLD_OPEN[fk] ? \' open\' : \'\') + \' data-hist-fold="\' + fk + \'"><summary class="dc-h-more-sum">' , /* #1416 换锚：details 带开合态与 data-hist-fold（状态活在模块级 map 里，不在节点上） */},
   { name: '#1403f 删除型：功能诊断不得再把总开关写成「打开未生效」的原因（关闭后页面照开，这句从此不可达；留着＝真出故障时诊断替故障找一个不存在的借口，正是 #1279 治的那一型）', file: 'js/device.js', needle: '寻踪总开关已关闭：设置 → 工具 → 寻踪 可重新开启', absent: true },
   { name: '#1403g 「当天直显＋更早按月折叠」的站内唯一实现（各页共用一把尺子＝同一判据同一视觉；删＝九处各自造折叠，必然「有的页折了有的没折」，也正是要防的「名字在、逻辑各写一份」）', file: 'js/idb.js', needle: 'window.mochiHistFold = function (items, opts)' },
   { name: '#1403h 按条删除件在位（作者追加「用户又不一定要保存那么多记录。这种无限变长的记录还需要有单独的删除功能」＝折叠之外还要真能删；删＝只能看着它变长。注意口径＝只删选中那一条，不做整表清空也不做封顶裁条）', file: 'js/idb.js', needle: 'window.mochiHistDelBind = function (el, opts)' },
@@ -5929,7 +5929,7 @@ const FIX_SENTINELS = [
   { name: '#1402a 未读判定只有一个写入方（徽标与列表顶部常驻区共用这把尺；各自再写一份＝红点数与看得见的封数分叉）', file: 'js/mail.js', needle: "function mailIsUnread(l) { return l.type === 'received' && !l.read && !l.myReply; }" },
   { name: '#1402b 未读来信抽进常驻区、不再落进任何月份组（删＝未读被 display:none 的折叠组盖住，用户见红点却找不到信）', file: 'js/mail.js', needle: "if (dir === 'in' && mailIsUnread(l)) { pin.push(l); return; }" },
   { name: '#1402c 周界＝本周一 00:00 的自然周（改回滚动 7 天或周日为起点＝「本周」每天变长、界线和用户心里对不上）', file: 'js/mail.js', needle: 'const dow = (d.getDay() + 6) % 7;' },
-  { name: '#1402d 本周平铺、更早才按月归组（删掉这道分桶＝回到整箱平铺，「写得很杂」正是本批要治的）', file: 'js/mail.js', needle: 'if (tm >= wkStart) { week.push(l); return; }' },
+  { name: '#1402d 本周平铺、更早才按月归组（删掉这道分桶＝回到整箱平铺，「写得很杂」正是本批要治的）', file: 'js/mail.js', needle: 'if (tm && tm >= wkStart) { week.push(l); return; }' },
   { name: '#1402e 折叠态存模块级 map（只写 DOM class＝一次 60s tick 的 render 把用户刚展开的那个月收回去）', file: 'js/mail.js', needle: 'mailFoldOpen[key] = open;' },
   { name: '#1402f 折叠条收起时靠这条规则盖住正文（删＝标题条照旧可点但信全露出来，分组形同虚设）', file: 'css/chat-pages.css', needle: '.mail-fold:not(.open) > .mail-fold-body { display:none; }' },
   { name: '#1406i 六行裁剪那条规则（删＝折叠按钮还在、正文照旧整屏铺开＝长信没被收）', file: 'css/chat-pages.css', needle: ".feed-clamp { display:-webkit-box; -webkit-line-clamp:6; -webkit-box-orient:vertical; overflow:hidden; }" },
@@ -6002,6 +6002,13 @@ const FIX_SENTINELS = [
   { name: '#1436f 第四枚开关落进换位设置组并绑 per-cid 键（删＝设置里没有它，用户只能永远等那一发 2~6 小时）', file: 'js/p2-features.js', needle: "bindLocTg('loc-shift-tg', 'loc-sense-shift')" },
   /* ==== 2026-09-30 #1461 作者直派：本地音乐上传警示整段标红＋点名 QQ音乐/网易云加密实例（作者口径实例句，防并行改写丢字） ==== */
   { name: '#1461a 上传警示的加密实例句在位（删＝作者点名的 QQ音乐/网易云「有加密、离开本体放不出、须自己转格式破解」提醒丢失，红标回落灰字）', file: 'js/music-player.js', needle: '只能自己转格式破解后才能在别的应用和本地播放' },
+  /* ==== 2026-09-29 #1416（作者复报「后台通知说有回信、点进信箱找不到」同批的四条定型＋三条换锚） ==== */
+  { name: '#1416a 抓包记录的删除身份＝内容指纹（改回数组下标＝确认框停留期间来一条新抓包，unshift 头插让全体下标前移一位，删掉别人的那行＝丢用户数据）', file: 'js/records.js', needle: 'window.mochiHistDel(histKey(x),' },
+  { name: '#1416b default 桌面按 cid 取存储时带旧顶层键回退（少这一层＝未迁移的老「禁止对方挂断」被判成没设过、回落 2%，对方照样挂断）', file: 'js/contacts.js', needle: "window.storeForCid = function (cid) { return cid === 'default' ? defaultStore()" },
+  { name: '#1416c replyCfgFor 走 storeForCid（不是 storeFor）＝通话按归属桌面读设置这一条真正接上', file: 'js/reply-settings.js', needle: '(cid && window.storeForCid) ? window.storeForCid(cid)' },
+  { name: '#1416d 朋友圈分桶：只有真带 ts 的动态才换算年月（缺 ts 归 none＝「更早」，不许印成 1970 年）', file: 'js/feed.js', needle: "const k = ts ? feedMonthKeyOf(ts) : 'none';" },
+  { name: '#1416e 信箱分桶同口径：缺 tm 的信归「更早」，且「更早」永远排最后', file: 'js/mail.js', needle: "const k = tm ? monthKeyOf(tm) : 'none';" },
+  { name: '#1416f 折叠开合态用捕获阶段的 toggle 委托存进模块级 map（挂回 DOM 上＝一次整栏重画就把自己展开的月份收回去）', file: 'js/idb.js', needle: "document.addEventListener('toggle', histFoldRemember, true)" },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

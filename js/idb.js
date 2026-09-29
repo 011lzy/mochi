@@ -685,6 +685,20 @@ window.mochiLoadingText = function () { return '正在读取…'; };
 window.mochiLoadingHtml = function (what) {
 return '<div class="mochi-data-loading">' + (what || '内容') + '还在读取，稍候会自动刷新</div>';
 };
+const HIST_FOLD_OPEN = {};
+function histFoldRemember(e) {
+try {
+const el = e.target;
+if (!el || el.tagName !== 'DETAILS' || !el.getAttribute) return;
+const fk = el.getAttribute('data-hist-fold');
+if (!fk) return;
+HIST_FOLD_OPEN[fk] = el.open ? 1 : 0;
+} catch (err) {}
+}
+if (!window.__mochiHistFoldBound) {
+window.__mochiHistFoldBound = 1;
+try { document.addEventListener('toggle', histFoldRemember, true); } catch (err) {}
+}
 window.mochiHistFold = function (items, opts) {
 const o = opts || {};
 const list = (Array.isArray(items) ? items : []).filter(x => x && typeof x.html === 'string');
@@ -704,10 +718,12 @@ m.days[key].items.push(x);
 });
 monthKeys.sort((a, b) => months[b].rank - months[a].rank);
 let html = todayItems.length ? todayItems.map(x => x.html).join('') : (o.todayEmpty || '');
+const fkBase = (typeof o.key === 'string' && o.key) ? o.key : 'hist';
 return html + monthKeys.map(mk => {
 const m = months[mk];
 const cnt = m.dayKeys.reduce((n, k) => n + m.days[k].items.length, 0);
-return '<details class="dc-h-more"><summary class="dc-h-more-sum">' + m.label + '<span class="dc-h-more-cnt">' + cnt + ' 条</span></summary><div class="dc-h-more-body">' +
+const fk = fkBase + '|' + mk;
+return '<details class="dc-h-more"' + (HIST_FOLD_OPEN[fk] ? ' open' : '') + ' data-hist-fold="' + fk + '"><summary class="dc-h-more-sum">' + m.label + '<span class="dc-h-more-cnt">' + cnt + ' 条</span></summary><div class="dc-h-more-body">' +
 m.dayKeys.map(dk => '<div class="dc-h-day"><div class="dc-h-day-label">' + m.days[dk].label + '</div>' + m.days[dk].items.map(x => x.html).join('') + '</div>').join('') +
 '</div></details>';
 }).join('');

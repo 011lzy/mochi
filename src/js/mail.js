@@ -707,6 +707,7 @@ window.showDeskPopup({ name: '信箱', text: mailPlainDesc('给你回了一封�
     return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2);
   }
   function monthLabelOf(key) {
+    if (key === 'none') return '更早'; // #1416：缺 tm 的老信不猜日期（原来算成 0 ⇒ 组标题印「1970 年 1 月」）
     const p = key.split('-');
     return p[0] + ' 年 ' + Number(p[1]) + ' 月';
   }
@@ -724,11 +725,13 @@ window.showDeskPopup({ name: '信箱', text: mailPlainDesc('给你回了一封�
     const wkStart = weekStartTs(Date.now());
     const pin = [], week = [], months = {}, keys = [];
     list.forEach(l => {
-      const tm = l.tm || 0;
+      // FIX 2026-09-29 #1416：判据只问「这封信带没带 tm」——带了才换算年月，没带的一律归「更早」，
+      //   不许拿 0 当日期（同批 idb.js 的 mochiHistFold 就是这个口径）。
+      const tm = Number(l.tm) || 0;
       // 一封信只落一个桶：未读先抽走，剩下的才谈本周／更早
       if (dir === 'in' && mailIsUnread(l)) { pin.push(l); return; }
-      if (tm >= wkStart) { week.push(l); return; }
-      const k = monthKeyOf(tm);
+      if (tm && tm >= wkStart) { week.push(l); return; }
+      const k = tm ? monthKeyOf(tm) : 'none';
       if (!months[k]) { months[k] = []; keys.push(k); }
       months[k].push(l);
     });
@@ -739,7 +742,7 @@ window.showDeskPopup({ name: '信箱', text: mailPlainDesc('给你回了一封�
       if (keys.length) html += '<div class="mail-sec-label">本周</div>';
       html += week.map(l => mailItemHtml(l, dir, name)).join('');
     }
-    keys.sort((a, b) => (a < b ? 1 : -1)); // 最近的月份在前
+    keys.sort((a, b) => (a === 'none' ? 1 : b === 'none' ? -1 : (a < b ? 1 : -1))); // 最近的月份在前，「更早」（缺 tm 的老信）永远排最后
     keys.forEach(k => { html += mailFoldHtml(dir, k, months[k], name); });
     return html;
   }

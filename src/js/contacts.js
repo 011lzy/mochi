@@ -351,6 +351,12 @@
 
   // 任意联系人的存储（供朋友圈后台遍历各联系人生成 TA 动态/评论）
   window.storeFor = function (cid) { return window.xyStore(G + ':' + cid); };
+  // FIX 2026-09-29 #1416：按 cid 取存储必须和 activeStore 用同一口径分叉——default 桌面要走
+  //   defaultStore()（先读新命名空间、没有再回退旧顶层键），而上面那个 storeFor('default') 只读新命名空间。
+  //   漏这一层已经咬到 #1394 那一族的另一半：通话归属 default、而用户当前正看着别的联系人桌面时，
+  //   replyCfgFor('default') 用 storeFor 读不到未迁移的老「禁止对方挂断」/自定义挂断概率＝判成没设过、
+  //   回落默认 2% ⇒ 对方照样把电话挂了，而设置页明明显示着用户当初设的值（静默失效，与 #1056 同形）。
+  window.storeForCid = function (cid) { return cid === 'default' ? defaultStore() : window.xyStore(G + ':' + cid); };
 
   // ---- 联系人性别 / TA 称呼跟随 ----
   // 存储键：<cid>:partner-gender = 'he' | 'she' | ''（未设置 → 默认「TA」），随联系人命名空间隔离。
