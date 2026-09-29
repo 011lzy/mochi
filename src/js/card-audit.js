@@ -969,13 +969,13 @@
       buildErr = errText(e);
       lastText = (lines.length ? lines.join('\n') + '\n\n' : '') +
         '【自检未能完成】读取数据时出错：' + buildErr +
-        '\n（本页只跑完了上面这些检查项；请把这份报告发给开发者）';
+        '\n（本页只跑完了上面这些检查项）';
       r = { issueCount: issueCount + 1 };
     }
     updateBadge(r.issueCount);
     var secs = sections.slice();
     if (buildErr) secs.unshift(cardHtml('自检未能完成（内部错误）',
-      '<div class="ca-banner ca-bad">⚠ 自检中途出错，下面显示的是出错前已跑完的部分：<br><b>' + esc(buildErr) + '</b><br>请把本页「导出文件」的报告发给开发者。</div>', null));
+      '<div class="ca-banner ca-bad">⚠ 自检中途出错，下面显示的是出错前已跑完的部分：<br><b>' + esc(buildErr) + '</b><br>可用本页「导出文件」导出报告留档。</div>', null));
     bodyEl.innerHTML = '';
     var i = 0;
     (function step() {

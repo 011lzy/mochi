@@ -784,7 +784,7 @@ try { ta.select(); } catch (e) {}
 let ok = false;
 try { ok = document.execCommand('copy'); } catch (e2) { ok = false; }
 try { if (ta.parentNode) ta.parentNode.removeChild(ta); } catch (e3) {}
-toast(ok ? '已复制网址和设备信息：粘贴到浏览器地址栏打开，或发给开发者'
+toast(ok ? '已复制网址和设备信息：粘贴到浏览器地址栏打开'
 : '复制失败，请手动复制上方网址到浏览器打开');
 } catch (e4) {}
 } }

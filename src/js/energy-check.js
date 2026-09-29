@@ -117,14 +117,14 @@
     if (!window.openModal) return;
     var ctl = window.openModal(title, rep.text, function () { if (typeof onOk === 'function') onOk(); }, {
       noInput: true, textarea: true, textareaRows: 16, big: true,
-      staticText: '报告只在本机采样、不上传；可【复制】或【导出docx】发给开发者。',
+      staticText: '报告只在本机采样、不上传；可【复制】或【导出docx】留档。',
       copyBtn: {
         label: '复制',
         fn: function (c) {
           var txt = c ? c.text() : rep.text;
           var hint = function (s) { if (c && c.hint) c.hint(s); };
           if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(txt).then(function () { hint('已复制到剪贴板，直接粘贴发给开发者即可'); }, function () { hint('复制失败，请长按选字手动复制'); });
+            navigator.clipboard.writeText(txt).then(function () { hint('已复制到剪贴板'); }, function () { hint('复制失败，请长按选字手动复制'); });
           } else {
             hint('当前内核不支持一键复制，请长按文本手动复制（或用【导出docx】）');
           }
@@ -358,7 +358,7 @@
     L.push('');
     L.push('建议：');
     var adv = [];
-    if (verdict === '异常') adv.push('耗电明显偏高：先到 设置→系统 关掉「后台保活」再跑一轮对照（后台段速率应明显下降）；若前台段也异常，把本报告 + 设置→工具→「设备兼容诊断」的环境信息一起发给开发者');
+    if (verdict === '异常') adv.push('耗电明显偏高：先到 设置→系统 关掉「后台保活」再跑一轮对照（后台段速率应明显下降）；若前台段也异常，把本报告 + 设置→工具→「设备兼容诊断」的环境信息一起留档比对');
     else if (verdict === '偏高') adv.push('偏高：对照系统设置里的电池统计（过去 24 小时本站占比）一起看；不用后台通知时把「后台保活」关掉再复测一轮，对比后台段速率');
     if (run.bgMs >= SEG_MIN_MS && bgD > 0) adv.push('后台段有 ' + rBg + '%/小时：这段就是「页面留在后台继续跑」的代价（保活音频 + 定时器），不用后台消息时关掉「后台保活」最省电');
     if (run.gapMs > 0) adv.push('窗口内有 ' + mins(run.gapMs) + ' 页面未运行（重开过/被系统回收过）：想让后台也一直跑，靠「后台保活」；不想耗电就别开，两者取一');

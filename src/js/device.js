@@ -2652,7 +2652,7 @@
   // v3.26.x：暴露给「查看存储」页——手动清理错误诊断记录后角标同步归零
   try { window.mochiRefreshDiagBadge = refreshBadge; } catch (e) {}
   const TIP_WAIT = '正在读取本机存储明细…（读全后会自动更新）';
-  const TIP_OK = '诊断信息已复制到剪贴板，直接粘贴发给开发者即可。\n（下方内容可再核对）';
+  const TIP_OK = '诊断信息已复制到剪贴板。\n（下方内容可再核对）';
   const DIAG_TITLE = '复制诊断信息';
   // 全站弹窗共用同一批 DOM（#modal-mask / #modal-textarea），诊断的回填最晚到 30s，
   // 期间用户可能已关窗去开别的弹窗——判活不过关就绝不写，防止把诊断文本灌进别人框里。
@@ -3542,7 +3542,7 @@ window.mochiViewportForm = function (sig) {
     const sig = { v: sdVerCache, form: sigForm, scale: inp.scale, env: inp.envTop, varTop: inp.varTop, diff: inp.diff, innerW: inp.innerW, innerH: inp.innerH, vvH: inp.vvH, screenH: inp.screenH, phoneW: inp.phoneW, phoneH: inp.phoneH, phoneBottom: inp.phoneBottom, sb: inp.sbTop, tab: inp.tabBottom, iosH: inp.iosH, dpr: inp.dpr, standalone: !!inp.standalone, fs: !!inp.fsActive, andr: !!inp.andr, tablet: !!inp.tablet, ori: inp.orientation, bad: F.filter(function (f) { return !f.ok; }).map(function (f) { return f.name; }) };
     L.push('SIG ' + JSON.stringify(sig));
     L.push('');
-    L.push('※ 发给开发者时请整段复制（含 ✗ 条目），可精准对号修复。');
+    L.push('※ 报告可整段复制（含 ✗ 条目）留档比对。');
     try {
       if (window.__mochiVvTimeline) {
         L.push('');
@@ -3612,7 +3612,7 @@ window.mochiViewportForm = function (sig) {
               }
             });
           }
-          sdCopy(r.text).then(function (ok) { sdToast(ok ? '报告已复制到剪贴板，可直接发给开发者' : '报告已弹出，请手动全选复制'); });
+          sdCopy(r.text).then(function (ok) { sdToast(ok ? '报告已复制到剪贴板' : '报告已弹出，请手动全选复制'); });
         }, Math.max(0, 60 - (Date.now() - t0)));
       });
     });
@@ -4108,7 +4108,7 @@ window.mochiViewportForm = function (sig) {
     L2.push('== 汇总 ==');
     L2.push('正常 ' + okN + ' / 需注意 ' + warnN + ' / 异常 ' + badN + ' / 打开跳过 ' + skipN);
     const bads = rows.filter(function (r) { return r.indexOf('✗') === 0; });
-    if (bads.length) { L2.push(''); L2.push('✗ 异常清单（发给开发者）：'); bads.forEach(function (r) { L2.push('  ' + r); }); }
+    if (bads.length) { L2.push(''); L2.push('✗ 异常清单：'); bads.forEach(function (r) { L2.push('  ' + r); }); }
     return { text: L2.join('\n'), rows: rows, okN: okN, badN: badN, warnN: warnN, skipN: skipN };
   }
   function bindFuncDiag() {

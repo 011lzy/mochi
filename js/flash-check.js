@@ -232,14 +232,14 @@ if (!window.openModal) return rep;
 try { localStorage.setItem(LAST_KEY, JSON.stringify({ ts: Date.now(), ver: appVer(), text: rep.text, wasteAll: rep.wasteAll, flipAll: rep.flipAll, jankAll: rep.jankAll })); } catch (e) {}
 var ctl = window.openModal('闪屏自测结果', rep.text, function () {}, {
 noInput: true, textarea: true, textareaRows: 16, big: true,
-staticText: '只在本机采样、不上传；可【复制】发给开发者。看「值没变」那一下的【全站样式翻动／白写】＝0 才算修好。',
+staticText: '只在本机采样、不上传；可【复制】留档。看「值没变」那一下的【全站样式翻动／白写】＝0 才算修好。',
 copyBtn: {
 label: '复制',
 fn: function (c) {
 var txt = c && c.text ? c.text() : rep.text;
 var hint = function (s) { if (c && c.hint) c.hint(s); };
 if (navigator.clipboard && navigator.clipboard.writeText) {
-navigator.clipboard.writeText(txt).then(function () { hint('已复制到剪贴板，直接粘贴发给开发者即可'); }, function () { hint('复制失败，请长按文本手动选中复制'); });
+navigator.clipboard.writeText(txt).then(function () { hint('已复制到剪贴板'); }, function () { hint('复制失败，请长按文本手动选中复制'); });
 } else hint('当前内核不支持一键复制，请长按文本手动复制');
 }
 }
