@@ -181,7 +181,7 @@ const html = readFileSync(join(root, 'index.html'), 'utf8');
 ok(mailJs.indexOf('window.mailRescueRun = mailRescueRun;') >= 0, 'S1 恢复内核对外出口在位（window.mailRescueRun）', '');
 ok(mailJs.indexOf('mailRescueRun(cid, function () { mailAuthOk = true; mailDbReady = true; after(); });') >= 0, 'S2 权威重试耗尽那一刻先合并库里那份再开门（旧实现只开门不合并＝屏上永远停在旧账）', '');
 ok(mailJs.indexOf('<button class="cc-tool" id="mail-rescue">从本地库找回</button>') >= 0, 'B3 列表上方提示条里的自救按钮形态在产物里（提示条只在「读不全」时出现，无头里造不出那一刻）', '');
-ok(mailJs.indexOf('if (mailReadIncomplete(cid)) {') >= 0, 'S3 写回闸判据合一：残缺读数（读空／读到旧账）都没有整包写回资格', '');
+ok(mailJs.indexOf('if (mailReadIncomplete(cid) || mailBlindRead(cid)) {') >= 0, 'S3 写回闸判据合一：残缺读数（读空／读到旧账／数据层交不出权威读数 #1442）都没有整包写回资格', '');
 ok(html.indexOf('id="mail-rescue-data"') >= 0, 'S4 信件数据页常驻自救入口在产物 index.html 里', '');
 ok(html.indexOf('.mail-rescue-tip { display:flex;') >= 0, 'S5 提示条与按钮的样式规则在产物 index.html 里', '');
 
