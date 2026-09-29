@@ -752,11 +752,13 @@ function contentHtmlFor(p) {
 let content = String(p.content || '');
 const imgs = (p.imgs && p.imgs.length) ? p.imgs.slice() : (p.img ? [p.img] : []);
 content = content.replace(/((?:sticker|image):)?(https?:\/\/[^\s"'<>]+|@@m:[0-9a-f]{32}|data:image\/[a-zA-Z0-9.+-]+(?:;[a-zA-Z0-9.+-]*(?:=[^;,]*)?)*,[^\s"'<>]+)/g, (m, pre, u) => { if (u.indexOf('http') === 0 && pre !== 'sticker:' && pre !== 'image:') return m; imgs.push(u); return ' '; });
-let html = inlineBody(content, (p.role || p.by) === 'me' ? '' : p.owner);
+const clamp = feedLongBody(content);
+let html = '<div class="feed-body' + (clamp ? ' feed-clamp' : '') + '">' + inlineBody(content, (p.role || p.by) === 'me' ? '' : p.owner) + '</div>';
 const hasStickers = Array.isArray(p.stickers) && p.stickers.length > 0;
 if (imgs.length || hasStickers) {
 html += '<div class="feed-imgs' + (imgs.length ? '' : ' feed-imgs-blank') + '">' + imgs.map(u => '<img src="' + attrEsc(u) + '" alt="图片" loading="lazy">').join('') + feedStickersHtml(p) + '</div>';
 }
+if (clamp) html += '<button class="feed-expand" type="button" data-expand="' + esc(p.id) + '">展开全文</button>';
 return html;
 }
 function feedStickersHtml(p) {
@@ -882,11 +884,119 @@ return '<div class="feed-post" id="feed-post-' + p.id + '"><div class="feed-head
 '<button class="feed-act feed-fav' + (faved ? ' faved' : '') + '" data-fav="' + p.id + '"><svg viewBox="0 0 24 24" fill="' + (faved ? 'currentColor' : 'none') + '" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><path d="M12 2l2.4 5 5.6.8-4 4 .9 5.6-4.9-2.6-4.9 2.6.9-5.6-4-4 5.6-.8z"/></svg>收藏</button>' +
 '</div>' + likes + commentsHtmlFor(p, name) + '</div>';
 }
+const FEED_WEEK_LABEL = '本周';
+const FEED_CLAMP_LINES = 6, FEED_CLAMP_CHARS = 120;
+let feedRangeKey = 'week';
+let feedRangeBuckets = [];
+let feedMainPosts = [];
+function feedMainPostEl(pid) {
+const l = document.getElementById('feed-list');
+return l ? l.querySelector('[id="feed-post-' + pid + '"]') : null;
+}
+function feedWeekStart(now) {
+const d = new Date(now);
+d.setHours(0, 0, 0, 0);
+d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); // getDay() 0＝周日，把周一当一周的第一天
+return d.getTime();
+}
+function feedMonthKeyOf(ts) {
+const d = new Date(ts);
+return d.getFullYear() + '-' + (d.getMonth() + 1);
+}
+function feedBucketKeyFor(ts) {
+return (ts || 0) >= feedWeekStart(Date.now()) ? 'week' : feedMonthKeyOf(ts || 0);
+}
+function feedBuckets(posts) {
+const ws = feedWeekStart(Date.now());
+const nowY = new Date().getFullYear();
+const week = [];
+const months = {};
+for (let i = 0; i < posts.length; i++) {
+const p = posts[i];
+const ts = (p && p.ts) || 0;
+if (ts >= ws) { week.push(p); continue; }
+const k = feedMonthKeyOf(ts);
+if (!months[k]) {
+const d = new Date(ts);
+months[k] = { key: k, y: d.getFullYear(), m: d.getMonth() + 1, items: [] };
+}
+months[k].items.push(p);
+}
+const out = [{ key: 'week', label: FEED_WEEK_LABEL, items: week }];
+const keys = Object.keys(months);
+keys.sort((a, b) => (months[b].y - months[a].y) || (months[b].m - months[a].m));
+for (let i = 0; i < keys.length; i++) {
+const b = months[keys[i]];
+out.push({ key: b.key, items: b.items, label: (b.y === nowY ? '' : b.y + '年') + b.m + '月' });
+}
+return out;
+}
+function feedLongBody(s) {
+const str = String(s || '');
+if (str.length > FEED_CLAMP_CHARS) return true;
+let lines = 1;
+for (let i = 0; i < str.length; i++) {
+if (str.charCodeAt(i) !== 10) continue;
+lines++;
+if (lines > FEED_CLAMP_LINES) return true;
+}
+return false;
+}
+function feedSetRange(key) {
+if (!key || key === feedRangeKey) return;
+feedRangeKey = key;
+render();
+const sc = document.querySelector('#page-feed .cal-scroll');
+if (sc) sc.scrollTop = 0; // 换页从本页第一行看起，别留着上一页的滚动深度
+}
+function feedRangeBar() {
+const listEl = document.getElementById('feed-list');
+if (!listEl || !listEl.parentNode) return null;
+let bar = document.getElementById('feed-range-bar');
+if (!bar) {
+bar = document.createElement('div');
+bar.id = 'feed-range-bar';
+bar.className = 'feed-range-bar glass';
+listEl.parentNode.insertBefore(bar, listEl);
+bar.addEventListener('click', (e) => {
+if (!e.target || !e.target.closest) return;
+const pill = e.target.closest('[data-range]');
+if (pill) { feedSetRange(pill.getAttribute('data-range')); return; }
+const nav = e.target.closest('[data-range-nav]');
+if (!nav || nav.disabled) return;
+const step = nav.getAttribute('data-range-nav') === 'older' ? 1 : -1;
+let idx = -1;
+for (let i = 0; i < feedRangeBuckets.length; i++) { if (feedRangeBuckets[i].key === feedRangeKey) { idx = i; break; } }
+if (idx < 0) return;
+const next = Math.min(feedRangeBuckets.length - 1, Math.max(0, idx + step));
+if (next !== idx) feedSetRange(feedRangeBuckets[next].key);
+});
+}
+return bar;
+}
+function feedRenderRangeBar(buckets) {
+feedRangeBuckets = buckets;
+const bar = feedRangeBar();
+if (!bar) return;
+if (buckets.length <= 1) { bar.hidden = true; bar.innerHTML = ''; return; }
+let active = 0;
+for (let i = 0; i < buckets.length; i++) { if (buckets[i].key === feedRangeKey) { active = i; break; } }
+const nav = (dir) => '<button class="feed-range-nav" type="button" data-range-nav="' + (dir < 0 ? 'newer' : 'older') + '"' +
+(dir < 0 ? (active <= 0 ? ' disabled' : '') : (active >= buckets.length - 1 ? ' disabled' : '')) +
+' title="' + (dir < 0 ? '更新' : '更早') + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="' + (dir < 0 ? 'M15 18l-6-6 6-6' : 'M9 18l6-6-6-6') + '"/></svg></button>';
+bar.innerHTML = nav(-1) + '<div class="feed-range-pills">' + buckets.map((b, i) =>
+'<button class="feed-range-pill' + (i === active ? ' on' : '') + '" type="button" data-range="' + esc(b.key) + '">' +
+esc(b.label) + '<span class="feed-range-n">' + b.items.length + '</span></button>'
+).join('') + '</div>' + nav(1);
+const wrap = bar.querySelector('.feed-range-pills');
+const on = bar.querySelector('.feed-range-pill.on');
+if (wrap && on) { try { wrap.scrollLeft = on.offsetLeft - (wrap.clientWidth - on.clientWidth) / 2; } catch (e) {} }
+}
 const FEED_RENDER_MAX = 200, FEED_LOAD_STEP = 100;
 let feedShownMain = 0, feedShownAll = 0;
 let feedRenderSig = '';
-function feedRenderSignature(posts, shown, name, memId) {
-const parts = [window.activePrefix(), window.mochiDataPending ? (window.mochiDataPending() ? 'L' : 'F') : 'F', shown, name, memId, posts.length];
+function feedRenderSignature(posts, shown, name, memId, rangeKey) {
+const parts = [window.activePrefix(), window.mochiDataPending ? (window.mochiDataPending() ? 'L' : 'F') : 'F', shown, name, memId, rangeKey, posts.length];
 for (let i = 0; i < shown; i++) {
 const p = posts[i];
 if (!p) { parts.push('-'); continue; }
@@ -904,7 +1014,7 @@ const moreBtn = listEl.querySelector('.feed-more-btn');
 if (!moreBtn) return;
 moreBtn.addEventListener('click', () => {
 const isAll = listEl.id === 'feed-all-list';
-let posts = feedSortedAll();
+let posts = isAll ? feedSortedAll() : feedMainPosts;
 if (isAll) posts = posts.filter(p => (p.owner || 'default') === feedAllCid);
 const shown = isAll ? feedShownAll : feedShownMain;
 const end = Math.min(posts.length, shown + FEED_LOAD_STEP);
@@ -927,24 +1037,33 @@ if (isAll) feedShownAll = end; else feedShownMain = end;
 });
 }
 function feedSortedAll() { return load().slice().sort((a, b) => b.ts - a.ts); }
-function render() {
+function render(keepShown) {
 renderCover();
 const listEl = document.getElementById('feed-list');
 if (!listEl) return;
 const posts = feedSortedAll();
-feedShownMain = Math.min(posts.length, FEED_RENDER_MAX);
+const buckets = feedBuckets(posts);
+let bucket = buckets[0];
+for (let i = 0; i < buckets.length; i++) { if (buckets[i].key === feedRangeKey) { bucket = buckets[i]; break; } }
+feedRangeKey = bucket.key; // 翻到的那个月被删空了就回第一页（本周），不留悬空选择
+feedMainPosts = bucket.items;
+const wantShown = Math.max(FEED_RENDER_MAX, parseInt(keepShown, 10) || 0);
+feedShownMain = Math.min(feedMainPosts.length, wantShown);
 const name = partnerName();
 const memPost = feedMemoryPost();
-const memShown = !!(memPost && !feedMemDismissed());
+const memShown = !!(memPost && !feedMemDismissed()) && bucket.key === 'week';
 const memHtml = memShown ? feedMemBannerHtml(memPost) : '';
-const sig = feedRenderSignature(posts, feedShownMain, name, memShown ? memPost.id : '');
+const sig = feedRenderSignature(feedMainPosts, feedShownMain, name, memShown ? memPost.id : '', bucket.label);
 if (sig === feedRenderSig && listEl.firstChild) return;
-listEl.innerHTML = memHtml + (posts.length
-? posts.slice(0, feedShownMain).map(p => postCardHtml(p, name)).join('') +
-(posts.length > feedShownMain ? feedMoreBtnHtml(posts.length - feedShownMain) : '')
+listEl.innerHTML = memHtml + (feedMainPosts.length
+? feedMainPosts.slice(0, feedShownMain).map(p => postCardHtml(p, name)).join('') +
+(feedMainPosts.length > feedShownMain ? feedMoreBtnHtml(feedMainPosts.length - feedShownMain) : '')
+: (posts.length
+? '<div class="ta-empty">' + esc(bucket.label) + '还没有动态<br><span style="font-size:12px">点上面那条胶囊翻更早的月份</span></div>'
 : ((feedSyncCold || (window.mochiDataPending && window.mochiDataPending()))
 ? window.mochiLoadingHtml('朋友圈内容')
-: '<div class="ta-empty">还没有动态，TA 会不定期分享生活<br><button class="memo-send-btn" id="feed-empty-pub" style="margin-top:8px">我来发第一条</button></div>'));
+: '<div class="ta-empty">还没有动态，TA 会不定期分享生活<br><button class="memo-send-btn" id="feed-empty-pub" style="margin-top:8px">我来发第一条</button></div>')));
+feedRenderRangeBar(buckets);
 feedRenderSig = sig;
 const clearBtn = document.getElementById('feed-head-clear');
 if (clearBtn) clearBtn.hidden = !posts.length;
@@ -1421,14 +1540,16 @@ return '<div class="feed-mem-card glass" id="feed-mem-card" data-pid="' + esc(p.
 '<button class="feed-mem-dismiss" type="button">✕</button></div>';
 }
 function revealFeedPost(pid) {
-const posts = feedSortedAll();
+const all = feedSortedAll();
+const hit = all.find(p => p.id === pid);
+if (!hit) return;
+feedRangeKey = feedBucketKeyFor(hit.ts);
+render();
+const posts = feedMainPosts;
 const idx = posts.findIndex(p => p.id === pid);
 if (idx < 0) return;
-if (idx >= feedShownMain) {
-feedShownMain = Math.min(posts.length, idx + 20);
-render();
-}
-const el = document.getElementById('feed-post-' + pid);
+if (idx >= feedShownMain) render(idx + 20);
+const el = feedMainPostEl(pid); // #1406：只在主列表里找，别命中隐藏的同名卡片
 if (!el) return;
 try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) { try { el.scrollIntoView(); } catch (e2) {} }
 el.classList.add('feed-hl');
@@ -1462,6 +1583,14 @@ bindFeedImageClicks(listEl);
 listEl.querySelectorAll('.feed-del').forEach(b => b.addEventListener('click', (e) => {
 e.stopPropagation();
 deletePostConfirm(b.dataset.id);
+}));
+listEl.querySelectorAll('.feed-expand').forEach(b => b.addEventListener('click', (e) => {
+e.stopPropagation();
+const body = b.parentNode ? b.parentNode.querySelector('.feed-body') : null;
+if (!body) return;
+const clamped = body.classList.toggle('feed-clamp');
+body.classList.toggle('feed-open', !clamped);
+b.textContent = clamped ? '展开全文' : '收起';
 }));
 listEl.querySelectorAll('.feed-act[data-like]').forEach(b => b.addEventListener('click', () => {
 const list = load();
@@ -1900,6 +2029,7 @@ return el && !el.hidden;
 }
 function openFeedPage() {
 clearFeedAppUnread();
+feedRangeKey = 'week'; // #1406：从桌面进朋友圈先落回「本周」那一页（翻去几个月前是临时的）
 render();
 renderNoticeBadge();
 document.querySelectorAll('.page').forEach(p => p.hidden = true);
@@ -1949,7 +2079,11 @@ ab.textContent = appN > 99 ? '99+' : String(appN);
 }
 }
 function jumpToPost(pid, ci, ri) {
-const el = feedPostEl(pid);
+let el = feedMainPostEl(pid);
+if (!el) {
+const hit = feedSortedAll().find(p => p.id === pid);
+if (hit) { feedRangeKey = feedBucketKeyFor(hit.ts); render(); el = feedMainPostEl(pid); }
+}
 if (!el) return;
 let target = el;
 if (ci != null && ci !== '') {

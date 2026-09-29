@@ -2511,6 +2511,29 @@ body.mail-emoji-mode #emoji-panel { bottom: calc(64px + var(--mochi-safe-bottom,
   font-size:12px; font-family:inherit; cursor:pointer;
 }
 .feed-more-btn:active { background:rgba(0,0,0,.12); }
+/* #1406 朋友圈「本周＋按月」翻页条：默认只看本周，更早的按月折起来手动切。
+   sticky 挂在 .cal-scroll（本页真正的滚动容器）顶端＝翻长列表时切换入口不跟着跑掉；
+   横向滑动只作用在胶囊行自己那一条上，列表区保持纯纵向滚动（不与安卓上下滑打架）。
+   底色/边框/阴影复用 .glass，暗色随主题变量走，不另开一套。 */
+.feed-range-bar { position:sticky; top:0; z-index:6; display:flex; align-items:center; gap:4px; margin:0 0 12px; padding:5px; border-radius:14px; }
+.feed-range-bar[hidden] { display:none; }
+.feed-range-pills { display:flex; gap:4px; flex:1; min-width:0; overflow-x:auto; scrollbar-width:none; -ms-overflow-style:none; }
+.feed-range-pills::-webkit-scrollbar { display:none; }
+.feed-range-pill, .feed-range-nav {
+  flex-shrink:0; display:inline-flex; align-items:center; gap:5px;
+  min-height:28px; padding:4px 10px; border-radius:14px;
+  border:1px solid var(--pill-border, rgba(0,0,0,.1)); background:none;
+  color:var(--muted); font-size:12px; font-family:inherit; cursor:pointer; white-space:nowrap;
+}
+.feed-range-nav { padding:4px 6px; }
+.feed-range-pill.on { background:var(--ink); border-color:var(--ink); color:var(--card-bg); }
+.feed-range-nav[disabled] { opacity:.3; }
+.feed-range-n { font-size:10px; opacity:.72; }
+/* #1406 长信/长动态折叠：正文收成 6 行（行高跟着 .feed-content 的 1.6），展开就地放开；
+   评论区/配图区是 .feed-body 的兄弟节点，不受这一层裁剪 */
+.feed-clamp { display:-webkit-box; -webkit-line-clamp:6; -webkit-box-orient:vertical; overflow:hidden; }
+.feed-expand { background:none; border:none; padding:4px 0 0; cursor:pointer; font-size:12px; font-family:inherit; color:var(--muted); }
+.feed-expand:active { opacity:.6; }
 /* 评论区（v3.14.x 重设计：统一灰底圆角面板——删除文件后段重复定义的 border-top 冲突规则，
    灰底面板内不再有一道横线；楼中楼改「左引导线 + 我/TA 统一缩进」对称对齐；
    「A 回复 B」的回复分隔徽章化，双方名字同权重高亮） */

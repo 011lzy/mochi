@@ -1078,7 +1078,9 @@
     // （mail.js renderBody 同款已生效模式）
     // v3.26.x：对齐 inlineBody——base64、svg 类非 base64 dataURL 与带前缀外链图都并入图片网格
     content = content.replace(/((?:sticker|image):)?(https?:\/\/[^\s"'<>]+|@@m:[0-9a-f]{32}|data:image\/[a-zA-Z0-9.+-]+(?:;[a-zA-Z0-9.+-]*(?:=[^;,]*)?)*,[^\s"'<>]+)/g, (m, pre, u) => { if (u.indexOf('http') === 0 && pre !== 'sticker:' && pre !== 'image:') return m; imgs.push(u); return ' '; });
-    let html = inlineBody(content, (p.role || p.by) === 'me' ? '' : p.owner);
+    // #1406：正文单独一层（.feed-body）——长信折行只收这一块，配图区与展开按钮不受裁剪
+    const clamp = feedLongBody(content);
+    let html = '<div class="feed-body' + (clamp ? ' feed-clamp' : '') + '">' + inlineBody(content, (p.role || p.by) === 'me' ? '' : p.owner) + '</div>';
     // #845：配图区不再只跟配图走——纯文字动态贴过贴纸时也要画一张空白底纸（.feed-imgs-blank），
     // 否则贴纸存进了数据却没有任何承载层可显示（「那一行没有贴纸按钮」的连带缺陷）。
     const hasStickers = Array.isArray(p.stickers) && p.stickers.length > 0;
@@ -1086,6 +1088,8 @@
       // #302：贴纸回复——贴纸绝对定位叠在配图区上（x/y 为区块百分比），随卡片一起局部刷新
       html += '<div class="feed-imgs' + (imgs.length ? '' : ' feed-imgs-blank') + '">' + imgs.map(u => '<img src="' + attrEsc(u) + '" alt="图片" loading="lazy">').join('') + feedStickersHtml(p) + '</div>';
     }
+    // #1406：被收起来的长文给一个展开入口（就地展开，不弹层、不跳页）
+    if (clamp) html += '<button class="feed-expand" type="button" data-expand="' + esc(p.id) + '">展开全文</button>';
     return html;
   }
   // #302 贴纸回复：配图上的贴纸层（仅贴过才有输出）；我贴的可点撤回
@@ -1252,6 +1256,129 @@
       '<button class="feed-act feed-fav' + (faved ? ' faved' : '') + '" data-fav="' + p.id + '"><svg viewBox="0 0 24 24" fill="' + (faved ? 'currentColor' : 'none') + '" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><path d="M12 2l2.4 5 5.6.8-4 4 .9 5.6-4.9-2.6-4.9 2.6.9-5.6-4-4 5.6-.8z"/></svg>收藏</button>' +
       '</div>' + likes + commentsHtmlFor(p, name) + '</div>';
   }
+  // ==== #1406 朋友圈「本周＋按月」翻页折叠（作者直派：动态与长信堆在一起太杂，默认只显示本周，
+  //   其余按月收起来手动切）。判据只取 ts、零机型／零 UA 分支：一条动态恰好属于一个桶——
+  //   本周＝本自然周（周一 00:00 起），更早的按「年-月」归桶，两桶不重叠所以不会同一条出现两次。
+  //   选中的那一页只活在内存里：刷新/重进桌面回本周，不会哪天打开发现自己还停在三个月前。
+  const FEED_WEEK_LABEL = '本周';
+  const FEED_CLAMP_LINES = 6, FEED_CLAMP_CHARS = 120;
+  let feedRangeKey = 'week';
+  let feedRangeBuckets = [];
+  // 当前这一页里的动态——「查看更早」要在本页内增量接，不能拿全量列表的尾数去接
+  let feedMainPosts = [];
+  // #1406：跨页定位只认「主列表里那一个节点」。feedPostEl 在全部朋友圈页收着时按 document 全局找，
+  //   而那一页的 #feed-all-list 平时也被预渲染着（#785 那条补渲路径，见 feedAllCid 初值）＝同名卡片
+  //   有两份；翻成本周/按月之后主列表一屏只剩几十条，拿 document 作用域跳旧动态就会命中藏在隐藏页
+  //   里的那一份——闪一下高亮，用户屏幕上什么都没发生。
+  function feedMainPostEl(pid) {
+    const l = document.getElementById('feed-list');
+    return l ? l.querySelector('[id="feed-post-' + pid + '"]') : null;
+  }
+  function feedWeekStart(now) {
+    const d = new Date(now);
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); // getDay() 0＝周日，把周一当一周的第一天
+    return d.getTime();
+  }
+  function feedMonthKeyOf(ts) {
+    const d = new Date(ts);
+    return d.getFullYear() + '-' + (d.getMonth() + 1);
+  }
+  // 这条动态落在哪一页：回忆闪回／通知跳转要先切到那一页，节点才在 DOM 里
+  function feedBucketKeyFor(ts) {
+    return (ts || 0) >= feedWeekStart(Date.now()) ? 'week' : feedMonthKeyOf(ts || 0);
+  }
+  function feedBuckets(posts) {
+    const ws = feedWeekStart(Date.now());
+    const nowY = new Date().getFullYear();
+    const week = [];
+    const months = {};
+    for (let i = 0; i < posts.length; i++) {
+      const p = posts[i];
+      const ts = (p && p.ts) || 0;
+      if (ts >= ws) { week.push(p); continue; }
+      const k = feedMonthKeyOf(ts);
+      if (!months[k]) {
+        const d = new Date(ts);
+        months[k] = { key: k, y: d.getFullYear(), m: d.getMonth() + 1, items: [] };
+      }
+      months[k].items.push(p);
+    }
+    const out = [{ key: 'week', label: FEED_WEEK_LABEL, items: week }];
+    const keys = Object.keys(months);
+    keys.sort((a, b) => (months[b].y - months[a].y) || (months[b].m - months[a].m));
+    for (let i = 0; i < keys.length; i++) {
+      const b = months[keys[i]];
+      out.push({ key: b.key, items: b.items, label: (b.y === nowY ? '' : b.y + '年') + b.m + '月' });
+    }
+    return out;
+  }
+  // 长文折叠判据只看剥掉配图之后的正文（超行或超字就收进 6 行）——不量 DOM＝渲染期零二次布局
+  function feedLongBody(s) {
+    const str = String(s || '');
+    if (str.length > FEED_CLAMP_CHARS) return true;
+    let lines = 1;
+    for (let i = 0; i < str.length; i++) {
+      if (str.charCodeAt(i) !== 10) continue;
+      lines++;
+      if (lines > FEED_CLAMP_LINES) return true;
+    }
+    return false;
+  }
+  function feedSetRange(key) {
+    if (!key || key === feedRangeKey) return;
+    feedRangeKey = key;
+    render();
+    const sc = document.querySelector('#page-feed .cal-scroll');
+    if (sc) sc.scrollTop = 0; // 换页从本页第一行看起，别留着上一页的滚动深度
+  }
+  // 翻页条由 JS 常驻造出来（不进 template.html＝那是别的会话在途的文件）：插在 #feed-list 之前，
+  // 一个委托监听管到底，胶囊每次随列表重绘。
+  function feedRangeBar() {
+    const listEl = document.getElementById('feed-list');
+    if (!listEl || !listEl.parentNode) return null;
+    let bar = document.getElementById('feed-range-bar');
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'feed-range-bar';
+      bar.className = 'feed-range-bar glass';
+      listEl.parentNode.insertBefore(bar, listEl);
+      bar.addEventListener('click', (e) => {
+        if (!e.target || !e.target.closest) return;
+        const pill = e.target.closest('[data-range]');
+        if (pill) { feedSetRange(pill.getAttribute('data-range')); return; }
+        const nav = e.target.closest('[data-range-nav]');
+        if (!nav || nav.disabled) return;
+        const step = nav.getAttribute('data-range-nav') === 'older' ? 1 : -1;
+        let idx = -1;
+        for (let i = 0; i < feedRangeBuckets.length; i++) { if (feedRangeBuckets[i].key === feedRangeKey) { idx = i; break; } }
+        if (idx < 0) return;
+        const next = Math.min(feedRangeBuckets.length - 1, Math.max(0, idx + step));
+        if (next !== idx) feedSetRange(feedRangeBuckets[next].key);
+      });
+    }
+    return bar;
+  }
+  function feedRenderRangeBar(buckets) {
+    feedRangeBuckets = buckets;
+    const bar = feedRangeBar();
+    if (!bar) return;
+    // 只剩一页（动态全落在本周）＝没有可翻的对象，连条都不画，不留一条空骨架
+    if (buckets.length <= 1) { bar.hidden = true; bar.innerHTML = ''; return; }
+    let active = 0;
+    for (let i = 0; i < buckets.length; i++) { if (buckets[i].key === feedRangeKey) { active = i; break; } }
+    const nav = (dir) => '<button class="feed-range-nav" type="button" data-range-nav="' + (dir < 0 ? 'newer' : 'older') + '"' +
+      (dir < 0 ? (active <= 0 ? ' disabled' : '') : (active >= buckets.length - 1 ? ' disabled' : '')) +
+      ' title="' + (dir < 0 ? '更新' : '更早') + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="' + (dir < 0 ? 'M15 18l-6-6 6-6' : 'M9 18l6-6-6-6') + '"/></svg></button>';
+    bar.innerHTML = nav(-1) + '<div class="feed-range-pills">' + buckets.map((b, i) =>
+      '<button class="feed-range-pill' + (i === active ? ' on' : '') + '" type="button" data-range="' + esc(b.key) + '">' +
+      esc(b.label) + '<span class="feed-range-n">' + b.items.length + '</span></button>'
+    ).join('') + '</div>' + nav(1);
+    const wrap = bar.querySelector('.feed-range-pills');
+    const on = bar.querySelector('.feed-range-pill.on');
+    // 选中的那颗滚进视野中间（月份一多会被挤到看不见）
+    if (wrap && on) { try { wrap.scrollLeft = on.offsetLeft - (wrap.clientWidth - on.clientWidth) / 2; } catch (e) {} }
+  }
   // 渲染动态列表
   // v3.12.x：列表窗口化渲染——TA 自动发帖每天累积、动态含 dataURL 配图，原实现每次进页把
   // 全部动态一次性 innerHTML 进列表（挂机数月可达数百上千条），整页 <img> 位图解码的内存
@@ -1269,10 +1396,11 @@
   //   反复进出朋友圈不再白付一次解析；数据一变签名就变（点赞换人、来新评论、发新动态、
   //   切联系人、点掉回忆卡都会变），绝不会拿旧 DOM 当新数据。
   let feedRenderSig = '';
-  function feedRenderSignature(posts, shown, name, memId) {
+  function feedRenderSignature(posts, shown, name, memId, rangeKey) {
     // #785：签名并入加载闸门位——回填中/回填完两次的空列表必须算两次不同渲染，
     // 否则 sig 早退会把「还在读取」占位一直留在屏上（真就绪后也不改口）。
-    const parts = [window.activePrefix(), window.mochiDataPending ? (window.mochiDataPending() ? 'L' : 'F') : 'F', shown, name, memId, posts.length];
+    // #1406：再并入「当前翻到的是哪一页」——两页各自恰好都没有动态时也必须算两次不同渲染。
+    const parts = [window.activePrefix(), window.mochiDataPending ? (window.mochiDataPending() ? 'L' : 'F') : 'F', shown, name, memId, rangeKey, posts.length];
     for (let i = 0; i < shown; i++) {
       const p = posts[i];
       if (!p) { parts.push('-'); continue; }
@@ -1291,7 +1419,8 @@
     if (!moreBtn) return;
     moreBtn.addEventListener('click', () => {
       const isAll = listEl.id === 'feed-all-list';
-      let posts = feedSortedAll();
+      // #1406：主列表的「查看更早」在**当前这一页**（本周／某月）内增量；全部朋友圈页仍是全量倒序
+      let posts = isAll ? feedSortedAll() : feedMainPosts;
       if (isAll) posts = posts.filter(p => (p.owner || 'default') === feedAllCid);
       const shown = isAll ? feedShownAll : feedShownMain;
       const end = Math.min(posts.length, shown + FEED_LOAD_STEP);
@@ -1316,27 +1445,40 @@
     });
   }
   function feedSortedAll() { return load().slice().sort((a, b) => b.ts - a.ts); }
-  function render() {
+  function render(keepShown) {
     renderCover();
     const listEl = document.getElementById('feed-list');
     if (!listEl) return;
     const posts = feedSortedAll();
-    feedShownMain = Math.min(posts.length, FEED_RENDER_MAX);
+    // #1406：只画选中的那一页（本周或某个月），其余月份折在翻页条里手动切
+    const buckets = feedBuckets(posts);
+    let bucket = buckets[0];
+    for (let i = 0; i < buckets.length; i++) { if (buckets[i].key === feedRangeKey) { bucket = buckets[i]; break; } }
+    feedRangeKey = bucket.key; // 翻到的那个月被删空了就回第一页（本周），不留悬空选择
+    feedMainPosts = bucket.items;
+    // keepShown＝定位某条动态时把本页窗口临时拉到那条（parseInt 防事件对象混进来）
+    const wantShown = Math.max(FEED_RENDER_MAX, parseInt(keepShown, 10) || 0);
+    feedShownMain = Math.min(feedMainPosts.length, wantShown);
     const name = partnerName();
     // #302：回忆闪回——那年今天的动态以记忆卡形式置顶（今日点 ✕ 后当天不再出现）
+    // #1406：闪回卡只挂最新那一页（本周）——它指的是「N 年前的今天」，跟着每个月重复画没意义
     const memPost = feedMemoryPost();
-    const memShown = !!(memPost && !feedMemDismissed());
+    const memShown = !!(memPost && !feedMemDismissed()) && bucket.key === 'week';
     const memHtml = memShown ? feedMemBannerHtml(memPost) : '';
     // FIX 2026-09-17 #669 内容与上次渲染完全一致时跳过整包重建（见 feedRenderSignature 注释；
     //   反复点桌面图标进朋友圈是主要受益路径，避免每次都重新解析数 MB 标记）
-    const sig = feedRenderSignature(posts, feedShownMain, name, memShown ? memPost.id : '');
+    const sig = feedRenderSignature(feedMainPosts, feedShownMain, name, memShown ? memPost.id : '', bucket.label);
     if (sig === feedRenderSig && listEl.firstChild) return;
-    listEl.innerHTML = memHtml + (posts.length
-      ? posts.slice(0, feedShownMain).map(p => postCardHtml(p, name)).join('') +
-        (posts.length > feedShownMain ? feedMoreBtnHtml(posts.length - feedShownMain) : '')
-      : ((feedSyncCold || (window.mochiDataPending && window.mochiDataPending()))
-        ? window.mochiLoadingHtml('朋友圈内容')
-        : '<div class="ta-empty">还没有动态，TA 会不定期分享生活<br><button class="memo-send-btn" id="feed-empty-pub" style="margin-top:8px">我来发第一条</button></div>'));
+    listEl.innerHTML = memHtml + (feedMainPosts.length
+      ? feedMainPosts.slice(0, feedShownMain).map(p => postCardHtml(p, name)).join('') +
+        (feedMainPosts.length > feedShownMain ? feedMoreBtnHtml(feedMainPosts.length - feedShownMain) : '')
+      : (posts.length
+        // 这一页空、别的页有＝说「还没有动态」是谎，报清楚空的是哪一页，并指一条能立刻走通的出路
+        ? '<div class="ta-empty">' + esc(bucket.label) + '还没有动态<br><span style="font-size:12px">点上面那条胶囊翻更早的月份</span></div>'
+        : ((feedSyncCold || (window.mochiDataPending && window.mochiDataPending()))
+          ? window.mochiLoadingHtml('朋友圈内容')
+          : '<div class="ta-empty">还没有动态，TA 会不定期分享生活<br><button class="memo-send-btn" id="feed-empty-pub" style="margin-top:8px">我来发第一条</button></div>')));
+    feedRenderRangeBar(buckets);
     feedRenderSig = sig;
     const clearBtn = document.getElementById('feed-head-clear');
     if (clearBtn) clearBtn.hidden = !posts.length;
@@ -1903,14 +2045,17 @@
   }
   // 点击回忆卡：定位到那条动态并高亮；「查看更早」窗口没渲染到就扩窗重渲染后再定位
   function revealFeedPost(pid) {
-    const posts = feedSortedAll();
+    const all = feedSortedAll();
+    const hit = all.find(p => p.id === pid);
+    if (!hit) return;
+    // #1406：闪回的那条必然往回翻年份＝折在某个月份页里，先切到那一页节点才存在
+    feedRangeKey = feedBucketKeyFor(hit.ts);
+    render();
+    const posts = feedMainPosts;
     const idx = posts.findIndex(p => p.id === pid);
     if (idx < 0) return;
-    if (idx >= feedShownMain) {
-      feedShownMain = Math.min(posts.length, idx + 20);
-      render();
-    }
-    const el = document.getElementById('feed-post-' + pid);
+    if (idx >= feedShownMain) render(idx + 20);
+    const el = feedMainPostEl(pid); // #1406：只在主列表里找，别命中隐藏的同名卡片
     if (!el) return;
     try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) { try { el.scrollIntoView(); } catch (e2) {} }
     el.classList.add('feed-hl');
@@ -1959,6 +2104,15 @@
     listEl.querySelectorAll('.feed-del').forEach(b => b.addEventListener('click', (e) => {
       e.stopPropagation();
       deletePostConfirm(b.dataset.id);
+    }));
+    // #1406：长文「展开全文／收起」——就地改类名与按钮文字，不重建卡片、不碰数据
+    listEl.querySelectorAll('.feed-expand').forEach(b => b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const body = b.parentNode ? b.parentNode.querySelector('.feed-body') : null;
+      if (!body) return;
+      const clamped = body.classList.toggle('feed-clamp');
+      body.classList.toggle('feed-open', !clamped);
+      b.textContent = clamped ? '展开全文' : '收起';
     }));
     // 点赞：我点赞后 TA 有概率回赞
     listEl.querySelectorAll('.feed-act[data-like]').forEach(b => b.addEventListener('click', () => {
@@ -2484,6 +2638,7 @@ if (comInput) comInput.addEventListener('keydown', (e) => { if (e.key === 'Enter
   // 打开朋友圈页（渲染 + 清桌面未读角标），供朋友圈图标点击与弹窗点击共用
   function openFeedPage() {
     clearFeedAppUnread();
+    feedRangeKey = 'week'; // #1406：从桌面进朋友圈先落回「本周」那一页（翻去几个月前是临时的）
     render();
     renderNoticeBadge();
     document.querySelectorAll('.page').forEach(p => p.hidden = true);
@@ -2547,7 +2702,12 @@ if (comInput) comInput.addEventListener('keydown', (e) => { if (e.key === 'Enter
     }
   }
   function jumpToPost(pid, ci, ri) {
-    const el = feedPostEl(pid);
+    let el = feedMainPostEl(pid);
+    if (!el) {
+      // #1406：那条动态折在别的月份页里＝先切到它那一页再找（点旧动态的通知不能啥也不发生）
+      const hit = feedSortedAll().find(p => p.id === pid);
+      if (hit) { feedRangeKey = feedBucketKeyFor(hit.ts); render(); el = feedMainPostEl(pid); }
+    }
     if (!el) return;
     // v3.11.x：带评论/回复定位——优先滚动闪烁到具体那条评论/回复（找不到回退整条动态）
     let target = el;

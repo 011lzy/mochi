@@ -77,7 +77,7 @@ const buildStamp = buildTime.getTime().toString(36); // sw 缓存名版本号（
 // 每提交 10 次 +0.1（258 → v8.25，260 → v8.26，300 → v8.30）。
 // SW 缓存刷新依赖的是上面的 buildStamp（每次构建必变），与 APP_VERSION 无关。
 // 非 git 环境（脚本被拷贝/CI 无 git）回退 v8.0 兜底。
-let APP_VERSION = 'v8.53'; // 仓外隔离副本兜底直置（主树 execSync 自动取；#1011 批按 git rev-list --count 现值对齐，勿回退）
+let APP_VERSION = 'v8.54'; // 仓外隔离副本兜底直置（主树 execSync 自动取；#1011 批按 git rev-list --count 现值对齐，勿回退）
 try {
   const cnt = execSync('git rev-list --count HEAD', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
   if (cnt && /^\d+$/.test(cnt)) APP_VERSION = 'v8.' + Math.floor(parseInt(cnt, 10) / 10);
@@ -5823,6 +5823,19 @@ const FIX_SENTINELS = [
   { name: '#1409a 设置页入口＝开面板同时跳到桌面现场（改回直挂开面板函数＝作者实报的「点了没跳到桌面」复发）', file: 'js/personalize.js', needle: "if (entry) entry.addEventListener('click', function () { openAdjPanel(); gotoDeskTab(); });" },
   { name: '#1409b 删除型：设置页入口这一发不得顺手收成小胶囊（回流＝面板被自己收起，用户还得再点一下才能拖滑杆）', file: 'js/personalize.js', needle: 'openAdjPanel(); setMini(true);', absent: true },
   { name: '#1409c 聊天设置与装修两处入口仍直挂开面板（被一并拽去桌面＝把人踢离自己正在看的页面，本批刻意不收这两处）', file: 'js/personalize.js', needle: "if (chatSetEntry) chatSetEntry.addEventListener('click', openAdjPanel);" },
+
+  // ==== 2026-09-29 #1406 朋友圈「动态与长信堆在一起太杂」→ 默认只见本周、更早按月翻页 ＋ 长信折 6 行
+  //   （作者直派，与信箱 #1402 同族；周界同口径＝自然周周一起。判据只取 ts 与正文行/字数，零机型／零 UA 分支）
+  //   九针分别钉：周界、分桶、本页数据源、单页不画条、跨页先切页、折叠判据、签名并入页键、空页不谎报、CSS 六行裁剪。
+  { name: '#1406a 周界＝本周一 00:00 的自然周（改回滚动 7 天或周日开头＝「本周」每天变长、界线与用户心里对不上，且与信箱 #1402c 分叉）', file: 'js/feed.js', needle: "d.setDate(d.getDate() - ((d.getDay() + 6) % 7));" },
+  { name: '#1406b 分桶互不重叠：本周之外的才按月归组（删掉这道分支＝回到整箱平铺，「太杂」正是本批要治的）', file: 'js/feed.js', needle: "if (ts >= ws) { week.push(p); continue; }" },
+  { name: '#1406c 主列表数据源＝当前选中的那一页（保留全量＝翻页条成了装饰，切页屏上还是几百条）', file: 'js/feed.js', needle: "feedMainPosts = bucket.items;" },
+  { name: '#1406d 只剩一页时连翻页条都不画（动态全在本周的用户不该看见一条空骨架）', file: 'js/feed.js', needle: "if (buckets.length <= 1) { bar.hidden = true; bar.innerHTML = ''; return; }" },
+  { name: '#1406e 点往月通知/回忆卡先切到那条所在页再找节点（不切页＝命中隐藏的同名卡，用户所见「点了没反应」）', file: 'js/feed.js', needle: "if (hit) { feedRangeKey = feedBucketKeyFor(hit.ts); render(); el = feedMainPostEl(pid); }" },
+  { name: '#1406f 长文折叠判据只看剥配图后的正文（超 120 字或超 6 行才收；改成量 DOM＝渲染期二次布局）', file: 'js/feed.js', needle: "if (str.length > FEED_CLAMP_CHARS) return true;" },
+  { name: '#1406g 渲染签名并入「当前哪一页」（缺它＝两页各自都空时被 sig 早退当同一帧，切换后屏上留着旧内容）', file: 'js/feed.js', needle: "const parts = [window.activePrefix(), window.mochiDataPending ? (window.mochiDataPending() ? 'L' : 'F') : 'F', shown, name, memId, rangeKey, posts.length];" },
+  { name: '#1406h 空的那一页要说清是「哪一页空」并指得出路（谎称「还没有动态」＝用户以为动态丢了）', file: 'js/feed.js', needle: "esc(bucket.label) + '还没有动态" },
+  { name: '#1406i 六行裁剪那条规则（删＝折叠按钮还在、正文照旧整屏铺开＝长信没被收）', file: 'css/chat-pages.css', needle: ".feed-clamp { display:-webkit-box; -webkit-line-clamp:6; -webkit-box-orient:vertical; overflow:hidden; }" },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
