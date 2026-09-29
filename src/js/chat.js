@@ -3524,6 +3524,12 @@ window.__replyPoolDiag = function () {
       '自定义占比=' + (rc['csp-cust'] !== undefined ? rc['csp-cust'] : '?'),
       '媒体概率=' + ['sticker', 'emoji', 'image', 'voice', 'kaomoji'].map(k => k + ':' + (rc[k + '-prob'] !== undefined ? rc[k + '-prob'] : '?')).join(','),
       '多字卡py=' + (rc['py-en'] === 1 ? (rc['py-prob'] + '%') : '关'),
+      // FIX 2026-09-29 #1451 拼字张数现场——「拼字一直发 5 张」类报障不必再靠猜：这里写的是
+      // 抽卡侧真正取用的那对区间（同设置页读数行，都是 replyCfg 算好的同一份生效值），
+      // 单设还是跟随、最近 6 次各拼了几张一起摆出来
+      '拼字=' + (rc['qs-en'] === 1 ? (rc['qs-prob'] + '%') : '关') +
+        (rc['qs-min'] !== undefined ? ' 每次' + rc['qs-min'] + '~' + rc['qs-max'] + '张' + (rc['qs-pair-own'] === 1 ? '(单设)' : '(跟随多字卡)') : ''),
+      '拼字实测=' + (window.__spellLog && window.__spellLog.length ? window.__spellLog.join('|') : '无记录'),
       // FIX 2026-09-16 #571：回复延迟现场——设定值（回复速度最短~最长，秒）+ 最近实测落地耗时。
       // 「字卡延迟反应卡顿N秒」类报障：实测≈设定=设定即此延迟（回复速度设置所致）；实测≫设定=真卡顿。
       '回复时间=' + (rc['rs-min'] !== undefined ? rc['rs-min'] : 1) + '~' + (rc['rs-max'] !== undefined ? rc['rs-max'] : 40) + 's',
@@ -8033,12 +8039,19 @@ try {
 const _sp = (window.quoteSpellPick && window.quoteSpellPick(c)) || null;
 if (_sp && Array.isArray(_sp.segs)) { spellSegs = _sp.segs; spellOne = !!_sp.one; }
 else if (Array.isArray(_sp)) { spellSegs = _sp; }
+// #1451 拼字现场账：命中时记下本批抽到几张、走哪个形态（n＋单/连），随诊断【回复字卡池】
+// 节回放——「拼字一直只发 N 张」类报障一眼分清是设置区间所致还是抽卡异常；零行为改动
+if (spellSegs && spellSegs.length) {
+window.__spellLog = window.__spellLog || [];
+window.__spellLog.push(spellSegs.length + (spellOne ? '单' : '连'));
+if (window.__spellLog.length > 6) window.__spellLog.shift();
+}
 } catch (e) {}
 if (spellSegs && spellSegs.length > 1) {
 // #451：正文换血必须同步重建 parts——气泡渲染 parts 优先于 text（#202 混合消息链路），
 // 引用快照/收藏/回复引用读 text，两轨不同步＝「消息显示 A、引用预览显示 B」（iOS Chrome
-// 等多机型同报，词典拼字/梦角自由造句同族）。口径：文本段=最终正文（与 addIn 文本一致，
-// 单气泡 join(' ')、逐卡连发末气泡=本卡），原回复掷中的表情/图片段原样保留。
+// 等多机型同报，词典拼字/梦角自由造句同族）。口径：文本段=最终正文（与 addIn 文本一致：
+// 单气泡＝#650 连接符池 join（#1451 起 addIn 也吃这一份）、逐卡连发末气泡=本卡），原回复掷中的表情/图片段原样保留。
 const __spText = spellOne ? pyJoinCards(spellSegs, c) : spellSegs.join(''); // #650 单气泡连接符同走符号池
 const __spImgs = (rep.parts || []).filter(p => p && p.k === 'img');
 spellImgParts = __spImgs;
@@ -8080,7 +8093,12 @@ const pyMultiExtra = (pyMultiHit || (rep.spell && rep.spellOne)) ? [{ tag: '多�
 // 补发保持正常投递（此刻弹通知名正言顺，内容不会再消失）。
 const willRetractR = hit(c['rc-prob']);
 if (rep.spell && rep.spellOne) {
-m = addIn(rep.spell.join(' '), {
+// FIX 2026-09-29 #1451 单气泡拼字正文改用 rep.text（＝pyJoinCards 的连接符池结果）——旧写法用
+// 单空格硬拼，让「拼接随机标点」在这条路上从未生效（设置页却写着单气泡形态也用同一套符号池，
+// #650 的注释也自称已接上）；且 `parts`（混排图片时气泡渲染以 parts 优先）用的正是符号池版、
+// 引用/收藏读的却是空格版＝两轨打架（#451 同族）。改后气泡＝引用＝收藏同吃一支正文；
+// py-en/py-punct-en 任一关时 pyJoinCards 回退单空格＝与旧观感一致。
+m = addIn(rep.text, {
 quote: quote,
 qside: 'out',
 qidx: quote ? quoteIdx : undefined,

@@ -2528,6 +2528,9 @@ return [
 '自定义占比=' + (rc['csp-cust'] !== undefined ? rc['csp-cust'] : '?'),
 '媒体概率=' + ['sticker', 'emoji', 'image', 'voice', 'kaomoji'].map(k => k + ':' + (rc[k + '-prob'] !== undefined ? rc[k + '-prob'] : '?')).join(','),
 '多字卡py=' + (rc['py-en'] === 1 ? (rc['py-prob'] + '%') : '关'),
+'拼字=' + (rc['qs-en'] === 1 ? (rc['qs-prob'] + '%') : '关') +
+(rc['qs-min'] !== undefined ? ' 每次' + rc['qs-min'] + '~' + rc['qs-max'] + '张' + (rc['qs-pair-own'] === 1 ? '(单设)' : '(跟随多字卡)') : ''),
+'拼字实测=' + (window.__spellLog && window.__spellLog.length ? window.__spellLog.join('|') : '无记录'),
 '回复时间=' + (rc['rs-min'] !== undefined ? rc['rs-min'] : 1) + '~' + (rc['rs-max'] !== undefined ? rc['rs-max'] : 40) + 's',
 '回复实测=' + (window.__replyLatLog && window.__replyLatLog.length ? window.__replyLatLog.map(m => (m / 1000).toFixed(1) + 's').join('|') : '无记录'),
 '无回应概率rn=' + (rc['rn-prob'] !== undefined ? rc['rn-prob'] + '%' : '?'),
@@ -6039,6 +6042,11 @@ try {
 const _sp = (window.quoteSpellPick && window.quoteSpellPick(c)) || null;
 if (_sp && Array.isArray(_sp.segs)) { spellSegs = _sp.segs; spellOne = !!_sp.one; }
 else if (Array.isArray(_sp)) { spellSegs = _sp; }
+if (spellSegs && spellSegs.length) {
+window.__spellLog = window.__spellLog || [];
+window.__spellLog.push(spellSegs.length + (spellOne ? '单' : '连'));
+if (window.__spellLog.length > 6) window.__spellLog.shift();
+}
 } catch (e) {}
 if (spellSegs && spellSegs.length > 1) {
 const __spText = spellOne ? pyJoinCards(spellSegs, c) : spellSegs.join(''); // #650 单气泡连接符同走符号池
@@ -6060,7 +6068,7 @@ const dictTag = (rep.spell && rep.spell.every(t => (t || '').length > 4)) ? '词
 const pyMultiExtra = (pyMultiHit || (rep.spell && rep.spellOne)) ? [{ tag: '多字卡回复', label: '' }] : null;
 const willRetractR = hit(c['rc-prob']);
 if (rep.spell && rep.spellOne) {
-m = addIn(rep.spell.join(' '), {
+m = addIn(rep.text, {
 quote: quote,
 qside: 'out',
 qidx: quote ? quoteIdx : undefined,

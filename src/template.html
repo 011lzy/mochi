@@ -3546,7 +3546,7 @@
                  符号池状态由 reply-settings.js #650 段渲染（ppy-chips），join 逻辑在 chat.js pyJoinCards -->
             <div class="gs-row"><span>拼接随机标点</span><label class="toggle"><input type="checkbox" id="py-punct-en"><span class="tk"></span></label></div>
             <div class="gs-row"><span>拼接符号</span><div class="ppy-chips" id="ppy-chips"><span class="tag ppy-chip" data-k="py-punct-space">空格</span><span class="tag ppy-chip" data-k="py-punct-dou">，</span><span class="tag ppy-chip" data-k="py-punct-per">。</span><span class="tag ppy-chip" data-k="py-punct-ex">！</span><span class="tag ppy-chip" data-k="py-punct-q">？</span><span class="tag ppy-chip" data-k="py-punct-el">......</span><span class="tag ppy-chip" data-k="py-punct-dash">——</span><span class="tag ppy-chip" data-k="py-punct-nl">换行</span><span class="tag ppy-chip" id="ppy-add" title="添加自定义拼接符号">＋</span></div></div>
-            <div class="gs-sub">多条字卡回复总开关：关闭后每条消息只回一条、每条只用一张字卡——「颜文字附加概率」「连接词追加概率」「经期温柔前缀/后缀」也不再往同一条气泡里拼第二张字卡，气泡下不再出现「多字卡回复」标签（<b>#1236 起词典拼字也归本项管</b>——关掉它连「单气泡拼字／多回复逐卡连发」一并不触发；梦角自由造句各认自己的开关）；开启后回复拆成几条由上方「回复条数」控制、每条拼几张由下方「最少/最多条数」控制。<b>关掉本项后，气泡上残留的「多字卡回复／词典」类来源标签也不再显示</b>（#1236；数据不删，重新打开即恢复显示）</div>
+            <div class="gs-sub">多条字卡回复总开关：关闭后每条消息只回一条、每条只用一张字卡——「颜文字附加概率」「连接词追加概率」「经期温柔前缀/后缀」也不再往同一条气泡里拼第二张字卡，气泡下不再出现「多字卡回复」标签（<b>#1236 起词典拼字也归本项管</b>——关掉它连「单气泡拼字／多回复逐卡连发」一并不触发；梦角自由造句各认自己的开关）；开启后回复拆成几条由上方「回复条数」控制、每条拼几张由下方「最少/最多条数」控制（词典拼字在「词典拼字」组另有自己的一对「每次拼字最少/最多张数」，默认跟随这两格、动过即单独设定）。<b>关掉本项后，气泡上残留的「多字卡回复／词典」类来源标签也不再显示</b>（#1236；数据不删，重新打开即恢复显示）</div>
             <div class="gs-sub">拼接随机标点：开启后每两条字卡的中间在「拼接符号」里随机抽一个相连（可多选，每处独立随机）。默认＝空格、，。！？......、—— 七种全部点亮（不想要的点一下取消、再点一下恢复）；只选「空格」＝原来的效果、只选标点＝不再有空格；关闭总开关＝固定只用空格。系统自带的符号只能开关、不能删除；点「＋」可添加自己的符号（最长 6 个字符、最多 8 个），自定义符号点本体开关、点「×」删除。符号至少保留一个；「词典拼字」的单气泡形态也用同一套符号池。关闭上方「多字卡回复」后本组一并失效：拼接随机标点不再生效、符号池回退空格<br><b>「换行」（默认关）</b>＝点亮后随机抽到它时，下一张字卡另起一行（抽到别的符号仍照常连在同一行里）。<b>这套符号池是三处共用</b>：聊天（上面的「拼接随机标点」）、信箱（回复设置 → 信箱 →「信件拼接随机标点」）、朋友圈（回复设置 → 朋友圈 →「朋友圈拼接随机标点」），后两者默认关，各自只由自家开关决定——上方聊天开关置灰不影响它们。表情包/图片这类卡片两侧永远用空格相接（标点或换行贴进图片网址尾部会让图显示不出来）</div>
           </div>
           </div>
@@ -3556,6 +3556,13 @@
           <div class="set-group glass">
             <div class="gs-row"><span>词典拼字</span><label class="toggle"><input type="checkbox" id="qs-en"><span class="tk"></span></label></div>
             <div class="gs-row"><span>拼字概率</span><div class="stepper" data-k="qs-prob" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="qs-prob-val" readonly><button class="stp-max">+</button></div></div>
+            <!-- #1451 拼字张数单开一对（用户点名）：语义与「多字卡回复」的最少/最多条数同款，
+                 但各管各的——两枚都缺键＝跟随那一对（老存档零变化）；动过任一格即两枚一起落盘
+                 成为单设。动「最少」自动把「最多」抬到不小于它、动「最多」自动把「最少」压到
+                 不大于它（reply-settings.js writePairedRange 收口），两行数字当场互跟 -->
+            <div class="gs-row"><span>每次拼字最少张数</span><div class="stepper" data-k="qs-min" data-min="2" data-max="10" data-step="1"><button class="stp-min">−</button><input class="stp-val" id="qs-min-val" readonly><button class="stp-max">+</button></div></div>
+            <div class="gs-row"><span>每次拼字最多张数</span><div class="stepper" data-k="qs-max" data-min="2" data-max="10" data-step="1"><button class="stp-min">−</button><input class="stp-val" id="qs-max-val" readonly><button class="stp-max">+</button></div></div>
+            <div class="gs-sub" id="qs-range-readout"></div>
             <div class="gs-row"><span>混用自定义字卡</span><label class="toggle"><input type="checkbox" id="qs-cc"><span class="tk"></span></label></div>
             <div class="gs-row"><span>单气泡拼字</span><label class="toggle"><input type="checkbox" id="qs-one"><span class="tk"></span></label></div>
             <div class="gs-row"><span>多回复逐卡连发</span><label class="toggle"><input type="checkbox" id="qs-multi"><span class="tk"></span></label></div>
@@ -3563,7 +3570,7 @@
             <!-- #370：词典拼字链路自检——四道闸门（二级锁/词典聊天使用/拼字总开关与概率/抽卡池；#427 移除无 UI 的遗留 dc-cat-dict 闸）
                  任一被关都是零提示零 tag，这行把每道闸实时状态摆出来，任何机型一眼看到卡在哪 -->
             <div class="gs-sub" id="qs-diag" style="color:var(--muted,#888)">链路自检中…</div>
-            <div class="gs-sub">开启后联系人回复按「拼字概率」随机变成拼字：从词典（系统预设字卡→词典，语录/词库/常用词全部分组都可抽，可逐张关闭）抽字卡整卡，效果举例：命中拼字时 TA 会连着发几条词典里的短句（如「想你了」「晚安哦」），像打字很快连着发消息一样。<br>发送形态：单气泡拼字为主，「多回复逐卡连发」开着时每次命中另按 20% 小概率变成逐条连发；「多回复逐卡连发」关＝不能连发（只发单气泡拼字）。<br>· 「单气泡拼字」＝几张字卡用空格拼成【一条】消息发在一个气泡里（如「今天也要好好爱自己 晚安」），气泡下 tag 是「词典」（全是长句时）或「词典拼字」（含短卡时）；<br>· 「多回复逐卡连发」＝每张字卡单独一条气泡一条一条发出来，每条气泡下 tag 是「词典逐卡连发」；连发条数跟随上方「每条消息使用多字卡回复」的最少/最多条数（默认 2~5 条）；<br>· 「逐卡连发不受条数限制」默认开＝连发条数不受「回复条数最多」约束（想连发 5 条就发 5 条）；关闭＝连发条数按「回复条数最多」截断（默认最多 2 条）。<br>两个形态都受<b>聊天页「多字卡回复」总开关</b>约束（#1236）：它关闭时拼字整体不触发，两种形态一并不生效；两个形态开关都关时兜底发单气泡拼字。开启「混用自定义字卡」时你的字卡库文本也会进抽卡池（可能把你的普通字卡抽去拼字，默认开）。概率 0 = 不触发</div>
+            <div class="gs-sub">开启后联系人回复按「拼字概率」随机变成拼字：从词典（系统预设字卡→词典，语录/词库/常用词全部分组都可抽，可逐张关闭）抽字卡整卡，效果举例：命中拼字时 TA 会连着发几条词典里的短句（如「想你了」「晚安哦」），像打字很快连着发消息一样。<br>发送形态：单气泡拼字为主，「多回复逐卡连发」开着时每次命中另按 20% 小概率变成逐条连发；「多回复逐卡连发」关＝不能连发（只发单气泡拼字）。<br>· 「单气泡拼字」＝几张字卡连着拼成【一条】消息发在一个气泡里（张数＝上方「每次拼字最少/最多张数」两格；卡与卡之间与「回复与主动」组的「拼接随机标点」共用一套符号池——默认空格/，/。/！/？/....../—— 随机抽，关闭＝只用空格，如「今天也要好好爱自己 晚安」），气泡下 tag 是「词典」（全是长句时）或「词典拼字」（含短卡时）；<br>· 「多回复逐卡连发」＝每张字卡单独一条气泡一条一条发出来，每条气泡下 tag 是「词典逐卡连发」；连发张数由本组「每次拼字最少/最多张数」控制（默认跟随上方「每条消息使用多字卡回复」的最少/最多条数，即 2~5 张，见上方实时读数行）；<br>· 「逐卡连发不受条数限制」默认开＝连发条数不受「回复条数最多」约束（想连发 5 条就发 5 条）；关闭＝连发条数按「回复条数最多」截断（默认最多 2 条）。<br>两个形态都受<b>聊天页「多字卡回复」总开关</b>约束（#1236）：它关闭时拼字整体不触发，两种形态一并不生效；两个形态开关都关时兜底发单气泡拼字。开启「混用自定义字卡」时你的字卡库文本也会进抽卡池（可能把你的普通字卡抽去拼字，默认开）。概率 0 = 不触发</div>
           </div>
           <!-- #513 梦角自由造句总开关与混合模式改为默认打开（用户点名「需要默认打开」）：
                DEFAULTS mjf-en/mjf-mix=1 + reply-settings migrateMjfOn 把存量 '0' 一次性收成 '1' -->

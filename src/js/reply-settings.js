@@ -251,6 +251,30 @@
     try { window.xyStore('xy-home-v2').set('reply-gc-' + k, String(v)); } catch (e) {}
   }
 
+  // #1451 拼字张数一族的原始读数：缺键／空串／坏值一律算「没单独设过」（null），不与 0 混——
+  //   0 是合法输入吗？不是（张数下限 1），但这里仍只认「有没有这枚键」，把区间解释留给 spellPairFrom
+  function rawNumFrom(store, k) {
+    try {
+      const v = store ? store.get(k) : null;
+      if (v === null || v === undefined || v === '') return null;
+      const n = Number(v);
+      return isFinite(n) ? n : null;
+    } catch (e) { return null; }
+  }
+  // #1451 拼字每次几张的【唯一生效算式】：设过自己的用自己的，没设过跟随「最少/最多条数」（＝改造前
+  //   行为）；返回的 min/max 永远有序（抽卡侧 quote-spell.js 拿到的是这同一份数，不再各自 clamp 一遍，
+  //   免得「最少 8／最多 2」在拼字里被抬成恒 8、在多字卡回复里却发 6，两路口径打架）
+  function spellPairFrom(store, out) {
+    const ownMin = rawNumFrom(store, 'reply-qs-min');
+    const ownMax = rawNumFrom(store, 'reply-qs-max');
+    const baseMin = Math.max(1, Math.min(10, Number(out['py-min']) || 2));
+    const baseMax = Math.max(baseMin, Math.min(10, Number(out['py-max']) || 5));
+    let mn = ownMin === null ? baseMin : Math.max(1, Math.min(10, ownMin));
+    let mx = ownMax === null ? baseMax : Math.max(1, Math.min(10, ownMax));
+    if (mx < mn) mx = mn;   // 只设过一枚、而另一枚的跟随值比它更小时：把跟随那枚抬上来，区间不许倒挂
+    return { min: mn, max: mx, own: (ownMin !== null && ownMax !== null) ? 1 : 0, rawMin: ownMin, rawMax: ownMax };
+  }
+
   function getCfg() {
     const out = {};
     Object.keys(DEFAULTS).forEach(k => {
@@ -266,6 +290,16 @@
       }
       out[k] = n;
     });
+    // #1451 拼字张数一对（reply-qs-min／reply-qs-max）——**故意不进 DEFAULTS**：老存档没有这两枚，
+    //   进了 DEFAULTS 就等于给每台设备凭空写上 2/5，把用户已经调好的「最少/最多条数」静默打回 2~5
+    //   （同 #712「DEFAULTS 的数字兜底会写坏非数值键」那族的反面：这里会被兜底凭空造出来）。
+    //   口径＝缺键跟随 py-min/py-max（＝改造前行为一字不变），动过才是独立的一对；生效值在这里一次
+    //   算清，设置页、体检（card-audit.js）、抽卡（quote-spell.js）三处都读 cfg 里这同一份数——
+    //   从前体检自己拿裸键去读，读到的永远是默认值（用户所报「我设的 2~5，可它一直发 5 张」查不下去）。
+    const spPair = spellPairFrom(ls, out);
+    out['qs-min'] = spPair.min;
+    out['qs-max'] = spPair.max;
+    out['qs-pair-own'] = spPair.own;
     // #712 自定义拼接符号——非数值键，故意不进 DEFAULTS：上面循环的数字兜底会把数组/
     // JSON 串改写成默认值，saveAllContactsDo 按 DEFAULTS 全键 String() 同步也会写坏；
     // 这里只把存储原串随 cfg 附带出去（pyJoinCards 按 JSON [{s,on}] 解析，只取 on=1）
@@ -303,6 +337,12 @@
     try { out['mjf-punct-pool'] = String((s || ls).get('reply-mjf-punct-pool') || ''); } catch (e) { out['mjf-punct-pool'] = ''; }
     // FIX 2026-09-29 #1396 同 getCfg：造句可用标点 chips 池整串（按目标联系人桌面读，跨桌面回复同样认自己桌面的池）
     try { out['mjf-punct-set'] = String((s || ls).get('reply-mjf-punct-set') || ''); } catch (e) { out['mjf-punct-set'] = ''; }
+    // #1451 同 getCfg：拼字张数一对按【目标桌面】的存储算生效值——跨桌面来消息/回话同样认自己那台的数，
+    //   不许「设置页显示的是这一台的、发出来是那一台的区间」
+    const spPair2 = spellPairFrom(s || ls, out);
+    out['qs-min'] = spPair2.min;
+    out['qs-max'] = spPair2.max;
+    out['qs-pair-own'] = spPair2.own;
     return out;
   };
   // v3.9.x：群聊页/群聊回复逻辑读取群聊回复设置（含默认值）
@@ -314,13 +354,78 @@
       return out;
     } catch (e) { return {}; }
   };
+  // ===== #1451 「最少／最多」成对收口 =====
+  // 从前这三对 stepper 各写各的：谁都能把区间设成「最少=最多」（于是不再随机，恒定发 N 张），
+  // 甚至倒挂成「最少 8／最多 2」——而抽卡侧为了不自爆，只能把「最多」静默抬平到「最少」，
+  // 于是用户所见就是「我明明设的 2~5，可 TA 一直发 5 张」，界面上又没有任何一处报出当前真正的
+  // 区间（体检那行还读错键、永远显示 2~5，见 card-audit.js）。用户 2026-09-29 选定口径：
+  // **动「最少」→ 把「最多」抬到不小于它；动「最多」→ 把「最少」压到不大于它**，两行数字当场跟着走。
+  const PAIR_SIB = { 'py-min': 'py-max', 'py-max': 'py-min',
+    'qs-min': 'qs-max', 'qs-max': 'qs-min',
+    'gc-py-min': 'gc-py-max', 'gc-py-max': 'gc-py-min' };
+  const isMinSide = (k) => /-min$/.test(k);
+  // 把某一枚的新值算成一对有序值并整对落盘（另一枚按当前【生效】值一起坐实——拼字那一对
+  // 从此不再跟随「最少/最多条数」，这是动它的必然结果，也是设置页该行右侧要标出来的原因）
+  function writePairedRange(k, v) {
+    const sib = PAIR_SIB[k];
+    if (!sib) return false;
+    const gc = k.indexOf('gc-') === 0;
+    const n = Math.round(Number(v));
+    if (!isFinite(n)) return false;
+    const base = getCfg();
+    const other = Math.round(Number(base[sib]));
+    let lo = isMinSide(k) ? n : (isFinite(other) ? other : n);
+    let hi = isMinSide(k) ? (isFinite(other) ? other : n) : n;
+    if (hi < lo) { if (isMinSide(k)) hi = lo; else lo = hi; }   // 谁动收谁的对家
+    lo = Math.max(1, Math.min(10, lo));
+    hi = Math.max(lo, Math.min(10, hi));
+    const minK = isMinSide(k) ? k : sib, maxK = isMinSide(k) ? sib : k;
+    if (gc) { gcWrite(minK, lo); gcWrite(maxK, hi); }
+    else { ls.set('reply-' + minK, String(lo)); ls.set('reply-' + maxK, String(hi)); }
+    // 对家那一格必须立刻跟着动，否则「设了却看不见」原地复发
+    [minK, maxK].forEach(refreshStepperVal);
+    syncSpellPairReadout();
+    return true;
+  }
+  // #1451 读数行：把「抽卡侧真正取用的区间」原样摆出来（设置页显示＝实际出牌，读的是同一份
+  // getCfg 生效值）。跟随/单设、恒 N 张（最少＝最多）都在这行说清——报「我设的 2~5 可它一直
+  // 发 5 张」先看这里：若写着「跟随」而条数那对已是 5~5，病根就在条数那对，不用再猜。
+  function syncSpellPairReadout() {
+    const el = document.getElementById('qs-range-readout');
+    if (!el) return;
+    try {
+      const c = getCfg();
+      const mn = Number(c['qs-min']), mx = Number(c['qs-max']);
+      if (!isFinite(mn) || !isFinite(mx)) { el.textContent = ''; return; }
+      let s = '每次拼字：现在 ' + mn + '~' + mx + ' 张';
+      if (mn === mx) s += '（最少＝最多，命中拼字时固定 ' + mx + ' 张、不再随机）';
+      s += Number(c['qs-pair-own']) === 1 ? '（本组单设）' : '（跟随上方「多字卡回复」的最少/最多条数；动本组任一格即单独设定）';
+      el.textContent = s;
+    } catch (e) {}
+  }
+  // 单行回显（与 syncUI 同规格：手机端只写 input.stp-val，转换器把值转给可见的 ce-box；
+  // 直接写 .stp-val 会命中 ce-box DIV 的 expando，屏幕上根本不变——见上面 syncUI 那段注释）
+  function refreshStepperVal(k) {
+    document.querySelectorAll('#page-reply-settings .stepper, #page-chat-settings .stepper, #group-chat-settings .stepper').forEach(st => {
+      if (st.dataset.k !== k) return;
+      const val = st.querySelector('input.stp-val');
+      if (!val) return;
+      const v = getCfg()[k];
+      val.value = String(v);
+      val.setAttribute('value', String(v));
+    });
+  }
   window.saveReplyCfg = function (k, v) {
     if (k.indexOf('gc-') === 0) {
-      gcWrite(k, v);
+      if (PAIR_SIB[k]) writePairedRange(k, v); else gcWrite(k, v);
       if (k.indexOf('gc-cs-') === 0) document.dispatchEvent(new Event('gc-continue-say-changed'));
       return;
     }
-    ls.set('reply-' + k, String(v));
+    if (PAIR_SIB[k]) {
+      writePairedRange(k, v);
+    } else {
+      ls.set('reply-' + k, String(v));
+    }
     // v3.7.x：主动发送相关设置保存后立即重排定时器——原实现挂起的旧定时器
     // 不重排，改了间隔/概率要等下一轮（最长几小时）才生效
     if (k === 'as-en' || k === 'as-prob' || k === 'as-min' || k === 'as-max' ||
@@ -441,6 +546,8 @@
     });
     // #807 捎话模式行（rp-thx-mode）非开关/stepper，走本文件注入块自带的同步助手
     try { if (window.rpThxModeSync) window.rpThxModeSync(); } catch (e) {}
+    // #1451 拼字张数读数行（进页/重画时与两格数字同源刷新）
+    syncSpellPairReadout();
   }
 
   // v3.33.x：来电概率（call-incoming）支持 0.01 粒度（可输入 0.05 等 0.0X 小数），

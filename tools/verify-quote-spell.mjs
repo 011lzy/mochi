@@ -127,7 +127,9 @@ ok(rs.includes('migrateQsCcOld()') && rs.includes("s.set('reply-qs-cc', '1')") &
 ok(tpl.includes('id="qs-en"') && tpl.includes('data-k="qs-prob"') && tpl.includes('id="qs-cc"') && tpl.includes('id="qs-one"'), 'D4 template.html 回复设置「词典拼字」组四控件');
 // #843 tag 三档口径：单卡＝词典 / 多张全整句＝词典拼句 / 含 ≤4 字短卡＝词典拼词。
 // D5b~D5e 把源码那一行原样 eval 跑真实抽卡组合——防「tag 名还叫这个、分档逻辑被改坏」
-ok(chat.includes('dictTag') && chat.includes('rep.spell.join(\' \')'), 'D5 chat.js 单气泡按字卡长度算 dictTag（#350/#843）');
+// #1451：单气泡正文改吃 rep.text（＝pyJoinCards 的连接符池结果）——老断言 `addIn(rep.spell.join(' ')` 会随
+// 修复消失；这里改钉「单气泡分支头 + 正文走 rep.text」两处（分支被删或正文改回硬拼都报红）。
+ok(chat.includes('dictTag') && chat.includes('if (rep.spell && rep.spellOne) {') && chat.includes('m = addIn(rep.text, {'), 'D5 chat.js 单气泡按字卡长度算 dictTag（#350/#843；#1451 正文走 rep.text）');
 const _dtLine = (chat.match(/^const dictTag = .*$/m) || [''])[0];
 const _dt = new Function('rep', _dtLine + '\nreturn dictTag;');
 ok(_dt({ spell: ['今晚的月色真美', '我有点想你了'] }) === '词典拼句', 'D5b 全部 >4 字整句 → 词典拼句', _dtLine);

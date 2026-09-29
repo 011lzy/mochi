@@ -82,6 +82,24 @@ try { return ls.get('reply-gc-' + k); } catch (e) { return null; }
 function gcWrite(k, v) {
 try { window.xyStore('xy-home-v2').set('reply-gc-' + k, String(v)); } catch (e) {}
 }
+function rawNumFrom(store, k) {
+try {
+const v = store ? store.get(k) : null;
+if (v === null || v === undefined || v === '') return null;
+const n = Number(v);
+return isFinite(n) ? n : null;
+} catch (e) { return null; }
+}
+function spellPairFrom(store, out) {
+const ownMin = rawNumFrom(store, 'reply-qs-min');
+const ownMax = rawNumFrom(store, 'reply-qs-max');
+const baseMin = Math.max(1, Math.min(10, Number(out['py-min']) || 2));
+const baseMax = Math.max(baseMin, Math.min(10, Number(out['py-max']) || 5));
+let mn = ownMin === null ? baseMin : Math.max(1, Math.min(10, ownMin));
+let mx = ownMax === null ? baseMax : Math.max(1, Math.min(10, ownMax));
+if (mx < mn) mx = mn;   // 只设过一枚、而另一枚的跟随值比它更小时：把跟随那枚抬上来，区间不许倒挂
+return { min: mn, max: mx, own: (ownMin !== null && ownMax !== null) ? 1 : 0, rawMin: ownMin, rawMax: ownMax };
+}
 function getCfg() {
 const out = {};
 Object.keys(DEFAULTS).forEach(k => {
@@ -93,6 +111,10 @@ try { if (k.indexOf('gc-') === 0) gcWrite(k, String(n)); else ls.set('reply-' + 
 }
 out[k] = n;
 });
+const spPair = spellPairFrom(ls, out);
+out['qs-min'] = spPair.min;
+out['qs-max'] = spPair.max;
+out['qs-pair-own'] = spPair.own;
 try { out['py-punct-custom'] = String(ls.get('reply-py-punct-custom') || '[]'); } catch (e) { out['py-punct-custom'] = '[]'; }
 try { out['as-badge-custom'] = String(ls.get('reply-as-badge-custom') || '[]'); } catch (e) { out['as-badge-custom'] = '[]'; }
 try { out['mjf-punct-pool'] = String(ls.get('reply-mjf-punct-pool') || ''); } catch (e) { out['mjf-punct-pool'] = ''; }
@@ -114,6 +136,10 @@ try { out['py-punct-custom'] = String((s || ls).get('reply-py-punct-custom') || 
 try { out['as-badge-custom'] = String((s || ls).get('reply-as-badge-custom') || '[]'); } catch (e) { out['as-badge-custom'] = '[]'; }
 try { out['mjf-punct-pool'] = String((s || ls).get('reply-mjf-punct-pool') || ''); } catch (e) { out['mjf-punct-pool'] = ''; }
 try { out['mjf-punct-set'] = String((s || ls).get('reply-mjf-punct-set') || ''); } catch (e) { out['mjf-punct-set'] = ''; }
+const spPair2 = spellPairFrom(s || ls, out);
+out['qs-min'] = spPair2.min;
+out['qs-max'] = spPair2.max;
+out['qs-pair-own'] = spPair2.own;
 return out;
 };
 window.groupChatCfg = function () {
@@ -124,13 +150,64 @@ Object.keys(DEFAULTS).forEach(k => { if (k.indexOf('gc-') === 0) out[k] = c[k]; 
 return out;
 } catch (e) { return {}; }
 };
+const PAIR_SIB = { 'py-min': 'py-max', 'py-max': 'py-min',
+'qs-min': 'qs-max', 'qs-max': 'qs-min',
+'gc-py-min': 'gc-py-max', 'gc-py-max': 'gc-py-min' };
+const isMinSide = (k) => /-min$/.test(k);
+function writePairedRange(k, v) {
+const sib = PAIR_SIB[k];
+if (!sib) return false;
+const gc = k.indexOf('gc-') === 0;
+const n = Math.round(Number(v));
+if (!isFinite(n)) return false;
+const base = getCfg();
+const other = Math.round(Number(base[sib]));
+let lo = isMinSide(k) ? n : (isFinite(other) ? other : n);
+let hi = isMinSide(k) ? (isFinite(other) ? other : n) : n;
+if (hi < lo) { if (isMinSide(k)) hi = lo; else lo = hi; }   // 谁动收谁的对家
+lo = Math.max(1, Math.min(10, lo));
+hi = Math.max(lo, Math.min(10, hi));
+const minK = isMinSide(k) ? k : sib, maxK = isMinSide(k) ? sib : k;
+if (gc) { gcWrite(minK, lo); gcWrite(maxK, hi); }
+else { ls.set('reply-' + minK, String(lo)); ls.set('reply-' + maxK, String(hi)); }
+[minK, maxK].forEach(refreshStepperVal);
+syncSpellPairReadout();
+return true;
+}
+function syncSpellPairReadout() {
+const el = document.getElementById('qs-range-readout');
+if (!el) return;
+try {
+const c = getCfg();
+const mn = Number(c['qs-min']), mx = Number(c['qs-max']);
+if (!isFinite(mn) || !isFinite(mx)) { el.textContent = ''; return; }
+let s = '每次拼字：现在 ' + mn + '~' + mx + ' 张';
+if (mn === mx) s += '（最少＝最多，命中拼字时固定 ' + mx + ' 张、不再随机）';
+s += Number(c['qs-pair-own']) === 1 ? '（本组单设）' : '（跟随上方「多字卡回复」的最少/最多条数；动本组任一格即单独设定）';
+el.textContent = s;
+} catch (e) {}
+}
+function refreshStepperVal(k) {
+document.querySelectorAll('#page-reply-settings .stepper, #page-chat-settings .stepper, #group-chat-settings .stepper').forEach(st => {
+if (st.dataset.k !== k) return;
+const val = st.querySelector('input.stp-val');
+if (!val) return;
+const v = getCfg()[k];
+val.value = String(v);
+val.setAttribute('value', String(v));
+});
+}
 window.saveReplyCfg = function (k, v) {
 if (k.indexOf('gc-') === 0) {
-gcWrite(k, v);
+if (PAIR_SIB[k]) writePairedRange(k, v); else gcWrite(k, v);
 if (k.indexOf('gc-cs-') === 0) document.dispatchEvent(new Event('gc-continue-say-changed'));
 return;
 }
+if (PAIR_SIB[k]) {
+writePairedRange(k, v);
+} else {
 ls.set('reply-' + k, String(v));
+}
 if (k === 'as-en' || k === 'as-prob' || k === 'as-min' || k === 'as-max' ||
 k === 'as-count-min' || k === 'as-count-max' || k === 'dnd-en') {
 try { if (window.rescheduleAutoSend) window.rescheduleAutoSend(); } catch (e) {}
@@ -226,6 +303,7 @@ const el = document.getElementById(k);
 if (el) el.checked = cfg[k] === 1;
 });
 try { if (window.rpThxModeSync) window.rpThxModeSync(); } catch (e) {}
+syncSpellPairReadout();
 }
 let callIncomingToastTimer = null;
 function toastCallIncoming(v) {

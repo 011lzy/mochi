@@ -1493,7 +1493,19 @@ const FIX_SENTINELS = [
   { name: '#298 词典拼字抽句门·qs-en/qs-prob/qs-cc 三键生效（删则开关概率失效，拼字永不触发）', file: 'js/quote-spell.js', needle: "if (!c || c['qs-en'] !== 1) return null;" },
   { name: '#298 词典拼字接线·replyOnce 抽句门+逐词连发（删则开关存在但永不生效）', file: 'js/chat.js', needle: '(window.quoteSpellPick && window.quoteSpellPick(c))' },
   // ==== 2026-09-11 #310 词典拼字单气泡形态 + 普通字卡截断修复（qs-one 50% 混合单气泡/逐词；qs-cc 默认关防普通字卡被抽去拼字）====
-  { name: '#310 单气泡拼字形态·chat.js 空格连卡+「词典拼字」tag（删则 qs-one 开了也只有逐词连发、无单气泡形态）', file: 'js/chat.js', needle: "if (rep.spell && rep.spellOne) {\nm = addIn(rep.spell.join(' '), {" },
+  // #1451 换锚（2026-09-29）：单气泡正文改走连接符池（rep.text）后旧 needle 的空格 join 两行必然消失，
+  // 锚收到分支头这一行（src/js/chat.js 内唯一；整段分支被删或 qs-one 分支不再进 addIn 即报红）
+  { name: '#310 单气泡拼字形态·chat.js 空格连卡+「词典拼字」tag（删则 qs-one 开了也只有逐词连发、无单气泡形态）', file: 'js/chat.js', needle: 'if (rep.spell && rep.spellOne) {' },
+  // ==== 2026-09-29 #1451 拼字张数单开一对（用户实报「设的 2~5 可它一直发 5 张」；同批修掉体检读死键、诊断缺现场账、单气泡正文绕过符号池三处）====
+  { name: '#1451a 拼字张数读自己那一对（缺键由 getCfg 折成跟随 py 对；删＝回到直接读 py-min/py-max，独立两格失效）', file: 'js/quote-spell.js', needle: "const pmin = Math.max(1, Math.min(10, Number(c['qs-min']) || 2));" },
+  { name: '#1451b 拼字张数生效值单一来源（getCfg 算一次存进 cfg；删＝设置页/体检/抽卡三处各算各的，读数与实际可再次打架）', file: 'js/reply-settings.js', needle: 'const spPair = spellPairFrom(ls, out);' },
+  { name: '#1451c 最少/最多成对收口（动一枚另一枚当场落盘并回显；删＝又能把区间设成倒挂/恒值而界面无感知）', file: 'js/reply-settings.js', needle: "else { ls.set('reply-' + minK, String(lo)); ls.set('reply-' + maxK, String(hi)); }" },
+  { name: '#1451d 设置页拼字张数读数行（显示抽卡侧真正取用的区间与跟随/单设；删＝「设了 2~5」无从对账）', file: 'js/reply-settings.js', needle: 'function syncSpellPairReadout() {' },
+  { name: '#1451e 设置页两格在产物里（删＝格子在源码里、界面没接上）', file: 'index.html', needle: 'data-k="qs-min"' },
+  { name: '#1451f 拼字现场账 n＋单/连（删＝诊断里看不出每次到底抽了几张、走哪个形态）', file: 'js/chat.js', needle: "window.__spellLog.push(spellSegs.length + (spellOne ? '单' : '连'));" },
+  { name: '#1451 单气泡正文不再绕过符号池（回流＝空格 join 版写回＝「拼接随机标点」在单气泡拼字上重新失效、气泡与引用两套正文再分家）', file: 'js/chat.js', needle: "addIn(rep.spell.join(' ')", absent: true },
+  { name: '#1451g 体检读数改真源·replyRaw 走 window.replyCfg()（删＝体检回到裸读 qs-en/py-min 这类键永远落默认值，对用户实况说假话——「设了 2~5 一直发 5 张」在体检里查不出来）', file: 'js/card-audit.js', needle: 'function replyNum(k, d) { return num(replyRaw(k), d); }' },
+  { name: '#1451h 体检一键修复写入口·replySet 落 reply- 前缀键（删＝修复又写裸键＝点了「恢复概率/打开」实际什么都没改）', file: 'js/card-audit.js', needle: "return storeSet('reply-' + k, v);" },
   // #323 双形态选择哨兵已被 #370 收编（50/50 掷币改为 80/20 单气泡为主，见下方 #370 两条）
   { name: '#330 逐卡连发受回复条数最多上限·完整字卡连发≤reply-max（删则完整字卡一次刷 5 条＝超出联系人回复条数设置）', file: 'js/quote-spell.js', needle: 'if (want > rmax) want = rmax;' },
   { name: '#351a 逐卡连发不受条数限制·qs-noLimit 默认开（删则逐卡被 reply-max 收口＝默认玩法被限流；仅显式 0 才收口）', file: 'js/quote-spell.js', needle: "if (!one && c['qs-noLimit'] === 0) {" },
@@ -2787,7 +2799,10 @@ const FIX_SENTINELS = [
   // 行为断言 tools/verify-card-audit.mjs（B3h/B3i 已随本节改写）====
   { name: '#583a 预设覆盖率按「总档缩放 × (1−csp-cust)」算（改回 dc-overall-chat 原值或去掉 csp-cust 项＝又高报一倍，用户按它调参会调反）', file: 'js/card-audit.js', needle: 'var presetFinal = (lock || !dcEn || !dcUseChat) ? 0 : Math.round(dcOvEff * (100 - cspCust) / 100);' },
   { name: '#583b 自检页「调整」直达 回复设置→聊天 tab（删＝回复设置侧每行都跳不出去，用户看完「卡在哪」却到不了改的地方）', file: 'js/card-audit.js', needle: "if (key.indexOf('@reply:') === 0) return openReplyPage(key.slice(7));" },
-  { name: '#583c 附加件全 0 的「全部恢复默认」真的逐键回默认（删＝按钮点了不动，表情包/图片/颜文字三类字卡继续永不出镜）', file: 'js/card-audit.js', needle: 'ATTACH.forEach(function (a) { if (storeSet(a[0], a[2])) okAny = true; });' },
+  // #583c 重锚（2026-09-29 #1451）：本批把附加件修复块改写为 fixOne（先记撤销、再走 replySet 写 reply-
+  //   前缀键——老写法内联 storeSet 写的是裸键＝点了按钮实际没改），原「循环＋内联 storeSet」整行消失；
+  //   锚收到写入本体（recordUndo＋replySet 两个半段都在位才算修复有效，整块删掉即红）。
+  { name: '#583c 附加件全 0 的「全部恢复默认」真的逐键回默认（删＝按钮点了不动，表情包/图片/颜文字三类字卡继续永不出镜）', file: 'js/card-audit.js', needle: "function fixOne(a) { recordUndo('own', 'reply-' + a[0]); if (replySet(a[0], a[2])) okAny = true; }" },
   { name: '#583d 默认聊天字卡漏斗补 dc-use-chat 场景闸与总档（删任一项＝场景关闭或总档=0 时该行仍显示 ✓，用户以为「占比 25% 就该出卡」）', file: 'js/card-audit.js', needle: 'var usable = !lock && dcEn && dcUseChat && all > 0 && cat && prob > 0 && avail > 0;' },
   { name: '#587e 今日留言横幅「仅桌面可见」从显示前门控延续到显示期（删掉＝横幅在音乐页继续悬着，压住三颗 tab 与返回/设置五处点不动）', file: 'js/calendar.js', needle: 'new MutationObserver(function () { if (phonePageEl.hidden) hideGreetBanner(); })' },
   { name: '#587f 横幅切页收起判据引用的桌面节点（删掉＝观察器报错/横幅永远不因切页收起）', file: 'js/calendar.js', needle: "const phonePageEl = document.getElementById('page-phone');" },

@@ -1,6 +1,5 @@
 (function () { try {
 (function () {
-let lastQuote = '';   // 连续防复读：上一条拼字首卡不立刻重抽
 function quotePool() {
 let quotes = [];
 try {
@@ -54,8 +53,8 @@ const oneOn = c['qs-one'] === 1;
 const multiOn = c['qs-multi'] === 1;
 let one = true;
 if (multiOn) one = oneOn ? Math.random() >= 0.2 : false;
-const pmin = Math.max(1, Math.min(10, Number(c['py-min']) || 2));
-const pmax = Math.max(pmin, Math.min(10, Number(c['py-max']) || 5));
+const pmin = Math.max(1, Math.min(10, Number(c['qs-min']) || 2));
+const pmax = Math.max(pmin, Math.min(10, Number(c['qs-max']) || 5));
 let want = pmin + Math.floor(Math.random() * (pmax - pmin + 1));
 if (!one && c['qs-noLimit'] === 0) {
 const rmax = Math.max(pmin, Math.min(20, Number(c['reply-max']) || 2));
@@ -66,7 +65,6 @@ for (let k = 0; k < 30 && cards.length < want; k++) {
 const s2 = pool[Math.floor(Math.random() * pool.length)];
 if (cards.indexOf(s2) < 0) cards.push(s2);
 }
-lastQuote = cards[0];
 return { segs: cards, one: one };
 } catch (e) { return null; }
 };
