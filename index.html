@@ -3210,7 +3210,7 @@ flex:1; min-width:0; border:none; outline:none; background:transparent;
 font-size:13px; font-family:inherit; color:var(--ink); padding:0;
 }
 .card-search-input::placeholder { color:var(--muted); letter-spacing:.5px; }
-.card-list { flex:1; overflow-y:auto; scrollbar-width:none; -ms-overflow-style:none; padding-bottom:6px; }
+.card-list { flex:0 0 auto; overflow:visible; min-height:0; -webkit-overflow-scrolling:auto; overscroll-behavior:auto; scrollbar-width:none; -ms-overflow-style:none; padding-bottom:6px; }
 .card-list::-webkit-scrollbar { display:none; }
 .cc-item {
 display:flex; align-items:center; gap:12px;
@@ -9787,7 +9787,10 @@ border-radius:12px; background:var(--card-bg); border:1px solid var(--card-borde
 flex: 1; display: flex; flex-direction: column; gap: 10px;
 padding: 10px 14px calc(12px + var(--mochi-safe-bottom,env(safe-area-inset-bottom,0px)));
 min-height: 0;
+overflow-y: auto; overscroll-behavior: auto;
+scrollbar-width: none; -ms-overflow-style: none;
 }
+.room-stage::-webkit-scrollbar { display: none; }
 .r-hud { display: flex; flex-wrap: wrap; gap: 6px; }
 .r-chip {
 position: relative;
@@ -10728,9 +10731,9 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
       <!-- #570：第三行开屏新版检测（ver-check.js 渲染）：检测中 / ✓已是最新 / ⇩有新版本可点更新 -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1790669906679">
+      <div class="splash-ver" id="splash-ver" data-build-ts="1790673212292">
         <span class="sv-app">Mochi 字卡传讯 <b>v8.54</b></span>
-        <span class="sv-deploy">部署于 2026-09-29 16:18<span id="splash-ver-live"></span></span>
+        <span class="sv-deploy">部署于 2026-09-29 17:13<span id="splash-ver-live"></span></span>
         <span class="sv-check" id="splash-ver-check" hidden></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
@@ -22620,4 +22623,4 @@ window.__mochiBootRetry = function () { try { location.reload(); } catch (e) {} 
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mumemmt3 -->
+<!-- __MOCHI_EOF__ mumglhfo -->

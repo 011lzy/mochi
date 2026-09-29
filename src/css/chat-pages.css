@@ -127,7 +127,19 @@
 }
 .card-search-input::placeholder { color:var(--muted); letter-spacing:.5px; }
 
-.card-list { flex:1; overflow-y:auto; scrollbar-width:none; -ms-overflow-style:none; padding-bottom:6px; }
+/* FIX 2026-09-29 #1411：字卡库列表页「只有字卡列表能翻动，其它地方翻不动」＝一页两根滚动轴。
+   旧默认 flex:1 + overflow-y:auto 让列表自己成一根轴：头部（返回条＋tab＋两排工具条＋分组条＋
+   搜索框＋说明）按内容把列表压到 cc 148px / mc 6px / tm 84px / rc 103px（OPPO Reno6 5G 360×663
+   实测），于是 .page 的 scrollHeight==clientHeight＝整页零滚动区间，屏上除那条窄列表外全都
+   「跟着屏幕一起固定」。base.css 的 .card-list{overscroll-behavior:contain} 又掐断滚动链，
+   窄列表滚到底也接不上外层＝#239（2026-09-07 同一台雨见报「下面无法滑动显示字卡」）与 #350 的
+   同族病。那两批按页面 id 逐页打补丁（dc/fc/dk/dict 四条），漏了 cc/mc/tm/rc 四页——本轮把口径
+   收到类上：列表一律随内容自然生长，滚动只由 .page 承担，新增字卡页无需再登记任何 per-id 规则。
+   判据零机型／零 UA 分支，也不依赖 :has()（老内核上静默不生效＝病灶原地复发）。
+   ⚠ 不要改回 flex:1/overflow-y:auto：default-cards.js 的虚拟窗口按「谁真在裁剪内容」选滚动容器
+     （guessScroller），列表不再裁剪时它会走 .page；把列表重新变成裁剪容器＝窗口与滚动容器再度错位。
+   旧的四条 per-id 规则（#239a/#350 等哨兵焊着的）保留不动，与本行同值＝幂等。 */
+.card-list { flex:0 0 auto; overflow:visible; min-height:0; -webkit-overflow-scrolling:auto; overscroll-behavior:auto; scrollbar-width:none; -ms-overflow-style:none; padding-bottom:6px; }
 .card-list::-webkit-scrollbar { display:none; }
 .cc-item {
   display:flex; align-items:center; gap:12px;

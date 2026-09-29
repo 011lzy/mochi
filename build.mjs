@@ -392,6 +392,10 @@ console.log('已复制 PWA 文件 → ' + pwaFiles.join(', ') + '（sw 缓存版
 // （防止并行会话/旧缓冲把已移除的代码改回来）。
 // 维护：新增关键修复时在此登记一行 { name, file, needle }（needle 为产物中的特征串）。
 const FIX_SENTINELS = [
+{ name: '#1411a 类级新默认在位（改回 flex:1＋overflow-y:auto＝列表又变成第二根轴，头部把窄条一挤就是「只有字卡列表能翻动、其它地方翻不动」）', file: 'css/chat-pages.css', needle: ".card-list { flex:0 0 auto; overflow:visible; min-height:0; -webkit-overflow-scrolling:auto; overscroll-behavior:auto;" },
+{ name: '#1411b 旧默认不得回流产物（回流＝#239/#350/#1411 同一族病原地复发，多机型报「页面跟着屏幕一起固定」）', file: 'index.html', needle: ".card-list { flex:1; overflow-y:auto", absent: true },
+{ name: '#1421a 房间页那根滚动轴（删＝房间页回到「划哪儿都不动」，内容一高过可视区就被静默裁掉）', file: 'css/room.css', needle: 'overflow-y: auto; overscroll-behavior: auto;' },
+{ name: '#1421b 使用提示条挂载点先问「这一页自己滚不滚」（删＝条子常驻页首当第二层头部，内层窗口那族页被挤窄一屏）', file: 'js/page-coach.js', needle: 'page.scrollHeight - page.clientHeight > 0' },
   /* ==== 2026-09-29 #1376（用户直派「我发一句，联系人发一堆」→ nova 式并轮做成开关；复报「换成这个后几分钟联系人不回」→ 每联系人／每群各排一轮＋已读不回起手掷且判不回就占轮；再定「默认保持原机制」「开 nova 不受总量限流」）==== */
   { name: '#1376a 两条回复机制由 turn-en 分流（删＝开关失效或被写死成一条，用户要的「默认原机制＋可切 nova」落不了地）', file: 'js/chat.js', needle: "if (Number(cfg()['turn-en']) === 1) return scheduleReplyTurn();" },
   { name: '#1376b 单聊的轮按联系人各存一份（改回单槽＝切去别的联系人发一句会顶掉上一个联系人排着的轮＝那一轮永远不回，正是复报的「几分钟不回」）', file: 'js/chat.js', needle: 'const replyTurns = {}; /* cid -> { due, cap, timer } */' },
@@ -2682,7 +2686,7 @@ const FIX_SENTINELS = [
   { name: '#bty-d 边看边调首次改动压撤销快照（旧抽屉全程不 pushBeautyUndo＝乱调无从撤销；删 armUndo 定义＝撤销断链复发）', file: 'js/personalize.js', needle: 'const armUndo = () => { if (undoArmed) return;' },
   // ==== 2026-09-16 #572 页面内「先做这个」提示（AI-A 新模块 page-coach.js + feature-hub 只读查询
   // + 三页空状态动作；用户问「复杂页面里不知道先点哪儿」；#553~#562/#570/#571 已被并行批次占用故取 #572） ====
-  { name: '#572a 页面提示条插入（删/改＝复杂页首访不再自述「先做这个」，用户回到站在页里发懵）', file: 'js/page-coach.js', needle: 'page.insertBefore(buildBar(cfg), page.firstChild);' },
+{ name: '#572a 页面提示条插入（删/改＝复杂页首访不再自述「先做这个」，用户回到站在页里发懵）', file: 'js/page-coach.js', needle: 'mountBar(page, buildBar(cfg));' },
   { name: '#572b 提示文案与跳转取自功能大全目录表（删＝页面提示与功能大全分叉成两套说明，功能入口变了提示不跟）', file: 'js/feature-hub.js', needle: 'window.mochiHubItemsFor = function (sels) {' },
   { name: '#572c 已看页标记（删＝每进一次都弹同一提示＝骚扰）', file: 'js/page-coach.js', needle: 'const MARK = G + \'__coach-seen\';' },
   { name: '#572d __coach-seen 全局根键免迁（删＝每次刷新被 migrateLegacy 迁进 default 删根键，提示反复弹）', file: 'js/contacts.js', needle: "'__coach-seen'," },
