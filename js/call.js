@@ -3,8 +3,9 @@
 const uid = window.activePrefix();
 const store = window.activeStore();
 const CALL = { incoming: 15, pickup: 70, busy: 15, reject: 15, hangup: 2 };
-function callCfg() {
-const c = (window.replyCfg && window.replyCfg()) || {};
+function callCfg(cid) {
+const own = cid && cid !== (window.__activeCid || 'default');
+const c = (own && window.replyCfgFor ? window.replyCfgFor(cid) : (window.replyCfg && window.replyCfg())) || {};
 return {
 incoming: c['call-incoming'] !== undefined ? c['call-incoming'] : CALL.incoming,
 pickup: c['call-pickup'] !== undefined ? c['call-pickup'] : CALL.pickup,
@@ -336,6 +337,7 @@ function callActivePayload() {
 return JSON.stringify({
 cid: currentCall.cid, direction: currentCall.direction, status: currentCall.status,
 startTime: currentCall.startTime, connectedTime: currentCall.connectedTime || 0,
+hangupAt: currentCall.hangupAt || 0,
 name: currentCall.name || '', av: '', ts: Date.now()
 });
 }
@@ -437,23 +439,18 @@ function startCallDuration() {
 stopTimers();
 if (!currentCall.connectedTime) currentCall.connectedTime = Date.now(); // v3.26.x：恢复通话时已有 connectedTime 不覆盖，计时从接通时刻继续
 updateDur(); // v3.13.x：接通立即刷新显示，避免接通瞬间仍停留「00:00」卡一下
-let checkCount = 0;
+if (!currentCall.hangupAt) currentCall.hangupAt = Math.max(currentCall.connectedTime + 180000, Date.now());
 let hbCount = 0;
 durationTimer = setInterval(() => {
 updateDur();
 syncCallAv();
 syncCallName();
 if (++hbCount >= 20) { hbCount = 0; saveCallActive(); }
-if (currentCall && currentCall.status === 'connected') {
-if (Date.now() - currentCall.connectedTime >= 180000) {
-checkCount++;
-if (checkCount >= 60) {
-checkCount = 0;
-const hp = callCfg();
+if (currentCall && currentCall.status === 'connected' && Date.now() >= currentCall.hangupAt) {
+currentCall.hangupAt = Date.now() + 60000;
+const hp = callCfg(currentCall.cid);
 if (!(hp.nohangup || hp.hangup <= 0) && Math.random() * 100 < hp.hangup) {
 endCall('对方挂断了电话');
-}
-}
 }
 }
 }, 1000);
@@ -876,7 +873,7 @@ const dir = info.direction || 'out';
 const name = info.name || 'TA';
 if (callCfg().resume !== 0) {
 try {
-currentCall = { cid: cid, direction: dir, status: 'connected', startTime: info.startTime || info.connectedTime, connectedTime: info.connectedTime, durationSec: 0, name: name, av: info.av || '' };
+currentCall = { cid: cid, direction: dir, status: 'connected', startTime: info.startTime || info.connectedTime, connectedTime: info.connectedTime, hangupAt: info.hangupAt || 0, durationSec: 0, name: name, av: info.av || '' };
 shownAv = null; shownName = null;
 if (callMiniEnabled()) {
 if (mask) mask.hidden = true;

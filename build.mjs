@@ -5779,6 +5779,16 @@ const FIX_SENTINELS = [
   { name: '#1399d 弹层开关按方向走（开＝铺整段／关＝撤段，不再是一句「比对不等就 toggle」＝开关与格色两把尺子对不上）', file: 'js/period.js', needle: "if (wantPeriod && dayPhase(ds) !== 'period') markSpanStart(ds);" },
   { name: '#1399e 月首月尾补的是相邻月真日子（这一行没了＝那些格子又变回看得见点不动的死格）', file: 'js/period.js', needle: "+ (out ? ' pc-out' : '');" },
   { name: '#1399f 补格淡一档与当月格区分（删＝两桶格子同一读数，认不出谁不是这个月）', file: 'index.html', needle: '.period-grid .pc-cell.pc-out { opacity:.45; }' },
+  { name: '#1394a 挂断掷骰改问墙钟（删回＝息屏/后台节流下概率永不落地）', file: 'js/call.js', needle: "if (currentCall && currentCall.status === 'connected' && Date.now() >= currentCall.hangupAt) {" },
+  { name: '#1394b 每掷一次把锚推到下一个 60 秒墙钟点', file: 'js/call.js', needle: 'currentCall.hangupAt = Date.now() + 60000;' },
+  { name: '#1394c 首掷锚＝接通满 3 分钟且不早于当下（删 180000 档＝保护期消失）', file: 'js/call.js', needle: 'Math.max(currentCall.connectedTime + 180000, Date.now())' },
+  { name: '#1394d 锚随 call-active 载荷落盘（删＝反复刷新＝无限续命）', file: 'js/call.js', needle: 'hangupAt: currentCall.hangupAt || 0,' },
+  { name: '#1394e 恢复时把锚带回来（删＝刷新续上后从头重排）', file: 'js/call.js', needle: 'hangupAt: info.hangupAt || 0,' },
+  { name: '#1394f 掷骰按通话归属桌面读设置（删＝A 的通话按 B 的概率判定）', file: 'js/call.js', needle: 'const hp = callCfg(currentCall.cid);' },
+  { name: '#1394g 仅在归属桌面≠当前桌面时下探 replyCfgFor（删＝default 桌面丢旧顶层键回退，未迁移老数据被判成没设过）', file: 'js/call.js', needle: "const own = cid && cid !== (window.__activeCid || 'default');" },
+  { name: '#1394h 通话设置页写明判定节奏与量级', file: 'template.html', needle: '判定按墙钟走' },
+  { name: '#1394i 挂断开关不再自称全站总开关（删＝per-桌面开关被当全站开关，开了仍被挂）', file: 'template.html', needle: '不是全站总开关' },
+  { name: '#1394j 删除型：旧的「数满 60 拍」写法不得回流（底本产物命中 1、本批 0）', file: 'js/call.js', needle: 'checkCount >= 60', absent: true },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

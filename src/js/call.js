@@ -9,8 +9,18 @@
   const store = window.activeStore();
   const CALL = { incoming: 15, pickup: 70, busy: 15, reject: 15, hangup: 2 };
   // 从回复设置读取（可自由调整概率，与星言通话设置一致）
-  function callCfg() {
-    const c = (window.replyCfg && window.replyCfg()) || {};
+  // FIX 2026-09-29 #1394（作者直派「刷新后恢复通话开了，但接上通话后一直不触发挂断概率」）：
+  //   可选参数 cid＝这一通电话的归属桌面。原实现一律读「当前激活桌面」的设置（replyCfg →
+  //   activeStore 按 __activeCid 动态解析），而「通话中挂断概率」这一发掷在通话进行期间——那时
+  //   用户可能已切到别的联系人桌面（或刷新后回到别的桌面），于是「A 的通话」按「B 的概率」判定：
+  //   B 从没存过这个键则回落默认 2%，B 设过 0 就永不挂断；而挂断记录仍写回归属桌面＝设置页看到
+  //   的和实际生效的不是同一个人。
+  //   ⚠ 只在「归属桌面 ≠ 当前桌面」时才改读法：default 桌面的 activeStore 带旧顶层键回退
+  //   （contacts.js 的 defaultStore），storeFor('default') 没有那一层——无条件换读法会把未迁移的
+  //   老数据判成「没设过」＝静默回落默认值，那是新缺陷不是修复。
+  function callCfg(cid) {
+    const own = cid && cid !== (window.__activeCid || 'default');
+    const c = (own && window.replyCfgFor ? window.replyCfgFor(cid) : (window.replyCfg && window.replyCfg())) || {};
     return {
       incoming: c['call-incoming'] !== undefined ? c['call-incoming'] : CALL.incoming,
       pickup: c['call-pickup'] !== undefined ? c['call-pickup'] : CALL.pickup,
@@ -456,6 +466,9 @@
     return JSON.stringify({
       cid: currentCall.cid, direction: currentCall.direction, status: currentCall.status,
       startTime: currentCall.startTime, connectedTime: currentCall.connectedTime || 0,
+      // #1394：掷骰的墙钟锚跟着落盘——不带它，刷新/恢复后「下一次该掷的时刻」只能从零重排，
+      //   那正是「反复刷新＝无限续命」的来路。旧载荷没这个字段（读到 0）→ 恢复时按当下重算。
+      hangupAt: currentCall.hangupAt || 0,
       name: currentCall.name || '', av: '', ts: Date.now()
     });
   }
@@ -602,7 +615,17 @@
     stopTimers();
     if (!currentCall.connectedTime) currentCall.connectedTime = Date.now(); // v3.26.x：恢复通话时已有 connectedTime 不覆盖，计时从接通时刻继续
     updateDur(); // v3.13.x：接通立即刷新显示，避免接通瞬间仍停留「00:00」卡一下
-    let checkCount = 0;
+    // FIX 2026-09-29 #1394（作者直派「刷新恢复通话后一直不触发通话中挂断概率」）：掷骰周期从
+    //   「数满 60 个 1 秒 tick」改成墙钟锚 currentCall.hangupAt。两条根因都在「数 tick」这一件事上：
+    //   ①通话进行时页面通常在息屏/后台，隐藏页定时器被内核节流到约 1 次/分钟、安卓 5 分钟后整页冻结
+    //   （#757 在本文件写下过同一事实：心跳 setInterval「页面被系统冻结/杀进程时根本不跑」）——
+    //   60 次 tick 最长要走 60 分钟，冻结期间压根不走；②计数是 startCallDuration 的闭包局部，
+    //   每刷新/恢复一次就从零重数＝反复刷新可无限续命。作者实测所见「接上通话后一直不掷骰」即此。
+    //   锚随 call-active 载荷落盘（见 callActivePayload）并在恢复时带回，故后台与刷新都不再赖账；
+    //   前台节奏一字未动（接通满 3 分钟后每 60 秒一次，与函数头文档同口径）。
+    //   语义取舍（作者点名的口径）：整页冻结 30 分钟后回场，只补掷一次（锚已过期→下一 tick 掷一发，
+    //   然后重新 +60 秒），不按错过的档数成串补掷。
+    if (!currentCall.hangupAt) currentCall.hangupAt = Math.max(currentCall.connectedTime + 180000, Date.now());
     let hbCount = 0;
     durationTimer = setInterval(() => {
       updateDur();
@@ -615,18 +638,14 @@
       // v3.6.x：放宽——原实现 10 秒保护后每 30 秒掷一次，默认 5% 实际效果远超设置字面值
       //（约 3 分钟累计 ~23% 被挂断、10 分钟内累计 ~62%），用户反馈「3 分钟左右自动挂断、
       // 没一通超过 10 分钟」；改 3 分钟保护 + 60 秒周期后，挂断概率才接近设置的字面含义
-      if (currentCall && currentCall.status === 'connected') {
-        if (Date.now() - currentCall.connectedTime >= 180000) {
-          checkCount++;
-          if (checkCount >= 60) {
-            checkCount = 0;
-            // #200：总开关开启或挂断概率 <=0 时硬闸不掷骰——概率为 0 本就不该挂断，
-            // 这里再显式拦一道，防设置读取异常回落默认值导致「设 0 仍被挂断」
-            const hp = callCfg();
-            if (!(hp.nohangup || hp.hangup <= 0) && Math.random() * 100 < hp.hangup) {
-              endCall('对方挂断了电话');
-            }
-          }
+      if (currentCall && currentCall.status === 'connected' && Date.now() >= currentCall.hangupAt) {
+        currentCall.hangupAt = Date.now() + 60000;
+        // #200：总开关开启或挂断概率 <=0 时硬闸不掷骰——概率为 0 本就不该挂断，
+        // 这里再显式拦一道，防设置读取异常回落默认值导致「设 0 仍被挂断」
+        // #1394：按归属桌面读概率（掷骰时用户可能已切桌面）
+        const hp = callCfg(currentCall.cid);
+        if (!(hp.nohangup || hp.hangup <= 0) && Math.random() * 100 < hp.hangup) {
+          endCall('对方挂断了电话');
         }
       }
     }, 1000);
@@ -1257,7 +1276,8 @@
     // v3.26.x：开启「刷新后恢复通话」→ 重建通话 UI + 从接通时刻继续计时（TA 本地模拟，无需重连）
     if (callCfg().resume !== 0) {
       try {
-        currentCall = { cid: cid, direction: dir, status: 'connected', startTime: info.startTime || info.connectedTime, connectedTime: info.connectedTime, durationSec: 0, name: name, av: info.av || '' };
+        // #1394：hangupAt 跟着带回来（旧载荷没这字段→0→startCallDuration 按当下重算）
+        currentCall = { cid: cid, direction: dir, status: 'connected', startTime: info.startTime || info.connectedTime, connectedTime: info.connectedTime, hangupAt: info.hangupAt || 0, durationSec: 0, name: name, av: info.av || '' };
         shownAv = null; shownName = null;
         if (callMiniEnabled()) {
           if (mask) mask.hidden = true;

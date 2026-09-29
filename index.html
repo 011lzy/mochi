@@ -10700,9 +10700,9 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
       <!-- #570：第三行开屏新版检测（ver-check.js 渲染）：检测中 / ✓已是最新 / ⇩有新版本可点更新 -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1790649663888">
+      <div class="splash-ver" id="splash-ver" data-build-ts="1790651179154">
         <span class="sv-app">Mochi 字卡传讯 <b>v8.53</b></span>
-        <span class="sv-deploy">部署于 2026-09-29 10:41<span id="splash-ver-live"></span></span>
+        <span class="sv-deploy">部署于 2026-09-29 11:06<span id="splash-ver-live"></span></span>
         <span class="sv-check" id="splash-ver-check" hidden></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
@@ -14126,12 +14126,12 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
           <div class="gs-row"><span>拒接概率</span><div class="stepper" data-k="call-reject" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="call-reject-val" readonly><button class="stp-max">+</button></div></div>
           <div class="gs-row"><span>通话中挂断概率</span><div class="stepper" data-k="call-hangup" data-min="0" data-max="100" data-step="0.01"><button class="stp-min">−</button><input class="stp-val" id="call-hangup-val" readonly><button class="stp-max">+</button></div></div>
         </div>
-        <div class="sm-set-hint" style="padding:0 16px 8px">【来电概率是怎么触发的】有 3 类「机会」，每来一次机会就单独掷一次骰子，命中就打来电话：① TA 每回复你一条消息，掷一次；② TA 每次主动给你发消息，掷一次；③ 应用开着时，后台每 1~2 分钟也会掷一次兜底。两次来电之间至少间隔 5 分钟，设 0 则从不主动来电。<br>【为什么设得不高却感觉来得挺勤】概率是「每次机会」单独算的，不是「每天总共」的概率——你聊天越勤，机会就越多，累积起来自然来电频繁。例如设 15%：和 TA 聊 20 句就有约 20 次掷骰机会，来电概率本身没坏，是机会次数多。想让来电变少，直接把数值调小即可，效果大约成比例：调小 10 倍，来电也约少 10 倍。<br>【嫌多又不想设 0】点数值框直接输入小数（如 0.05），不用狂按 +/−。来电概率支持 0.01 粒度，最低可设 0.01（0.05、0.1 等 0.0几 的数值都可以）——设 0.01 时平均每 100 次机会才来电 1 次，基本只是偶尔响一次。<br>【接听 / 忙线 / 拒接概率】你打给 TA 时用：按「忙线 → 拒接 → 接听」顺序判定，先命中哪个就是哪种结果；三项都没命中就是「未接通」。默认 15 / 15 / 70 恰好占满 100，不会有未接通；想偶尔出现未接通，把三项合计调到 100 以下。<br>【通话中挂断概率】接通满 3 分钟保护期后，每 60 秒掷一次，命中对方就主动挂断，通话越久累计越容易被挂。支持 0.01 粒度，最低可设 0.01；设 0（或开下方「禁止联系人挂断电话」）＝对方永不主动挂断。<br>【改数值】点数值框直接输入（手机会弹数字键盘），或按 +/− 微调；改完立即保存生效。以上概率均按联系人各自保存，互不影响。</div>
+        <div class="sm-set-hint" style="padding:0 16px 8px">【来电概率是怎么触发的】有 3 类「机会」，每来一次机会就单独掷一次骰子，命中就打来电话：① TA 每回复你一条消息，掷一次；② TA 每次主动给你发消息，掷一次；③ 应用开着时，后台每 1~2 分钟也会掷一次兜底。两次来电之间至少间隔 5 分钟，设 0 则从不主动来电。<br>【为什么设得不高却感觉来得挺勤】概率是「每次机会」单独算的，不是「每天总共」的概率——你聊天越勤，机会就越多，累积起来自然来电频繁。例如设 15%：和 TA 聊 20 句就有约 20 次掷骰机会，来电概率本身没坏，是机会次数多。想让来电变少，直接把数值调小即可，效果大约成比例：调小 10 倍，来电也约少 10 倍。<br>【嫌多又不想设 0】点数值框直接输入小数（如 0.05），不用狂按 +/−。来电概率支持 0.01 粒度，最低可设 0.01（0.05、0.1 等 0.0几 的数值都可以）——设 0.01 时平均每 100 次机会才来电 1 次，基本只是偶尔响一次。<br>【接听 / 忙线 / 拒接概率】你打给 TA 时用：按「忙线 → 拒接 → 接听」顺序判定，先命中哪个就是哪种结果；三项都没命中就是「未接通」。默认 15 / 15 / 70 恰好占满 100，不会有未接通；想偶尔出现未接通，把三项合计调到 100 以下。<br>【通话中挂断概率】接通满 3 分钟保护期后，每 60 秒按这个百分比掷一次，命中对方就主动挂断，通话越久累计越容易被挂。它是「每一分钟各掷一次」，不是「整通电话一共这么多」：默认 2% 意味着约每 50 次判定才命中 1 次（判定从第 3 分钟起、每分钟一次），也就是平均通话将近一小时才被挂断一次，接通后 10 分钟内被挂断的概率只有约 15%；觉得太少就把数值调大，效果约成正比（20% ≈ 每 5 次判定命中 1 次）。判定按墙钟走：息屏、切后台、刷新页面都不会让它停摆，回到这一页时若已跨过判定点就补掷一次（不按错过的分钟数成串补）。支持 0.01 粒度，最低可设 0.01；设 0（或开下方「禁止联系人挂断电话」）＝对方永不主动挂断。<br>【改数值】点数值框直接输入（手机会弹数字键盘），或按 +/− 微调；改完立即保存生效。以上概率均按联系人各自保存，互不影响。</div>
         <div class="gs-title">对方挂断</div>
         <div class="set-group glass">
           <div class="gs-row"><span>禁止联系人挂断电话</span><label class="toggle"><input type="checkbox" id="call-no-hangup"><span class="tk"></span></label></div>
         </div>
-        <div class="sm-set-hint" style="padding:0 16px 8px">开启后无论挂断概率是多少，通话中对方都不会主动挂断（默认关闭，需手动开启）。注意通话概率设置按联系人各自保存：某个联系人的桌面从没保存过挂断概率时，会按默认 2% 计算——个别联系人「挂断几率明明设了 0 还是被挂断」就是这种情况，开此总开关可一并兜住。</div>
+        <div class="sm-set-hint" style="padding:0 16px 8px">开启后无论挂断概率是多少，通话中对方都不会主动挂断（默认关闭，需手动开启）。注意这一行只管【当前桌面（这一位联系人）】，不是全站总开关：通话概率按联系人各自保存，某个联系人的桌面从没保存过挂断概率时会按默认 2% 计算——个别联系人「挂断几率明明设了 0 还是被挂断」就是这种情况，需要在每位联系人的桌面分别开。掷骰判定读的是【这通电话归属那位联系人】自己的设置：通话中切到其他桌面、或刷新后回到别的桌面，也不会改用你当前看着的那个桌面的数值。</div>
         <div class="gs-title">通话恢复</div>
         <div class="set-group glass">
           <div class="gs-row"><span>刷新后恢复通话</span><label class="toggle"><input type="checkbox" id="call-resume"><span class="tk"></span></label></div>
@@ -22568,4 +22568,4 @@ window.__mochiBootRetry = function () { try { location.reload(); } catch (e) {} 
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mum2krdc -->
+<!-- __MOCHI_EOF__ mum3h8k2 -->
