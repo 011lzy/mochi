@@ -922,7 +922,7 @@ if (!window.openTCPanel) { localPlId = 'default'; }
 window.openTCPanel('添加本地音乐', '' +
 '<div class="sm-form">' +
 '<div class="sm-fld"><label>上传到播放列表</label><select class="tc-input" id="sm-local-pl">' + targetPlOptions() + '</select></div>' +
-'<div class="sm-fld-hint">选择一首或多首本地音频（mp3 / m4a / aac / ogg / wav / flac）存放进上面的歌单；选「新建歌单」可先建一个歌单再上传。<br>整首音乐已经存在手机里（自己转换 / 无版权保护的下载 / 录音等）时用这里；如果歌还在别的 App 里（QQ音乐 / 酷狗 / B站 等），App 的「分享」链接不能直接导入。<br><b>⚠ 文件必须是不加密的标准音频：</b>音乐 App 里下载 / 缓存的歌曲文件大多带了加密，即使扩展名是 .mp3 / .flac / .m4a 也放不出声；无损 .m4a（ALAC 编码）部分浏览器也不支持。上传后点一下播放试试，放不出来的建议转成 <b>mp3</b>（兼容性最好）再上传。</div>' +
+'<div class="sm-fld-hint">选择一首或多首本地音频（mp3 / m4a / aac / ogg / wav / flac）存放进上面的歌单；选「新建歌单」可先建一个歌单再上传。<br>整首音乐已经存在手机里（自己转换 / 无版权保护的下载 / 录音等）时用这里；如果歌还在别的 App 里（QQ音乐 / 酷狗 / B站 等），App 的「分享」链接不能直接导入。<br><span style="color:var(--danger-ink,#a32d2d)"><b>⚠ 文件必须是不加密的标准音频：</b>音乐 App 里下载 / 缓存的歌曲文件大多带了加密，即使扩展名是 .mp3 / .flac / .m4a 也放不出声；无损 .m4a（ALAC 编码）部分浏览器也不支持。举例：QQ音乐和网易云里下载的歌曲都是有加密的，不在QQ音乐和网易云音乐本体应用里播放是无法播放的，只能自己转格式破解后才能在别的应用和本地播放。上传后点一下播放试试，放不出来的建议转成 <b>mp3</b>（兼容性最好）再上传。</span></div>' +
 '</div>' +
 '<div class="mail-actions"><button class="cc-tool" id="sm-local-cancel">取消</button><button class="cc-tool" id="sm-local-ok">选择文件上传</button></div>');
 document.getElementById('sm-local-cancel').addEventListener('click', () => { document.getElementById('tc-mask').hidden = true; });

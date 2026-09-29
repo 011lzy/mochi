@@ -5991,6 +5991,8 @@ const FIX_SENTINELS = [
   { name: '#1436d 感知一下先催一次换位再取读数（删＝新开关只剩改方向、TA 的位置与时间线不动，作者点选的「真换一次位」落空）', file: 'js/p2-features.js', needle: 'if (shiftNow() && window.locShiftNow) window.locShiftNow();' },
   { name: '#1436e 换位那一发抽出可复用出口并避开上一张（删＝方位感知没有路走这条机制，或每次撞回同一张卡＝点了不动）', file: 'js/p2-features.js', needle: 'window.locShiftNow = function ()' },
   { name: '#1436f 第四枚开关落进换位设置组并绑 per-cid 键（删＝设置里没有它，用户只能永远等那一发 2~6 小时）', file: 'js/p2-features.js', needle: "bindLocTg('loc-shift-tg', 'loc-sense-shift')" },
+  /* ==== 2026-09-30 #1461 作者直派：本地音乐上传警示整段标红＋点名 QQ音乐/网易云加密实例（作者口径实例句，防并行改写丢字） ==== */
+  { name: '#1461a 上传警示的加密实例句在位（删＝作者点名的 QQ音乐/网易云「有加密、离开本体放不出、须自己转格式破解」提醒丢失，红标回落灰字）', file: 'js/music-player.js', needle: '只能自己转格式破解后才能在别的应用和本地播放' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
