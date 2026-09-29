@@ -2102,6 +2102,7 @@ return !!rlUserSpokeAt && rlReserveFor !== rlUserSpokeAt && Date.now() - rlUserS
 function rateLimitFull() {
 try {
 const c = cfg();
+if (cfgn(c, 'turn-en', 0) === 1) return false; // 「连发的算一轮」（nova 式）打开＝本总量限流整条不再计数与拦（用户口径：两条机制各管各的，不叠加）
 if (cfgn(c, 'rl-en', 0) !== 1) return false;
 const win = Math.max(1, cfgn(c, 'rl-win', 5)) * 60000;
 const max = Math.max(1, cfgn(c, 'rl-max', 15));
@@ -5919,7 +5920,14 @@ if (kj) { reply += chatKaoJoinSep(reply, kj) + kj; replyCards = 2; } // #851 文
 }
 return { text: reply, type: type, cards: replyCards };
 }
+const TURN_HOLD = 1500, TURN_HOLD_MAX = 8000;
+const replyTurns = {}; /* cid -> { due, cap, timer } */
+window.__replyTurnKeys = function () { try { return Object.keys(replyTurns); } catch (e) { return []; } }; // 只读诊断：此刻有哪几个联系人各排着一轮
 function scheduleReply() {
+if (Number(cfg()['turn-en']) === 1) return scheduleReplyTurn();
+return scheduleReplyMochi();
+}
+function scheduleReplyMochi() {
 const myCid = window.__activeCid || 'default';
 const sameCid = () => (window.__activeCid || 'default') === myCid;
 syncLastMineText();
@@ -5942,6 +5950,40 @@ if (hit(c['touch-prob'])) {
 performPoke();
 return;
 }
+deliverTurn(c, sameCid, quoteSrc, quoteSrcIdx, quoteKey);
+}, delay);
+}
+function scheduleReplyTurn() {
+const myCid = window.__activeCid || 'default';
+const nowT = Date.now();
+syncLastMineText(); // 每发一条都刷新「我最后那句」，到点那一刻再取快照＝轮内末尾那条
+try { window.__replyWaitT0 = Date.now(); } catch (eRW) {} // #571 起点＝你话音落下这一刻，与到点无关
+const c = cfg();
+let t = replyTurns[myCid];
+if (t && t.silent) {
+t.due = Math.min(t.cap, Math.max(t.due, nowT + TURN_HOLD));
+clearTimeout(t.timer);
+t.timer = setTimeout(() => { if (replyTurns[myCid] === t) delete replyTurns[myCid]; }, Math.max(0, t.due - nowT));
+return;
+}
+if (!t) {
+const draw = (c['rs-min'] + Math.random() * Math.max(1, c['rs-max'] - c['rs-min'])) * 1000;
+try { window.__rsDrawS = Math.round(draw / 100) / 10; } catch (eRD) {} // #571 本次掷到的设定延迟（秒）
+t = replyTurns[myCid] = { due: nowT + draw, cap: nowT + draw + TURN_HOLD_MAX, timer: 0 };
+if (hit(c['rn-prob'])) {
+t.silent = 1;
+setTimeout(() => { if ((window.__activeCid || 'default') === myCid) addIn('', { special: 'read' }); }, randInt(1000, 4000));
+t.timer = setTimeout(() => { if (replyTurns[myCid] === t) delete replyTurns[myCid]; }, Math.max(0, t.due - nowT));
+return;
+}
+} else {
+t.due = Math.min(t.cap, Math.max(t.due, nowT + TURN_HOLD));
+}
+showTyping();
+clearTimeout(t.timer); // 只撤自己这一轮，别的联系人排着的轮照旧
+t.timer = setTimeout(() => { if (replyTurns[myCid] === t) delete replyTurns[myCid]; runReplyTurn(myCid); }, Math.max(0, t.due - nowT));
+}
+function deliverTurn(c, sameCid, quoteSrc, quoteSrcIdx, quoteKey) {
 const rpMin = Math.max(1, Number(c['reply-min']) || 1);
 const rpMax = Math.max(rpMin, Number(c['reply-max']) || 2);
 const count = (c['py-en'] === 1) ? randInt(rpMin, rpMax) : 1;
@@ -5961,7 +6003,20 @@ setTimeout(() => { if (!sameCid()) return; if (window.maybeMusicRequest) window.
 }
 }, i * randInt(1200, 2800));
 }
-}, delay);
+}
+function runReplyTurn(myCid) {
+const sameCid = () => (window.__activeCid || 'default') === myCid;
+const quoteSrc = lastMineQuote;
+const quoteSrcIdx = lastMineIdx;
+const quoteKey = quoteSrc && typeof quoteSrc === 'object' ? String(quoteSrc.t || '') + '\n' + (quoteSrc.imgs || []).join() : String(quoteSrc || '');
+const c = cfg();
+if (!sameCid()) { hideTyping(); return; }
+hideTyping();
+if (hit(c['touch-prob'])) {
+performPoke();
+return;
+}
+deliverTurn(c, sameCid, quoteSrc, quoteSrcIdx, quoteKey);
 }
 async function replyOnce(c, quote, silent, quoteIdx) {
 try { console.log('[mochi-reply] replyOnce #%s quote=%s silent=%s', (window.__replyOnceDiag=(window.__replyOnceDiag||0)+1), !!quote, !!silent); } catch(e){}

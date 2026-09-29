@@ -392,6 +392,14 @@ console.log('已复制 PWA 文件 → ' + pwaFiles.join(', ') + '（sw 缓存版
 // （防止并行会话/旧缓冲把已移除的代码改回来）。
 // 维护：新增关键修复时在此登记一行 { name, file, needle }（needle 为产物中的特征串）。
 const FIX_SENTINELS = [
+  /* ==== 2026-09-29 #1376（用户直派「我发一句，联系人发一堆」→ nova 式并轮做成开关；复报「换成这个后几分钟联系人不回」→ 每联系人／每群各排一轮＋已读不回起手掷且判不回就占轮；再定「默认保持原机制」「开 nova 不受总量限流」）==== */
+  { name: '#1376a 两条回复机制由 turn-en 分流（删＝开关失效或被写死成一条，用户要的「默认原机制＋可切 nova」落不了地）', file: 'js/chat.js', needle: "if (Number(cfg()['turn-en']) === 1) return scheduleReplyTurn();" },
+  { name: '#1376b 单聊的轮按联系人各存一份（改回单槽＝切去别的联系人发一句会顶掉上一个联系人排着的轮＝那一轮永远不回，正是复报的「几分钟不回」）', file: 'js/chat.js', needle: 'const replyTurns = {}; /* cid -> { due, cap, timer } */' },
+  { name: '#1376c 判「已读不回」就占住这一轮（删＝你补的每句各掷一次，连发五句得五枚回执）', file: 'js/chat.js', needle: 't.silent = 1;' },
+  { name: '#1376d 并轮那一路不受总量限流（用户口径：开着 nova 就不受它管，两条机制不叠加）', file: 'js/chat.js', needle: "if (cfgn(c, 'turn-en', 0) === 1) return false;" },
+  { name: '#1376e 投递尾段只此一份（复制回两条路＝改一处漏一处，且 replyGuideHint 接线数被顶偏）', file: 'js/chat.js', needle: 'function deliverTurn(c, sameCid' },
+  { name: '#1376f 群聊按群各排一轮且落回发起群（改回单槽＝切群顶掉别的群的轮；成员名单按发起群取，否则到点时人在别的群会选错成员）', file: 'js/group-chat.js', needle: 'const gcTurns = {}; /* gid -> { due, cap, timer, text } */' },
+  { name: '#1376g 群聊轮只收边不加延迟（删＝并轮后又叠一层 gc-rs 抽样，成员回话凭空多等一段）', file: 'js/group-chat.js', needle: 'const GC_TURN_HOLD = 1500, GC_TURN_HOLD_MAX = 8000;' },
   /* ==== 2026-09-28 #1372 用户直派「为什么公告里那条『功能大全：灵感来自某外部项目』还没删掉」：那本项目是用户自研的另一站，不该被列为本站灵感源；四处镜像各删自己那一行（开屏 bullet／关于页署名段／#305 锚注释／在线公告 notice.json），其余署名文案一字未动。四支 absent 针＝判据只取「那句署名还在不在用户看得见的产物里」，零机型／零 UA 分支；needle 一律截在被点名者的名字之前＝登记表自己也不复读那个名字 ==== */
   { name: '#1372a 开屏「灵感来自」段不再点名那本外部项目（回流＝旧底／编辑器缓冲把那句写回产物，用户点名要求删除）', file: 'index.html', needle: '功能大全（可搜索的功能直达索引）：灵感来自', absent: true },
   { name: '#1372b 关于页署名段同条已删（回流＝那份镜像单独被写回＝开屏干净、关于页照旧点名）', file: 'index.html', needle: '- 功能大全（设置内可搜索的功能直达索引）：灵感来自', absent: true },

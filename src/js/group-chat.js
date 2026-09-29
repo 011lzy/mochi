@@ -1631,9 +1631,11 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
     }, delay);
   }
   // v3.9.x：@ 的成员必定回复；其余成员按「每个联系人回复概率」独立掷骰，命中才回
-  function scheduleReply(userText) {
-    const gid = curGid; // FIX 串群 #242：捕获调度时的群，回复/撤回一律落回发起群
-    const members = getMembers();
+  // —— 这一段是「一轮里成员怎么接话」，与你在群里发几句无关；发几句并成几轮由下面的分流决定。
+  function gcReplyRound(userText, atGid) {
+    const gid = atGid || curGid; // FIX 串群 #242：一律落回发起群；#1376 并轮后「到点时你可能已经在别的群里」，故发起群随轮带走
+    const g0 = groups.find(x => x.id === gid) || currentGroup();
+    const members = groupMemberList(g0);
     if (!members.length) return;
     const c = gcCfg();
     // 检测 @提及
@@ -1653,6 +1655,31 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
     targets.forEach((cid, i) => {
       setTimeout(() => memberReply(cid, userText, gid), i * (1200 + Math.random() * 1600));
     });
+  }
+
+  // 你在群里连着发的那几条算**一轮**，与单聊共用同一个开关（回复设置 →「连发的算一轮」，
+  // 默认关闭＝一切照旧：每发一条各排一批，群员各自按 gc-rs-min~max 抽延迟）。
+  // 打开后：一轮只让成员们接一次话——你发 5 句不会引来 5 批回复；每多补一句把这轮的收口往后推
+  // GC_TURN_HOLD，最多替你等 GC_TURN_HOLD_MAX（你一直说，总得给人插嘴的时候）；@ 谁、引用什么都以
+  // 这一轮最后那句为准。**每个群各排各的轮**（切到别的群发消息不会顶掉这个群排着的轮）。
+  // 这里只收「哪几句算一轮」的边，成员各自的回复延迟仍走 memberReply 原来的抽样，不额外加一层等待。
+  const GC_TURN_HOLD = 1500, GC_TURN_HOLD_MAX = 8000;
+  const gcTurns = {}; /* gid -> { due, cap, timer, text } */
+  function gcTurnOn() { try { return Number(((window.replyCfg && window.replyCfg()) || {})['turn-en']) === 1; } catch (e) { return false; } }
+  window.__gcTurnKeys = function () { try { return Object.keys(gcTurns); } catch (e) { return []; } }; // 只读诊断：哪几个群各排着一轮
+  function scheduleReply(userText) {
+    if (!gcTurnOn()) return gcReplyRound(userText);
+    const gid = curGid;
+    if (!gid) return gcReplyRound(userText);
+    const nowT = Date.now();
+    let t = gcTurns[gid];
+    if (!t) t = gcTurns[gid] = { due: nowT + GC_TURN_HOLD, cap: nowT + GC_TURN_HOLD_MAX, timer: 0, text: userText };
+    else {
+      t.due = Math.min(t.cap, Math.max(t.due, nowT + GC_TURN_HOLD)); // 不早于原计划、不晚于这一轮的封顶
+      t.text = userText;
+    }
+    clearTimeout(t.timer);
+    t.timer = setTimeout(() => { if (gcTurns[gid] === t) delete gcTurns[gid]; gcReplyRound(t.text, gid); }, Math.max(0, t.due - nowT));
   }
 
   // ---- 进入/退出 ----

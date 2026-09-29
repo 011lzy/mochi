@@ -2953,6 +2953,7 @@ return !!rlUserSpokeAt && rlReserveFor !== rlUserSpokeAt && Date.now() - rlUserS
 function rateLimitFull() {
 try {
 const c = cfg();
+if (cfgn(c, 'turn-en', 0) === 1) return false; // 「连发的算一轮」（nova 式）打开＝本总量限流整条不再计数与拦（用户口径：两条机制各管各的，不叠加）
 if (cfgn(c, 'rl-en', 0) !== 1) return false;
 const win = Math.max(1, cfgn(c, 'rl-win', 5)) * 60000;
 const max = Math.max(1, cfgn(c, 'rl-max', 15));
@@ -7867,7 +7868,29 @@ if (kj) { reply += chatKaoJoinSep(reply, kj) + kj; replyCards = 2; } // #851 文
 }
 return { text: reply, type: type, cards: replyCards };
 }
+// FIX 2026-09-29 用户直派「我发一句，联系人发一堆消息」→ 你连发的那几条算**一轮**；
+// 复报「这样做之后会出现几分钟联系人不回消息」→ 同一批里我引进的两处静默一并收掉：
+// ① 轮做成**每个联系人各排各的**（replyTurns 按 cid 存）。早先一版是全站一个槽位：你切到另一个
+//    联系人发一句，就把上一个联系人那一轮的定时器 clearTimeout 掉＝那一轮永远不回，只能等 TA
+//    主动发送那一路（分钟级）——正是「几分钟不回」最长的那条。旧写法（每发一条各排一批）天然
+//    没这个问题，所以这是我该修的回归，不是「一轮」这个口径本身。
+// ② 已读不回仍**一轮只掷一次**，但掷在**轮起手**那一刻：屏上那枚「已读不回」小字（渲染见
+//    special==='read'／#220 的 pendingRead 原地替换）1~4 秒内就出现。早先一版把它挪到到点之后，
+//    「回复速度最长」默认能抽到 40 秒，于是变成「发完话半天只等来一枚已读」＝看着像没人理。
+// 抽样口径一字不改（最短~最长随机；TA 在忙时那一段会拉长）；条数只取决于 TA 这一轮有几句话要
+// 说，不再按你发了几条放大；引用取轮内末尾那句。每多一条把到点往后推 TURN_HOLD、封顶 TURN_HOLD_MAX。
+const TURN_HOLD = 1500, TURN_HOLD_MAX = 8000;
+const replyTurns = {}; /* cid -> { due, cap, timer } */
+window.__replyTurnKeys = function () { try { return Object.keys(replyTurns); } catch (e) { return []; } }; // 只读诊断：此刻有哪几个联系人各排着一轮
+// 回复机制两条并存，由设置里「连发的算一轮」（turn-en，**默认关闭**）选一条：
+// 关＝mochi 原机制一字不变（每发一条各排一批，且受「总量限流」计数与拦）；
+// 开＝nova 式并轮（每个联系人各排一轮、骰子掷在轮上，且**不走总量限流**，见 rateLimitFull 的 turn-en 早退）。
 function scheduleReply() {
+if (Number(cfg()['turn-en']) === 1) return scheduleReplyTurn();
+return scheduleReplyMochi();
+}
+// ---------- mochi 原机制（默认；下面的函数体与开关上线前逐字相同） ----------
+function scheduleReplyMochi() {
 const myCid = window.__activeCid || 'default';
 const sameCid = () => (window.__activeCid || 'default') === myCid;
 syncLastMineText();
@@ -7894,6 +7917,46 @@ if (hit(c['touch-prob'])) {
 performPoke();
 return;
 }
+    deliverTurn(c, sameCid, quoteSrc, quoteSrcIdx, quoteKey);
+}, delay);
+}
+// ---------- nova 式并轮（turn-en 打开后走这一路） ----------
+function scheduleReplyTurn() {
+const myCid = window.__activeCid || 'default';
+const nowT = Date.now();
+syncLastMineText(); // 每发一条都刷新「我最后那句」，到点那一刻再取快照＝轮内末尾那条
+try { window.__replyWaitT0 = Date.now(); } catch (eRW) {} // #571 起点＝你话音落下这一刻，与到点无关
+const c = cfg();
+let t = replyTurns[myCid];
+if (t && t.silent) {
+// 这一轮起手已判「已读不回」：你补的那几句不再另掷一次、也不演「正在输入」，只把这轮的释放往后推
+t.due = Math.min(t.cap, Math.max(t.due, nowT + TURN_HOLD));
+clearTimeout(t.timer);
+t.timer = setTimeout(() => { if (replyTurns[myCid] === t) delete replyTurns[myCid]; }, Math.max(0, t.due - nowT));
+return;
+}
+if (!t) {
+const draw = (c['rs-min'] + Math.random() * Math.max(1, c['rs-max'] - c['rs-min'])) * 1000;
+try { window.__rsDrawS = Math.round(draw / 100) / 10; } catch (eRD) {} // #571 本次掷到的设定延迟（秒）
+t = replyTurns[myCid] = { due: nowT + draw, cap: nowT + draw + TURN_HOLD_MAX, timer: 0 };
+if (hit(c['rn-prob'])) {
+// 整轮只掷这一次：起手 1~4 秒落「已读不回」那枚小字，槽位守到原来到点才释放（期间补的话不另掷）
+t.silent = 1;
+setTimeout(() => { if ((window.__activeCid || 'default') === myCid) addIn('', { special: 'read' }); }, randInt(1000, 4000));
+t.timer = setTimeout(() => { if (replyTurns[myCid] === t) delete replyTurns[myCid]; }, Math.max(0, t.due - nowT));
+return;
+}
+} else {
+// 不早于原计划（已经等到点就别倒回去），不晚于这一轮的封顶（你一直发也有个上限）
+t.due = Math.min(t.cap, Math.max(t.due, nowT + TURN_HOLD));
+}
+showTyping();
+clearTimeout(t.timer); // 只撤自己这一轮，别的联系人排着的轮照旧
+t.timer = setTimeout(() => { if (replyTurns[myCid] === t) delete replyTurns[myCid]; runReplyTurn(myCid); }, Math.max(0, t.due - nowT));
+}
+// 共用尾段：一条/一批到点后「掷条数 → 逐条投递」。两条机制都调这里（改动只落一处，
+// 也让「replyGuideHint 接了几处」这类按次数判定的回归断言不被复制体顶偏）。
+function deliverTurn(c, sameCid, quoteSrc, quoteSrcIdx, quoteKey) {
 const rpMin = Math.max(1, Number(c['reply-min']) || 1);
 const rpMax = Math.max(rpMin, Number(c['reply-max']) || 2);
 // #167 多字卡回复(py-en)是总开关：关闭时回复条数强制 1 条（关=彻底只回一条），开启才按「回复条数」拆条
@@ -7915,7 +7978,21 @@ setTimeout(() => { if (!sameCid()) return; if (window.maybeMusicRequest) window.
 }
 }, i * randInt(1200, 2800));
 }
-}, delay);
+}
+// 一轮到点：这一轮你那几条一起结算，剩下的骰子掷的是轮，不是你某一句
+function runReplyTurn(myCid) {
+const sameCid = () => (window.__activeCid || 'default') === myCid;
+const quoteSrc = lastMineQuote;
+const quoteSrcIdx = lastMineIdx;
+const quoteKey = quoteSrc && typeof quoteSrc === 'object' ? String(quoteSrc.t || '') + '\n' + (quoteSrc.imgs || []).join() : String(quoteSrc || '');
+const c = cfg();
+if (!sameCid()) { hideTyping(); return; }
+hideTyping();
+if (hit(c['touch-prob'])) {
+performPoke();
+return;
+}
+    deliverTurn(c, sameCid, quoteSrc, quoteSrcIdx, quoteKey);
 }
 async function replyOnce(c, quote, silent, quoteIdx) {
 try { console.log('[mochi-reply] replyOnce #%s quote=%s silent=%s', (window.__replyOnceDiag=(window.__replyOnceDiag||0)+1), !!quote, !!silent); } catch(e){}

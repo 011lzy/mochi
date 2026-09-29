@@ -1310,9 +1310,10 @@ gcDeliverReply(gid, rec2, 'in'); // FIX 串群 #242：补发落回来源群
 }
 }, delay);
 }
-function scheduleReply(userText) {
-const gid = curGid; // FIX 串群 #242：捕获调度时的群，回复/撤回一律落回发起群
-const members = getMembers();
+function gcReplyRound(userText, atGid) {
+const gid = atGid || curGid; // FIX 串群 #242：一律落回发起群；#1376 并轮后「到点时你可能已经在别的群里」，故发起群随轮带走
+const g0 = groups.find(x => x.id === gid) || currentGroup();
+const members = groupMemberList(g0);
 if (!members.length) return;
 const c = gcCfg();
 const mentioned = [];
@@ -1330,6 +1331,24 @@ if (!targets.length) return;
 targets.forEach((cid, i) => {
 setTimeout(() => memberReply(cid, userText, gid), i * (1200 + Math.random() * 1600));
 });
+}
+const GC_TURN_HOLD = 1500, GC_TURN_HOLD_MAX = 8000;
+const gcTurns = {}; /* gid -> { due, cap, timer, text } */
+function gcTurnOn() { try { return Number(((window.replyCfg && window.replyCfg()) || {})['turn-en']) === 1; } catch (e) { return false; } }
+window.__gcTurnKeys = function () { try { return Object.keys(gcTurns); } catch (e) { return []; } }; // 只读诊断：哪几个群各排着一轮
+function scheduleReply(userText) {
+if (!gcTurnOn()) return gcReplyRound(userText);
+const gid = curGid;
+if (!gid) return gcReplyRound(userText);
+const nowT = Date.now();
+let t = gcTurns[gid];
+if (!t) t = gcTurns[gid] = { due: nowT + GC_TURN_HOLD, cap: nowT + GC_TURN_HOLD_MAX, timer: 0, text: userText };
+else {
+t.due = Math.min(t.cap, Math.max(t.due, nowT + GC_TURN_HOLD)); // 不早于原计划、不晚于这一轮的封顶
+t.text = userText;
+}
+clearTimeout(t.timer);
+t.timer = setTimeout(() => { if (gcTurns[gid] === t) delete gcTurns[gid]; gcReplyRound(t.text, gid); }, Math.max(0, t.due - nowT));
 }
 function updateGroupName() {
 const g = currentGroup();
