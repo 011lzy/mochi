@@ -3412,7 +3412,7 @@
           <div class="gs-title">回复机制（默认＝mochi 原机制）</div>
           <div class="set-group glass">
             <div class="gs-row"><span>连发的算一轮（nova 式回复）</span><label class="toggle"><input type="checkbox" id="turn-en"><span class="tk"></span></label></div>
-            <div class="gs-sub"><b>默认关闭＝一切照旧</b>：你每发一条消息，TA 各排一批回你几条，并照常受下方「总量限流」计数。打开后换成<b>另一条路</b>：你连着说的那几句并成<b>一轮</b>，一轮只排一次队、骰子只掷一次（已读不回／拍一拍／回几条／引用都掷在这一轮上），回几条不再按你发了几句放大；你每多补一句，把到点往后推 1.5 秒、最多替你多等 8 秒。<b>每个联系人各排各的轮</b>，切去别的联系人发消息不会顶掉这一轮的定时器。已读不回那枚小字在起手 1~4 秒内就出现，不会等满「回复速度最长」才报。开着这一路时，下方「总量限流」<b>整条不再计数也不再拦——不只被动回复，TA 主动发送、心情分享、红包／心意币／礼物这些收件一并放行</b>（两条机制各管各的，不叠加）。<b>群聊同样生效</b>：你在群里连着发的那几条也并成一轮，一轮只让成员们接一次话，切到别的群也不影响这个群排着的轮；群成员各自多久回仍按「群聊回复设置」的回复速度抽。改动即时保存、按联系人／按群独立生效。</div>
+            <div class="gs-sub"><b>默认关闭＝一切照旧</b>：你每发一条消息，TA 各排一批回你几条，并照常受下方「总量限流」计数。打开后换成<b>另一条路</b>：你连着说的那几句并成<b>一轮</b>，一轮只排一次队、骰子只掷一次（已读不回／拍一拍／回几条／引用都掷在这一轮上），回几条不再按你发了几句放大；你每多补一句，把到点往后推 1.5 秒、最多替你多等 8 秒。<b>每个联系人各排各的轮</b>，切去别的联系人发消息不会顶掉这一轮的定时器。已读不回那枚小字在起手 1~4 秒内就出现，不会等满「回复速度最长」才报。开着这一路时，下方「总量限流」<b>整条不再计数也不再拦——不只被动回复，TA 主动发送、心情分享、红包／心意币／礼物这些收件一并放行</b>（两条机制各管各的，不叠加）。<b>群聊另有一枚开关</b>：在下方「群聊回复」组里的「连发的算一轮（群聊）」，那一枚是全局的、对所有群聊生效——本开关只管单聊，按联系人各自存。改动即时保存、按联系人独立生效。</div>
           </div>
           <div class="gs-title">总量限流（管住 TA 一共发多少条）</div>
           <div class="set-group glass">
@@ -3592,6 +3592,8 @@
         <div class="gs-panel" data-rpanel="group" hidden>
           <div class="gs-title">被动回复（群聊里每个联系人回你）</div>
           <div class="gs-sub">发送消息后每个联系人按概率回你；也可在群聊里 @ 指定成员（@ 的成员必定回复）</div>
+            <div class="gs-row"><span>连发的算一轮（群聊）</span><label class="toggle"><input type="checkbox" id="gc-turn-en"><span class="tk"></span></label></div>
+            <div class="gs-sub"><b>默认关闭＝一切照旧</b>（你在群里每发一条，成员各排一批）。打开后：你连着发的那几条并成<b>一轮</b>，一轮只让成员们接一次话；每多补一句把这轮收口往后推 1.5 秒、最多 8 秒；@ 谁、引用什么都以这一轮最后那句为准。<b>每个群各排各的轮</b>，切到别的群不影响这个群排着的轮；成员各自多久回仍按上面「回复速度」抽，不额外加等待。<b>这一枚是全局的</b>（对所有群聊生效，不跟随单个联系人的「连发的算一轮」档位）。改动即时保存。</div>
           <div class="set-group glass">
             <div class="gs-row"><span>每个联系人回复概率</span><div class="stepper" data-k="gc-prob" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="gc-prob-val" readonly><button class="stp-max">+</button></div></div>
             <div class="gs-row"><span>回复速度最短（秒）</span><div class="stepper" data-k="gc-rs-min" data-min="1" data-max="60" data-step="1"><button class="stp-min">−</button><input class="stp-val" id="gc-rs-min-val" readonly><button class="stp-max">+</button></div></div>

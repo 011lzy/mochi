@@ -1334,7 +1334,7 @@ setTimeout(() => memberReply(cid, userText, gid), i * (1200 + Math.random() * 16
 }
 const GC_TURN_HOLD = 1500, GC_TURN_HOLD_MAX = 8000;
 const gcTurns = {}; /* gid -> { due, cap, timer, text } */
-function gcTurnOn() { try { return Number(((window.replyCfg && window.replyCfg()) || {})['turn-en']) === 1; } catch (e) { return false; } }
+function gcTurnOn() { try { return Number(((window.replyCfg && window.replyCfg()) || {})['gc-turn-en']) === 1; } catch (e) { return false; } }
 window.__gcTurnKeys = function () { try { return Object.keys(gcTurns); } catch (e) { return []; } }; // 只读诊断：哪几个群各排着一轮
 function scheduleReply(userText) {
 if (!gcTurnOn()) return gcReplyRound(userText);

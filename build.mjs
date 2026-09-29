@@ -400,6 +400,8 @@ const FIX_SENTINELS = [
   { name: '#1376e 投递尾段只此一份（复制回两条路＝改一处漏一处，且 replyGuideHint 接线数被顶偏）', file: 'js/chat.js', needle: 'function deliverTurn(c, sameCid' },
   { name: '#1376f 群聊按群各排一轮且落回发起群（改回单槽＝切群顶掉别的群的轮；成员名单按发起群取，否则到点时人在别的群会选错成员）', file: 'js/group-chat.js', needle: 'const gcTurns = {}; /* gid -> { due, cap, timer, text } */' },
   { name: '#1376g 群聊轮只收边不加延迟（删＝并轮后又叠一层 gc-rs 抽样，成员回话凭空多等一段）', file: 'js/group-chat.js', needle: 'const GC_TURN_HOLD = 1500, GC_TURN_HOLD_MAX = 8000;' },
+  { name: '#1376h 群聊并轮开关是全局一枚（改回读按联系人存的 turn-en＝群聊会不会并轮跟着你最后用的联系人变）', file: 'js/reply-settings.js', needle: "'gc-turn-en': 0," },
+  { name: '#1376i 群聊分流只认全局那一枚（同上，钉住读取处）', file: 'js/group-chat.js', needle: "['gc-turn-en']) === 1;" },
   /* ==== 2026-09-28 #1372 用户直派「为什么公告里那条『功能大全：灵感来自某外部项目』还没删掉」：那本项目是用户自研的另一站，不该被列为本站灵感源；四处镜像各删自己那一行（开屏 bullet／关于页署名段／#305 锚注释／在线公告 notice.json），其余署名文案一字未动。四支 absent 针＝判据只取「那句署名还在不在用户看得见的产物里」，零机型／零 UA 分支；needle 一律截在被点名者的名字之前＝登记表自己也不复读那个名字 ==== */
   { name: '#1372a 开屏「灵感来自」段不再点名那本外部项目（回流＝旧底／编辑器缓冲把那句写回产物，用户点名要求删除）', file: 'index.html', needle: '功能大全（可搜索的功能直达索引）：灵感来自', absent: true },
   { name: '#1372b 关于页署名段同条已删（回流＝那份镜像单独被写回＝开屏干净、关于页照旧点名）', file: 'index.html', needle: '- 功能大全（设置内可搜索的功能直达索引）：灵感来自', absent: true },

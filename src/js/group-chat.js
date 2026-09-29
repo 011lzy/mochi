@@ -1665,7 +1665,8 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
   // 这里只收「哪几句算一轮」的边，成员各自的回复延迟仍走 memberReply 原来的抽样，不额外加一层等待。
   const GC_TURN_HOLD = 1500, GC_TURN_HOLD_MAX = 8000;
   const gcTurns = {}; /* gid -> { due, cap, timer, text } */
-  function gcTurnOn() { try { return Number(((window.replyCfg && window.replyCfg()) || {})['turn-en']) === 1; } catch (e) { return false; } }
+  // 只认全局那一枚（gc-turn-en）：早先用按联系人存的 turn-en，群聊会不会并轮就跟着「你最后打开的那位联系人」变
+  function gcTurnOn() { try { return Number(((window.replyCfg && window.replyCfg()) || {})['gc-turn-en']) === 1; } catch (e) { return false; } }
   window.__gcTurnKeys = function () { try { return Object.keys(gcTurns); } catch (e) { return []; } }; // 只读诊断：哪几个群各排着一轮
   function scheduleReply(userText) {
     if (!gcTurnOn()) return gcReplyRound(userText);

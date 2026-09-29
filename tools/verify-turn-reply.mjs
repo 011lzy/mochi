@@ -7,7 +7,7 @@
 // 计数口径（两次踩坑换来的）：clearChatHistory 之后有一拍异步重读会整包换掉 msgs（#1180 原话），
 // 所以① 只在开头清一次库，之后按「累计去重seen」数，边跑边采样——被换掉的那批已经在册；
 // ② 每例设完设定当场读回比对，写不下去的设定会让九例全跑在默认值上（拼错一个括号就发生过）。
-// 用法：node verify-turn-coalesce.mjs --root=<副本目录>
+// 用法：node verify-turn-reply.mjs --root=<副本目录>
 //   b＝纯 HEAD（旧行为，本批新契约应当红），w＝HEAD＋并轮补丁（应当全绿）
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
