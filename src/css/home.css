@@ -543,8 +543,10 @@ html.desk-zoom-card .week-card, html.desk-zoom-card .desk-period, html.desk-zoom
 
 /* v3.7.x：新增桌面小组件（时钟 / 月历 / 计时器 / 纪念日倒计时）
    v3.15.x：补 14px 下边距——被用户添加到页面时与相邻卡片保持全站统一间距 */
-.desk-clock { padding:14px 16px; margin:0 0 14px; text-align:center; }
-.desk-clock .dc-time { font-size:32px; font-weight:700; letter-spacing:2px; color:var(--ink,#111); line-height:1.1; }
+/* #1306（重放 2026-09-28）：时钟组件收小一号——32px/46px 在桌面上视觉占比过大（用户报「太大、显得丑」）；
+   时间 22px＋内边距收窄，与 mini-card 一族同量级；平板档同步收（46→30、16→13） */
+.desk-clock { padding:10px 14px; margin:0 0 14px; text-align:center; }
+.desk-clock .dc-time { font-size:22px; font-weight:700; letter-spacing:1px; color:var(--ink,#111); line-height:1.1; }
 .desk-clock .dc-date { font-size:12px; color:var(--muted,#888); margin-top:4px; }
 .desk-cal { padding:12px 14px; margin:0 0 14px; }
 .desk-cal .dcal-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
@@ -1008,8 +1010,8 @@ html.tablet .desk-period .dpd-sub { font-size:17px; }
 html.tablet .desk-period .dpd-bar-cap { font-size:14px; }
 
 /* —— 组件库其余组件（时钟/月历/计时器/纪念日倒计时/文案/倒计时）：文字数字上一档 —— */
-html.tablet .desk-clock .dc-time { font-size:46px; }
-html.tablet .desk-clock .dc-date { font-size:16px; }
+html.tablet .desk-clock .dc-time { font-size:30px; } /* #1306：与手机档同量级收小（原 46px） */
+html.tablet .desk-clock .dc-date { font-size:13px; } /* #1306 */
 html.tablet .desk-cal .dcal-title { font-size:17px; }
 html.tablet .desk-cal .dcal-cell { font-size:15px; height:34px; line-height:34px; }
 html.tablet .desk-timer .dt-disp { font-size:40px; }

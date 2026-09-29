@@ -5705,6 +5705,18 @@ const FIX_SENTINELS = [
   { name: '#1374d 假死自愈真起播（#780 那条写成元素上没有的方法名＝自愈从未跑过＝歌不响而「后台保活」条霸着媒体条）', file: 'js/bg-keep.js', needle: 'const pr = m.el.play();' },
   { name: '#1374e 音乐正在出声时不叠消息类音效，来电铃声照旧（判据＝那一个元素此刻 paused===false）', file: 'js/sfx.js', needle: "if (type !== 'ring' && siteMusicAudible()) return;" },
 
+  // ==== 2026-09-28 #1387 把三批「从未入库」的修复重放到干净底本（用户直派「把 #1054/#1306/#1321 那几组落到底本上」；三处都先用代码级判据在 HEAD 上验过零命中＝不是「已入库只是注释旧」：#1054 的 1920 上限在全历史任何提交里都没出现过、#1321 的弹层与尺子从未跟踪、#1306 的 22px 从未落地）。零机型／零 UA 分支＝判据只取「这张图按 cover 铺满时够不够清晰」「这一档字号在不在」「这个弹层进没进锁名单」。
+  //   ① #1054 通话半框/背景：#1270 迁到统一 mochiImgIngest 时把上限带在 600＝回归（用户实报「上传通话半框图片很糊」，那张图按 cover 铺满整张通话卡片，600 边在手机上必被放大）；现提到 1920，缩放与字节收敛全交给 ingest，与聊天背景 csBgMaxSide 那档同量级。
+  //   ② #1306 桌面时钟收小一号：手机档 32px/字距 2px/内边距 14×16 → 22px/1px/10×14，平板档 46→30、16→13（用户报「太大、显得丑」，与 mini-card 一族同量级）。
+  //   ③ #1321 经期「记一次经期」整批：一次落成「哪天开始＋持续几天」的整条区间（旧写法三种走法给出三种「这次几天」：长按一格只算 1 天、标记今天要求当天都在场、设置页补出来是一条永不结束的「进行中」）；状态卡补「下次经期预计 M/D ~ M/D」日期行（日历只画当月格，下次落到下个月时本月一格预测都没有）；dayPhase 不再把已记下的这一次自己当预测起点（本次剩余天数被涂成图例明写「预测」的那种色）；补记落成完整区间不再写 end:null。同批带 .period-next-line 样式、动作行横向留白、mobile-adapt 的 MANUAL_LOCK_IDS 登记新弹层（漏一个＝别的浮层一变动就误摘它的背景滚动锁）。尺子＝tools/verify-1321-period-record-span.mjs（此前是未跟踪文件，随本批入库）。
+  //   ⚠ 刻意没搬的：载荷那份 mobile-adapt.js/chat-pages.css 里同时躺着对 #1340/#1330a/#1311 的**回写删除**（旧底不含它们），以及另一批未入库的 #1322（位移装得下才挪／live()·inEffect() 判据）——本批只取 #1321 自己的 hunk，#1322 另批处理。 ====
+  { name: '#1387a 通话背景上限按 cover 铺满那一档走（改回 600＝「上传通话半框图片很糊」当场复发，#1270 迁移时正是把它带小的）', file: 'js/call.js', needle: "maxSide: 1920, quality: 0.85, tag: 'call-bg'" },
+  { name: '#1387b 桌面时钟手机档收小那一档在位（回到 32px＝用户报的「太大、显得丑」回来）', file: 'index.html', needle: '.desk-clock .dc-time { font-size:22px' },
+  { name: '#1387c 平板档同步收（46→30；只改手机档会让平板两台设备读数打架）', file: 'index.html', needle: 'html.tablet .desk-clock .dc-time { font-size:30px; }' },
+  { name: '#1387d 经期动作行只收横向留白（删＝六字标签折两行；纵向 12px 与点击高度刻意不动）', file: 'index.html', needle: '.period-action-row .period-btn { padding-left:8px' },
+  { name: '#1387e 「记一次经期」一次落成整条区间的入口本体（删＝记 N 天要长按 N 次，同一件「今天来经」又回到三种读法）', file: 'js/period.js', needle: 'function openRecordPop()' },
+  { name: '#1387f 预测着色从 starts[1] 起（改回 j=0＝本次经期剩余天数被涂成图例明写「预测」的那种色）', file: 'js/period.js', needle: 'for (var j = 1; j < starts.length; j++) {' },
+  { name: '#1387g 新弹层登记进手动锁名单（漏一个＝别的浮层一变动就误摘它的背景滚动锁）', file: 'js/mobile-adapt.js', needle: "'period-notify-pop', 'period-record-pop'" },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

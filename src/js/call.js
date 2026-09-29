@@ -82,7 +82,10 @@
       if (!f) { toast('没有取到图片，请再选一次'); return; }
       if (!window.mochiImgIngest) { toast('图片处理组件没加载上（缓存过旧或离线），请重新打开页面再试'); return; }
       // FIX 2026-09-25 #1270：原实现 readAsDataURL + new Image() 整幅解码（48MP 照片＝192MB 位图）→ iOS 直接回收页面
-      window.mochiImgIngest(f, { maxSide: 600, quality: 0.85, tag: 'call-bg' }).then((r) => {
+      // FIX 2026-09-28 #1054（重放）：上限 600 太小——这张图是按 cover 铺满整张通话卡片的，600 边在手机上必然被
+      //   放大糊掉（用户实报「上传通话半框图片很糊」）。#1270 迁到统一 ingest 时这一档被带回 600＝回归，现按原批
+      //   结论提到 1920：缩放/字节收敛都交给 ingest（与聊天背景 csBgMaxSide 那档同量级，零机型分支）。
+      window.mochiImgIngest(f, { maxSide: 1920, quality: 0.85, tag: 'call-bg' }).then((r) => {
         if (!r || r.st !== 'ok' || !r.data) { toast(window.mochiImgIngestMiss(r, '通话背景')); return; }
         const data = r.data;
         store.set(bgKey, data);

@@ -2945,7 +2945,9 @@
   let locked = false;
   // v3.13.x：手动锁浮层（period.js 弹层动态 append/remove、不走 hidden 属性）——
   // 存在于 DOM 即视为开着，纳入统一判定，防其他浮层变动时误摘经期弹层的锁
-  const MANUAL_LOCK_IDS = ['period-day-pop', 'period-care-pop', 'period-report-pop', 'period-settings-pop', 'period-notify-pop'];
+  // #1321：新增「记一次经期」弹层（period-record-pop）同法登记——漏一个＝别的浮层一变动就把它的
+  //   背景滚动锁误摘掉（弹层还开着，背后页面已能滑）
+  const MANUAL_LOCK_IDS = ['period-day-pop', 'period-care-pop', 'period-report-pop', 'period-settings-pop', 'period-notify-pop', 'period-record-pop'];
   // v3.13.x：浮层「真开着」= 非 hidden 且视觉上有渲染盒子（AI-A 修字卡库全局滑不动）。
   // 只判 hidden 属性会死锁：在聊天页打开更多面板/表情包/拍一拍等底半框后不关闭直接
   // 离开聊天页（返回键/切字卡库都会整页隐藏），面板 hidden=false 但祖先 display:none

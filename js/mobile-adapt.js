@@ -1689,7 +1689,7 @@ try {
 document.addEventListener('transitionstart', function () { if (kbPanelDocked) kbDockPanels(); }, true);
 } catch (e) {}
 let locked = false;
-const MANUAL_LOCK_IDS = ['period-day-pop', 'period-care-pop', 'period-report-pop', 'period-settings-pop', 'period-notify-pop'];
+const MANUAL_LOCK_IDS = ['period-day-pop', 'period-care-pop', 'period-report-pop', 'period-settings-pop', 'period-notify-pop', 'period-record-pop'];
 function floatIsOpen(el) {
 try {
 if (!el || el.hidden) return false;

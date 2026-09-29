@@ -385,8 +385,10 @@
       starts.push(s);
       s = addDays(s, cl); guard++;
     }
-    // 预测经期着色
-    for (var j = 0; j < starts.length; j++) {
+    // 预测经期着色：starts[0] 就是「已经记下的那一次经期自己」，它由上面的记录分支涂成实心经期色；
+    // 从第 1 项起才是下一次及以后。原实现连第 0 项一起涂虚线＝只记 1 天时，本次经期的剩余天数
+    // 被画成「下次经期的预测」（同一件事两种颜色，且日历图例里 predict 明写「预测」）。
+    for (var j = 1; j < starts.length; j++) {
       var pEnd = addDays(starts[j], cfg.periodLen - 1);
       if (ds >= starts[j] && ds <= pEnd) return 'predict';
     }
@@ -624,6 +626,24 @@
         pmsLine.innerHTML = '<span class="pms-badge ' + pms.cls + '">' + pms.label + '</span>' +
           (pms.tip ? '<span class="pms-tip">' + pms.tip + '</span>' : '');
       }
+    }
+    // 下次经期的日期行：状态卡以前只报「距下次经期约 N 天」这一个数，全页没有任何一处把
+    // nextStart 写成形如 10/25 的日期（唯一写日期的是桌面小组件），而日历只画当月格＝下次开始
+    // 日落到下个月时本月一格预测都没有＝用户读到的是「记了却不显示这个月的经期预测时间」。
+    var nextLine = document.getElementById('period-next-line');
+    if (!nextLine) {
+      nextLine = document.createElement('div');
+      nextLine.id = 'period-next-line';
+      nextLine.className = 'period-next-line';
+      if (pmsLine && pmsLine.parentNode) pmsLine.parentNode.insertBefore(nextLine, pmsLine.nextSibling);
+      else if (ovuLine && ovuLine.parentNode) ovuLine.parentNode.insertBefore(nextLine, ovuLine.nextSibling);
+      else if (bar && bar.parentNode) bar.parentNode.insertBefore(nextLine, bar.nextSibling);
+    }
+    var toNext = st.nextStart ? diffDays(todayStr(), st.nextStart) : 0;
+    if (!st.nextStart || toNext < 1) { nextLine.hidden = true; }
+    else {
+      nextLine.hidden = false;
+      nextLine.textContent = '下次经期预计 ' + mdLabel(st.nextStart) + ' ~ ' + mdLabel(addDays(st.nextStart, cfg.periodLen - 1)) + (st.sigma || '');
     }
     var startBtn = document.getElementById('period-mark-start');
     var endBtn = document.getElementById('period-mark-end');
@@ -1525,7 +1545,10 @@
         var norm2 = normalize(recs);
         var exists = norm2.some(function (r) { return r.start === dateVal; });
         if (!exists) {
-          norm2.push({ id: newId(), start: dateVal, end: null });
+          // 补记落成一条完整区间（按设置的「经期天数」），不再写 end:null——旧写法让这条记录
+          // 永远挂在「进行中」（历史行「2026-09-17 ~ 进行中」），除非用户当天亲手点「标记今天结束」，
+          // 而补记的人恰恰不在场；end:null 在日历上又按 periodLen 涂色＝读数与「持续 N 天」两处对打。
+          norm2.push({ id: newId(), start: dateVal, end: addDays(dateVal, cfg.periodLen - 1) });
           norm2 = normalize(norm2);
           saveRecs(norm2); recs = norm2;
         }
@@ -1538,6 +1561,73 @@
   }
   function closeSettingsPop() {
     var pop = document.getElementById('period-settings-pop');
+    if (pop) pop.remove();
+    document.body.classList.remove('scroll-lock');
+  }
+
+  // ---- 记一次经期（一次落成「哪天开始 + 持续几天」的整条区间）----
+  // 补上一条缺失的入口：以前记一次经期只有三种走法，且每种给出的「这次几天」互不相同——
+  // 「标记今天开始／结束」要求当天都在场（错过就没法补），长按日格一格只算 1 天（记 7 天要长按
+  // 7 次），设置页那个日期字段补出来的是一条永不结束的「进行中」。用户按自己的话说的期待是
+  // 「我设置的时候会直接设置我的经期是几天」＝默认天数取 cfg.periodLen，可改，一次落账。
+  function openRecordPop() {
+    var existing = document.getElementById('period-record-pop');
+    if (existing) existing.remove();
+    var work = { days: cfg.periodLen };
+    var pop = document.createElement('div');
+    pop.id = 'period-record-pop';
+    pop.className = 'period-day-pop';
+    pop.innerHTML =
+      '<div class="dp-mask"></div>' +
+      '<div class="dp-sheet">' +
+        '<div class="dp-head"><span class="dp-date">记一次经期</span><button class="dp-close">×</button></div>' +
+        '<div class="dp-section"><div class="dp-label">开始日</div><input class="dp-date-input" type="date" value="' + todayStr() + '"/></div>' +
+        '<div class="dp-section"><div class="dp-label">持续天数</div>' +
+          '<div class="dp-stepper" data-key="days" data-min="1" data-max="14">' +
+            '<button class="st-btn st-minus">−</button><span class="st-val">' + work.days + '</span>' +
+            '<button class="st-btn st-plus">+</button><span class="st-unit">天</span>' +
+          '</div></div>' +
+        '<div class="dp-section"><div class="dp-label">这一周期</div><div class="dp-ovu-preview period-rec-span"></div></div>' +
+        '<div class="dp-tip">默认天数取自周期设置里的「经期天数」，按自己这次的情况改。补记过去的日期不用一天一天点。</div>' +
+        '<div class="dp-actions"><button class="dp-save period-btn primary">保存</button></div>' +
+      '</div>';
+    appendPop(pop);
+    document.body.classList.add('scroll-lock');
+    var spanEl = pop.querySelector('.period-rec-span');
+    function showSpan() {
+      var s = startVal();
+      spanEl.textContent = s + ' ~ ' + addDays(s, work.days - 1) + '（' + work.days + ' 天）';
+    }
+    function startVal() {
+      var v = pop.querySelector('input.dp-date-input').value;
+      return /^\d{4}-\d{2}-\d{2}$/.test(v || '') ? v : todayStr();
+    }
+    pop.querySelector('.dp-mask').addEventListener('click', closeRecordPop);
+    pop.querySelector('.dp-close').addEventListener('click', closeRecordPop);
+    var st = pop.querySelector('.dp-stepper');
+    var min = parseInt(st.getAttribute('data-min'), 10);
+    var max = parseInt(st.getAttribute('data-max'), 10);
+    var valEl = st.querySelector('.st-val');
+    st.querySelector('.st-minus').addEventListener('click', function () {
+      if (work.days > min) { work.days--; valEl.textContent = work.days; showSpan(); }
+    });
+    st.querySelector('.st-plus').addEventListener('click', function () {
+      if (work.days < max) { work.days++; valEl.textContent = work.days; showSpan(); }
+    });
+    pop.querySelector('input.dp-date-input').addEventListener('change', showSpan);
+    showSpan();
+    pop.querySelector('.dp-save').addEventListener('click', function () {
+      var s = startVal();
+      recs = normalize(recs.concat([{ id: newId(), start: s, end: addDays(s, work.days - 1) }]));
+      saveRecs(recs);
+      closeRecordPop();
+      render();
+      toast('已记录 ' + s + ' 起的 ' + work.days + ' 天');
+      checkNotify();
+    });
+  }
+  function closeRecordPop() {
+    var pop = document.getElementById('period-record-pop');
     if (pop) pop.remove();
     document.body.classList.remove('scroll-lock');
   }
@@ -1669,6 +1759,17 @@
   if (me) me.addEventListener('click', markEnd);
   var rt = document.getElementById('period-record-today');
   if (rt) rt.addEventListener('click', function () { openDayPop(todayStr()); });
+  // 「记一次经期」＝动作行的第四个按钮（JS 建，与铃铛入口同法，不动 template 的静态锚点）。
+  // 经期中/外都常驻：它管的是「把这一整段区间一次记对」，与「标记今天开始/结束」不冲突。
+  var arow = document.getElementById('period-action-row');
+  if (arow && !document.getElementById('period-record-span')) {
+    var rsb = document.createElement('button');
+    rsb.id = 'period-record-span';
+    rsb.className = 'period-btn';
+    rsb.textContent = '记一次经期';
+    arow.appendChild(rsb);
+    rsb.addEventListener('click', openRecordPop);
+  }
   // 日历日格：短按打开每日详情浮层（记录经量/症状/情绪），长按切换经期标记
   var grid = document.getElementById('period-grid');
   if (grid) {

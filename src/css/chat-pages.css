@@ -832,6 +832,10 @@
 .period-ovu-line { font-size:12px; color:#f5a623; margin-bottom:10px; font-weight:600; }
 /* PMS 经前综合征指数行 */
 .period-pms-line { display:flex; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap; }
+/* #1321（重放）：下次经期的日期行——状态卡以前只报「距下次约 N 天」这一个数，全页没有一处把
+   nextStart 写成日期；日历又只画当月格＝下次落到下个月时本月一格预测都没有。用中性墨色（--muted
+   随主题自动翻），不再新增第四种强调色 */
+.period-next-line { font-size:12px; color:var(--muted,#666); margin-bottom:10px; font-weight:600; }
 .pms-badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; }
 .pms-badge.pms-none { background:#f0f0f0; color:#888; }
 .pms-badge.pms-light { background:#e8f5e9; color:#2e7d32; }
@@ -839,6 +843,9 @@
 .pms-badge.pms-heavy { background:#fde2ee; color:#c44a78; }
 .pms-tip { font-size:11px; color:var(--muted,#666); }
 .period-action-row { display:flex; gap:10px; }
+/* #1321：动作行加上「记一次经期」之后，12px 的左右内边距让「标记今天开始」
+   六字标签折成两行。只收这一行的横向留白（纵向 12px 与点击高度不动，弹层里的 .dp-save 不受影响）。 */
+.period-action-row .period-btn { padding-left:8px; padding-right:8px; }
 .period-btn {
   flex:1; padding:12px; font-size:13px; font-weight:600; border-radius:14px;
   border:1px solid rgba(0,0,0,.12); background:rgba(255,255,255,.92); color:var(--ink);

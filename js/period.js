@@ -325,7 +325,7 @@ while (s <= addDays(today, cl * 3) && guard < 200) {
 starts.push(s);
 s = addDays(s, cl); guard++;
 }
-for (var j = 0; j < starts.length; j++) {
+for (var j = 1; j < starts.length; j++) {
 var pEnd = addDays(starts[j], cfg.periodLen - 1);
 if (ds >= starts[j] && ds <= pEnd) return 'predict';
 }
@@ -521,6 +521,21 @@ pmsLine.hidden = false;
 pmsLine.innerHTML = '<span class="pms-badge ' + pms.cls + '">' + pms.label + '</span>' +
 (pms.tip ? '<span class="pms-tip">' + pms.tip + '</span>' : '');
 }
+}
+var nextLine = document.getElementById('period-next-line');
+if (!nextLine) {
+nextLine = document.createElement('div');
+nextLine.id = 'period-next-line';
+nextLine.className = 'period-next-line';
+if (pmsLine && pmsLine.parentNode) pmsLine.parentNode.insertBefore(nextLine, pmsLine.nextSibling);
+else if (ovuLine && ovuLine.parentNode) ovuLine.parentNode.insertBefore(nextLine, ovuLine.nextSibling);
+else if (bar && bar.parentNode) bar.parentNode.insertBefore(nextLine, bar.nextSibling);
+}
+var toNext = st.nextStart ? diffDays(todayStr(), st.nextStart) : 0;
+if (!st.nextStart || toNext < 1) { nextLine.hidden = true; }
+else {
+nextLine.hidden = false;
+nextLine.textContent = '下次经期预计 ' + mdLabel(st.nextStart) + ' ~ ' + mdLabel(addDays(st.nextStart, cfg.periodLen - 1)) + (st.sigma || '');
 }
 var startBtn = document.getElementById('period-mark-start');
 var endBtn = document.getElementById('period-mark-end');
@@ -1329,7 +1344,7 @@ if (dateVal) {
 var norm2 = normalize(recs);
 var exists = norm2.some(function (r) { return r.start === dateVal; });
 if (!exists) {
-norm2.push({ id: newId(), start: dateVal, end: null });
+norm2.push({ id: newId(), start: dateVal, end: addDays(dateVal, cfg.periodLen - 1) });
 norm2 = normalize(norm2);
 saveRecs(norm2); recs = norm2;
 }
@@ -1342,6 +1357,67 @@ checkNotify();
 }
 function closeSettingsPop() {
 var pop = document.getElementById('period-settings-pop');
+if (pop) pop.remove();
+document.body.classList.remove('scroll-lock');
+}
+function openRecordPop() {
+var existing = document.getElementById('period-record-pop');
+if (existing) existing.remove();
+var work = { days: cfg.periodLen };
+var pop = document.createElement('div');
+pop.id = 'period-record-pop';
+pop.className = 'period-day-pop';
+pop.innerHTML =
+'<div class="dp-mask"></div>' +
+'<div class="dp-sheet">' +
+'<div class="dp-head"><span class="dp-date">记一次经期</span><button class="dp-close">×</button></div>' +
+'<div class="dp-section"><div class="dp-label">开始日</div><input class="dp-date-input" type="date" value="' + todayStr() + '"/></div>' +
+'<div class="dp-section"><div class="dp-label">持续天数</div>' +
+'<div class="dp-stepper" data-key="days" data-min="1" data-max="14">' +
+'<button class="st-btn st-minus">−</button><span class="st-val">' + work.days + '</span>' +
+'<button class="st-btn st-plus">+</button><span class="st-unit">天</span>' +
+'</div></div>' +
+'<div class="dp-section"><div class="dp-label">这一周期</div><div class="dp-ovu-preview period-rec-span"></div></div>' +
+'<div class="dp-tip">默认天数取自周期设置里的「经期天数」，按自己这次的情况改。补记过去的日期不用一天一天点。</div>' +
+'<div class="dp-actions"><button class="dp-save period-btn primary">保存</button></div>' +
+'</div>';
+appendPop(pop);
+document.body.classList.add('scroll-lock');
+var spanEl = pop.querySelector('.period-rec-span');
+function showSpan() {
+var s = startVal();
+spanEl.textContent = s + ' ~ ' + addDays(s, work.days - 1) + '（' + work.days + ' 天）';
+}
+function startVal() {
+var v = pop.querySelector('input.dp-date-input').value;
+return /^\d{4}-\d{2}-\d{2}$/.test(v || '') ? v : todayStr();
+}
+pop.querySelector('.dp-mask').addEventListener('click', closeRecordPop);
+pop.querySelector('.dp-close').addEventListener('click', closeRecordPop);
+var st = pop.querySelector('.dp-stepper');
+var min = parseInt(st.getAttribute('data-min'), 10);
+var max = parseInt(st.getAttribute('data-max'), 10);
+var valEl = st.querySelector('.st-val');
+st.querySelector('.st-minus').addEventListener('click', function () {
+if (work.days > min) { work.days--; valEl.textContent = work.days; showSpan(); }
+});
+st.querySelector('.st-plus').addEventListener('click', function () {
+if (work.days < max) { work.days++; valEl.textContent = work.days; showSpan(); }
+});
+pop.querySelector('input.dp-date-input').addEventListener('change', showSpan);
+showSpan();
+pop.querySelector('.dp-save').addEventListener('click', function () {
+var s = startVal();
+recs = normalize(recs.concat([{ id: newId(), start: s, end: addDays(s, work.days - 1) }]));
+saveRecs(recs);
+closeRecordPop();
+render();
+toast('已记录 ' + s + ' 起的 ' + work.days + ' 天');
+checkNotify();
+});
+}
+function closeRecordPop() {
+var pop = document.getElementById('period-record-pop');
 if (pop) pop.remove();
 document.body.classList.remove('scroll-lock');
 }
@@ -1460,6 +1536,15 @@ var me = document.getElementById('period-mark-end');
 if (me) me.addEventListener('click', markEnd);
 var rt = document.getElementById('period-record-today');
 if (rt) rt.addEventListener('click', function () { openDayPop(todayStr()); });
+var arow = document.getElementById('period-action-row');
+if (arow && !document.getElementById('period-record-span')) {
+var rsb = document.createElement('button');
+rsb.id = 'period-record-span';
+rsb.className = 'period-btn';
+rsb.textContent = '记一次经期';
+arow.appendChild(rsb);
+rsb.addEventListener('click', openRecordPop);
+}
 var grid = document.getElementById('period-grid');
 if (grid) {
 var pressTimer = null, longPressed = false;

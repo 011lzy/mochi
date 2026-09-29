@@ -1265,8 +1265,8 @@ font-size:12px; padding:4px 12px; border:none; border-radius:99px;
 background:#111; color:#fff; cursor:pointer; font-family:inherit; flex-shrink:0;
 }
 .desk-lib-item .dl-btn:disabled { background:#ddd; color:#999; }
-.desk-clock { padding:14px 16px; margin:0 0 14px; text-align:center; }
-.desk-clock .dc-time { font-size:32px; font-weight:700; letter-spacing:2px; color:var(--ink,#111); line-height:1.1; }
+.desk-clock { padding:10px 14px; margin:0 0 14px; text-align:center; }
+.desk-clock .dc-time { font-size:22px; font-weight:700; letter-spacing:1px; color:var(--ink,#111); line-height:1.1; }
 .desk-clock .dc-date { font-size:12px; color:var(--muted,#888); margin-top:4px; }
 .desk-cal { padding:12px 14px; margin:0 0 14px; }
 .desk-cal .dcal-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
@@ -1608,9 +1608,7 @@ html.tablet .desk-period .dpd-label { font-size:17px; }
 html.tablet .desk-period .dpd-days { font-size:64px; }
 html.tablet .desk-period .dpd-sub { font-size:17px; }
 html.tablet .desk-period .dpd-bar-cap { font-size:14px; }
-html.tablet .desk-clock .dc-time { font-size:46px; }
-html.tablet .desk-clock .dc-date { font-size:16px; }
-html.tablet .desk-cal .dcal-title { font-size:17px; }
+html.tablet .desk-clock .dc-time { font-size:30px; } html.tablet .desk-clock .dc-date { font-size:13px; } html.tablet .desk-cal .dcal-title { font-size:17px; }
 html.tablet .desk-cal .dcal-cell { font-size:15px; height:34px; line-height:34px; }
 html.tablet .desk-timer .dt-disp { font-size:40px; }
 html.tablet .desk-timer .dt-mode-label { font-size:15px; }
@@ -3778,6 +3776,7 @@ padding:6px 0; border-radius:10px; background:rgba(0,0,0,.05);
 .period-phase-bar .seg.active { box-shadow:0 0 0 2px var(--ink) inset; font-weight:800; }
 .period-ovu-line { font-size:12px; color:#f5a623; margin-bottom:10px; font-weight:600; }
 .period-pms-line { display:flex; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap; }
+.period-next-line { font-size:12px; color:var(--muted,#666); margin-bottom:10px; font-weight:600; }
 .pms-badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; }
 .pms-badge.pms-none { background:#f0f0f0; color:#888; }
 .pms-badge.pms-light { background:#e8f5e9; color:#2e7d32; }
@@ -3785,6 +3784,7 @@ padding:6px 0; border-radius:10px; background:rgba(0,0,0,.05);
 .pms-badge.pms-heavy { background:#fde2ee; color:#c44a78; }
 .pms-tip { font-size:11px; color:var(--muted,#666); }
 .period-action-row { display:flex; gap:10px; }
+.period-action-row .period-btn { padding-left:8px; padding-right:8px; }
 .period-btn {
 flex:1; padding:12px; font-size:13px; font-weight:600; border-radius:14px;
 border:1px solid rgba(0,0,0,.12); background:rgba(255,255,255,.92); color:var(--ink);
@@ -10705,9 +10705,9 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
       <!-- #570：第三行开屏新版检测（ver-check.js 渲染）：检测中 / ✓已是最新 / ⇩有新版本可点更新 -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1790607826675">
+      <div class="splash-ver" id="splash-ver" data-build-ts="1790639895767">
         <span class="sv-app">Mochi 字卡传讯 <b>v8.45</b></span>
-        <span class="sv-deploy">部署于 2026-09-28 23:03<span id="splash-ver-live"></span></span>
+        <span class="sv-deploy">部署于 2026-09-29 07:58<span id="splash-ver-live"></span></span>
         <span class="sv-check" id="splash-ver-check" hidden></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
@@ -22569,4 +22569,4 @@ window.__mochiBootRetry = function () { try { location.reload(); } catch (e) {} 
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ muldo1kj -->
+<!-- __MOCHI_EOF__ mulwre8n -->

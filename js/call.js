@@ -59,7 +59,7 @@ onFiles: (files) => {
 const f = files && files[0];
 if (!f) { toast('没有取到图片，请再选一次'); return; }
 if (!window.mochiImgIngest) { toast('图片处理组件没加载上（缓存过旧或离线），请重新打开页面再试'); return; }
-window.mochiImgIngest(f, { maxSide: 600, quality: 0.85, tag: 'call-bg' }).then((r) => {
+window.mochiImgIngest(f, { maxSide: 1920, quality: 0.85, tag: 'call-bg' }).then((r) => {
 if (!r || r.st !== 'ok' || !r.data) { toast(window.mochiImgIngestMiss(r, '通话背景')); return; }
 const data = r.data;
 store.set(bgKey, data);
