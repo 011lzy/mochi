@@ -77,7 +77,7 @@ const buildStamp = buildTime.getTime().toString(36); // sw 缓存名版本号（
 // 每提交 10 次 +0.1（258 → v8.25，260 → v8.26，300 → v8.30）。
 // SW 缓存刷新依赖的是上面的 buildStamp（每次构建必变），与 APP_VERSION 无关。
 // 非 git 环境（脚本被拷贝/CI 无 git）回退 v8.0 兜底。
-let APP_VERSION = 'v8.54'; // 仓外隔离副本兜底直置（主树 execSync 自动取；#1011 批按 git rev-list --count 现值对齐，勿回退）
+let APP_VERSION = 'v8.55'; // 仓外隔离副本兜底直置（主树 execSync 自动取；#1011 批按 git rev-list --count 现值对齐，勿回退）
 try {
   const cnt = execSync('git rev-list --count HEAD', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
   if (cnt && /^\d+$/.test(cnt)) APP_VERSION = 'v8.' + Math.floor(parseInt(cnt, 10) / 10);
@@ -4849,6 +4849,10 @@ const FIX_SENTINELS = [
   /* ==== 2026-09-22 #1040 字卡库「批量导入」真·可点 surface 层（iPhone 15 / iOS 18.7 Safari 实报「字卡库传图依然完全没反应」；#677→#920 同族第十波；本会话作为构建者代为收口并补 #1040d 语音 accept 修）==== */
   { name: '#1040a 批量导入按钮的铺/撤层接线（删＝媒体分类回到程序化激活腿，iOS Safari 静默无视 showPicker/click＝「传图完全没反应」复发）', file: 'js/chatcard.js', needle: 'impBtn.__ccSyncSurface = syncCcImportSurface;' },
   { name: '#1040b surface 的 accept 必须按分类刷新（删/改回只铺不刷＝语音分类残留 image/*，iOS 文件选择器把语音文件灰显不可选＝「语音传不上去」复发，v3.16.x 同坑）', file: 'js/chatcard.js', needle: "_ccSurf.accept = cur === 'voice' ? '' : 'image/*'" },
+  /* ==== 2026-09-29 #1448 空列表态「批量导入图片/音频」按钮也铺真·可点 surface 层（iPhone 17 / iOS 18.7 Safari 实报「可自定义字卡里从文件和相册导不进图片/表情包」；诊断环 cc-file-pick/leg:fire · srf:0 · fb:onscreen 全环无 surf:hit＝手指从未落在任何真层上，媒体库为空＝用户点的是空状态按钮，而它过去只有 el.click() 一条合成腿；#677→#1040 同族第十二波，零机型分支）==== */
+  { name: '#1448a 空状态门与右上角门共用同一套铺层口径（删/退回两处各抄一份＝第二扇门漏掉 #1040d 语音 accept 放开，语音传不上去复发）', file: 'js/chatcard.js', needle: 'function ccLayImportSurface(hostEl, surfId) {' },
+  { name: '#1448b 空列表态「批量导入图片/音频」按钮铺真·可点层（删＝媒体库为空时用户唯一看得到的入口只剩合成腿，iOS Safari 静默无视＝空库传图完全没反应复发）', file: 'js/chatcard.js', needle: "if (_ccEmptyBtn) ccLayImportSurface(_ccEmptyBtn, 'cc-empty-import-surf');" },
+  { name: '#1448c 空状态委托对 surface 目标提前 return（删＝手指落在真层上、原生选择器刚弹起就被 preventDefault 取消，铺了等于白铺）', file: 'js/chatcard.js', needle: "if (_t && _t.getAttribute && _t.getAttribute('data-file-pick-surface') === '1') return;" },
   /* ==== 2026-09-22 #1036 OPPO Pad 4 Pro 四报障根因修复（朋友圈改名无变化 / 通话小框拖动不连贯 / 音乐库歌曲自己失效 / 换头像背景偶发无反应；用户点名「不要按机型分支、别的型号也有这问题」——全部零机型分支）==== */
   { name: '#1036a 朋友圈改名回扫存量快照函数（删＝改昵称只改设置键，存量动态/评论/点赞仍显示旧名＝「修改昵称无变化」复发）', file: 'js/feed.js', needle: 'function sweepFeedNameSnapshots(role, cid, prevName, newName) {' },
   // ==== 2026-09-25 #1270 重锚（下面 #1036b/g/i/k/l 四条名字一字不改，只换 file/needle）：

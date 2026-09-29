@@ -1246,12 +1246,20 @@ list.innerHTML = '<div class="cc-empty-wrap" style="grid-column:1/-1">'
 if (list && !list.__ccEmptyActBound) {
 list.__ccEmptyActBound = true;
 list.addEventListener('click', (e) => {
+const _t = e.target;
+if (_t && _t.getAttribute && _t.getAttribute('data-file-pick-surface') === '1') return;
 const b = e.target && e.target.closest ? e.target.closest('[data-cc-empty]') : null;
 if (!b) return;
 e.preventDefault(); e.stopPropagation();
 const el = document.getElementById(b.getAttribute('data-cc-empty') === 'link' ? 'cc-import-link' : 'cc-import');
 if (el) el.click();
 });
+}
+if (IMG_TYPES[cur]) {
+try {
+const _ccEmptyBtn = list.querySelector('[data-cc-empty="import"]');
+if (_ccEmptyBtn) ccLayImportSurface(_ccEmptyBtn, 'cc-empty-import-surf');
+} catch (e2) {}
 }
 return;
 }
@@ -3030,25 +3038,31 @@ if (!msgs.length) msgs.push('没有可上传的文件');
 toast(msgs.join('，'));
 }
 }
-function syncCcImportSurface() {
-try {
-if (!impBtn) return;
-const media = !!IMG_TYPES[cur];
-const inp = impBtn.querySelector('input[data-file-pick-surface]');
-if (!media) { if (inp) try { inp.remove(); } catch (e) {} return; }
+function ccLayImportSurface(hostEl, surfId) {
+if (!hostEl || !window.mochiFilePickSurface) return null;
+const inp = hostEl.querySelector('input[data-file-pick-surface]');
 if (inp) {
 try { inp.accept = cur === 'voice' ? '' : 'image/*'; inp.multiple = true; } catch (e) {}
-return; // 已铺，复用（幂等，不随 render 堆积节点）
+return inp; // 已铺，复用（幂等，不随 render 堆积节点）
 }
-if (window.mochiFilePickSurface) {
-var _ccSurf = window.mochiFilePickSurface(impBtn, {
-id: 'cc-import-media-surf',
+const _ccSurf = window.mochiFilePickSurface(hostEl, {
+id: surfId,
 accept: cur === 'voice' ? '' : 'image/*',
 multiple: true,
 onFiles: ccImportMedia
 });
 try { if (_ccSurf) _ccSurf.accept = cur === 'voice' ? '' : 'image/*'; } catch (e) {}
+return _ccSurf;
 }
+function ccDropImportSurface(hostEl) {
+const inp = hostEl && hostEl.querySelector ? hostEl.querySelector('input[data-file-pick-surface]') : null;
+if (inp) { try { inp.remove(); } catch (e) {} }
+}
+function syncCcImportSurface() {
+try {
+if (!impBtn) return;
+if (!IMG_TYPES[cur]) { ccDropImportSurface(impBtn); return; }
+ccLayImportSurface(impBtn, 'cc-import-media-surf');
 } catch (e) {}
 }
 impBtn.__ccSyncSurface = syncCcImportSurface;

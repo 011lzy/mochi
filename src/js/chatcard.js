@@ -1695,12 +1695,28 @@
       if (list && !list.__ccEmptyActBound) {
         list.__ccEmptyActBound = true;
         list.addEventListener('click', (e) => {
+          // FIX 2026-09-29 #1448：手指落在下面新铺的真·可点层上时，浏览器已按原生默认动作在弹
+          // 选择器；这里若继续 preventDefault 会把刚弹起的原生选择器取消（铺了等于白铺）。原样放行。
+          const _t = e.target;
+          if (_t && _t.getAttribute && _t.getAttribute('data-file-pick-surface') === '1') return;
           const b = e.target && e.target.closest ? e.target.closest('[data-cc-empty]') : null;
           if (!b) return;
           e.preventDefault(); e.stopPropagation();
           const el = document.getElementById(b.getAttribute('data-cc-empty') === 'link' ? 'cc-import-link' : 'cc-import');
           if (el) el.click();
         });
+      }
+      // FIX 2026-09-29 #1448（同族第十二波）：空列表态这扇「批量导入图片/音频」门过去只有
+      // el.click() 一条合成腿——iOS Safari 静默无视 showPicker/click，空库（媒体库为空时用户
+      // 唯一看得到的入口）点下去就是「传图完全没反应」，与 #1040 右上角门是同一种失败形状。
+      // 根治口径同上：媒体分类给它铺一张真·可点 file input 层，手指物理点按＝浏览器原生默认
+      // 动作弹选择器，不依赖任何 JS 腿。层继续挂在按钮内（整格覆盖安全），id 必须与右上角那扇
+      // 不同——mochiFilePickSurface 按 id 全局复用，同 id 挂到第二个按钮不会搬家（只会改 rec.host）。
+      if (IMG_TYPES[cur]) {
+        try {
+          const _ccEmptyBtn = list.querySelector('[data-cc-empty="import"]');
+          if (_ccEmptyBtn) ccLayImportSurface(_ccEmptyBtn, 'cc-empty-import-surf');
+        } catch (e2) {}
       }
       return;
     }
@@ -3786,32 +3802,43 @@
     // 浏览器按原生默认动作弹系统选择器，不依赖 JS 激活腿——iOS Safari 常静默无视 showPicker/click，
     // 这就是「从系统文件导入图片无反应」的根因面）；文本分类撤层（否则透明的可点层盖住按钮，
     // 会吞掉点按、破坏文字批量导入弹窗）。
+    // FIX 2026-09-29 #1448：把铺/撤抽成公共函数，给「右上角批量导入」与「空列表态批量导入
+    // 图片/音频」两扇门共用同一条口径——空库时用户唯一看得到的那扇门（空状态按钮）过去只有
+    // el.click() 合成腿，iOS Safari 静默无视＝空库传图完全没反应（#1040 同族第十二波）。
+    // 共用而不是第二扇门手抄，是为了不重演本族「手抄必漏」的结构性教训（漏掉 #1040d 的语音
+    // accept 放开＝语音传不上去）。
+    function ccLayImportSurface(hostEl, surfId) {
+      if (!hostEl || !window.mochiFilePickSurface) return null;
+      const inp = hostEl.querySelector('input[data-file-pick-surface]');
+      if (inp) {
+        // FIX 2026-09-22 #1040d：已铺也要按当前分类刷新 accept——语音分类必须放开为空。
+        // iOS 的「文件」选择器按 accept 过滤（v3.16.x 在 JS 腿上修过的同一坑）：surface
+        // 一旦在表情包/图片分类先铺上（accept=image/*），切到语音分类若不刷新，选择器
+        // 会把语音文件灰显不可选＝「语音传不上去」。multiple 恒 true（批量口径不变）。
+        try { inp.accept = cur === 'voice' ? '' : 'image/*'; inp.multiple = true; } catch (e) {}
+        return inp; // 已铺，复用（幂等，不随 render 堆积节点）
+      }
+      const _ccSurf = window.mochiFilePickSurface(hostEl, {
+        id: surfId,
+        accept: cur === 'voice' ? '' : 'image/*',
+        multiple: true,
+        onFiles: ccImportMedia
+      });
+      // FIX 2026-09-22 #1040d：mochiFilePickSurface 内部是 `o.accept || 'image/*'`——
+      // 语音分类有意传的空串会被兜底成 image/*（iOS 选择器按 accept 过滤＝语音文件
+      // 灰显不可选，v3.16.x 同坑）。这里按返回的真 input 再写一次真实口径。
+      try { if (_ccSurf) _ccSurf.accept = cur === 'voice' ? '' : 'image/*'; } catch (e) {}
+      return _ccSurf;
+    }
+    function ccDropImportSurface(hostEl) {
+      const inp = hostEl && hostEl.querySelector ? hostEl.querySelector('input[data-file-pick-surface]') : null;
+      if (inp) { try { inp.remove(); } catch (e) {} }
+    }
     function syncCcImportSurface() {
       try {
         if (!impBtn) return;
-        const media = !!IMG_TYPES[cur];
-        const inp = impBtn.querySelector('input[data-file-pick-surface]');
-        if (!media) { if (inp) try { inp.remove(); } catch (e) {} return; }
-        if (inp) {
-          // FIX 2026-09-22 #1040d：已铺也要按当前分类刷新 accept——语音分类必须放开为空。
-          // iOS 的「文件」选择器按 accept 过滤（v3.16.x 在 JS 腿上修过的同一坑）：surface
-          // 一旦在表情包/图片分类先铺上（accept=image/*），切到语音分类若不刷新，选择器
-          // 会把语音文件灰显不可选＝「语音传不上去」。multiple 恒 true（批量口径不变）。
-          try { inp.accept = cur === 'voice' ? '' : 'image/*'; inp.multiple = true; } catch (e) {}
-          return; // 已铺，复用（幂等，不随 render 堆积节点）
-        }
-        if (window.mochiFilePickSurface) {
-          var _ccSurf = window.mochiFilePickSurface(impBtn, {
-            id: 'cc-import-media-surf',
-            accept: cur === 'voice' ? '' : 'image/*',
-            multiple: true,
-            onFiles: ccImportMedia
-          });
-          // FIX 2026-09-22 #1040d：mochiFilePickSurface 内部是 `o.accept || 'image/*'`——
-          // 语音分类有意传的空串会被兜底成 image/*（iOS 选择器按 accept 过滤＝语音文件
-          // 灰显不可选，v3.16.x 同坑）。这里按返回的真 input 再写一次真实口径。
-          try { if (_ccSurf) _ccSurf.accept = cur === 'voice' ? '' : 'image/*'; } catch (e) {}
-        }
+        if (!IMG_TYPES[cur]) { ccDropImportSurface(impBtn); return; }
+        ccLayImportSurface(impBtn, 'cc-import-media-surf');
       } catch (e) {}
     }
     impBtn.__ccSyncSurface = syncCcImportSurface;
