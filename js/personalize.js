@@ -746,8 +746,9 @@ let deskBlurBakedFor = null;  // 烘焙结果对应的原图（=== 当前 deskWa
 let deskBlurFallback = false; // true＝当前壁纸烘焙失败 → 维持旧 CSS filter（.desk-blur-on）
 let deskBlurBakeSeq = 0;      // 烘焙序号：滑杆连改/换图时迟到的旧结果一律丢弃
 let deskBlurTimer = null;
+let _sdBlurPh = null; // #1467：.phone 静态锚（template.html 静态节点，#338 同款假设），不再每次开关都全文档查一遍
 const setDeskBlurClass = (on) => {
-const ph = document.querySelector('.phone');
+const ph = _sdBlurPh || (_sdBlurPh = document.querySelector('.phone'));
 if (ph) ph.classList.toggle('desk-blur-on', !!on);
 };
 const deskBlurReady = () => deskBlurPx > 0 && deskLayerMode === 'img' && !deskBlurFallback && !!deskBlurBaked && deskBlurBakedFor === deskWallSrc;

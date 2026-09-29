@@ -168,7 +168,9 @@
     return w;
   }
   let perfOn = false;
+  let perfScrollAt = 0; // #1467：最近一条翻页 scroll 的时刻＝「手势还活着」的心跳，截短判据用它
   function perfSample() {
+    perfScrollAt = Date.now(); // #1467：每条 scroll 都刷新（本函数只在 scroll 里被调）
     if (perfOn) return;
     perfOn = true;
     const gaps = [];
@@ -179,17 +181,8 @@
     // 现改为：隐藏帧只重置基线不记样本，恢复后重采；剔除条数随 hid 字段落键，
     // 诊断【性能】一节据此标注「已剔除后台帧 N」。
     let hid = 0;
-    const tick = (now) => {
-      if (awayGap()) { hid++; last = 0; requestAnimationFrame(tick); return; } // #1324：跨挂起边界的那一差不算一帧
-      if (typeof document !== 'undefined' && document.hidden) {
-        hid++;
-        last = 0;
-        requestAnimationFrame(tick);
-        return;
-      }
-      if (last) gaps.push(now - last);
-      last = now;
-      if (gaps.length < PERF_FRAMES) { requestAnimationFrame(tick); return; }
+    // #1467：收笔抽成函数——正常采满与「翻页已停截短」共用同一落键（cut 字段区分）
+    const finish = () => {
       perfOn = false;
       gaps.sort((a, b) => a - b);
       const sum = gaps.reduce((a, b) => a + b, 0);
@@ -200,10 +193,29 @@
           mean: Math.round(sum / gaps.length),
           p90: Math.round(gaps[Math.floor(gaps.length * 0.9)]),
           worst: Math.round(gaps[gaps.length - 1]),
+          cut: gaps.length < PERF_FRAMES ? 1 : 0, // #1467：1＝翻页已停提前收笔（未采满 60 帧）
           pages: dotsCache.length, // 圆点数＝桌面页数（随手可得，不额外查 DOM）
           sc: _w690.sc, ph: _w690.ph // #1295 现场快照（诊断行随帧耗时一并读出）
         }));
       } catch (e) {}
+    };
+    const tick = (now) => {
+      if (awayGap()) { hid++; last = 0; requestAnimationFrame(tick); return; } // #1324：跨挂起边界的那一差不算一帧
+      if (typeof document !== 'undefined' && document.hidden) {
+        hid++;
+        last = 0;
+        requestAnimationFrame(tick);
+        return;
+      }
+      // #1467：翻页已停（≥500ms 无新 scroll）就当场收笔——旧实现闭着眼采满 60 帧才落键，
+      // 而 60 帧 × 每帧 851ms ≈ 51 秒，采样窗后半段早就不在翻页、混进来的环境冻结（多秒级
+      // 前台冻结）全被记成「翻页耗时」，本机 v8.54 报告 851ms 均值就是这么来的；截短样本带
+      // cut=1，诊断行据此标注，分诊不再把环境冻结当手势成本。
+      if (gaps.length && Date.now() - perfScrollAt > 500) { finish(); return; }
+      if (last) gaps.push(now - last);
+      last = now;
+      if (gaps.length < PERF_FRAMES) { requestAnimationFrame(tick); return; }
+      finish();
     };
     requestAnimationFrame(tick);
   }
@@ -367,11 +379,8 @@
     swOn = true;
     const gaps = [];
     let last = 0, hid = 0;
-    const tick = (now) => {
-      if (document.hidden || awayGap()) { hid++; last = 0; requestAnimationFrame(tick); return; } // #1324：同上，挂起期那一段不记进样本
-      if (last) gaps.push(now - last);
-      last = now;
-      if (gaps.length < SW_FRAMES) { requestAnimationFrame(tick); return; }
+    const swT0 = Date.now(); // #1467：切回桌面的墙钟起点
+    const finish = () => {
       swOn = false;
       gaps.sort((a, b) => a - b);
       const sum = gaps.reduce((a, b) => a + b, 0);
@@ -382,9 +391,21 @@
           mean: Math.round(sum / gaps.length),
           p90: Math.round(gaps[Math.floor(gaps.length * 0.9)]),
           worst: Math.round(gaps[gaps.length - 1]),
+          cut: gaps.length < SW_FRAMES ? 1 : 0, // #1467：1＝切页窗口已过提前收笔
           sc: _w884.sc, ph: _w884.ph // #1295 现场快照（切回桌面那一刀当时壁纸/模糊/近操作是什么）
         }));
       } catch (e) {}
+    };
+    const tick = (now) => {
+      if (document.hidden || awayGap()) { hid++; last = 0; requestAnimationFrame(tick); return; } // #1324：同上，挂起期那一段不记进样本
+      // #1467：切回桌面的布局/栅格化窗口通常 ≤1 秒——2.5s 还没采满就收笔，防把之后与切页
+      // 无关的环境冻结记进「切回桌面」账（#1324 之前这条尺曾把整段挂起量成一帧骗过三批分诊；
+      // 挂起修掉了、环境冻结还会来，同一课：截短＋标注，不再让尺子替别处的病背锅）
+      if (gaps.length && Date.now() - swT0 > 2500) { finish(); return; }
+      if (last) gaps.push(now - last);
+      last = now;
+      if (gaps.length < SW_FRAMES) { requestAnimationFrame(tick); return; }
+      finish();
     };
     requestAnimationFrame(tick);
   }

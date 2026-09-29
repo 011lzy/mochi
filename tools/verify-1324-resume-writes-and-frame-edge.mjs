@@ -240,14 +240,18 @@ try {
   await C.evalJs(SHOW); // 先恢复可见，再放行 ⇒ 没有任何一次回调看见过 hidden（旧尺子因此把这 900ms 记成一帧）
   await C.evalJs(PARK_GO);
   const r1v = await grab(deskKey);
-  A_('R1 前提：停存夹具之后翻页样本仍然攒满并落了键（样本没被夹具饿死）', !!r1v && r1v.n >= 40, r1v && { n: r1v.n });
+  // #1467 重基线：夹具只发一发合成 scroll 就挂起 900ms，恢复时「翻页」早已停——按新契约当场截短收笔。
+  // n>=10＋cut=1＝尺子既没被夹具饿死、截短语义也在场；旧「攒满 60 帧」口径随 #1467 截短退役。
+  A_('R1 前提：停存夹具之后翻页样本仍然落键（没被夹具饿死；恢复时翻页已停＝按 #1467 契约截短）', !!r1v && r1v.n >= 10 && r1v.cut === 1, r1v && { n: r1v.n, cut: r1v.cut });
   A_('R2 跨挂起边界那一差不进样本：最慢帧远小于停存时长 900ms', !!r1v && r1v.worst < 400, r1v && { worst: r1v.worst, mean: r1v.mean, hid: r1v.hid });
   A_('R3 被丢弃的挂起边界如实计入 hid（尺子自证剔过几帧，不静默吞）', !!r1v && r1v.hid >= 1, r1v && { hid: r1v.hid });
   A_('R4 现场快照两字段仍在（#1295 的 sc/ph 一字未动）', !!r1v && typeof r1v.sc === 'string' && typeof r1v.ph === 'string', r1v && { sc: r1v.sc, ph: r1v.ph });
   await C.evalJs("(function(){try{localStorage.removeItem(" + deskKey + ")}catch(e){}return 1})()");
   await C.evalJs(armDesk);
   const r5v = await grab(deskKey);
-  A_('R5 不跨边界的正常样本不受影响（照样攒满 60 帧量级、照常出数＝修复没把尺子弄哑）', !!r5v && r5v.n >= 40, r5v);
+  // #1467 重基线：正常样本照常出数，但「60 帧量级」随截短退役——arm 那一眼 scroll 之后无人翻页，
+  // ≥500ms 即截短；cut 字段必须是数值＝新代码带语义、旧代码（无字段）在此判红。
+  A_('R5 不跨边界的正常样本照常出数（#1467 后 arm 后无人翻页＝500ms 截短收笔，cut 字段在场）', !!r5v && typeof r5v.cut === 'number' && r5v.n >= 10 && typeof r5v.mean === 'number', r5v);
 
   console.log('\nN 组 #707h 旧行为（回调真的看见 hidden＝不停存）:');
   await C.evalJs("(function(){try{localStorage.removeItem(" + deskKey + ")}catch(e){}return 1})()");
@@ -257,7 +261,8 @@ try {
   await sleep(400);
   await C.evalJs(SHOW);
   const n1v = await grab(deskKey);
-  A_('N1 #707h 一字未动：回调看得见 hidden 时照旧剔除、且不记进样本（两侧皆绿＝旧契约还在）', !!n1v && n1v.n >= 40 && n1v.hid >= 1 && n1v.worst < 400, n1v);
+  // #1467 重基线：截短后帧数变小，核心契约不变——hidden 期照旧剔除（hid>=1）、挂起间隙不冒充一帧（worst<400）。
+  A_('N1 #707h 一字未动：回调看得见 hidden 时照旧剔除、且不记进样本（#1467 后样本可截短、hid/worst 契约不变）', !!n1v && n1v.n >= 10 && n1v.hid >= 1 && n1v.worst < 400, n1v);
 
   console.log('\nT 组 切回桌面帧尺（#884；#943e 限频 5 分钟＝每场加载只有一次起采机会）:');
   // ⚠️ 夹具纪律第二条：#943e 让 swSample 五分钟只发一次，而前面那十几发 visibilitychange 里任何一次

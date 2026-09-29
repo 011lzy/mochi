@@ -82,23 +82,15 @@ w.ph = o.join('|').slice(0, 220);
 return w;
 }
 let perfOn = false;
+let perfScrollAt = 0; // #1467：最近一条翻页 scroll 的时刻＝「手势还活着」的心跳，截短判据用它
 function perfSample() {
+perfScrollAt = Date.now(); // #1467：每条 scroll 都刷新（本函数只在 scroll 里被调）
 if (perfOn) return;
 perfOn = true;
 const gaps = [];
 let last = 0;
 let hid = 0;
-const tick = (now) => {
-if (awayGap()) { hid++; last = 0; requestAnimationFrame(tick); return; } // #1324：跨挂起边界的那一差不算一帧
-if (typeof document !== 'undefined' && document.hidden) {
-hid++;
-last = 0;
-requestAnimationFrame(tick);
-return;
-}
-if (last) gaps.push(now - last);
-last = now;
-if (gaps.length < PERF_FRAMES) { requestAnimationFrame(tick); return; }
+const finish = () => {
 perfOn = false;
 gaps.sort((a, b) => a - b);
 const sum = gaps.reduce((a, b) => a + b, 0);
@@ -109,10 +101,25 @@ t: Date.now(), n: gaps.length, hid: hid,
 mean: Math.round(sum / gaps.length),
 p90: Math.round(gaps[Math.floor(gaps.length * 0.9)]),
 worst: Math.round(gaps[gaps.length - 1]),
+cut: gaps.length < PERF_FRAMES ? 1 : 0, // #1467：1＝翻页已停提前收笔（未采满 60 帧）
 pages: dotsCache.length, // 圆点数＝桌面页数（随手可得，不额外查 DOM）
 sc: _w690.sc, ph: _w690.ph // #1295 现场快照（诊断行随帧耗时一并读出）
 }));
 } catch (e) {}
+};
+const tick = (now) => {
+if (awayGap()) { hid++; last = 0; requestAnimationFrame(tick); return; } // #1324：跨挂起边界的那一差不算一帧
+if (typeof document !== 'undefined' && document.hidden) {
+hid++;
+last = 0;
+requestAnimationFrame(tick);
+return;
+}
+if (gaps.length && Date.now() - perfScrollAt > 500) { finish(); return; }
+if (last) gaps.push(now - last);
+last = now;
+if (gaps.length < PERF_FRAMES) { requestAnimationFrame(tick); return; }
+finish();
 };
 requestAnimationFrame(tick);
 }
@@ -200,11 +207,8 @@ swSample.last = now943;
 swOn = true;
 const gaps = [];
 let last = 0, hid = 0;
-const tick = (now) => {
-if (document.hidden || awayGap()) { hid++; last = 0; requestAnimationFrame(tick); return; } // #1324：同上，挂起期那一段不记进样本
-if (last) gaps.push(now - last);
-last = now;
-if (gaps.length < SW_FRAMES) { requestAnimationFrame(tick); return; }
+const swT0 = Date.now(); // #1467：切回桌面的墙钟起点
+const finish = () => {
 swOn = false;
 gaps.sort((a, b) => a - b);
 const sum = gaps.reduce((a, b) => a + b, 0);
@@ -215,9 +219,18 @@ t: Date.now(), n: gaps.length, hid: hid,
 mean: Math.round(sum / gaps.length),
 p90: Math.round(gaps[Math.floor(gaps.length * 0.9)]),
 worst: Math.round(gaps[gaps.length - 1]),
+cut: gaps.length < SW_FRAMES ? 1 : 0, // #1467：1＝切页窗口已过提前收笔
 sc: _w884.sc, ph: _w884.ph // #1295 现场快照（切回桌面那一刀当时壁纸/模糊/近操作是什么）
 }));
 } catch (e) {}
+};
+const tick = (now) => {
+if (document.hidden || awayGap()) { hid++; last = 0; requestAnimationFrame(tick); return; } // #1324：同上，挂起期那一段不记进样本
+if (gaps.length && Date.now() - swT0 > 2500) { finish(); return; }
+if (last) gaps.push(now - last);
+last = now;
+if (gaps.length < SW_FRAMES) { requestAnimationFrame(tick); return; }
+finish();
 };
 requestAnimationFrame(tick);
 }

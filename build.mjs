@@ -6164,6 +6164,10 @@ const FIX_SENTINELS = [
      等满间隔才掷第一签；页面死多久就欠多久＝「设了概率整天不触发」，机型/浏览器无关。两针钉补掷本体。 */
   { name: '#1465a 主动发送回前台补掷的去重锚：tryAutoSend 开掷即记时（删＝后台节流迟到的旧定时器先跑后补掷通道失去让位基准，回场瞬间可双掷）', file: 'js/chat.js', needle: 'asLastTryAt = Date.now();' },
   { name: '#1465b 主动发送回前台补掷闸：真见过 hidden 或页面被丢弃回载才补＋离场≥最短间隔＋上轮开掷≥同阈值（删回无条件＝冷启动也空掷、手动刷新也掷、「短离场不抢」契约丢失）', file: 'js/chat.js', needle: 'if (!asHiddenAt && document.wasDiscarded !== true) return;' },
+  /* ==== 2026-09-30 #1467 iPhone 16 Pro Max／iOS 27.0 PWA 实报「切页面、点击、滑动时最卡」（perfcheck：平均 4.5fps／前台冻结 111 次／最慢 6077ms；现场「模糊=关」＝#1445 门控所治的手势样式税同样在场，但 851ms「翻页耗时」假读数的主体是尺子自身缺陷，见下）。本批两件：① #690/#884 两把帧尺截短——旧实现闭眼采满 60/30 帧才落键，60 帧×851ms=51 秒采样窗把窗后半段的环境冻结（本报告最慢三刀 6077/5276/4801ms 全在桌面、期间 ka-tick 15s 空档＝计时器被整段饿死）整段记成「翻页耗时」；改「翻页尺 ≥500ms 无 scroll 即收笔、切回桌面尺 2.5s 墙钟封顶」，cut 字段落键＋诊断行截短标注＝环境冻结不再冒充手势成本（#1324 同族续课：尺子不许替别处的病背锅）；② setDeskBlurClass 的 .phone 查询改静态锚。同批随动：verify-1324 R1/R5/N1 三断言随截短语义重基线 ==== */
+  { name: '#1467a 翻页帧尺翻页已停即收笔（删＝60 帧盲采把采样窗后 ~50s 的环境冻结记成「翻页耗时」，851ms 假读数回流）', file: 'js/desktop-slider.js', needle: 'if (gaps.length && Date.now() - perfScrollAt > 500) { finish(); return; }' },
+  { name: '#1467b 切回桌面帧尺 2.5s 墙钟封顶（删＝切页窗口过后继续盲采 30 帧，环境冻结混进切页账）', file: 'js/desktop-slider.js', needle: 'if (gaps.length && Date.now() - swT0 > 2500) { finish(); return; }' },
+  { name: '#1467c 诊断行截短标注（删＝截短样本看起来和整段采样一模一样，分诊又被假读数带偏）', file: 'js/device.js', needle: "dp.cut ? '（截短：翻页已停，未采满 60 帧）'" },
 
 ];
 try {
