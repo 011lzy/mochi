@@ -10663,10 +10663,11 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
             <p class="splash-item">可自由二传、二改、自行部署；必须保留署名：小红书 @言序（1842523578）（禁止删除或修改）；禁止商用、禁止以盈利为目的。</p>
             <p class="splash-item">二次修改要注明原作者；借鉴功能或代码，必须标注灵感来源：Mochi 字卡 · 小红书 @言序（1842523578）。</p>
             <p class="splash-item">开屏公告为本站内容，不可删除或修改。</p>
-            <p class="splash-sub">二传二改说明（只有三点要求）：</p>
+            <p class="splash-sub">二传二改说明（只有四点要求）：</p>
             <p class="splash-bullet"><b>一、署名</b>——不管是原样转发，还是改动之后再传，请保留作者署名：小红书 @言序（1842523578），禁止删除或修改，不要冒认为自己做的。</p>
             <p class="splash-bullet"><b>二、不要转发密码</b>——二级验证密码（暗号）请不要转发给别人。密码是成年人验证用的（开启系统内置字卡、跳过开屏问答），一旦大范围二传就会被重新设置，防护失去意义；自己用、自己解锁没问题，但不要公开、不要告诉别人。</p>
             <p class="splash-bullet"><b>三、二改之后如果要公开，请不要公开内置字卡</b>——自己改、自己用都没问题；公开部署 / 分享时请只保留你自己添加的字卡，不要把系统内置字卡打包进去。</p>
+            <p class="splash-bullet"><b>四、二改可以自加云存储，但请不要公开云存储</b>——本站的存储都保存在个人设备本地，不会上传至任何网络，也不会加云存储；停更之后你可以拿代码去二改、自己加上云存储部署私人使用，但请不要公开，公开有云存储给其他人使用可能会引来麻烦，给你我双方都带来困扰。</p>
             <p class="splash-sub">灵感来源：</p>
             <p class="splash-item">本站不是 milk字卡代码的二改版本，是从零开始独立编写的字卡传讯二创作品；「Mochi」这个名字与 milk 字卡没有关系，就是想取个简单的名字取的。</p>
             <p class="splash-item">本站并非复刻他人网站，代码均从零编写。除随机回复的基础逻辑、基础框架外（灵感来源为 milk 字卡 · 小红书 @milk（2777299956）），以下功能为借鉴：</p>
@@ -10714,6 +10715,16 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
           </div>
           <!-- #1060（2026-09-23 用户直派「关于后台通知相关设置也放在公告里，放在公告的最后新增一个目录」）：
                与在线权威源 src/pwa/notice.json 的 sections 末条同口径（在线整段替换本段；此处为断网/弱网兜底） -->
+          <!-- #1449（2026-09-29 作者直派「公告第一页需要新增目录一条，并且二改说明里也要加这一条：没有云存储，如果二改不要公开云存储」）：
+               与在线权威源 src/pwa/notice.json 的同名章节逐字一致（联网用户看在线源、断网/弱网看这里），改文案必须两份同改；
+               同一口径的第二处落点见本页「二传二改说明」第四条与 设置 → 关于 的「二传与二改说明」卡 -->
+          <div class="splash-sec-wrap">
+            <p class="splash-sec">关于云存储（本站没有云存储，二改请不要公开云存储）</p>
+            <p class="splash-item">这个网站的存储都是保存在个人设备本地的，不会上传至任何网络。</p>
+            <p class="splash-item">云存储之前有人提过，但因为这个字卡使用人数越来越多，不会考虑加了。明确来说，现在是人太多，会有各种风险（安全风险等），所以我不加。</p>
+            <p class="splash-sub">建议：</p>
+            <p class="splash-bullet"><b>停更之后可以拿代码去二改，自己加上云存储、部署私人使用，但请不要公开。</b>公开有云存储给其他人使用，因为使用网站的人太多了，可能会引来麻烦，给你我双方都带来困扰。</p>
+          </div>
           <div class="splash-sec-wrap">
             <p class="splash-sec">关于后台通知相关设置（怎么开、收不到怎么办）</p>
             <p class="splash-bullet"><b>三个开关都在 设置 → 系统</b>：「后台通知」＝页面在后台时 TA 发消息弹系统通知（打开它会自动把「后台保活」一起打开，保活是通知的前提）；「通知逐条弹（关闭去重）」＝默认关闭（连发内容相同或近期弹过的消息只弹一条），<b>打开后联系人每条消息都单独弹</b>（字卡重复率高时会连环弹同句，按需开）；「后台保活」＝让页面在后台继续运行。</p>
@@ -10731,9 +10742,9 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
       <!-- #570：第三行开屏新版检测（ver-check.js 渲染）：检测中 / ✓已是最新 / ⇩有新版本可点更新 -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1790683395115">
+      <div class="splash-ver" id="splash-ver" data-build-ts="1790685504830">
         <span class="sv-app">Mochi 字卡传讯 <b>v8.55</b></span>
-        <span class="sv-deploy">部署于 2026-09-29 20:03<span id="splash-ver-live"></span></span>
+        <span class="sv-deploy">部署于 2026-09-29 20:38<span id="splash-ver-live"></span></span>
         <span class="sv-check" id="splash-ver-check" hidden></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
@@ -12952,16 +12963,18 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
           <div class="lic-li">- <b>严禁以任何形式收费倒卖本站链接、安装包</b>——本站完全免费，如果你是花钱买来的链接：你被骗了，请拒付退款并举报卖家</div>
         </div>
 
-        <!-- 二传与二改说明（三点要求） -->
+        <!-- 二传与二改说明（四点要求） -->
         <div class="cal-card glass">
           <div class="lic-h"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;margin-right:4px"><path d="M17 8h2a2 2 0 012 2v9a2 2 0 01-2 2H9a2 2 0 01-2-2v-9a2 2 0 012-2h2"/><path d="M9 6V5a3 3 0 016 0v1"/><circle cx="13" cy="13" r="1.6"/></svg>二传与二改说明</div>
-          <div class="lic-p">可以二传、二改，只有三点要求：</div>
+          <div class="lic-p">可以二传、二改，只有四点要求：</div>
           <div class="lic-li" style="margin-top:6px"><b>一、署名</b>——不管是原样转发，还是改动之后再传，请保留作者署名：<b>小红书 @言序（1842523578）</b>，禁止删除或修改，不要冒认为自己做的。</div>
           <div class="lic-li">二次修改的版本要注明原作者；借鉴功能或代码，请标注灵感来源。未标注来源的使用，视为违反许可协议。</div>
           <div class="lic-li" style="margin-top:6px"><b>二、不要转发密码</b>——二级验证密码（暗号）请不要转发给别人。</div>
           <div class="lic-li">密码是成年人验证用的（开启系统内置字卡、跳过开屏问答），一旦有人大范围二传，密码就会被重新设置，防护就失去意义；自己用、自己解锁没问题，但不要公开、不要告诉别人。</div>
           <div class="lic-li" style="margin-top:6px"><b>三、二改之后如果要公开，请不要公开内置字卡</b>——自己改、自己用都没有问题，但如果改完要公开出去（公开部署、公开分享给他人），请不要把系统内置字卡一起公开。</div>
           <div class="lic-li">内置字卡是系统预设的内容；公开的二改版本，请只保留你自己添加的字卡，不要把内置字卡打包进去。</div>
+          <div class="lic-li" style="margin-top:6px"><b>四、二改可以自加云存储，但请不要公开云存储</b>——这个网站的存储都是保存在个人设备本地的，不会上传至任何网络，本站也不会加云存储。</div>
+          <div class="lic-li">停更之后你可以拿代码去二改，自己加上云存储、部署私人使用，但请不要公开。公开有云存储给其他人使用，因为使用网站的人太多了，可能会引来麻烦，给你我双方都带来困扰。</div>
           <div class="lic-p" style="margin-top:10px">就这些，谢谢尊重。</div>
         </div>
 
@@ -22630,4 +22643,4 @@ window.__mochiBootRetry = function () { try { location.reload(); } catch (e) {} 
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mummnqjv -->
+<!-- __MOCHI_EOF__ mumnwyf2 -->
