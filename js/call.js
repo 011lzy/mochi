@@ -501,7 +501,7 @@ shownName = null;
 }
 function bgCallNotify(name, hint, avOverride) {
 try {
-if (window.bgNotifyCheck) window.bgNotifyCheck(name + ' 来电了' + (hint ? '，' + hint : ''), Date.now(), { name: name + '来电', av: avOverride || partnerAv(), avFixed: true, force: true });
+if (window.bgNotifyCheck) window.bgNotifyCheck(name + ' 来电了' + (hint ? '，' + hint : ''), Date.now(), { name: name + '来电', av: avOverride || partnerAv(), avFixed: true, force: true, callAlert: true, callTag: name });
 } catch (e) {}
 }
 const CALL_HOLD_MS = 3 * 60 * 1000;
@@ -509,6 +509,31 @@ const CALL_HOLD_KEY = 'xy-home-v2:call-hold';
 const HOLD_SID = 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 function heldMissedHtml(nm) {
 return '<svg class="st-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>' + nm + ' 来电 · 未接听';
+}
+const CALL_REPEAT_MS = 30000;
+const CALL_REPEAT_MAX = 5;
+let callRepeatTimer = 0;
+let callRepeatCount = 0;
+function stopCallRepeat() {
+if (callRepeatTimer) { clearTimeout(callRepeatTimer); callRepeatTimer = 0; }
+callRepeatCount = 0;
+}
+function startCallRepeat(name, cid, avOverride) {
+stopCallRepeat();
+const wantCid = cid || (window.__activeCid || 'default');
+const tick = function () {
+callRepeatTimer = 0;
+if (currentCall) { stopCallRepeat(); return; } // 已接通/前台响铃中/通话已结束
+if (document.visibilityState === 'visible') { stopCallRepeat(); return; }
+let h = null;
+try { h = readCallHold(); } catch (e) {}
+if (!h || h.name !== name || h.cid !== wantCid || Date.now() - h.ts > CALL_HOLD_MS) { stopCallRepeat(); return; }
+if (callRepeatCount >= CALL_REPEAT_MAX) { stopCallRepeat(); return; }
+callRepeatCount++;
+bgCallNotify(name, '快回来接听，对方会等你几分钟', avOverride);
+callRepeatTimer = setTimeout(tick, CALL_REPEAT_MS);
+};
+callRepeatTimer = setTimeout(tick, CALL_REPEAT_MS);
 }
 function holdIncomingCall(name, cid, avOverride, msgWritten) {
 let prev = null;
@@ -521,6 +546,7 @@ const h = { ts: Date.now(), name: name, cid: cid || (window.__activeCid || 'defa
 try { localStorage.setItem(CALL_HOLD_KEY, JSON.stringify(h)); } catch (e) {}
 if (window.idbSet) { try { window.idbSet(CALL_HOLD_KEY, h); } catch (e) {} }
 if (!justNotified) bgCallNotify(name, '快回来接听，对方会等你几分钟', avOverride);
+startCallRepeat(name, cid, avOverride);
 }
 window.callHoldIncoming = holdIncomingCall;
 window.callRecordMissed = function (cid, name) {
@@ -533,6 +559,7 @@ return (h && h.ts) ? h : null;
 } catch (e) { return null; }
 }
 function clearCallHold() {
+stopCallRepeat();
 try { localStorage.setItem(CALL_HOLD_KEY, '{"ts":0}'); } catch (e) {}
 if (window.idbSet) { try { window.idbSet(CALL_HOLD_KEY, { ts: 0 }); } catch (e) {} }
 }

@@ -723,9 +723,12 @@
   // force=true：来电是「错过就没了」的单发事件，绕过 bgNotifyCheck 的 15s 过渡期/去重闸门。
   // avFixed=true：来电归属当前桌面，头像用 partnerAv() 权威值，空则走中立 mochi 图标。
   // #161：加 hint 尾缀——通知文案变为「XX 来电了，快回来接听，对方会等你几分钟」
+  // #1456：callAlert/callTag——让后台来电通知带「振铃感」（振动＋常驻＋重提醒，见
+  //   bg-keep.js bgNotifyCheck 的 extra.callAlert 分支）。后台放不出铃声是移动端内核
+  //   冻结后台页音频的硬限制，通知侧做到最接近来电即是上限。
   function bgCallNotify(name, hint, avOverride) {
     try {
-      if (window.bgNotifyCheck) window.bgNotifyCheck(name + ' 来电了' + (hint ? '，' + hint : ''), Date.now(), { name: name + '来电', av: avOverride || partnerAv(), avFixed: true, force: true });
+      if (window.bgNotifyCheck) window.bgNotifyCheck(name + ' 来电了' + (hint ? '，' + hint : ''), Date.now(), { name: name + '来电', av: avOverride || partnerAv(), avFixed: true, force: true, callAlert: true, callTag: name });
     } catch (e) {}
   }
   // #161：响铃挂起——后台来电不再「命中即未接」（用户反馈：点开通知永远接不到，
@@ -747,6 +750,39 @@
   const HOLD_SID = 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   function heldMissedHtml(nm) {
     return '<svg class="st-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>' + nm + ' 来电 · 未接听';
+  }
+  // #1456：后台来电「隔 30 秒重弹一次通知」——后台只弹一条「XX 来电了」，用户很容易划掉或没留意；
+  // 真来电是一直在响的，这里用重复提醒模拟「还在响」。边界（防空转/防叠条/防误催）：
+  //   ①由 holdIncomingCall（挂起写入）启动，与 #1291 的 6s 短窗去重互补（重弹间隔 30s > 6s 窗）；
+  //   ②每次重弹仍走 bgCallNotify（force=true，照旧绕过内容去重闸门，不会因同名同文被吞掉）；
+  //   ③同一联系人共用一条通知 tag（见 bg-keep.js 的 extra.callAlert）＝「替换＋再提醒」，
+  //     不是堆一串条，#1291「一条来电攒出一串重复通知」的口径不变；
+  //   ④任一条命中即立刻停：已回到前台（含只发 focus 不发 visibilitychange 的机型）、
+  //     挂起被消费或已写墓碑、换了联系人/姓名、超出 CALL_HOLD_MS 窗口、重弹已达上限。
+  const CALL_REPEAT_MS = 30000;
+  const CALL_REPEAT_MAX = 5;
+  let callRepeatTimer = 0;
+  let callRepeatCount = 0;
+  function stopCallRepeat() {
+    if (callRepeatTimer) { clearTimeout(callRepeatTimer); callRepeatTimer = 0; }
+    callRepeatCount = 0;
+  }
+  function startCallRepeat(name, cid, avOverride) {
+    stopCallRepeat();
+    const wantCid = cid || (window.__activeCid || 'default');
+    const tick = function () {
+      callRepeatTimer = 0;
+      if (currentCall) { stopCallRepeat(); return; } // 已接通/前台响铃中/通话已结束
+      if (document.visibilityState === 'visible') { stopCallRepeat(); return; }
+      let h = null;
+      try { h = readCallHold(); } catch (e) {}
+      if (!h || h.name !== name || h.cid !== wantCid || Date.now() - h.ts > CALL_HOLD_MS) { stopCallRepeat(); return; }
+      if (callRepeatCount >= CALL_REPEAT_MAX) { stopCallRepeat(); return; }
+      callRepeatCount++;
+      bgCallNotify(name, '快回来接听，对方会等你几分钟', avOverride);
+      callRepeatTimer = setTimeout(tick, CALL_REPEAT_MS);
+    };
+    callRepeatTimer = setTimeout(tick, CALL_REPEAT_MS);
   }
   function holdIncomingCall(name, cid, avOverride, msgWritten) {
     let prev = null;
@@ -773,6 +809,8 @@
     if (window.idbSet) { try { window.idbSet(CALL_HOLD_KEY, h); } catch (e) {} }
     // #1291：仅当短窗内没刚通知过同一联系人的来电时才发系统通知（见上方 justNotified）
     if (!justNotified) bgCallNotify(name, '快回来接听，对方会等你几分钟', avOverride);
+    // #1456：挂起期间每 30 秒重弹一次（回前台/接通/墓碑/超窗/达上限任一命中即停）
+    startCallRepeat(name, cid, avOverride);
   }
   // #204：暴露给 incoming-requests.js——跨桌面来电后台命中时同走「响铃挂起」（原只发
   // 通知即丢弃，切回应用无来电 UI 也无未接记录）；avOverride 用归属联系人头像
@@ -791,6 +829,9 @@
     } catch (e) { return null; }
   }
   function clearCallHold() {
+    // #1456：挂起被消费/超窗自愈＝这通来电已经不在了，停掉「30 秒重弹」
+    // （否则回前台接听后通知栏还在催「快回来接听」）
+    stopCallRepeat();
     // 写 {ts:0} 而非删除：防 idbRestore 用 IDB 旧值回填出「幽灵挂起」重复记未接
     try { localStorage.setItem(CALL_HOLD_KEY, '{"ts":0}'); } catch (e) {}
     if (window.idbSet) { try { window.idbSet(CALL_HOLD_KEY, { ts: 0 }); } catch (e) {} }

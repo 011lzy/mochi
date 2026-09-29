@@ -1838,6 +1838,12 @@ const body = String(text || '收到一条新消息')
 .replace(/\|\|\|.*$/, '');
 const bodyFitted = window.taFit ? window.taFit(body) : body;
 const opts = { body: (t ? t + '  ' : '') + (bodyFitted && bodyFitted.length > 40 ? bodyFitted.slice(0, 40) + '…' : bodyFitted) };
+if (extra.callAlert) {
+opts.vibrate = [700, 300, 700, 300, 700, 300, 700, 300, 700];
+opts.requireInteraction = true;
+opts.tag = 'mochi-call-' + (extra.callTag || 'call');
+opts.renotify = true;
+}
 let bigIcon = '';   // 右侧大图标：联系人头像；无头像时兜底 mochi 字母图标（见下）
 let previewImg = ''; // 展开大图：消息图片
 const avatar = extra.avFixed

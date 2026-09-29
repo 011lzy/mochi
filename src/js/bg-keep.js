@@ -2682,6 +2682,19 @@
     // v3.x.x：称呼跟随——通知正文里的 TA/他 按当前联系人性别替换（纯文本，安全）
     const bodyFitted = window.taFit ? window.taFit(body) : body;
     const opts = { body: (t ? t + '  ' : '') + (bodyFitted && bodyFitted.length > 40 ? bodyFitted.slice(0, 40) + '…' : bodyFitted) };
+    // #1456：来电通知加「振铃感」——网页在后台放不出铃声（移动端内核冻结后台页的音频与定时器，
+    // 平台硬限制，非本仓可解），退而求其次让通知本身尽量接近来电：
+    //   ①vibrate 长振——安卓 Chromium 生效（约 4.7s 振铃节奏），iOS 忽略该字段；
+    //   ②requireInteraction——用户回来之前不自动消失，一直留在通知栏；
+    //   ③tag＋renotify——同一位联系人的重复来电重新提醒（振动/提示音再来一遍）而不是被内核静默替换；
+    //     不同联系人各占一条（tag 带联系人名），不互相顶掉。
+    // 零机型／零 UA 分支：只加标准 NotificationOptions 字段，不支持的内核直接忽略。
+    if (extra.callAlert) {
+      opts.vibrate = [700, 300, 700, 300, 700, 300, 700, 300, 700];
+      opts.requireInteraction = true;
+      opts.tag = 'mochi-call-' + (extra.callTag || 'call');
+      opts.renotify = true;
+    }
     // v3.5.156：修正安卓通知字段语义（此前 icon/badge/image 用反，导致
     // 「左侧浏览器图标、右侧 mochi、无头像」）：
     //   - badge（左侧小图标，单色）= mochi 字母图标（showSysNotification 兜底设）
