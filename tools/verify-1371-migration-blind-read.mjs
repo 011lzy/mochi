@@ -23,8 +23,12 @@
 //   同步层（localStorage）走产品原路，本脚本只在文档脚本之前种一次。读数只问「还剩几条／有没有回话」。
 //
 // 断言（两侧同一把尺串行跑：落库副本应全绿；纯底本副本红的恰是 A/B/C/D/E 这些新契约）：
-//   F 组 夹具诚实：F1 四扇门确实装在产品的调用路上／F2 同步层读空是当场事实／F3 三态出口在场
-//     （idbGet 的 info.ambiguous 真被调用方传出来）／F4 迁移条件在场（单桌面·两把戳都缺席）
+//   F 组 夹具诚实（两条都是被实测教出来的，别再退回弱版）：
+//     · 现场必须是「本地只剩残缺尾巴／库里那本更全」两档不同条数——只造「两边都空」的话旧写法照样写空包，
+//       A1/A3 两侧同绿＝尺子什么都拦不住；条数差（60 对 90、12 对 20）才能把「净丢几条」量出来。
+//     · 这份现场要在**迁移动手之前**快照（INIT 里的 __snap0）；事后从库里扒读数＝红侧正因为已经把源键吃了
+//       才读成 -1，断言成了自我循环（取证的是现场，不是后果）。
+//     · 数据层那四扇门确实装在产品的调用路上（F1a/F1b/F1）／同步层读空是当场事实（F2）／迁移条件在场（F4）
 //   A 组 表情包迁移·库里那一发挂起：A1 不许拆源／A2 不许盖永不重跑的戳／A3 不许写全局那一本／
 //     A4 让路登记成证人／A5 下一场（库里答得出来）自愈＝并集落地→拆源→盖章 这个序
 //   B 组 表情包迁移·写库没有提交回执：B1 不拆源／B2 不盖章／B3 有回执那一趟三步齐全（闸不是「永远存不进去」）
@@ -59,8 +63,9 @@ let pass = 0, fail = 0;
 const ok = (c, n, x) => { if (c) { pass++; console.log('  ✓ ' + n); } else { fail++; console.log('  ✗ ' + n + (x !== undefined ? '  [' + String(x).slice(0, 300) + ']' : '')); } };
 
 // —— 夹具载荷（小包装：本尺子量的是「有没有回话」与「动没动源键」，不是体积）——
-const mkMy = (n, tag) => JSON.stringify([[tag || '取证组', Array.from({ length: n }, (_, i) => 'data:image/png;base64,' + 'A'.repeat(60) + '#' + tag + i)]]);
-const mkCc = (n) => JSON.stringify({ text: [['取证组', Array.from({ length: n }, (_, i) => '卡' + i + '|' + 'x'.repeat(300))]], kaomoji: [], emoji: [], sticker: [], image: [], voice: [], poke: [] });
+// 载荷：tag 决定组名，n 决定条数——尾巴与全量共用组名才能验「并集」而不只是「条数」
+const mkMyG = (groups) => JSON.stringify(groups.map(([tag, n]) => [tag, Array.from({ length: n }, (_, i) => 'data:image/png;base64,' + 'A'.repeat(60) + '#' + tag + i)]));
+const mkCcG = (groups) => JSON.stringify({ text: groups.map(([g, n]) => [g, Array.from({ length: n }, (_, i) => '卡' + g + i + '|' + 'x'.repeat(300))]), kaomoji: [], emoji: [], sticker: [], image: [], voice: [], poke: [] });
 const mkQc = (n) => JSON.stringify(Array.from({ length: n }, (_, i) => ({ t: '情话' + i })));
 const countMy = (raw) => { try { const a = JSON.parse(raw); let n = 0; (a || []).forEach((g) => { n += Array.isArray(g[1]) ? g[1].length : 0; }); return n; } catch (e) { return -1; } };
 const countCc = (raw) => { try { const d = JSON.parse(raw); let n = 0; Object.keys(d || {}).forEach((t) => (d[t] || []).forEach((g) => { n += Array.isArray(g[1]) ? g[1].length : 0; })); return n; } catch (e) { return -1; } };
@@ -77,6 +82,7 @@ const INIT = (o) => `(function () {
   var L = window.localStorage;
   var my = { calls: [], sets: [], dels: [], readsWithInfo: 0 };
   window.__fx = my;
+  window.__fxdb = db; // 只读取证用：F 组要当场比出「库里那本比本地全」
   var isHit = function (k, arr) { return arr.some(function (p) { return String(k || '').indexOf(p) >= 0; }); };
   var inDb = function (k) { return Object.prototype.hasOwnProperty.call(db, k); };
   var gReal, sReal, dReal, hReal, kReal;
@@ -113,6 +119,9 @@ const INIT = (o) => `(function () {
   }; } });
   // 同步层：文档脚本之前种一次（xyStore.get 读不到内存副本时就是读这里）
   try { for (var s in (o.ls || {})) L.setItem(s, o.ls[s]); for (var d in (o.lsDel || {})) L.removeItem(d); } catch (e) {}
+  // 迁移前快照：F 组那句「本地是残缺尾巴、库里那本更全」必须在任何动作之前定下来，否则红侧正因为
+  // 它把源键吃了才读成 -1，断言就成了自我循环（取证的是现场，不是后果）
+  window.__snap0 = { ls: Object.assign({}, o.ls || {}), db: Object.assign({}, db) };
 })();`;
 
 // RECORDER＝只记注入序与 async 标志，完全不碰数据层（E 组要的就是真启动那一趟的序）
@@ -161,72 +170,83 @@ async function open(opt, waitMs) {
   return { page, ctx, errs };
 }
 
-// ═══════ 场景 A：表情包迁移·库里那一发挂起 ═══════
+// ═══════ 场景 A：表情包迁移·库里那一发挂起（本地只剩尾巴）═══════════
+// 真实形状＝报障件那种：同步层读得出 60 条（default:cc-groups 只剩 576B 那一型），库里那本 90 条更全，
+// 而这一发挂起答不上来。旧写法的后果可以量化：把 60 条尾巴当全部写进目标键，再把源键连库里那本一起拆＝净丢 30 条。
 {
-  const seed = {}; seed[MYE_SRC] = mkMy(60, 'src');
-  const s = await open({ db: seed, hang: ['my-emoji-groups'], lsDel: { [MYE_PUB]: 1 } });
+  const TAIL = mkMyG([['甲组', 60]]);
+  const FULL = mkMyG([['甲组', 60], ['乙组', 30]]);
+  const s = await open({ ls: { [MYE_SRC]: TAIL }, db: { [MYE_SRC]: FULL }, hang: ['my-emoji-groups'], lsDel: { [MYE_PUB]: 1 } });
   const f = await fx(s.page);
+  const shape = await s.page.evaluate(() => {
+    const cnt = (raw) => { try { let n = 0; JSON.parse(raw).forEach((g) => { n += g[1].length; }); return n; } catch (e) { return -1; } };
+    return {
+      ls: cnt(window.__snap0.ls['xy-home-v2:default:my-emoji-groups']),
+      db: cnt(window.__snap0.db['xy-home-v2:default:my-emoji-groups']),
+      hang: window.__fx.calls.filter((c) => c === 'get:xy-home-v2:default:my-emoji-groups').length,
+    };
+  });
+  ok(shape.ls === 60 && shape.db === 90 && shape.hang >= 1, 'F1a 现场成立：本地只有 60 条尾巴、库里有 90 条更全的那本、而这一发确实问过库且没答上来（本地=' + shape.ls + '·库里=' + shape.db + '·问过 ' + shape.hang + ' 次）', shape);
   const stamp = await ls(s.page, ST_MYE);
   const hold = await s.page.evaluate(() => window.__myeMigHold || 0);
   const pubLen = await lsLen(s.page, MYE_PUB);
-  ok(f.calls.some((c) => c === 'get:' + MYE_SRC) && f.readsWithInfo >= 1, 'F1 数据层那四扇门确实在产品的调用路上（迁移那一批发问过 ' + f.readsWithInfo + ' 次且带回了话对象）', f.calls.slice(0, 6).join(' '));
-  ok(delOf(f, MYE_SRC) === 0, 'A1 每一发都没读到那一趟，一个源键都没拆（拆源＝连库里那本一起删，实拆 ' + delOf(f, MYE_SRC) + ' 个）', f.dels.join(','));
+  ok(delOf(f, MYE_SRC) === 0, 'A1 每一发都没读到那一趟，一个源键都没拆（红侧＝尾巴当全部迁完就拆源，库里那 90 条一起没了）', f.dels.join(','));
   ok(stamp !== '1', 'A2 不盖「永不重跑」的戳（红侧＝盖了＝下次照样看不见）', stamp);
-  ok(pubLen === -1, 'A3 全局那一本没被这一发写成残缺包（两侧同绿那一档＝旧写法本来也不写空包；本批守住的是 A1/A2，不许被改成「空手也整包写回」）', pubLen);
-  ok(hold >= 1, 'A4 让路登记成证人 __myeMigHold=' + hold + '（报障件里看得见「这一场为什么没动」）');
+  ok(pubLen === -1, 'A3 全局那一本也没被这一发写成残缺包（读数非空才许落笔；红侧＝写成 60 条尾巴）', pubLen);
+  ok(hold >= 1, 'A4 让路登记成证人 __myeMigHold=' + hold, hold);
   ok(s.errs.length === 0, 'Z1 A 场零未捕获 JS 异常', s.errs.slice(0, 2).join(' | '));
   await s.page.close(); await s.ctx.close();
-  // 下一场：库里答得出来了
-  const q = await open({ db: seed, lsDel: { [MYE_PUB]: 1 } });
+  // 下一场：库里答得出来了 ⇒ 合并应当是并集 90 条，拆源与盖章排其后
+  const q = await open({ ls: { [MYE_SRC]: TAIL }, db: { [MYE_SRC]: FULL }, lsDel: { [MYE_PUB]: 1 } });
   const f2 = await fx(q.page);
-  const pubSet = setOf(f2, MYE_PUB);
-  const delSrc = delOf(f2, MYE_SRC);
-  const st2 = await ls(q.page, ST_MYE);
-  ok(pubSet >= 1, 'A5a 下一场（库里答得出来）自愈：全局那一本写进去了（实写 ' + pubSet + ' 发）', f2.sets.join(','));
-  const pubContent = await q.page.evaluate((k) => { try { const v = localStorage.getItem(k); return v === null ? -1 : JSON.parse(v)[0][1].length; } catch (e) { return -2; } }, MYE_PUB);
-  ok(pubContent === 60, 'A5c 写进去的就是那 60 条并集（实读=' + pubContent + '）', pubContent);
-  ok(delSrc === 1 && st2 === '1', 'A5b 并集落地之后才拆源＋盖章（拆=' + delSrc + '·戳=' + st2 + '＝顺序不可反）', f2.dels.join(','));
+  const pubContent = await q.page.evaluate((k) => { try { const a = JSON.parse(localStorage.getItem(k)); let n = 0; a.forEach((g) => { n += g[1].length; }); return n; } catch (e) { return -1; } }, MYE_PUB);
+  ok(pubContent === 90, 'A5a 库里答得出来那一趟并集落地＝90 条（实读=' + pubContent + '；红侧只写得出 60 条尾巴）', pubContent);
+  ok(delOf(f2, MYE_SRC) === 1 && (await ls(q.page, ST_MYE)) === '1', 'A5b 并集落地之后才拆源＋盖章（顺序不可反）', f2.dels.join(','));
   await q.page.close(); await q.ctx.close();
 }
 
 // ═══════ 场景 B：表情包迁移·写库没有提交回执 ═══════
 {
-  const seed = {}; seed[MYE_SRC] = mkMy(30, 'b');
-  const s = await open({ db: {}, ls: seed, setFail: ['my-emoji-groups'], lsDel: { [MYE_PUB]: 1 } });
+  const TAIL = mkMyG([['甲组', 30]]);
+  const s = await open({ ls: { [MYE_SRC]: TAIL }, db: { [MYE_SRC]: mkMyG([['甲组', 30], ['乙组', 20]]) }, setFail: ['my-emoji-groups'], lsDel: { [MYE_PUB]: 1 } });
   const f = await fx(s.page);
-  const stamp = await ls(s.page, ST_MYE);
   const srcLen = await lsLen(s.page, MYE_SRC);
   ok(delOf(f, MYE_SRC) === 0, 'B1 写库没回执＝不拆源（红侧＝remove 会连库里那本一起删掉）', f.dels.join(','));
-  ok(stamp !== '1', 'B2 写库没回执＝不盖章（红侧＝删完盖完＝30 条彻底没了）', stamp);
-  ok(srcLen > 0, 'B3 源键那 30 条在同步层一字未动（长度 ' + srcLen + '）');
+  ok((await ls(s.page, ST_MYE)) !== '1', 'B2 写库没回执＝不盖章（红侧＝删完盖完＝50 条彻底没了）');
+  ok(srcLen > 0, 'B3 源键在同步层一字未动（长度 ' + srcLen + '）');
   await s.page.close(); await s.ctx.close();
-  const q = await open({ db: seed, lsDel: { [MYE_PUB]: 1 } });
+  const q = await open({ ls: { [MYE_SRC]: TAIL }, db: { [MYE_SRC]: mkMyG([['甲组', 30], ['乙组', 20]]) }, lsDel: { [MYE_PUB]: 1 } });
   const f2 = await fx(q.page);
   ok(delOf(f2, MYE_SRC) === 1 && (await ls(q.page, ST_MYE)) === '1', 'B4 有回执那一趟三步齐全＝闸没把这条路焊死（sets=' + f2.sets.length + ' dels=' + f2.dels.length + '）');
   await q.page.close(); await q.ctx.close();
 }
 
-// ═══════ 场景 C：字卡作用域迁移 ═══════
+// ═══════ 场景 C：字卡作用域迁移（同两条轴）═══════════
 {
-  const seed = {}; seed[CC_SRC] = mkCc(20);
-  const s = await open({ db: seed, hang: ['cc-groups'], lsDel: { [CC_PUB]: 1 } });
+  const TAIL = mkCcG([['取证组', 12]]);
+  const FULL = mkCcG([['取证组', 12], ['第二批', 8]]);
+  const s = await open({ ls: { [CC_SRC]: TAIL }, db: { [CC_SRC]: FULL }, hang: ['cc-groups'], lsDel: { [CC_PUB]: 1 } });
   const f = await fx(s.page);
-  const st = await ls(s.page, ST_CC);
-  const hold = await s.page.evaluate(() => window.__ccMigHold || 0);
   const contacts = await s.page.evaluate(() => (window.getContacts ? window.getContacts().length : -1));
+  const shape = await s.page.evaluate(() => {
+    const cnt = (raw) => { try { const d = JSON.parse(raw); let n = 0; Object.keys(d).forEach((t) => (d[t] || []).forEach((g) => { n += g[1].length; })); return n; } catch (e) { return -1; } };
+    return { ls: cnt(window.__snap0.ls['xy-home-v2:default:cc-groups']), db: cnt(window.__snap0.db['xy-home-v2:default:cc-groups']) };
+  });
   ok(contacts === 1, 'F4 迁移条件在场：单桌面（getContacts=' + contacts + '）');
-  ok(f.calls.some((c) => c === 'get:' + CC_SRC), 'F1b 字卡迁移那一发也真问过库', f.calls.slice(0, 6).join(' '));
+  ok(shape.ls === 12 && shape.db === 20, 'F1b 字卡这一格同样是「本地 12 张尾巴／库里 20 张更全」', shape);
   ok(delOf(f, CC_SRC) === 0, 'C1 挂起那一趟不拆专属键（那 20 张是库里唯一的副本，实拆 ' + delOf(f, CC_SRC) + '）', f.dels.join(','));
-  ok(st !== '1', 'C2 同一趟不盖 cc-scope-migrated', st);
-  ok(hold >= 1, 'C3 让路登记成证人 __ccMigHold=' + hold);
+  ok((await ls(s.page, ST_CC)) !== '1', 'C2 同一趟不盖 cc-scope-migrated');
+  ok((await s.page.evaluate(() => window.__ccMigHold || 0)) >= 1, 'C3 让路登记成证人 __ccMigHold');
   await s.page.close(); await s.ctx.close();
-  const b = await open({ db: seed, setFail: ['cc-groups-public'], lsDel: { [CC_PUB]: 1 } });
+  const b = await open({ ls: { [CC_SRC]: TAIL }, db: { [CC_SRC]: FULL }, setFail: ['cc-groups-public'], lsDel: { [CC_PUB]: 1 } });
   const fb = await fx(b.page);
   ok(delOf(fb, CC_SRC) === 0, 'C4 写库没回执也不拆专属键（红侧＝公用那一本没落地而专属键已拆＝两头空）', fb.dels.join(','));
   await b.page.close(); await b.ctx.close();
-  const q = await open({ db: seed, lsDel: { [CC_PUB]: 1 } });
+  const q = await open({ ls: { [CC_SRC]: TAIL }, db: { [CC_SRC]: FULL }, lsDel: { [CC_PUB]: 1 } });
   const fq = await fx(q.page);
-  ok(fq.sets.some((c) => c === 'set:' + CC_PUB) && delOf(fq, CC_SRC) === 1 && (await ls(q.page, ST_CC)) === '1', 'C5 有回执那一趟：公用键整本进库→拆专属→盖章（sets=' + fq.sets.length + '·dels=' + fq.dels.length + '）');
+  const pubCards = await q.page.evaluate((k) => { try { const d = JSON.parse(localStorage.getItem(k) || 'null'); let n = 0; Object.keys(d || {}).forEach((t) => (d[t] || []).forEach((g) => { n += g[1].length; })); return n; } catch (e) { return -1; } }, CC_PUB);
+  ok(pubCards === 20, 'C5 有回执那一趟：公用键=库里那本 20 张（实读=' + pubCards + '；红侧只有本地那 12 张）', pubCards);
+  ok(delOf(fq, CC_SRC) === 1 && (await ls(q.page, ST_CC)) === '1', 'C6 整本进库之后才拆专属键＋盖章');
   await q.page.close(); await q.ctx.close();
 }
 
