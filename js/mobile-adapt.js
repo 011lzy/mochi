@@ -27,6 +27,36 @@ return Date.now() - __actLast() < (holdMs > 0 ? holdMs : 380);
 } catch (e) { return false; }
 };
 if (!isMobile && !isTablet) return;
+window.__mochiScreenAdj = { top: 0, bottom: 0, h: 0, desk: 0, shift: 0, text: 0, side: 0 };
+function bottomSafeCss(base) {
+var adj = window.__mochiScreenAdj;
+if (base === 'pin') return '0px';
+if (typeof base === 'number') { var v = base + (adj.bottom | 0); return v > 0 ? v + 'px' : '0px'; }
+return adj.bottom ? ('calc(env(safe-area-inset-bottom, 0px) + ' + adj.bottom + 'px)') : '';
+}
+var _bottomPin = 'env';
+function syncBottomSafe(base) {
+try {
+_bottomPin = base;
+var d = document.documentElement;
+var want = bottomSafeCss(base);
+var cur = d.style.getPropertyValue('--mochi-safe-bottom');
+if (cur === want) return;
+if (want) d.style.setProperty('--mochi-safe-bottom', want);
+else d.style.removeProperty('--mochi-safe-bottom');
+} catch (e) {}
+}
+window.__mochiSafeBottomDiag = function () {
+try {
+return { base: _bottomPin, adj: window.__mochiScreenAdj.bottom | 0,
+css: document.documentElement.style.getPropertyValue('--mochi-safe-bottom') || '(摘除→回落 env)' };
+} catch (e) { return null; }
+};
+function screenVarNum(name, basePx) {
+var k = name === '--mochi-ios-h' ? 'h' : 'top';
+return basePx + (window.__mochiScreenAdj[k] | 0);
+}
+function screenVarPx(name, basePx) { return screenVarNum(name, basePx) + 'px'; }
 const FLOAT_PANEL_SELECTORS = ['#chat-more-panel', '#chat-decision-panel', '#chat-gdecision-panel', '#chat-divine-panel', '#chat-ask-panel', '#poke-card', '#gc-poke-card', '#emoji-panel', '#chat-rp-panel', '#chat-rps-panel', '#chat-pong-panel', '#chat-snake-panel', '#chat-brick-panel', '#chat-c4-panel', '#chat-ms-panel', '#chat-fish-panel', '#chat-memory-panel', '#chat-gift-panel', '#chat-gomoku-panel', '#chat-linkup-panel', '#chat-match3-panel', '#chat-auction-panel', '#chat-arcade-panel', '#ck-panel', '#chat-search', '#gc-more-panel', '#voice-panel'];
 var IOS_VP_A = 'width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content';
 var IOS_VP_B = 'width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content';
@@ -689,6 +719,8 @@ var _vvFitOn = false;
 var _envTopCache = -1; // #148：env(safe-area-inset-top) 探针缓存（-1=未测）；旋转/#277 矛盾自愈时失效
 var _envBottomCache = -1; // #1048：env(safe-area-inset-bottom) 探针缓存（与 top 同一探针同建同失效）
 var _envTopCacheAt = 0; // #277：缓存写入时刻（矛盾重探 5s 节流，防 1s 自愈循环频繁建探针 DOM）
+const ENV_ZERO_RETRY_MAX = 6, ENV_ZERO_RETRY_MS = 300;
+var _envZeroTries = 0;
 var _zoomFixCnt = 0, _zoomFixAt = 0; // #174：缩放异常自愈计数（每会话 ≤3 次，间隔 4s）
 function syncVvFit() {
 try {
@@ -717,6 +749,13 @@ if (_sig0.standalone && _diff0 >= 20 && _envTopCache >= 0
 _envTopCache = -1; _envBottomCache = -1; _envTopCacheAt = Date.now();
 }
 } catch (eE5) {}
+try {
+if (_sig0.standalone && _envTopCache === 0 && _envBottomCache === 0
+&& _envZeroTries < ENV_ZERO_RETRY_MAX && Date.now() - _envTopCacheAt >= ENV_ZERO_RETRY_MS) {
+_envZeroTries++;
+_envTopCache = -1; _envBottomCache = -1; _envTopCacheAt = Date.now();
+}
+} catch (eZ0) {}
 var _f0 = window.mochiViewportForm(_sig0);
 if (_f0.needEnvProbe && _envTopCache < 0 && _sh2 > 0 && _vh2 > 0) {
 try {
@@ -728,13 +767,17 @@ _envBottomCache = parseFloat(getComputedStyle(_probe).paddingBottom) || 0;
 document.body.removeChild(_probe);
 } catch (e4) { _envTopCache = 0; _envBottomCache = 0; }
 _envTopCacheAt = Date.now(); // #277：探回值连同时刻一起入账（重探节流基准）
+if (_envTopCache > 0 || _envBottomCache > 0) _envZeroTries = 0;
+if (_envTopCache === 0 && _envBottomCache === 0 && _envZeroTries < ENV_ZERO_RETRY_MAX) {
+try { setTimeout(scheduleHeal, ENV_ZERO_RETRY_MS); } catch (eR0) {}
+}
 _sig0.envTop = _envTopCache;
 _sig0.envBottom = _envBottomCache;
 }
 var _f = window.mochiViewportForm(_sig0);
 var _safeTop = _f.safeTop;
 var _resStand = _f.resStand;
-var _topPx = _safeTop ? _safeTop + 'px' : (_resStand ? '0px' : '');
+var _topPx = _safeTop ? screenVarPx('--mochi-safe-top', _safeTop) : (_resStand ? screenVarPx('--mochi-safe-top', 0) : '');
 if (d.style.getPropertyValue('--mochi-safe-top') !== _topPx) {
 if (_topPx) d.style.setProperty('--mochi-safe-top', _topPx);
 else d.style.removeProperty('--mochi-safe-top');
@@ -755,9 +798,10 @@ d.classList.toggle('ios-cover-top', _wantIosCover);
 }
 if (_fsState()) {
 var _nPxFs = (_vh2 >= 300) ? Math.round(_f.expBase) : 0;
+var _wantFs = _nPxFs >= 300 ? screenVarNum('--mochi-ios-h', _nPxFs) : 0;
 var _curFs = parseFloat(d.style.getPropertyValue('--mochi-ios-h'));
 if (_nPxFs >= 300) {
-if (isNaN(_curFs) || Math.abs(_nPxFs - _curFs) >= 6) d.style.setProperty('--mochi-ios-h', _nPxFs + 'px');
+if (isNaN(_curFs) || Math.abs(_wantFs - _curFs) >= 6) d.style.setProperty('--mochi-ios-h', _wantFs + 'px');
 } else if (d.style.getPropertyValue('--mochi-ios-h')) {
 d.style.removeProperty('--mochi-ios-h');
 }
@@ -775,7 +819,8 @@ vh = _f.expBase; // #209：判定器期望底边（=safeTop+inner min 屏高，#
 if (!vh) return;
 if (!_vvFitOn) { _vvFitOn = true; d.classList.add('ios-vv-fit'); }
 var _curN = parseFloat(d.style.getPropertyValue('--mochi-ios-h'));
-if (isNaN(_curN) || Math.abs(vh - _curN) >= 6) d.style.setProperty('--mochi-ios-h', vh + 'px');
+var _wantN = screenVarNum('--mochi-ios-h', vh);
+if (isNaN(_curN) || Math.abs(_wantN - _curN) >= 6) d.style.setProperty('--mochi-ios-h', _wantN + 'px');
 } catch (e) {}
 }
 function syncSafeBottom() {
@@ -789,12 +834,16 @@ if (cur !== '0px') d.style.setProperty('--mochi-safe-bottom', '0px'); // #556 �
 return;
 }
 if (sh && ih && sh - ih > 60 && !d.classList.contains('ios-pwa-standalone')) {
-if (cur !== '0px') d.style.setProperty('--mochi-safe-bottom', '0px');
-} else if (cur) {
-d.style.removeProperty('--mochi-safe-bottom');
+if (cur !== '0px') d.style.setProperty('--mochi-safe-bottom', '0px'); // #530 镜像·浏览器工具条占用期钉 0
+} else {
+syncBottomSafe('env');
 }
 } catch (e) {}
 }
+window.__mochiSyncScreenVars = function () {
+try { syncVvFit(); } catch (e) {}
+try { syncSafeBottom(); } catch (e) {}
+};
 function _kbNowLike() {
 try {
 if (!_vv) return false;
@@ -853,8 +902,10 @@ if (_fw.forceCover) {
 var _pb = _phone.getBoundingClientRect().bottom;
 var _short = Math.round(_sh2 - _pb);
 if (_short > 8) {
-if (d.style.getPropertyValue('--mochi-safe-top') !== (_fw.safeTop + 'px')) d.style.setProperty('--mochi-safe-top', _fw.safeTop + 'px');
-if (d.style.getPropertyValue('--mochi-ios-h') !== (_fw.expBase + 'px')) d.style.setProperty('--mochi-ios-h', _fw.expBase + 'px');
+var _fwTopPx = screenVarPx('--mochi-safe-top', _fw.safeTop);
+var _fwHPx = screenVarPx('--mochi-ios-h', _fw.expBase);
+if (d.style.getPropertyValue('--mochi-safe-top') !== _fwTopPx) d.style.setProperty('--mochi-safe-top', _fwTopPx);
+if (d.style.getPropertyValue('--mochi-ios-h') !== _fwHPx) d.style.setProperty('--mochi-ios-h', _fwHPx);
 if (_phone.style.height) _phone.style.height = ''; // 清键盘期内联高度，回落 var 期望值
 try { document.documentElement.scrollTop = 0; document.body.scrollTop = 0; } catch (eS2) {}
 }
@@ -1237,13 +1288,17 @@ try {
 _fcB = window.mochiViewportForm({ standalone: false, envTop: (typeof _aCoverEnvCache !== 'undefined' && _aCoverEnvCache >= 0) ? _aCoverEnvCache : 0, innerH: window.innerHeight || 0, screenH: (window.screen && window.screen.height) || 0, innerW: window.innerWidth || 0, screenW: (window.screen && window.screen.width) || 0, iosMajor: 0, safMajor: 0, andr: true, safeTopForce: false, e2eLatch: !!window.__mochiE2eLatch });
 } catch (eF2) {}
 if (_fcB && _fcB.e2eBrowser && !window.__mochiE2eLatch) window.__mochiE2eLatch = true;
-var _next = _kbOn ? '0px' : ((_fcB && _fcB.e2eBrowser && _fcB.safeBottom) ? _fcB.safeBottom + 'px' : '');
+var _next = bottomSafeCss(_kbOn ? 'pin' : ((_fcB && _fcB.e2eBrowser && _fcB.safeBottom) ? _fcB.safeBottom : 'env'));
 if (_next === _aSafeB) return;
 _aSafeB = _next;
 if (_next) d.style.setProperty('--mochi-safe-bottom', _next);
 else d.style.removeProperty('--mochi-safe-bottom');
 } catch (e) {}
 }
+window.__mochiSyncScreenVars = function () {
+try { _aSyncCoverTop(); } catch (e) {}
+try { syncSafeBottomA(); } catch (e) {}
+};
 var _aZoomFixCnt = 0, _aZoomFixAt = 0;
 var _aZoomMetaA = 'width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-visual';
 var _aZoomMetaB = _aZoomMetaA.replace('initial-scale=1.0', 'initial-scale=1').replace('minimum-scale=1.0', 'minimum-scale=1').replace('maximum-scale=1.0', 'maximum-scale=1');
@@ -1629,7 +1684,7 @@ document.body.removeChild(_p);
 var _fc = window.mochiViewportForm({ standalone: false, envTop: _aCoverEnvCache, innerH: _ih, screenH: _sh, innerW: window.innerWidth || 0, screenW: (window.screen && window.screen.width) || 0, iosMajor: 0, safMajor: 0, andr: true, safeTopForce: false, e2eLatch: !!window.__mochiE2eLatch });
 if (_fc.e2eBrowser && !window.__mochiE2eLatch) window.__mochiE2eLatch = true;
 var _st = _fc.safeTop || 0;
-var _px = _st ? _st + 'px' : '';
+var _px = _st ? screenVarPx('--mochi-safe-top', _st) : '';
 if (_d.style.getPropertyValue('--mochi-safe-top') !== _px) {
 if (_px) _d.style.setProperty('--mochi-safe-top', _px);
 else _d.style.removeProperty('--mochi-safe-top');
@@ -1906,27 +1961,32 @@ lastHeal: his
 })();
 (function () {
 var PFX = 'xy-home-v2:';
+var GROOT = 'xy-home-v2';
 var KEYS = { top: 'screen-adj-top', bottom: 'screen-adj-bottom', h: 'screen-adj-h', desk: 'screen-adj-desk', shift: 'screen-adj-shift', text: 'screen-adj-text', side: 'screen-adj-side' };
 var RANGE = { top: [-80, 80], bottom: [-80, 80], h: [-80, 80], desk: [-60, 60], shift: [-60, 60], text: [0, 12], side: [0, 12] };
 function loadAdj(k) {
-try { var v = parseInt(localStorage.getItem(PFX + KEYS[k]), 10); var rg = RANGE[k] || [-80, 80];
-return (!isNaN(v) && v >= rg[0] && v <= rg[1]) ? v : 0; } catch (e) { return 0; }
+var raw = null;
+try { if (window.xyStore) raw = window.xyStore(GROOT).get(KEYS[k]); } catch (e) {}
+if (raw === null || raw === undefined) { try { raw = localStorage.getItem(PFX + KEYS[k]); } catch (e2) {} }
+var v = parseInt(raw, 10); var rg = RANGE[k] || [-80, 80];
+return (!isNaN(v) && v >= rg[0] && v <= rg[1]) ? v : 0;
 }
-var adj = { top: loadAdj('top'), bottom: loadAdj('bottom'), h: loadAdj('h'), desk: loadAdj('desk'), shift: loadAdj('shift'), text: loadAdj('text'), side: loadAdj('side') };
+var adj = window.__mochiScreenAdj || (window.__mochiScreenAdj = { top: 0, bottom: 0, h: 0, desk: 0, shift: 0, text: 0, side: 0 });
+adj.top = loadAdj('top'); adj.bottom = loadAdj('bottom'); adj.h = loadAdj('h');
+adj.desk = loadAdj('desk'); adj.shift = loadAdj('shift'); adj.text = loadAdj('text'); adj.side = loadAdj('side');
 var el = document.documentElement;
 var st = el.style;
-var NAMES = { '--mochi-safe-top': 'top', '--mochi-ios-h': 'h' };
-var base = {};           // var 名 -> 系统基准 px（包装层缓存）
 var origSet = st.setProperty.bind(st);
 var origRemove = st.removeProperty.bind(st);
 var origGet = st.getPropertyValue.bind(st);
-function lsSet(k, v) { try { if (v) localStorage.setItem(PFX + KEYS[k], String(v)); else localStorage.removeItem(PFX + KEYS[k]); } catch (e) {} }
-function applyBottom() {
+function lsSet(k, v) {
 try {
-const want = adj.bottom ? ('calc(env(safe-area-inset-bottom, 0px) + ' + adj.bottom + 'px)') : '';
-const cur = origGet('--mochi-safe-bottom') || '';
-if (want) { if (cur !== want) origSet('--mochi-safe-bottom', want); }
-else if (cur.indexOf('calc(env(') === 0) origRemove('--mochi-safe-bottom');
+if (window.xyStore) {
+var s = window.xyStore(GROOT);
+if (v) s.set(KEYS[k], String(v)); else s.remove(KEYS[k]);
+return;
+}
+if (v) localStorage.setItem(PFX + KEYS[k], String(v)); else localStorage.removeItem(PFX + KEYS[k]);
 } catch (e) {}
 }
 function applyDesk() {
@@ -1953,37 +2013,14 @@ if (adj.side) origSet('--mochi-side-adj', adj.side + 'px');
 else if (origGet('--mochi-side-adj')) origRemove('--mochi-side-adj');
 } catch (e) {}
 }
-function applyCached() {
-for (var n in base) {
-try { origSet(n, (base[n] + adj[NAMES[n]]) + 'px'); } catch (e) {}
-}
-applyBottom();
+function syncScreenVars() {
 applyDesk();
 applyShift();
 applyText();
 applySide();
+try { if (window.__mochiSyncScreenVars) window.__mochiSyncScreenVars(); } catch (e) {}
 }
-st.setProperty = function (n, v) {
-n = String(n).toLowerCase();
-if (NAMES[n] !== undefined) {
-var b = parseFloat(v); if (isNaN(b)) b = 0;
-base[n] = b;
-v = (b + adj[NAMES[n]]) + 'px';
-}
-return origSet(n, v);
-};
-st.removeProperty = function (n) {
-n = String(n).toLowerCase();
-if (NAMES[n] !== undefined) delete base[n];
-return origRemove(n);
-};
-st.getPropertyValue = function (n) {
-n = String(n).toLowerCase();
-if (NAMES[n] !== undefined && base[n] !== undefined) return (base[n] + adj[NAMES[n]]) + 'px';
-return origGet(n);
-};
-setInterval(applyBottom, 1000);
-applyCached();
+syncScreenVars();
 window.mochiScreenAdj = {
 all: function () { return { top: adj.top, bottom: adj.bottom, h: adj.h, desk: adj.desk, shift: adj.shift, text: adj.text, side: adj.side }; },
 set: function (k, v) {
@@ -1993,10 +2030,17 @@ var rg = RANGE[k] || [-80, 80];
 if (isNaN(v) || v < rg[0] || v > rg[1]) return false;
 adj[k] = v;
 lsSet(k, v || '');
-applyCached();
+syncScreenVars(); // #1318：偏移改了请写入方按新偏移重算（旧写法是重放包装层缓存的基准）
 return true;
 }
 };
+function adoptStored() {
+var changed = false;
+for (var k in adj) { var v = loadAdj(k); if (v !== adj[k]) { adj[k] = v; changed = true; } }
+if (changed) syncScreenVars();
+return changed;
+}
+document.addEventListener('mochi-restore-done', function () { try { adoptStored(); } catch (e) {} });
 })();
 /* FIX 2026-09-20 #913 手机发烫收口①：页面切后台（document.hidden）全局暂停 CSS 动画——「后台保活」
 用户把页面挂在后台/锁屏过夜时，进行中的无限动画（花园摇曳、房间流星/雨、漂流瓶波浪、音频可视化

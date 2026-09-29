@@ -151,9 +151,13 @@ async function snapshot() {
       return e ? { exists: true, hidden: !!e.hidden, text: e.textContent } : { exists: false, hidden: true, text: '' }; })();
     out.rows = Array.prototype.map.call(document.querySelectorAll('#period-history .period-hist-row'), function(r){
       return r.querySelector('.ph-date').textContent + ' | ' + r.querySelector('.ph-meta').textContent; });
-    out.cells = {};
+    out.cells = {}; out.outCells = {};
     document.querySelectorAll('#period-grid .pc-cell[data-date]').forEach(function(c){
-      var m = /ph-([a-z]+)/.exec(c.className); out.cells[c.getAttribute('data-date')] = m ? m[1] : 'none'; });
+      var m = /ph-([a-z]+)/.exec(c.className); var ph = m ? m[1] : 'none';
+      // 月首月尾补进来的相邻月格（.pc-out）另记一桶：本尺的断言说的是「当前这月视图里当月那几格
+      // 涂了什么」，把补格混进 cells 会让「本月 predict 0 格」这类判据失去原意
+      if (c.classList.contains('pc-out')) out.outCells[c.getAttribute('data-date')] = ph;
+      else out.cells[c.getAttribute('data-date')] = ph; });
     out.st = (function(){ var s = window.periodStatus ? window.periodStatus() : null;
       return s ? { nextStart: s.nextStart, inPeriod: s.inPeriod, phase: s.phase, cycleLen: s.cycleLen } : null; })();
     out.row = (function(){ var r = document.getElementById('period-action-row'); if (!r) return null;
@@ -169,6 +173,13 @@ function daysIn(snap, fromOff, toOff) {
   return got;
 }
 const phaseDays = (snap, ph) => Object.keys(snap.cells).filter((k) => snap.cells[k] === ph).sort();
+// 整屏看得见的格子（当月格＋月首月尾补进来的相邻月格）——#1399 之后一段经期跨月时补格也照涂，
+// 数「这一眼看得见的实心格有没有铺开」要连补格一起数
+const viewPhaseDays = (snap, ph) => {
+  const all = Object.assign({}, snap.cells, snap.outCells || {});
+  return Object.keys(all).filter((k) => all[k] === ph).sort();
+};
+const viewKeys = (snap) => Object.keys(Object.assign({}, snap.cells, snap.outCells || {})).sort();
 function daysFrom(ds, n) {
   const out = [];
   const base = new Date(ds);
@@ -180,6 +191,7 @@ function daysFrom(ds, n) {
 }
 // 翻月翻到包含 ds 的那一月（日历只画当月格＝不翻月根本看不见那一发预测）
 async function gotoMonthOf(ds) {
+  if (!ds) return false; // 红侧夹具本身没落成记录＝没有可翻的月份，兜住并让下游断言照常出数（脚本一崩整组没读数＝假绿的老坑）
   const ym = ds.slice(0, 7);
   for (let i = 0; i < 15; i++) {
     const cur = await evalJs(`(document.getElementById('period-month-txt')||{}).textContent || ''`);
@@ -190,16 +202,20 @@ async function gotoMonthOf(ds) {
   }
   return false;
 }
-const longPress = async (off) => {
+// 点一格（#1399 起这是日历上唯一的手势：旧写法另有一路 contextmenu＋500ms 计时器判长按）
+const tapCell = async (off) => {
   await evalJs(`(function(){
     function addDays(n){ var d = new Date(); d.setDate(d.getDate()+n);
       return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
     var c = document.querySelector('#period-grid .pc-cell[data-date="'+addDays(${off})+'"]');
     if (!c) return 'nocell';
-    c.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    c.click();
     return 'sent';
   })()`);
   await sleep(600);
+  // 点完会带出当日详情浮层（就地标记之后顺手让你补细节），本尺后面的断言不经过它，先收掉
+  await evalJs(`(function(){ var p = document.getElementById('period-day-pop'); if (p) p.remove(); document.body.classList.remove('scroll-lock'); return 1; })()`);
+  await sleep(200);
 };
 
 // ---- B 组：「记一次经期」真点一遍＝用户要的「一次记完一个周期」----
@@ -253,23 +269,29 @@ check('B7 记完之后动作行让位给「标记今天结束」（今天落在�
 
 // ---- C 组：本次经期的尾巴不再混进「预测」色（用户截图里那串虚线格）----
 await reset([]);
-await longPress(0);
+await tapCell(0);
 const C = await snapshot();
 const cRec = JSON.parse(C.raw || '[]');
-check('C0 夹具真实：长按今天确实落成「单日」记录（这一路语义本批刻意不改）',
-  cRec.length === 1 && (cRec[0]||{}).start === dsOf(0) && (cRec[0]||{}).end === dsOf(0), JSON.stringify(cRec));
+// #1399 换锚：这一发点按给的读法从「1 天」改成「按设置的经期天数铺开整段」，手势从长按改成点。
+// 旧断言把「只落一天」当契约钉住，而用户复报的正是这件事——它拦不住这次的口径修正。
+check('C0 夹具真实：点今天那一格＝落成「今天起 ' + CFG.periodLen + ' 天」的整段',
+  cRec.length === 1 && (cRec[0]||{}).start === dsOf(0) && (cRec[0]||{}).end === daysFrom(dsOf(0), CFG.periodLen).slice(-1)[0], JSON.stringify(cRec));
 const cTail = daysIn(C, 1, CFG.periodLen - 1).filter((d) => C.cells[d] === 'predict');
 check('C1 本次经期区间内的后续天数不再被涂成「预测」（旧版此处＝实心 1 格＋一串虚线格）',
   cTail.length === 0, cTail.map((d) => d + ':' + C.cells[d]).join(' '));
-check('C2 实心格仍只有已记下的那一天（没把设置天数硬盖到真实记录上）',
-  phaseDays(C, 'period').length === 1 && phaseDays(C, 'period')[0] === dsOf(0), phaseDays(C, 'period').join(' '));
+// 视图末尾不一定铺得下整段（这一屏画到 10/3，那段记到 10/5），所以判据取「看得见的部分
+// 恰好等于区间与本屏的交集」——旧口径下这里只有今天一格
+const cWantVisible = daysFrom(dsOf(0), CFG.periodLen).filter((d) => viewKeys(C).indexOf(d) >= 0);
+check('C2 看得见的实心格＝这一段与本屏的交集，从今天连着排（旧口径＝只红今天那一格）',
+  viewPhaseDays(C, 'period').join(' ') === cWantVisible.join(' ') && cWantVisible.length >= 3,
+  viewPhaseDays(C, 'period').join(' ') + ' / 期望 ' + cWantVisible.join(' '));
 const cNextDs = C.st.nextStart;
 const cMoved = await gotoMonthOf(cNextDs);
 await sleep(450);
 const C2 = await snapshot();
 const cWant = daysFrom(cNextDs, CFG.periodLen).filter((d) => C2.cells[d]);
 check('C3 下一次经期的预测照常涂色＝翻到那一月真数出预测格（跳过的是第 0 项，不是整条链）',
-  cMoved && C2.cells[cNextDs] === 'predict' && cWant.length >= 3 && cWant.every((d) => C2.cells[d] === 'predict'),
+  !!cMoved && C2.cells[cNextDs] === 'predict' && cWant.length >= 3 && cWant.every((d) => C2.cells[d] === 'predict'),
   '视图 ' + C2.month + ' / next=' + cNextDs + ' → ' + C2.cells[cNextDs] + ' / 该月 predict ' + phaseDays(C2, 'predict').join(' '));
 
 // ---- D 组：日期行＝用户要的「这个月的经期预测时间」----
@@ -330,18 +352,18 @@ check('F1 进行中的记录仍按设置的经期天数铺实心格（没被顺�
 check('F2 进行中的「预计还剩 N 天」仍取设置天数（实测 7 而非 1）',
   /预计还剩 7 天/.test(F1.sub), F1.sub);
 await reset([]);
-await longPress(0);
+await tapCell(0);
 const f3a = await snapshot();
-await longPress(0);
+await tapCell(0);
 const f3b = await snapshot();
-check('F3 长按一格仍是「标记／取消」两态（第二次长按把这天摘掉＝取消路径没被堵死）',
-  JSON.parse(f3a.raw || '[]').length === 1 && JSON.parse(f3b.raw || '[]').length === 0,
-  JSON.parse(f3a.raw || '[]').length + '→' + JSON.parse(f3b.raw || '[]').length);
+check('F3 再点同一格只开弹层、不动数据（浏览性点按不误删；取消的出口在弹层开关＝B 组那条路）',
+  JSON.parse(f3a.raw || '[]').length === 1 && f3a.raw === f3b.raw,
+  JSON.parse(f3a.raw || '[]').length + ' 条 →' + JSON.parse(f3b.raw || '[]').length + ' 条');
 await reset([]);
-await longPress(0);
+await tapCell(0);
 const f4 = await snapshot();
-check('F4 长按单日仍报「持续 1 天／预计还剩 1 天」（这一路的读数口径本批刻意没动，改动收在入口与涂色）',
-  /预计还剩 1 天/.test(f4.sub) && /持续 1 天/.test(f4.rows.join('|')), f4.sub + ' / ' + f4.rows.join('|'));
+check('F4 点完那一格，历史行与状态卡报的是整段（持续 7 天，旧口径＝持续 1 天／预计还剩 1 天）',
+  /持续 7 天/.test(f4.rows.join('|')) && /预计还剩 [1-7] 天/.test(f4.sub), f4.sub + ' / ' + f4.rows.join('|'));
 
 // ---- G 组：版式（动作行多一块按钮不许挤破；390×844）----
 await reset([{ id: 'g1', start: dsOf(-3), end: dsOf(-3) }]);

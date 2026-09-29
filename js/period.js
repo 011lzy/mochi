@@ -563,15 +563,17 @@ var days = new Date(y, m + 1, 0).getDate();
 var startWd = first.getDay();
 var wds = ['日', '一', '二', '三', '四', '五', '六'];
 var html = wds.map(function (w) { return '<span class="pc-wd">' + w + '</span>'; }).join('');
-for (var i = 0; i < startWd; i++) html += '<span class="pc-cell blank"></span>';
 var today = todayStr();
 var stats = cycleStats();
 var hasBand = stats.n >= 3 && stats.std >= 0.5;
-for (var d = 1; d <= days; d++) {
-var ds = y + '-' + pad2(m + 1) + '-' + pad2(d);
+var tail = (7 - ((startWd + days) % 7)) % 7;
+for (var d = 1 - startWd; d <= days + tail; d++) {
+var dt = new Date(y, m, d);
+var ds = dt.getFullYear() + '-' + pad2(dt.getMonth() + 1) + '-' + pad2(dt.getDate());
+var out = d < 1 || d > days;
 var ph = dayPhase(ds);
 var isToday = ds === today;
-var cls = 'pc-cell ph-' + ph + (isToday ? ' today' : '');
+var cls = 'pc-cell ph-' + ph + (isToday ? ' today' : '') + (out ? ' pc-out' : '');
 var style = '';
 if (ph === 'predict' && hasBand) {
 var conf = predictConfidence(ds);
@@ -585,7 +587,7 @@ if (dayInfo.flow) { cls += ' pc-flow-' + dayInfo.flow; mark += '<i class="dm-flo
 if (dayInfo.symptoms && dayInfo.symptoms.length) mark += '<i class="dm-sym"></i>';
 if (dayInfo.note) mark += '<i class="dm-note"></i>';
 }
-html += '<span class="' + cls + '"' + style + ' data-date="' + ds + '">' + d + mark + '</span>';
+html += '<span class="' + cls + '"' + style + ' data-date="' + ds + '">' + dt.getDate() + mark + '</span>';
 }
 grid.innerHTML = html;
 }
@@ -644,7 +646,7 @@ symHtml += '<div class="ps-bar"><span class="ps-name">' + (SYM_MAP[x.k] || x.k) 
 });
 symHtml += '</div>';
 } else {
-symHtml = '<div class="ps-empty">暂无症状记录（长按日格可录入）</div>';
+symHtml = '<div class="ps-empty">暂无症状记录（点日格可录入）</div>';
 }
 var stats = cycleStats();
 var trendHtml = '';
@@ -902,6 +904,21 @@ recs = normalize(recs);
 saveRecs(recs);
 render();
 }
+function markSpanStart(ds) {
+var len = Math.max(1, cfg.periodLen || 1);
+recs = normalize(recs.concat([{ id: newId(), start: ds, end: addDays(ds, len - 1) }]));
+saveRecs(recs);
+render();
+}
+function unmarkDay(ds) {
+recs = normalize(recs);
+var hit = null;
+for (var i = 0; i < recs.length; i++) { if (recs[i].start === ds) { hit = recs[i]; break; } }
+if (!hit) { toggleDay(ds); return; }
+recs = recs.filter(function (x) { return x !== hit; });
+saveRecs(recs);
+render();
+}
 function delRec(id) {
 recs = recs.filter(function (r) { return String(r.id) !== String(id); });
 saveRecs(recs);
@@ -940,6 +957,7 @@ var flowHtml = FLOWS.map(function (f) {
 return '<button class="dp-flow' + (info.flow === f.k ? ' on' : '') + '" data-flow="' + f.k + '">' + f.label + '</button>';
 }).join('');
 var isPeriodNow = dayPhase(ds) === 'period';
+function perLabel(on) { return on ? '已标记为生理期（点此取消）' : '这天起记为生理期（' + cfg.periodLen + ' 天）'; }
 var symHtml = SYMPTOMS.map(function (s) {
 var on = info.symptoms && info.symptoms.indexOf(s.k) >= 0;
 return '<button class="dp-sym' + (on ? ' on' : '') + '" data-sym="' + s.k + '">' + s.label + '</button>';
@@ -951,7 +969,7 @@ pop.innerHTML =
 '<div class="dp-mask"></div>' +
 '<div class="dp-sheet">' +
 '<div class="dp-head"><span class="dp-date">' + ds + '</span><button class="dp-close" aria-label="关闭">×</button></div>' +
-'<div class="dp-section"><div class="dp-label">生理期</div><button class="dp-sym dp-period' + (isPeriodNow ? ' on' : '') + '">' + (isPeriodNow ? '已标记为生理期（点此取消）' : '标记这天为生理期') + '</button></div>' +
+'<div class="dp-section"><div class="dp-label">生理期</div><button class="dp-sym dp-period' + (isPeriodNow ? ' on' : '') + '">' + perLabel(isPeriodNow) + '</button></div>' +
 '<div class="dp-section"><div class="dp-label">经量</div><div class="dp-flow-row">' + flowHtml + '</div></div>' +
 '<div class="dp-section"><div class="dp-label">症状</div><div class="dp-sym-grid">' + symHtml + '</div></div>' +
 '<div class="dp-section"><div class="dp-label">基础体温（℃）</div><input class="dp-temp" type="number" step="0.1" min="35" max="38" value="' + (info.temp || '') + '" placeholder="36.5"/></div>' +
@@ -974,8 +992,7 @@ b.addEventListener('click', function () { b.classList.toggle('on'); });
 });
 var perBtn = pop.querySelector('.dp-period');
 if (perBtn) perBtn.addEventListener('click', function () {
-var on = perBtn.classList.toggle('on');
-perBtn.textContent = on ? '已标记为生理期（点此取消）' : '标记这天为生理期';
+perBtn.textContent = perLabel(perBtn.classList.toggle('on'));
 });
 pop.querySelectorAll('.dp-mood').forEach(function (b) {
 b.addEventListener('click', function () {
@@ -1001,7 +1018,8 @@ if (Object.keys(obj).length) daily[ds] = obj; else delete daily[ds];
 saveDaily(daily);
 if (perBtn) {
 var wantPeriod = perBtn.classList.contains('on');
-if (wantPeriod !== (dayPhase(ds) === 'period')) toggleDay(ds);
+if (wantPeriod && dayPhase(ds) !== 'period') markSpanStart(ds);
+else if (!wantPeriod && dayPhase(ds) === 'period') unmarkDay(ds);
 }
 closeDayPop();
 render();
@@ -1425,7 +1443,7 @@ function periodPermHint() {
 try {
 if (!('Notification' in window)) {
 return (window.mochiDevice || {}).isIOS
-? '⚠ 本机拿不到系统通知（iPhone / iPad 平台限制）：提醒只会在打开应用时以站内形式出现'
+? '⚠ 本机此刻没有网页通知能力（iPhone / iPad 要在 Safari「添加到主屏幕」后从桌面图标打开本站才有；Safari 标签页里没有）：这期间提醒只会在打开应用时以站内形式出现'
 : '⚠ 本机浏览器没有通知能力（小米 / vivo / OPPO 自带、UC、夸克常见如此）：请改用 Chrome / Edge 打开本站';
 }
 var p = Notification.permission;
@@ -1547,31 +1565,13 @@ rsb.addEventListener('click', openRecordPop);
 }
 var grid = document.getElementById('period-grid');
 if (grid) {
-var pressTimer = null, longPressed = false;
 grid.addEventListener('click', function (e) {
-if (longPressed) { longPressed = false; return; }
 var cell = e.target.closest('.pc-cell');
-if (!cell || cell.classList.contains('blank')) return;
-openDayPop(cell.getAttribute('data-date'));
-});
-grid.addEventListener('contextmenu', function (e) {
-var cell = e.target.closest('.pc-cell');
-if (!cell || cell.classList.contains('blank')) return;
-e.preventDefault();
-if (longPressed) return;
-if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
-toggleDay(cell.getAttribute('data-date'));
-});
-grid.addEventListener('touchstart', function (e) {
-var cell = e.target.closest('.pc-cell');
-if (!cell || cell.classList.contains('blank')) return;
+if (!cell) return;
 var ds = cell.getAttribute('data-date');
-longPressed = false;
-pressTimer = setTimeout(function () { pressTimer = null; longPressed = true; toggleDay(ds); }, 500);
-}, { passive: true });
-grid.addEventListener('touchmove', function () { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } }, { passive: true });
-grid.addEventListener('touchend', function () { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } }, { passive: true });
-grid.addEventListener('touchcancel', function () { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } }, { passive: true });
+if (dayPhase(ds) !== 'period') markSpanStart(ds);
+openDayPop(ds);
+});
 }
 var hist = document.getElementById('period-history');
 if (hist) hist.addEventListener('click', function (e) {

@@ -9,7 +9,7 @@
 // v3.10.x 增强：
 //   1. 动态周期——取最近 6 次实际周期中位数 + 标准差 σ + CV 规律性徽章 + 黄体期反推
 //   2. 置信区间渲染——预测日按高斯衰减着色（中心深边缘浅）
-//   3. 每日属性——经量/症状/体温/情绪/备注，长按日格录入
+//   3. 每日属性——经量/症状/体温/情绪/备注，点日格录入
 //   4. 症状统计——常见症状 TOP3 + 频次柱状图
 //   5. 本地通知——经期预测前 3/1/当天 + 延迟预警
 //   6. 趋势图——近 12 次周期长度折线 + 均值线
@@ -673,15 +673,21 @@
     var startWd = first.getDay();
     var wds = ['日', '一', '二', '三', '四', '五', '六'];
     var html = wds.map(function (w) { return '<span class="pc-wd">' + w + '</span>'; }).join('');
-    for (var i = 0; i < startWd; i++) html += '<span class="pc-cell blank"></span>';
     var today = todayStr();
     var stats = cycleStats();
     var hasBand = stats.n >= 3 && stats.std >= 0.5;
-    for (var d = 1; d <= days; d++) {
-      var ds = y + '-' + pad2(m + 1) + '-' + pad2(d);
+    // 月初前面的空格与月末末尾的半行了格一并换成相邻月的真日子（淡色）——原来那些格子是
+    // 「看得见、点不动」的死格，而这个功能最需要的正是月头月尾那几天（补记上个月的开始日、
+    // 这个月经期拖到下个月）。判据只取「这一格在不在当前视图那个月里」，在场与补格走同一套
+    // 着色与点按逻辑，不再分两种控件。
+    var tail = (7 - ((startWd + days) % 7)) % 7;
+    for (var d = 1 - startWd; d <= days + tail; d++) {
+      var dt = new Date(y, m, d);
+      var ds = dt.getFullYear() + '-' + pad2(dt.getMonth() + 1) + '-' + pad2(dt.getDate());
+      var out = d < 1 || d > days;
       var ph = dayPhase(ds);
       var isToday = ds === today;
-      var cls = 'pc-cell ph-' + ph + (isToday ? ' today' : '');
+      var cls = 'pc-cell ph-' + ph + (isToday ? ' today' : '') + (out ? ' pc-out' : '');
       var style = '';
       if (ph === 'predict' && hasBand) {
         var conf = predictConfidence(ds);
@@ -695,7 +701,7 @@
         if (dayInfo.symptoms && dayInfo.symptoms.length) mark += '<i class="dm-sym"></i>';
         if (dayInfo.note) mark += '<i class="dm-note"></i>';
       }
-      html += '<span class="' + cls + '"' + style + ' data-date="' + ds + '">' + d + mark + '</span>';
+      html += '<span class="' + cls + '"' + style + ' data-date="' + ds + '">' + dt.getDate() + mark + '</span>';
     }
     grid.innerHTML = html;
   }
@@ -759,7 +765,7 @@
       });
       symHtml += '</div>';
     } else {
-      symHtml = '<div class="ps-empty">暂无症状记录（长按日格可录入）</div>';
+      symHtml = '<div class="ps-empty">暂无症状记录（点日格可录入）</div>';
     }
     // 趋势图
     var stats = cycleStats();
@@ -1032,6 +1038,27 @@
     saveRecs(recs);
     render();
   }
+  // 点一格记上的是一整段、不是一天：起点＝所点那天，天数＝周期设置里的「经期天数」。
+  // 旧口径下一格只落 1 天（要记 7 天得连点 7 次），而用户说出来的期待本来就是「直接设置我的
+  // 经期是几天」＝这一段多长有个现成的设置值，没理由点一下只算一天。normalize 里「间隔≤1 天
+  // 并成同一次」的口径不变，所以贴着已有经期点会自动接上、不重复堆记录。
+  function markSpanStart(ds) {
+    var len = Math.max(1, cfg.periodLen || 1);
+    recs = normalize(recs.concat([{ id: newId(), start: ds, end: addDays(ds, len - 1) }]));
+    saveRecs(recs);
+    render();
+  }
+  // 摘掉某一天：这一日正好是某条记录的开始日＝它就是刚才那一发点出来的整段，撤整段
+  //（同一天点两下＝当没点过）；落在记录中间或末尾＝只把这一天剔出去（走 toggleDay 的拆分口径）
+  function unmarkDay(ds) {
+    recs = normalize(recs);
+    var hit = null;
+    for (var i = 0; i < recs.length; i++) { if (recs[i].start === ds) { hit = recs[i]; break; } }
+    if (!hit) { toggleDay(ds); return; }
+    recs = recs.filter(function (x) { return x !== hit; });
+    saveRecs(recs);
+    render();
+  }
   function delRec(id) {
     recs = recs.filter(function (r) { return String(r.id) !== String(id); });
     saveRecs(recs);
@@ -1084,11 +1111,11 @@
     var flowHtml = FLOWS.map(function (f) {
       return '<button class="dp-flow' + (info.flow === f.k ? ' on' : '') + '" data-flow="' + f.k + '">' + f.label + '</button>';
     }).join('');
-    // v3.10.x：显式「生理期」开关——原来把某天标成经期（红色）只有长按日格一条路，
-    // 用户在编辑浮层里填完点保存自然期待变红，却永远不变（浮层只存经量/症状）；
-    // OPPO Reno16 反馈「编辑完确定也不会变红」。现在浮层顶部给开关：开=该日标为经期，
-    // 关=取消（走 toggleDay 同一套合并逻辑），保存时与当前状态比对后一次性生效。
+    // 浮层顶部的「生理期」开关：OPPO Reno16 早年报过「编辑完确定也不会变红」＝浮层只存经量/症状、
+    // 标成经期没有出口。开＝从这一天起按周期设置里的「经期天数」记上整段（markSpanStart），
+    // 关＝撤掉以这天为起点的那一段（unmarkDay），保存时与实际状态比对后一次性生效。
     var isPeriodNow = dayPhase(ds) === 'period';
+    function perLabel(on) { return on ? '已标记为生理期（点此取消）' : '这天起记为生理期（' + cfg.periodLen + ' 天）'; }
     var symHtml = SYMPTOMS.map(function (s) {
       var on = info.symptoms && info.symptoms.indexOf(s.k) >= 0;
       return '<button class="dp-sym' + (on ? ' on' : '') + '" data-sym="' + s.k + '">' + s.label + '</button>';
@@ -1100,7 +1127,7 @@
       '<div class="dp-mask"></div>' +
       '<div class="dp-sheet">' +
         '<div class="dp-head"><span class="dp-date">' + ds + '</span><button class="dp-close" aria-label="关闭">×</button></div>' +
-        '<div class="dp-section"><div class="dp-label">生理期</div><button class="dp-sym dp-period' + (isPeriodNow ? ' on' : '') + '">' + (isPeriodNow ? '已标记为生理期（点此取消）' : '标记这天为生理期') + '</button></div>' +
+        '<div class="dp-section"><div class="dp-label">生理期</div><button class="dp-sym dp-period' + (isPeriodNow ? ' on' : '') + '">' + perLabel(isPeriodNow) + '</button></div>' +
         '<div class="dp-section"><div class="dp-label">经量</div><div class="dp-flow-row">' + flowHtml + '</div></div>' +
         '<div class="dp-section"><div class="dp-label">症状</div><div class="dp-sym-grid">' + symHtml + '</div></div>' +
         '<div class="dp-section"><div class="dp-label">基础体温（℃）</div><input class="dp-temp" type="number" step="0.1" min="35" max="38" value="' + (info.temp || '') + '" placeholder="36.5"/></div>' +
@@ -1123,8 +1150,7 @@
     });
     var perBtn = pop.querySelector('.dp-period');
     if (perBtn) perBtn.addEventListener('click', function () {
-      var on = perBtn.classList.toggle('on');
-      perBtn.textContent = on ? '已标记为生理期（点此取消）' : '标记这天为生理期';
+      perBtn.textContent = perLabel(perBtn.classList.toggle('on'));
     });
     pop.querySelectorAll('.dp-mood').forEach(function (b) {
       b.addEventListener('click', function () {
@@ -1150,11 +1176,12 @@
       if (note) obj.note = note;
       if (Object.keys(obj).length) daily[ds] = obj; else delete daily[ds];
       saveDaily(daily);
-      // v3.10.x：生理期开关落地——与打开浮层时的实际状态比对，变化才 toggle 一次
-      //（toggleDay 内部已含 normalize + saveRecs + render；无变化不动数据）
+      // 生理期开关落地——与打开浮层时的实际状态比对，变化才动一次（两个方向各走各的口径：
+      // 开＝按设置天数铺开整段；关＝撤掉以这天为起点的那一段）
       if (perBtn) {
         var wantPeriod = perBtn.classList.contains('on');
-        if (wantPeriod !== (dayPhase(ds) === 'period')) toggleDay(ds);
+        if (wantPeriod && dayPhase(ds) !== 'period') markSpanStart(ds);
+        else if (!wantPeriod && dayPhase(ds) === 'period') unmarkDay(ds);
       }
       closeDayPop();
       render();
@@ -1567,8 +1594,8 @@
 
   // ---- 记一次经期（一次落成「哪天开始 + 持续几天」的整条区间）----
   // 补上一条缺失的入口：以前记一次经期只有三种走法，且每种给出的「这次几天」互不相同——
-  // 「标记今天开始／结束」要求当天都在场（错过就没法补），长按日格一格只算 1 天（记 7 天要长按
-  // 7 次），设置页那个日期字段补出来的是一条永不结束的「进行中」。用户按自己的话说的期待是
+  // 「标记今天开始／结束」要求当天都在场（错过就没法补），点日格补的是「从今天起的那一段」
+  // （过去的日子补不到），设置页那个日期字段补出来的是一条永不结束的「进行中」。用户按自己的话说的期待是
   // 「我设置的时候会直接设置我的经期是几天」＝默认天数取 cfg.periodLen，可改，一次落账。
   function openRecordPop() {
     var existing = document.getElementById('period-record-pop');
@@ -1638,7 +1665,7 @@
     try {
       if (!('Notification' in window)) {
         return (window.mochiDevice || {}).isIOS
-          ? '⚠ 本机拿不到系统通知（iPhone / iPad 平台限制）：提醒只会在打开应用时以站内形式出现'
+          ? '⚠ 本机此刻没有网页通知能力（iPhone / iPad 要在 Safari「添加到主屏幕」后从桌面图标打开本站才有；Safari 标签页里没有）：这期间提醒只会在打开应用时以站内形式出现'
           : '⚠ 本机浏览器没有通知能力（小米 / vivo / OPPO 自带、UC、夸克常见如此）：请改用 Chrome / Edge 打开本站';
       }
       var p = Notification.permission;
@@ -1770,39 +1797,24 @@
     arow.appendChild(rsb);
     rsb.addEventListener('click', openRecordPop);
   }
-  // 日历日格：短按打开每日详情浮层（记录经量/症状/情绪），长按切换经期标记
+  // 日历日格：点一下＝这一格就地生效（不在经期里就按设置的天数记上整段），随后打开当日弹层
+  // 让你顺手补经量/症状/体温/情绪；这一日本来就在经期里＝只开弹层补细节，不动数据（取消的唯一
+  // 出口在弹层那个开关上，浏览性点按不会误删）。
+  // 旧写法在这里挂了一枚 500ms 计时器，用「按住够不够久」把同一格拆成短按＝开弹层／长按＝标记，
+  // 再靠 contextmenu 与 click 两路互相吞来去重。两个判据都不由代码掌控：主线程一卡（本站自带
+  // 「卡顿自检」量的就是这类长任务），计时器赶在松手之前先响＝把这一发正常点按标成松手后补发的
+  // click 吞掉＝用户所见「点日格完全没反应、弹层都不出」；反过来 contextmenu 先到时同一格会被翻
+  // 两次（入库尺子 verify-period-mark 的 D1 一直报红）。现在只留 click 一路手势，判据取「这一日
+  // 在不在经期里」这一个数据事实——零计时器、零机型分支。
   var grid = document.getElementById('period-grid');
   if (grid) {
-    var pressTimer = null, longPressed = false;
     grid.addEventListener('click', function (e) {
-      if (longPressed) { longPressed = false; return; }
       var cell = e.target.closest('.pc-cell');
-      if (!cell || cell.classList.contains('blank')) return;
-      openDayPop(cell.getAttribute('data-date'));
-    });
-    grid.addEventListener('contextmenu', function (e) {
-      var cell = e.target.closest('.pc-cell');
-      if (!cell || cell.classList.contains('blank')) return;
-      e.preventDefault();
-      // v3.10.x：长按双触发去重——安卓长按日格时 contextmenu 与 touchstart 的 500ms
-      // 定时器几乎同时各调一次 toggleDay = 标红又立刻取消（OPPO Reno16 Edge/Via
-      // 实测「没办法设置成生理期」）。谁先到谁生效：定时器已触发（longPressed）则
-      // 跳过；contextmenu 先到则取消定时器，保证只 toggle 一次。longPressed 不在
-      // 这里复位——它还要供 click 处理器吞掉长按后的合成点击。
-      if (longPressed) return;
-      if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
-      toggleDay(cell.getAttribute('data-date'));
-    });
-    grid.addEventListener('touchstart', function (e) {
-      var cell = e.target.closest('.pc-cell');
-      if (!cell || cell.classList.contains('blank')) return;
+      if (!cell) return;
       var ds = cell.getAttribute('data-date');
-      longPressed = false;
-      pressTimer = setTimeout(function () { pressTimer = null; longPressed = true; toggleDay(ds); }, 500);
-    }, { passive: true });
-    grid.addEventListener('touchmove', function () { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } }, { passive: true });
-    grid.addEventListener('touchend', function () { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } }, { passive: true });
-    grid.addEventListener('touchcancel', function () { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } }, { passive: true });
+      if (dayPhase(ds) !== 'period') markSpanStart(ds);
+      openDayPop(ds);
+    });
   }
   var hist = document.getElementById('period-history');
   if (hist) hist.addEventListener('click', function (e) {

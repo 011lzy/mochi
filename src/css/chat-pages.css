@@ -875,7 +875,8 @@
   font-size:12px; color:#777; background:rgba(255,255,255,.92); border:1px solid rgba(0,0,0,.1);
   cursor:pointer; position:relative;
 }
-.period-grid .pc-cell.blank { background:transparent; border:none; cursor:default; }
+/* 月首月尾补进来的相邻月日子：真格子、照常涂色可点，只压一档透明度区分归属（旧写法是点不动的死格）*/
+.period-grid .pc-cell.pc-out { opacity:.45; }
 .period-grid .pc-cell.today { outline:2px solid var(--ink); outline-offset:-2px; }
 .period-grid .pc-cell.ph-period { background:#e85a8f; color:#fff; font-weight:700; border-color:#e85a8f; }
 /* 经量热力图：经期日按经量深浅着色（medium 用默认 ph-period 色）*/
@@ -883,7 +884,7 @@
 .period-grid .pc-cell.ph-period.pc-flow-light { background:#f48aa8; }
 .period-grid .pc-cell.ph-period.pc-flow-heavy { background:#d6336c; }
 .period-grid .pc-cell.ph-predict { background:#fde2ee; color:#c44a78; border:1px dashed #e85a8f; }
-.period-grid .pc-cell:not(.blank):active { opacity:.7; }
+.period-grid .pc-cell:active { opacity:.7; }
 .period-card-title { font-size:14px; font-weight:700; letter-spacing:.5px; margin-bottom:10px; display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .period-history { display:flex; flex-direction:column; gap:8px; }
 .period-hist-row {

@@ -1176,8 +1176,8 @@ const FIX_SENTINELS = [
   { name: '#189 滑动闪烁·全屏底边容差计入 --mochi-safe-top（#179 后 .phone 底边天然超 vv 一个安全区，旧 +24 误判位移每秒归零）', file: 'js/mobile-adapt.js', needle: 'window.innerHeight) + _stT + 24;' },
   { name: '#189 滑动闪烁·全屏态跳过 vv offset 残留判定（iOS 弹性回弹被当平移残留归零=掐断用户手势；阈值被 #视口平移残留 改严，锚点收敛到「_fsLike 非全屏门」本身）', file: 'js/mobile-adapt.js', needle: '!_fsLike() && _vv && (Math.abs(_vv.offsetTop)' },
   { name: '#视口平移残留 非全屏稳态残差严阈值 =4（#189/#179 为放行 iPad 全屏弹性回弹把 offsetTop 残差门槛提到 KB_SCROLL_HEAL(80)，非全屏 iPhone 键盘收起遗留 ≈42px 过不了 80 永不归零=输入栏错位/打字看不到内容；阈值被放宽回 80 或删此行即复发；全屏态 _fsLike 门见 #189 哨兵）', file: 'js/mobile-adapt.js', needle: 'Math.abs(_vv.offsetTop) > 4 || Math.abs(_vv.offsetLeft) > 4' },
-  { name: '#189 滑动闪烁·全屏分支 --mochi-ios-h 写入 ≥6px 迟滞（全屏过渡/工具条显隐期逐帧抖动重排连发）', file: 'js/mobile-adapt.js', needle: 'if (isNaN(_curFs) || Math.abs(_nPxFs - _curFs) >= 6)' },
-  { name: '#189 滑动闪烁·非全屏分支 --mochi-ios-h 写入 ≥6px 迟滞（iPad 滚动期 vv ±1~3px 逐帧抖动=reflow 连发）', file: 'js/mobile-adapt.js', needle: 'if (isNaN(_curN) || Math.abs(vh - _curN) >= 6)' },
+  { name: '#189 滑动闪烁·全屏分支 --mochi-ios-h 写入 ≥6px 迟滞（全屏过渡/工具条显隐期逐帧抖动重排连发；#1318 换锚＝迟滞两侧统一到 DOM 单位，旧 needle 拿裸基准比含偏移的读数＝偏移≠0 时迟滞永久失效）', file: 'js/mobile-adapt.js', needle: 'if (isNaN(_curFs) || Math.abs(_wantFs - _curFs) >= 6)' },
+  { name: '#189 滑动闪烁·非全屏分支 --mochi-ios-h 写入 ≥6px 迟滞（iPad 滚动期 vv ±1~3px 逐帧抖动=reflow 连发；#1318 换锚理由同全屏那一支）', file: 'js/mobile-adapt.js', needle: 'if (isNaN(_curN) || Math.abs(_wantN - _curN) >= 6)' },
   { name: '#189 iPad 全屏误杀·方向监视 iOS 出口（Safari 无 orientation.lock，iPad 横屏持握 ~2s 后被 handleLandscapeForced 退出全屏+误导弹窗）', file: 'js/fullscreen.js', needle: 'function startFsMonitorSafe() { if (isIOS) return; startFsMonitor(); }' },
   { name: '#189 iPad 全屏误杀·开关 1500ms 复核跳过 iOS 横屏杀全屏（否则 FB_KEY=1 被永久写坏+退出全屏）', file: 'js/fullscreen.js', needle: 'if (!isIOS && isFullscreen() && viewportLandscape()) {' },
   { name: '#189 iPad 全屏误杀·orientationchange iOS 出口（全屏态转横不纠偏、非全屏不弹「请恢复竖屏」误导弹窗）', file: 'js/fullscreen.js', needle: 'if (isIOS) return; // FIX 2026-09-05 #189' },
@@ -1207,7 +1207,7 @@ const FIX_SENTINELS = [
   { name: '#657 键盘滞留读数「几何反证」复原门（信箱写信页滑动＝整页飞出去/只显示上半屏：页面收到的真实触摸点落在可视视口底边以下 ⇒ 该区域没被软键盘占据 ⇒ 键盘必不在场；删掉此判定则 #209/#236 视口闸 + #267/#542 焦点闸在焦点滞留时全被挡住，.phone 永久停在键盘期收缩高）', file: 'js/mobile-adapt.js', needle: 't.clientY > Math.round((_aVV.offsetTop || 0) + _aVV.height) + 24' },
   { name: '#657 平移补偿「成孤儿」恒等式（_aPanComp 补偿量恒等于当时读到的残留平移：读数归零而 .phone 仍带内联 top＝整壳被按旧偏移推下＝用户所见「飞出去+只显示上半屏」；删掉则孤儿补偿永久残留；键盘会话期不参与以免打断动画期零强制读契约）', file: 'js/mobile-adapt.js', needle: "&& Math.abs(Math.round(_aVV.offsetTop || 0)) <= 4) _aPhone.style.removeProperty('top');" },
   { name: '#203 iOS18 保留形态甄别式（standalone+env∈[20,160]+diff≈envTop+iOS≥18，命中即 safeTop 归 0：否则 #179 公式把 .phone 顶出布局视口=居中裁切+文档溢出与 pin 对打=滑动/切换卡顿；#210 起判式收敛到共享判定器，删门槛或改比较符即回归）', file: 'js/device.js', needle: 'diff >= envTop - 8 && iosMajor >= 18' },
-  { name: '#203 iOS18 保留形态显式写 0px（摘除属性会回落 env() 变双重避让，Mochi 行上方 59px 空白）', file: 'js/mobile-adapt.js', needle: "var _topPx = _safeTop ? _safeTop + 'px' : (_resStand ? '0px' : '');" },
+  { name: '#203 iOS18 保留形态显式写 0px（摘除属性会回落 env() 变双重避让，Mochi 行上方 59px 空白；#1318 换锚＝该行改为「系统基准＋顶部轴」一起落 DOM，本针守的是保留形态那一支仍然【显式写值而不摘除】，删掉这半支＝双重避让的 59px 白带复发）', file: 'js/mobile-adapt.js', needle: "(_resStand ? screenVarPx('--mochi-safe-top', 0) : '')" },
   { name: '#203 执行器接入共享判定器（syncVvFit 形态判定单一事实源 #210；执行器回退手抄判式此行即消失）', file: 'js/mobile-adapt.js', needle: 'var _f = window.mochiViewportForm(_sig0);' },
   { name: '#203 判定器·保留形态期望底边=inner（.phone 超 inner=文档滚动量；#184 iPad 形态/#186 force 声明同走 inner 分支；#210 起收敛到共享判定器 expBase 单点；2026-09-18 #719 e2e 形态并入同分支，登记同步）', file: 'js/device.js', needle: 'const expBase = (coverBrowser || resStand || ipadForm || e2eBrowser) ? innerH' },
   { name: '#200 通话防误挂·挂断掷骰硬闸（总开关或概率<=0 不掷骰——挂断几率为 0 仍被挂断的兜底闸门，删此条件设 0 即回到「读默认 2% 照挂」）', file: 'js/call.js', needle: 'if (!(hp.nohangup || hp.hangup <= 0) && Math.random() * 100 < hp.hangup) {' },
@@ -1840,7 +1840,7 @@ const FIX_SENTINELS = [
   { name: '#706a 贴底几何看门狗补钉判定（删回事件单发制则 iOS 26 键盘变形后消息永久停半屏＝主诉回归）', file: 'js/chat.js', needle: 'if (cb706.scrollTop < chatScrollMax() - 8) scrollChatBottom();' },
   { name: '#706b 看门狗视口变形落定闸（删回变形中就写则发消息低栏钳位回弹＝弹跳回归）', file: 'js/chat.js', needle: 'if (Date.now() - _vvGeomChangeTs < 180) return; // 视口变形进行中不写，等落定' },
   // ==== 2026-09-18 #707 屏幕位置微调（用户直派：「设置自由一点，用户自己调和设置」——跨设备屏幕适配修不完，给本机永久手动三轴偏移）——mobile-adapt.js 包装 documentElement.style 的 set/remove/get 做「系统基准+用户偏移」双层（写入方无感、DOM 同值写零重排零抖动），底部独立写 calc(env()+偏移)（安卓键盘期钉 0 照旧、收键后 1s 复述补回）；personalize.js 三行弹窗接线（±80px，0=恢复默认）；偏移存根命名空间 LS（跨桌面共用） ====
-  { name: '#707a 顶层样式双层值包装（删回直写则用户偏移被系统写入方按基准覆写＝微调失效回归）', file: 'js/mobile-adapt.js', needle: "if (NAMES[n] !== undefined && base[n] !== undefined) return (base[n] + adj[NAMES[n]]) + 'px';" },
+  { name: '#707a 用户偏移必须落到 DOM 上（#1318 换锚：旧 needle 是包装 documentElement.style.getPropertyValue 那一行——包装层把「基准＋偏移」原样还给写入方自己的比较，#189 的 ≥6px 迟滞被偏移量顶开＝每抖 1px 真写一次整页高度；而它对底部那一格完全够不着，于是又补了一条按秒复述 calc 的定时器＝同一属性两个主人每秒跳 40px。现改为写入方内部叠加，本批守护的行为契约「偏移生效、不被系统基准覆写」一字未缩）', file: 'js/mobile-adapt.js', needle: 'return basePx + (window.__mochiScreenAdj[k] | 0);' },
   { name: '#707b 底部偏移 calc(env) 写入（删回写裸 px 则无 env 基准的机型手势条区算错）', file: 'js/mobile-adapt.js', needle: "'calc(env(safe-area-inset-bottom, 0px) + ' + adj.bottom + 'px)'" },
   { name: '#707c 设置页统一面板接线走 mochiScreenAdj（删则步进/输入改值不落层＝改了没反应）', file: 'js/personalize.js', needle: 'function applyAxis(ax, nv, silent) {' },
   { name: '#707l 整体位移轴消费规则（删则整页偏移遮挡无处拉回＝.phone top 位移失效）', file: 'css/base.css', needle: '.phone { top: var(--mochi-shift-adj, 0px); }' },
@@ -1958,7 +1958,7 @@ const FIX_SENTINELS = [
   // ==== 2026-09-18 #719 OPPO Find X9 Pro + Edge「桌面和聊天上下缘遮挡」（用户直派、明说多机型；#114/#199/#236/#537 同族新姊妹形态）——Android 15+ edge-to-edge 浏览器在 viewport-fit=cover 下把页面画进系统状态栏/手势条区，但 env(safe-area-inset-*) 恒报 0（#236 HeyTapBrowser 报 env≥40 走 coverBrowser，本形态 env=0 靠几何签名识别：inner=400×810 超出 screen=360×785、innerW>screenW＋DPR 2.699≈0.9×系统密度＝缩放渲染实锤，810×0.9=729=785−Edge 底部工具条 56 全数对账＝页面顶到物理屏顶、状态栏悬浮其上）。全部既有避让链因「env≥20」门槛不触发＝状态栏盖住 Mochi 行、手势条盖住 tabbar/输入栏底缘。修复=共享判定器 mochiViewportForm 新增 e2e-browser 形态（顶部 28/z、底部 16/z 估式自动避让，带内 [3,64] 排除 #278 screen 坏值家族；window.__mochiE2eLatch 闩住 Edge 工具条隐匿瞬间的带外波动，旋转重探自清），复用既有 mochi-cover-top/--mochi-safe-bottom 消费链，CSS 零改动；仍偏可经 屏幕位置设置 五轴本机精调 ====
   { name: '#719a 判定器 e2e-browser 形态门（删回则该形态永远 plain＝状态栏/手势条遮挡复发且诊断不再对号）', file: 'js/device.js', needle: 'e2eBrowser = e2eBase && (e2eOverH <= 64 || !!sig.e2eLatch);' },
   { name: '#719b 安卓执行器 e2e 顶避让接线（补宽度信号+闩；删回则 safe-top 不落盘、Mochi 行仍钻系统状态栏）', file: 'js/mobile-adapt.js', needle: 'if (_fc.e2eBrowser && !window.__mochiE2eLatch) window.__mochiE2eLatch = true;' },
-  { name: '#719c 安卓键盘收起回落 e2e 底避让（改回摘除属性＝tabbar/输入栏退回 0 避让被手势条盖住）', file: 'js/mobile-adapt.js', needle: "_next = _kbOn ? '0px' : ((_fcB && _fcB.e2eBrowser && _fcB.safeBottom) ? _fcB.safeBottom + 'px' : '');" },
+  { name: '#719c 安卓键盘收起回落 e2e 底避让（改回摘除属性＝tabbar/输入栏退回 0 避让被手势条盖住；#1318 换锚＝落值口径收进 bottomSafeCss，本针守的是 e2e 那支仍把【手势条估式 px】交给尺子而非退回空串，改成一律传 env 或删该分支＝e2e 壳底栏被手势条盖住复发）', file: 'js/mobile-adapt.js', needle: "_fcB.e2eBrowser && _fcB.safeBottom) ? _fcB.safeBottom : 'env'" },
   // ==== 2026-09-18 #721 低端机触摸滚动被动化（用户「还有没有能优化的，不要出错」；编号说明：#715~#720 已分别被滚动旗标/K80 三联/换头像/兼容四小批/e2e 形态/渲染分帧各批占用，本批由 #719 二次顺延改 #721）——全库 touchmove 审计（共 13 处）发现仅两处处理体只 clearTimeout、从不 preventDefault 却未标 passive：聊天收藏长按 chat.js、美食长按删除 p2-features.js。未标 passive ＝ 手指每次滑动都要等主线程执行完回调才滚动（低端安卓＝列表滚动被阻塞掉帧）。审计结论：文档/窗口级 touchmove 与 breakout/pong（需 preventDefault 保持 passive:false）、snake（已 passive）均正确标注。零行为变化 ====
   { name: '#721a 聊天收藏长按 touchmove 被动化（改回非被动＝低端机列表滑动被该主线程回调阻塞）', file: 'js/chat.js', needle: 'clearTimeout(pressTimer), { passive: true }' },
   { name: '#721b 美食长按 touchmove 被动化（同 #721a）', file: 'js/p2-features.js', needle: 'pressTimer = null; } }, { passive: true });' },
@@ -5741,6 +5741,44 @@ const FIX_SENTINELS = [
   { name: '#1389b 补尾那条循环同理（同根因的两个写入方，少一条＝那一条仍能永久改道渲染器）', file: 'js/chat.js', needle: "chatRenderIncident('incr-newer-throw', 0, _incrThrew)" },
   { name: '#1389c 上翻批＝finally 无条件交回在前、推进窗口头在后（改回「抛出函数外」即消失＝黑洞复发）', file: 'js/chat.js', needle: 'batchRendering = false;\n}\nrenderStart = newStart;' },
   { name: '#1389d 补尾批同理（交回在前、renderEnd 在后；另起第二套收尾或漏 finally 都会消失）', file: 'js/chat.js', needle: 'batchRendering = false;\n}\nrenderEnd = newEnd;' },
+  // ==== 2026-09-27 #1318 iPhone 16 Pro Max / iOS 18.3.1 Safari「存到桌面」实报两件事：「顶部和底部重新进入时会变成初始状态」＋「聊天时底部栏上下跳动」，用户明说其他设备型号／其他 iOS 版本也有出现、要求不要覆盖式修补（零机型／零 UA 分支＝判据只取「这一格现在该落什么值」与「这一次量到了没有」两个事实）。三处病灶同一根因＝#707 把「系统基准＋本机偏移」这件事做在了写入方【外面】：
+  // ① 底部那一格有两个主人——#707 的 applyBottom 按秒写 calc(env()+偏移)，而 #129/#556/#530 三个系统写入方在 standalone 无键盘时按原设计 removeProperty 让 CSS 回落 env()；落值在 calc(34px + -40px)（=-6px）与 env()（=34px）之间交替，实测 tabbar 底边 959 / 自动期望 919＝差 40＝该机 底部轴 偏移量逐字。事件链那侧由 visibilitychange/pageshow/focusout/vv resize 触发 ⇒ 每次回前台必掉一次（「重新进入变初始状态」）、聊天期每次失焦滚动再掉再补（「底部栏上下跳动」）；安卓 syncSafeBottomA 同款摘除＝同一处三个主人，故「其他设备型号也有出现」。
+  // ② 顶部/高度两轴：包装过的 getPropertyValue 把「基准＋偏移」还给写入方自己的比较，#189 的 ≥6px 迟滞被偏移量本身顶开（该机 高度轴 −15 ⇒ |基准−读数| 恒为 15）＝凡动过该轴的设备迟滞永久失效、vv 每抖 1px 真写一次 .phone/html/body 三处共用的整页高度＝#189 当年要杀的「滑动时整页 reflow 连发」原样回来（iOS 卡顿）。
+  // ③ 顶部那格的【永久】失效：#277 的矛盾重探要求 screen−inner≥20 当反证，而这一档 standalone＋viewport-fit=cover 的机器 screen 恒等于 inner（实测 956/956、diff=0）⇒ #186 的 diff 兜底、#1048 的 env-bottom 反证、#277 的重探三条救援同时不可达，冷启动早帧探到 0/0 被永久缓存，--mochi-safe-top 遭摘除（连用户的 顶部轴 46px 一并抹掉）且只有旋转/刷新才回。
+  // 收口＝一个属性只有一个主人：偏移在写入方【内部】叠加（screenVarPx/bottomSafeCss 一把尺子），包装层与 1s 复述循环整体删除，比较双方统一到 DOM 单位；0/0 读数改判为「尚未知道」按有限次重探，量到任一非 0 即复位额度。偏移=0 的设备四条分支取值与旧写法逐字相同＝零跨机型回归。 ====
+  { name: '#1318a 底部安全区唯一的尺子（删＝退回多主人交替写同一格：底部栏每秒跳 40px、回前台必掉一次＝本批两件事的本体）', file: 'js/mobile-adapt.js', needle: 'function bottomSafeCss(base) {' },
+  { name: '#1318b 键盘／工具条占用期钉 0 且偏移让位（改成都叠加＝#556/#530 那条输入栏与输入法之间的白带复发；改成不钉＝多机型白带回归）', file: 'js/mobile-adapt.js', needle: "if (base === 'pin') return '0px';" },
+  { name: '#1318c iOS standalone 回落支交回唯一写入点（改回直写 removeProperty＝偏移≠0 时这一支与偏移层再打起来＝跳动复发；改成恒写 calc＝偏移=0 的设备丢掉 #129 的 env() 回落）', file: 'js/mobile-adapt.js', needle: "syncBottomSafe('env');" },
+  { name: '#1318d 安卓同一把尺子（只修 iOS 一侧＝覆盖式修补，安卓用户实报的同款跳动留下）', file: 'js/mobile-adapt.js', needle: "var _next = bottomSafeCss(_kbOn ? 'pin' :" },
+  { name: '#1318e 顶部轴由写入方叠加（删＝摘掉包装层后系统每轮覆盖形态重校都把用户调的顶部偏移抹平＝微调失效回归，#707a 同一件事的 iOS 那半）', file: 'js/mobile-adapt.js', needle: "var _topPx = _safeTop ? screenVarPx('--mochi-safe-top', _safeTop)" },
+  { name: '#1318f 0/0 读数按「尚未知道」处理（删＝diff=0 那档 standalone 冷启动探到 0/0 被永久缓存、三条救援全不可达＝顶部永久初始状态，只有刷新才回＝本批第一件事的第三处成因）', file: 'js/mobile-adapt.js', needle: '_envZeroTries < ENV_ZERO_RETRY_MAX && Date.now() - _envTopCacheAt >= ENV_ZERO_RETRY_MS' },
+  { name: '#1318g 量到任一非 0 即复位重探额度（删＝旋转/回前台后额度已被真 0/0 设备用尽，真覆盖形态机器再也探不到安全区）', file: 'js/mobile-adapt.js', needle: 'if (_envTopCache > 0 || _envBottomCache > 0) _envZeroTries = 0;' },
+  { name: '#1318h 偏移面板入口改为请写入方重算（iOS 侧；旧写法是偏移层自己重放缓存的基准＝包装层那份记忆一旦与写入方不同步，回前台/改轴就落回初始状态）', file: 'js/mobile-adapt.js', needle: 'try { syncVvFit(); } catch (e) {}' },
+  { name: '#1318l 同一条入口的安卓侧（只修 iOS 一侧＝覆盖式修补：安卓壳设备的顶部轴偏移改了没反应）', file: 'js/mobile-adapt.js', needle: 'try { syncSafeBottomA(); } catch (e) {}' },
+  { name: '#1318i #212 全屏纠偏看门狗那一支同尺（只改 syncVvFit 漏了这一支＝开「顶部避让修正」的设备顶部轴被裸基准抹平，两处写法不同正是本族复发的老形状）', file: 'js/mobile-adapt.js', needle: "var _fwTopPx = screenVarPx('--mochi-safe-top', _fw.safeTop);" },
+  { name: '#1318j 安卓覆盖形态执行器同尺（漏这一支＝安卓壳设备的顶部轴每次覆盖重校被覆写）', file: 'js/mobile-adapt.js', needle: "var _px = _st ? screenVarPx('--mochi-safe-top', _st) : '';" },
+  { name: '#1318k 按秒复述底部 calc 的那条定时器不得回来（它是本批跳动的第二只手；复述一回来就把 #1318c 的回落值顶掉＝同一属性两个主人复活）', file: 'js/mobile-adapt.js', needle: 'setInterval(applyBottom', absent: true },
+  // ==== 2026-09-29 #1393 用户直派 iPhone17 Pro／iOS27 Safari「桌面打开，键盘及屏幕最底端上下跳动」＋「我自己调整了屏幕适配微调后屏幕也会莫名其妙抖动跳动，但不调整、用默认状态是正常的」＋「屏幕适配微调设置后会没有保存，刷新重新进入网站就恢复默认状态」，明说「这个问题其他设备型号也有出现」「不要覆盖修改导致不同型号设备浏览器的 bug 反复出现」（随附 mochi-screen-diag-2026-09-28-15-30-4213809377062.docx，那张单写着「本机手调（屏幕位置设置）：bottom+8」）。两件病灶、同一根因＝「同一格两个主人／半个事实」：
+  // ① 跳动那一半是 #1318（2026-09-27 那批从未入库的一次收口）的键盘期那一面——#707 把偏移做在写入方【外面】：一条 setInterval(applyBottom,1000) 往 --mochi-safe-bottom 写 calc(env()+偏移)，而 #556/#530 那两位系统写入方在键盘期钉 0px、收键后 removeProperty 回落 env()，落值在两个值之间交替＝无头实测「底部轴=+8 时键盘 5s 窗内该属性值翻 3 次、值集合=[0px, calc(env+8px)]；底部轴=0 时全程一个值、零翻动」，逐字对上用户「调了就跳、不调就正常」。本批按台账把 #1318 整件重放到干净底本（包装层与复述定时器整体删除，偏移由 screenVarPx／bottomSafeCss 在写入方内部叠加，一个属性只剩一个主人；含 #277 那条拿 screen−inner≥20 当反证在 standalone 全出血机型上永不可达的 0/0 读数改判「尚未知道」）。
+  // ② 「不保存」这一半＝七轴的落库是全站唯一走【裸 localStorage.setItem ＋ 吞异常 try】的用户设置：LS 写不进去时（同源 github.io 的存储配额被别的站点吃满／隐私模式／Edge·荣耀杀进程回滚最后一次磁盘提交／iOS 系统级清空网站数据——站内那条定期备份提醒就是为最后这条设的）面板当场见效、mochiScreenAdj.set() 照报成功，下一次冷启读回 0；无头两侧同尺实测＝同一发 setItem 抛掉的夹具里，走 xyStore 的对照键刷新后照常回来而轴值归零，且「轴那一份在 IndexedDB 里根本不存在」。改法＝键名一字不改地把读写挪到那条唯一的轨（内存缓存＋LS＋IndexedDB＋小键写日志），回填迟到的那份按 mochi-restore-done 重读补回。判据一律零机型／零 UA 分支＝只问「这一格现在库里是什么」「这一次量到了没有」。
+  { name: '#1393a 七轴读数优先走数据层那条唯一的轨（删回裸 LS 单读＝回填到的设备／IDB-only 那一份永远读不到，用户调的偏移冷启归零）', file: 'js/mobile-adapt.js', needle: 'raw = window.xyStore(GROOT).get(KEYS[k])' },
+  { name: '#1393b 七轴落库走同一条轨（0＝交回 remove 销账；删回 setItem＋吞异常＝写失败静默丢，就是本条报障的「设置后会没有保存，刷新就恢复默认」）', file: 'js/mobile-adapt.js', needle: 'if (v) s.set(KEYS[k], String(v)); else s.remove(KEYS[k]);' },
+  { name: '#1393c 回填迟到那一份挂在 mochi-restore-done 上重读补回（删＝LS 被清空过的设备本模块求值时读空、偏移要等下一次刷新才回来；备份导入带来的那套偏移也走这一发）', file: 'js/mobile-adapt.js', needle: 'try { adoptStored(); } catch (e) {} });' },
+  { name: '#1393d 删除型：七轴落库不得退回「裸 localStorage 单写＋吞异常」那一条（回流＝本批②的病灶原样，而它只在写失败的设备上现形，平常测不出来）', file: 'js/mobile-adapt.js', needle: 'function lsSet(k, v) { try { if (v) localStorage.setItem', absent: true },
+  // ===== #1399（2026-09-29 作者复报「无法直接点击经期日历里的时间设置经期周期」，三条一起收）=====
+  //   ① 点一格只落 1 天（记 7 天要点 7 次）→ 现在点一下＝从那天起按设置里的「经期天数」铺开整段；
+  //   ② 那一发点按会被「判长按」的那枚 500ms 计时器吞掉（主线程一卡＝松手补发的 click 被互吞标志吃掉＝
+  //      用户所见「点了没反应」；反向到达则同一格翻两次，入库尺子 D1 常年限红）→ 整条长按手势拆掉，
+  //      日历只留 click 一路；③ 月首月尾是「看得见点不动」的死格 → 补成相邻月的真日子（淡一档）。
+  //   尺子＝tools/verify-period-mark.mjs（整支重写：真触摸＋按前 elementFromPoint 命中测试，12→28 断言）
+  //   ＋邻尺 tools/verify-1321-period-record-span.mjs 四条换锚。#1399b 是删除型：那个计时器名字不许回到
+  //   产物里（本批 src 注释与批注一律没写它），别把「长按」两字重新接回日历——a/b 两针一起才拦得住。
+  { name: '#1399a 点日格＝从那天起按设置天数铺开整段（删回＝点一格只落 1 天，「记 7 天要点 7 次」复发）', file: 'js/period.js', needle: "if (dayPhase(ds) !== 'period') markSpanStart(ds);" },
+  { name: '#1399b 日历上判长按那条手势整块已拆（那个计时器名回到产物＝主线程一卡就吞掉松手补发的 click＝「点了没反应」回流）', file: 'js/period.js', needle: 'pressTimer', absent: true },
+  { name: '#1399c 撤标记分两种口径：起点撤整段／中间日只摘那天（删回＝要么撤不动要么整段被误删）', file: 'js/period.js', needle: 'function unmarkDay(ds) {' },
+  { name: '#1399d 弹层开关按方向走（开＝铺整段／关＝撤段，不再是一句「比对不等就 toggle」＝开关与格色两把尺子对不上）', file: 'js/period.js', needle: "if (wantPeriod && dayPhase(ds) !== 'period') markSpanStart(ds);" },
+  { name: '#1399e 月首月尾补的是相邻月真日子（这一行没了＝那些格子又变回看得见点不动的死格）', file: 'js/period.js', needle: "+ (out ? ' pc-out' : '');" },
+  { name: '#1399f 补格淡一档与当月格区分（删＝两桶格子同一读数，认不出谁不是这个月）', file: 'index.html', needle: '.period-grid .pc-cell.pc-out { opacity:.45; }' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

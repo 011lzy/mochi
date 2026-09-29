@@ -53,6 +53,69 @@
   // 手机窄屏或平板都启用本文件适配（桌面模拟器外壳不受影响）
   if (!isMobile && !isTablet) return;
 
+  // ===== #1318：屏幕位置微调（#707）的偏移量住在这里；落 DOM 只有一个主人 =====
+  // 为什么搬家：#707 把偏移实现成「包装 documentElement.style 的方法」＋底部一条
+  // 「每秒复述 calc」的循环。包装层与复述循环都够不着写入方本身（syncVvFit /
+  // syncSafeBottom / syncSafeBottomA / _aSyncCoverTop 全在上方两个平级闭包里），于是
+  // 底部那一格有了【两个主人】：复述循环写 calc(env()+偏移)，系统写入方在 standalone
+  // 无键盘时按 #129 原设计 removeProperty 让 CSS 回落 env()——一条 1s 定时器与一条
+  // 「vv 事件即触发」的事件链交替改写同一个 DOM 属性，落值在 calc(34px + -40px)（=-6px）
+  // 与 env()（=34px）之间来回跳。16PM/iOS18.3.1 standalone 实证：tabbar 底边实测 959 /
+  // 自动期望 919，差 40 = 该机 底部轴 偏移量逐字；visibilitychange/pageshow/focusout
+  // 都触发事件链那一侧 ⇒ 每次回前台必掉一次（用户原话「重新进入时底部变成初始状态」）、
+  // 聊天期每次失焦/滚动再掉再补（「聊天时底部栏上下跳动」）。安卓 syncSafeBottomA
+  // 同样摘除该属性＝同一处三个主人，所以「其他设备型号也有出现」。
+  // 修法（一把尺子）：偏移量是设备属性、必须全局可读，但「落 DOM」这件事只留一个主人——
+  // 各系统写入方照常算自己的基准，基准交给下面这两个 resolver 出口落盘；复述循环删除。
+  // 零机型／零 UA 分支：判据只有「这一格此刻该不该避让」与「用户把这台屏幕调了几 px」。
+  window.__mochiScreenAdj = { top: 0, bottom: 0, h: 0, desk: 0, shift: 0, text: 0, side: 0 };
+  // 底部安全区唯一的尺子。base 三种取值：
+  //   'pin'   ＝ 这一格此刻不该避让（键盘在场 #556/#530；或浏览器工具条已占走底部那段
+  //              #129 同源判据）→ 钉 0px，且【偏移让位】（#707 自己写的口径：键盘期偏移
+  //              让位）。对 env 本就报 0 的设备，0px 与回落值相同＝零视觉变化。
+  //   数字    ＝ 系统实测/估式的 px（安卓 e2e 壳的手势条估式 #719）→ 叠加偏移后落 px。
+  //   'env'   ＝ 系统说「该避让，量交给 CSS」→ 偏移=0 时返回 ''（摘除属性、CSS 回落
+  //              env()，#129/#969 原语义一字未动）；偏移≠0 时把偏移叠在 env() 上。
+  function bottomSafeCss(base) {
+    var adj = window.__mochiScreenAdj;
+    if (base === 'pin') return '0px';
+    if (typeof base === 'number') { var v = base + (adj.bottom | 0); return v > 0 ? v + 'px' : '0px'; }
+    return adj.bottom ? ('calc(env(safe-area-inset-bottom, 0px) + ' + adj.bottom + 'px)') : '';
+  }
+  var _bottomPin = 'env';
+  // 唯一的写入点：先比 DOM 现值、同值不写（#969 的省样式失效职责留在这儿，不给第二个人）
+  function syncBottomSafe(base) {
+    try {
+      _bottomPin = base;
+      var d = document.documentElement;
+      var want = bottomSafeCss(base);
+      var cur = d.style.getPropertyValue('--mochi-safe-bottom');
+      if (cur === want) return;
+      if (want) d.style.setProperty('--mochi-safe-bottom', want);
+      else d.style.removeProperty('--mochi-safe-bottom');
+    } catch (e) {}
+  }
+  // 只读取证（诊断用）：这一格现在落的是什么、系统侧给的基准是什么、偏移多少
+  window.__mochiSafeBottomDiag = function () {
+    try {
+      return { base: _bottomPin, adj: window.__mochiScreenAdj.bottom | 0,
+        css: document.documentElement.style.getPropertyValue('--mochi-safe-bottom') || '(摘除→回落 env)' };
+    } catch (e) { return null; }
+  };
+  // 顶部避让／页面高度两轴的同一件事：写入方算的是「系统基准」，落 DOM 的恒为
+  // 「基准＋本机偏移」——比较双方因此必须都在 DOM 单位里。此前这件事由包装
+  // getPropertyValue 完成，而写入方的守卫（#189 的 ≥6px 迟滞、以及「值没变就不写」）
+  // 读的正是被包装过的读数＝基准＋偏移，于是偏移量本身被当成抖动：该机 高度轴 调过
+  // −15 ⇒ |基准−读数| 恒为 15 ≥ 6 ⇒ 迟滞永久失效，vv 每抖 1px 就真写一次 --mochi-ios-h，
+  // 而 .phone/html/body 三处高度都消费它（base.css）＝#189 当初要杀的「滑动时整页
+  // reflow 连发」在【动过页面高度轴】的设备上原样回来。现在改为写入方自己叠加，
+  // 包装层整个删除（不再劫持 documentElement.style＝不再对全站写入方说谎）。
+  function screenVarNum(name, basePx) {
+    var k = name === '--mochi-ios-h' ? 'h' : 'top';
+    return basePx + (window.__mochiScreenAdj[k] | 0);
+  }
+  function screenVarPx(name, basePx) { return screenVarNum(name, basePx) + 'px'; }
+
   // v3.15.x：键盘弹起时需要停靠到可视区底部的悬浮面板（聊天「更多功能」里的
   // 小功能半框 + 更多面板自身 + 表情包等）。它们都是 absolute 锚定 .phone 底部
   // （bottom:96px），键盘弹出 .phone 收缩后底部锚点退出视口——必须 fixed 停靠。
@@ -1192,6 +1255,9 @@
       var _envTopCache = -1; // #148：env(safe-area-inset-top) 探针缓存（-1=未测）；旋转/#277 矛盾自愈时失效
       var _envBottomCache = -1; // #1048：env(safe-area-inset-bottom) 探针缓存（与 top 同一探针同建同失效）
       var _envTopCacheAt = 0; // #277：缓存写入时刻（矛盾重探 5s 节流，防 1s 自愈循环频繁建探针 DOM）
+      // #1318：0/0 读数的有限次重探额度与间隔（见下方 #1318 批注；探到非 0 即复位）
+      const ENV_ZERO_RETRY_MAX = 6, ENV_ZERO_RETRY_MS = 300;
+      var _envZeroTries = 0;
       var _zoomFixCnt = 0, _zoomFixAt = 0; // #174：缩放异常自愈计数（每会话 ≤3 次，间隔 4s）
       function syncVvFit() {
         try {
@@ -1246,6 +1312,24 @@
               _envTopCache = -1; _envBottomCache = -1; _envTopCacheAt = Date.now();
             }
           } catch (eE5) {}
+          // FIX 2026-09-27 #1318：#277 那条矛盾重探拿 screen−inner≥20 当反证，而 iPhone
+          // 16 Pro Max / 16 Pro 这一档 standalone＋viewport-fit=cover 的机器 screen 恒等于
+          // inner（该机实报 956/956、diff=0）——冷启动早帧探针探到 0/0 被永久缓存之后，
+          // ①#186 forceCover 的 diff 兜底要 diff≥20、②#1048 的 env-bottom 反证要
+          // envBottom≥20、③#277 的矛盾重探要 diff≥20，三条救援在这一档几何上同时不可达
+          // ⇒ --mochi-safe-top 被摘除（连用户 顶部轴 调的 46px 一起抹掉＝包装层删除前
+          // removeProperty 还会顺带删掉缓存的基准）且永不自愈，只有旋转或刷新才回来
+          // ＝用户实报的「顶部重新进入时会变成初始状态」。改尺＝不再要求几何反证，
+          // 直接把「standalone 全出血却两个 inset 同时报 0」这一个读数当作【尚未知道】：
+          // 有限次重探到非 0 即照旧长期缓存。真 0/0 的设备（SE 家族）只多探这几下、
+          // 探针 DOM 建了即拆＝账很小；仍零机型／零 UA 分支——问的只是「这次量到了没有」。
+          try {
+            if (_sig0.standalone && _envTopCache === 0 && _envBottomCache === 0
+                && _envZeroTries < ENV_ZERO_RETRY_MAX && Date.now() - _envTopCacheAt >= ENV_ZERO_RETRY_MS) {
+              _envZeroTries++;
+              _envTopCache = -1; _envBottomCache = -1; _envTopCacheAt = Date.now();
+            }
+          } catch (eZ0) {}
           var _f0 = window.mochiViewportForm(_sig0);
           if (_f0.needEnvProbe && _envTopCache < 0 && _sh2 > 0 && _vh2 > 0) {
             try {
@@ -1259,6 +1343,15 @@
               document.body.removeChild(_probe);
             } catch (e4) { _envTopCache = 0; _envBottomCache = 0; }
             _envTopCacheAt = Date.now(); // #277：探回值连同时刻一起入账（重探节流基准）
+            // #1318：量到任何一个非 0 inset 就说明这台机真的有安全区、这一格已经知道了，
+            // 重探额度复位（下次旋转/回前台若又探到 0/0 仍能用）；两个都为 0 才继续计数。
+            if (_envTopCache > 0 || _envBottomCache > 0) _envZeroTries = 0;
+            // #1318：0/0 是「还没量到」而不是「没有安全区」——自己把下一次复查排上，不指望
+            // 那条按秒的指纹闸（视口指纹没变它会整条跳过重校链，这一格就永远等不到第二次量）。
+            // 额度用尽即自停＝SE 家族那类真 0/0 的设备最多只多探这几下。
+            if (_envTopCache === 0 && _envBottomCache === 0 && _envZeroTries < ENV_ZERO_RETRY_MAX) {
+              try { setTimeout(scheduleHeal, ENV_ZERO_RETRY_MS); } catch (eR0) {}
+            }
             _sig0.envTop = _envTopCache;
             _sig0.envBottom = _envBottomCache;
           }
@@ -1268,7 +1361,11 @@
           //（摘除属性会回落 env() 反而双重避让）；_f.forceCover（#185/#186 用户声明
           // 覆盖形态）→ safeTop=env 优先、env=0 用 diff 兜底。判式细节见判定器。
           var _resStand = _f.resStand;
-          var _topPx = _safeTop ? _safeTop + 'px' : (_resStand ? '0px' : '');
+          // #1318：落 DOM 的恒为「系统基准＋本机偏移」（#707 顶部轴），比较双方同在
+          // DOM 单位里——原写法拿包装过的读数（基准+偏移）比裸基准，偏移≠0 时每拍都
+          // 判「变了」。resStand 那支同样叠加：该形态写 0px 是防「摘除回落 env() 双重
+          // 避让」，用户的偏移是另一件事实，不该被这一格顺带抹掉。
+          var _topPx = _safeTop ? screenVarPx('--mochi-safe-top', _safeTop) : (_resStand ? screenVarPx('--mochi-safe-top', 0) : '');
           if (d.style.getPropertyValue('--mochi-safe-top') !== _topPx) {
             if (_topPx) d.style.setProperty('--mochi-safe-top', _topPx);
             else d.style.removeProperty('--mochi-safe-top');
@@ -1315,13 +1412,17 @@
             // 60px 白带；已避让（env=0，16 Pro 26.1）=inner 812；保留/iPad/force 各按
             // 判定器例外。min 屏高防异常超界（含在 expBase 内）。
             var _nPxFs = (_vh2 >= 300) ? Math.round(_f.expBase) : 0;
+            var _wantFs = _nPxFs >= 300 ? screenVarNum('--mochi-ios-h', _nPxFs) : 0;
             var _curFs = parseFloat(d.style.getPropertyValue('--mochi-ios-h'));
             if (_nPxFs >= 300) {
               // FIX 2026-09-05 #189：写入加 ≥6px 迟滞（同 _setPhoneH 政策）——全屏过渡/
               // fs-css-active 下浏览器工具条显隐期间 vv/innerHeight 逐帧抖动，原实现
               // 每次都 setProperty=整页重排连发，滚动观感即「全屏下滑动一直闪烁」；
               // ±6px 内抖动不写 DOM。0px/异常小值不落盘（原实现 innerHeight=0 会写 0px）。
-              if (isNaN(_curFs) || Math.abs(_nPxFs - _curFs) >= 6) d.style.setProperty('--mochi-ios-h', _nPxFs + 'px');
+              // #1318：迟滞两侧统一到 DOM 单位（基准＋本机偏移）。此前拿裸基准比含偏移
+              // 的读数＝偏移量自己把差值顶过 6px 阈值，凡动过 页面高度轴 的设备迟滞
+              // 永久失效、每抖 1px 真写一次整页高度。
+              if (isNaN(_curFs) || Math.abs(_wantFs - _curFs) >= 6) d.style.setProperty('--mochi-ios-h', _wantFs + 'px');
             } else if (d.style.getPropertyValue('--mochi-ios-h')) {
               d.style.removeProperty('--mochi-ios-h');
             }
@@ -1347,7 +1448,9 @@
           // =整页 reflow 连发，观感即「滑动时一直闪烁」。真实施显隐/键盘开合都是
           // 数十~数百 px 级变化，迟滞不影响跟随。
           var _curN = parseFloat(d.style.getPropertyValue('--mochi-ios-h'));
-          if (isNaN(_curN) || Math.abs(vh - _curN) >= 6) d.style.setProperty('--mochi-ios-h', vh + 'px');
+          // #1318：同上，迟滞两侧统一到 DOM 单位
+          var _wantN = screenVarNum('--mochi-ios-h', vh);
+          if (isNaN(_curN) || Math.abs(_wantN - _curN) >= 6) d.style.setProperty('--mochi-ios-h', _wantN + 'px');
         } catch (e) {}
       }
       function syncSafeBottom() {
@@ -1385,12 +1488,23 @@
             return;
           }
           if (sh && ih && sh - ih > 60 && !d.classList.contains('ios-pwa-standalone')) {
-            if (cur !== '0px') d.style.setProperty('--mochi-safe-bottom', '0px');
-          } else if (cur) {
-            d.style.removeProperty('--mochi-safe-bottom');
+            if (cur !== '0px') d.style.setProperty('--mochi-safe-bottom', '0px'); // #530 镜像·浏览器工具条占用期钉 0
+          } else {
+            // #1318：standalone／铺满物理屏这一支原来直写 removeProperty（#129 让 CSS 回落
+            // env()），而 #707 的 1s 复述循环往同一格写 calc(env()+偏移)＝两个主人交替改写
+            // 同一个属性，落值在 -6px 与 34px 之间每秒跳一次。现在这一支交回唯一的写入点：
+            // 偏移=0 时它照样返回 ''（摘除、回落 env()，#129/#969 语义一字未动）；偏移≠0
+            // 时把偏移叠在 env() 上，且再也没有第二个人和它抢。
+            syncBottomSafe('env');
           }
         } catch (e) {}
       }
+      // #1318：偏移变化／首帧补算的入口——偏移层没有系统基准，只能【请写入方重算】，
+      // 不能自己往 DOM 上贴值（那正是底部一格两个主人的来源）。iOS 两轴都归这条链。
+      window.__mochiSyncScreenVars = function () {
+        try { syncVvFit(); } catch (e) {}
+        try { syncSafeBottom(); } catch (e) {}
+      };
       // 键盘是否仍有实测证据（供常驻自愈复用，判据与 syncIosKb 一致）
       function _kbNowLike() {
         try {
@@ -1483,8 +1597,12 @@
                 var _pb = _phone.getBoundingClientRect().bottom;
                 var _short = Math.round(_sh2 - _pb);
                 if (_short > 8) {
-                  if (d.style.getPropertyValue('--mochi-safe-top') !== (_fw.safeTop + 'px')) d.style.setProperty('--mochi-safe-top', _fw.safeTop + 'px');
-                  if (d.style.getPropertyValue('--mochi-ios-h') !== (_fw.expBase + 'px')) d.style.setProperty('--mochi-ios-h', _fw.expBase + 'px');
+                  // #1318：这两个写入与 syncVvFit 同一把尺子（落 DOM 恒为基准＋本机偏移）——
+                  // 包装层删除后直写裸基准会把用户的 顶部轴/高度轴 一并抹平
+                  var _fwTopPx = screenVarPx('--mochi-safe-top', _fw.safeTop);
+                  var _fwHPx = screenVarPx('--mochi-ios-h', _fw.expBase);
+                  if (d.style.getPropertyValue('--mochi-safe-top') !== _fwTopPx) d.style.setProperty('--mochi-safe-top', _fwTopPx);
+                  if (d.style.getPropertyValue('--mochi-ios-h') !== _fwHPx) d.style.setProperty('--mochi-ios-h', _fwHPx);
                   if (_phone.style.height) _phone.style.height = ''; // 清键盘期内联高度，回落 var 期望值
                   try { document.documentElement.scrollTop = 0; document.body.scrollTop = 0; } catch (eS2) {}
                 }
@@ -2193,13 +2311,23 @@
               _fcB = window.mochiViewportForm({ standalone: false, envTop: (typeof _aCoverEnvCache !== 'undefined' && _aCoverEnvCache >= 0) ? _aCoverEnvCache : 0, innerH: window.innerHeight || 0, screenH: (window.screen && window.screen.height) || 0, innerW: window.innerWidth || 0, screenW: (window.screen && window.screen.width) || 0, iosMajor: 0, safMajor: 0, andr: true, safeTopForce: false, e2eLatch: !!window.__mochiE2eLatch });
             } catch (eF2) {}
             if (_fcB && _fcB.e2eBrowser && !window.__mochiE2eLatch) window.__mochiE2eLatch = true;
-            var _next = _kbOn ? '0px' : ((_fcB && _fcB.e2eBrowser && _fcB.safeBottom) ? _fcB.safeBottom + 'px' : '');
+            // #1318：落值口径与 iOS 收到同一把尺子（bottomSafeCss）——键盘期钉 0 且偏移让位
+            // （#530 原语义不变）、e2e 壳落手势条估式 px 再叠加偏移、其余回落 env()＋偏移。
+            // 原写法在回落支摘除属性，而 #707 的 1s 复述循环往同一格写 calc(env()+偏移)
+            // ＝安卓同一处也是两个主人（＝用户说的「其他设备型号也有出现」）。
+            // 偏移=0 的设备三条分支取值与旧写法逐字相同＝零跨机型回归。
+            var _next = bottomSafeCss(_kbOn ? 'pin' : ((_fcB && _fcB.e2eBrowser && _fcB.safeBottom) ? _fcB.safeBottom : 'env'));
             if (_next === _aSafeB) return;
             _aSafeB = _next;
             if (_next) d.style.setProperty('--mochi-safe-bottom', _next);
             else d.style.removeProperty('--mochi-safe-bottom');
           } catch (e) {}
         }
+        // #1318：安卓侧的同一条入口（与 iOS 分支互斥，谁跑到谁填）
+        window.__mochiSyncScreenVars = function () {
+          try { _aSyncCoverTop(); } catch (e) {}
+          try { syncSafeBottomA(); } catch (e) {}
+        };
         // FIX 2026-09-19 #810：键盘弹出「整个页面被缩小、两边和底部大面积露底色」自愈的状态。
         // 华为 nova 10 SE 华为系统自带浏览器实报「点输入框弹键盘：页面被顶上去+画面缩小+
         // 两侧和底部大面积留白+严重卡顿」，用户明说其他机型也有、要求勿致跨机型回归。
@@ -2829,7 +2957,9 @@
           var _fc = window.mochiViewportForm({ standalone: false, envTop: _aCoverEnvCache, innerH: _ih, screenH: _sh, innerW: window.innerWidth || 0, screenW: (window.screen && window.screen.width) || 0, iosMajor: 0, safMajor: 0, andr: true, safeTopForce: false, e2eLatch: !!window.__mochiE2eLatch });
           if (_fc.e2eBrowser && !window.__mochiE2eLatch) window.__mochiE2eLatch = true;
           var _st = _fc.safeTop || 0;
-          var _px = _st ? _st + 'px' : '';
+          // #1318：与 iOS 侧同一把尺子——落 DOM 的恒为「系统基准＋顶部轴 偏移」，
+          // 包装层删除后这里不叠加就会每台安卓每次覆盖形态重校都把用户的顶部微调抹平
+          var _px = _st ? screenVarPx('--mochi-safe-top', _st) : '';
           if (_d.style.getPropertyValue('--mochi-safe-top') !== _px) {
             if (_px) _d.style.setProperty('--mochi-safe-top', _px);
             else _d.style.removeProperty('--mochi-safe-top');
@@ -3198,47 +3328,66 @@
   };
 })();
 
-// ===== v3.26.x #707：屏幕位置微调（设置 → 信息诊断 → 三行手动偏移，用户自调）=====
+// ===== v3.26.x #707：屏幕位置微调（设置 → 屏幕适配微调，用户自调七轴）=====
 // 背景（用户直派）：跨设备屏幕适配问题修不完（各内核对 innerHeight/visualViewport/安全区
 // 的口径不同且随系统版本漂移，iOS 26 键盘行为即是例证），与其全靠代码猜每台设备，
 // 不如给用户一个本机永久的手动微调入口。三轴：顶部避让偏移（--mochi-safe-top）、
-// 底部安全区偏移（--mochi-safe-bottom）、页面高度偏移（--mochi-ios-h）。
-// 实现：**双层值包装**——包装 documentElement.style 的 set/remove/get，写入方（syncVvFit/
-// _aSyncCoverTop 等）照常写「系统基准值」，包装层落 DOM 的恒为「基准+偏移」；写入方的
-// getPropertyValue 比较拿到的也是偏移后值，虽然会因基准≠所见而多调一次 setProperty，
-// 但 DOM 值不变＝零重排零抖动（setProperty 同值写入对样式无效）。用户改偏移时只重放
-// 已缓存基准，立即生效、无需刷新。底部独立处理：iOS 侧没人写 --mochi-safe-bottom
-// （回落 env()），偏移≠0 时直接写 calc(env()+偏移)，安卓键盘期「钉 0」路径照旧直写
-// （键盘期偏移让位），收键盘后由 1s 复述循环补回。范围 ±80px，存根命名空间 LS
-// （跨桌面共用——屏幕是设备属性，不随联系人走）。
+// 底部安全区偏移（--mochi-safe-bottom）、页面高度偏移（--mochi-ios-h）；#764 加文字大小轴、
+// #794 加左右安全边轴，同期再加桌面图标区与整体位移＝现共七轴，范围偏移轴 ±80、desk/shift ±60、text/side 0~12。
+// 落层（#1318 收口后的形态）：本模块**不再**包装 documentElement.style，也不再按秒复述任何
+// var——它只「记住用户这台屏幕调了几 px」＋「请写入方重算」（syncScreenVars →
+// window.__mochiSyncScreenVars）。偏移在写入方【内部】由 screenVarPx / bottomSafeCss 叠加，
+// 一个属性只剩一个主人；改了偏移立即生效、无需刷新（重算是幂等的，不缓存基准就没有
+// 「缓存与写入方不同步」那一类掉回初始状态）。
+// FIX 2026-09-29 #1393（用户直派 iPhone17 Pro／iOS27 Safari「桌面打开，键盘及屏幕最底端上下
+// 跳动」＋「调了屏幕适配微调就莫名其妙抖动」「调完没保存，刷新就恢复默认」，明说多机型同现、
+// 不要覆盖式修补）：落库这一半此前是全站唯一走【裸 localStorage ＋ 吞异常 try】的用户设置——
+// 写失败时（同源 github.io 的存储配额被别的站点吃满／隐私模式／Edge·荣耀杀进程回滚最后一次
+// 磁盘提交／iOS 系统级清空网站数据）面板当场见效、set() 照报成功，下一次冷启读回 0，
+// 而同一台机上其余每一条设置都活着（它们走 xyStore，IndexedDB 里有一份）。改走数据层那条
+// 唯一的轨（内存缓存＋localStorage＋IndexedDB＋小键写日志），键名一字不改（老值照常读得到）；
+// 冷启回填迟到（LS 被清空、权威值只在库里）时按 mochi-restore-done 重读一次补回。
+// 判据一律零机型／零 UA 分支：只问「这一格现在库里是什么」。范围校验与值域闸门不变。
 (function () {
   var PFX = 'xy-home-v2:';
+  var GROOT = 'xy-home-v2';
   var KEYS = { top: 'screen-adj-top', bottom: 'screen-adj-bottom', h: 'screen-adj-h', desk: 'screen-adj-desk', shift: 'screen-adj-shift', text: 'screen-adj-text', side: 'screen-adj-side' };
   // #764 文字大小轴：只叠加在「文字组」字号上（display-tune.css 逐条 calc），范围 0~12px；其余偏移轴维持 ±80
   // #794 左右安全边轴：曲面/瀑布屏内容贴边时两侧同时内收，单向 0~12px（在 .phone 既有 18px 横向内边距上叠加）
   var RANGE = { top: [-80, 80], bottom: [-80, 80], h: [-80, 80], desk: [-60, 60], shift: [-60, 60], text: [0, 12], side: [0, 12] };
+  // #1393：读优先走数据层（内存缓存＝本会话刚写的那一份，LS 写失败设备靠 IDB 回填那一份），
+  // 数据层缺位（外置件没加载上／自愈重注入还没跑到 idb.js）时退回裸 LS 读＝与修前逐字一致。
   function loadAdj(k) {
-    try { var v = parseInt(localStorage.getItem(PFX + KEYS[k]), 10); var rg = RANGE[k] || [-80, 80];
-      return (!isNaN(v) && v >= rg[0] && v <= rg[1]) ? v : 0; } catch (e) { return 0; }
+    var raw = null;
+    try { if (window.xyStore) raw = window.xyStore(GROOT).get(KEYS[k]); } catch (e) {}
+    if (raw === null || raw === undefined) { try { raw = localStorage.getItem(PFX + KEYS[k]); } catch (e2) {} }
+    var v = parseInt(raw, 10); var rg = RANGE[k] || [-80, 80];
+    return (!isNaN(v) && v >= rg[0] && v <= rg[1]) ? v : 0;
   }
-  var adj = { top: loadAdj('top'), bottom: loadAdj('bottom'), h: loadAdj('h'), desk: loadAdj('desk'), shift: loadAdj('shift'), text: loadAdj('text'), side: loadAdj('side') };
+  // #1318：偏移量的家在文件上方 #1318 处（window.__mochiScreenAdj）——写入方 syncVvFit /
+  // syncSafeBottom / _aSyncCoverTop / syncSafeBottomA 全在另一个闭包里，必须读得到同一份。
+  // 这里保留 adj 作别名，所以下方四条独立轴（desk/shift/text/side）的写入行一字未动。
+  var adj = window.__mochiScreenAdj || (window.__mochiScreenAdj = { top: 0, bottom: 0, h: 0, desk: 0, shift: 0, text: 0, side: 0 });
+  adj.top = loadAdj('top'); adj.bottom = loadAdj('bottom'); adj.h = loadAdj('h');
+  adj.desk = loadAdj('desk'); adj.shift = loadAdj('shift'); adj.text = loadAdj('text'); adj.side = loadAdj('side');
   var el = document.documentElement;
   var st = el.style;
-  var NAMES = { '--mochi-safe-top': 'top', '--mochi-ios-h': 'h' };
-  var base = {};           // var 名 -> 系统基准 px（包装层缓存）
   var origSet = st.setProperty.bind(st);
   var origRemove = st.removeProperty.bind(st);
   var origGet = st.getPropertyValue.bind(st);
-  function lsSet(k, v) { try { if (v) localStorage.setItem(PFX + KEYS[k], String(v)); else localStorage.removeItem(PFX + KEYS[k]); } catch (e) {} }
-  function applyBottom() {
+  // #1393：落库走数据层那条唯一的轨（内存缓存＋localStorage＋IndexedDB＋小键写日志），与站内
+  // 其余每一条用户设置同生共死——LS 写不进去时 xyStore 会把这一格标进「写失败脏键」并以 IDB 为
+  // 准，而不是像旧写法那样被一个吞异常的 try 静默抹掉（面板当场见效、set() 照报成功、下次冷启
+  // 读回 0＝用户所见「调了没保存，刷新就恢复默认」）。0＝默认值，交回 remove 把这一格整个销掉。
+  // 数据层缺位（外置件没加载上）时退回裸 LS 写＝与修前逐字一致。键名一字未改，存量值照常读得到。
+  function lsSet(k, v) {
     try {
-      // #969：底部补偿的 1s 轮询原为「每秒无条件重写一次 CSS 变量」——写自定义属性会让整棵
-      // 样式失效并触发重算/重绘，在长页面上是稳定的每秒开销。改为「当前值已是目标值就不写」
-      // （读仍在，保留「被外部 removeProperty 掉后 1s 内补回」的自愈职责不变）。
-      const want = adj.bottom ? ('calc(env(safe-area-inset-bottom, 0px) + ' + adj.bottom + 'px)') : '';
-      const cur = origGet('--mochi-safe-bottom') || '';
-      if (want) { if (cur !== want) origSet('--mochi-safe-bottom', want); }
-      else if (cur.indexOf('calc(env(') === 0) origRemove('--mochi-safe-bottom');
+      if (window.xyStore) {
+        var s = window.xyStore(GROOT);
+        if (v) s.set(KEYS[k], String(v)); else s.remove(KEYS[k]);
+        return;
+      }
+      if (v) localStorage.setItem(PFX + KEYS[k], String(v)); else localStorage.removeItem(PFX + KEYS[k]);
     } catch (e) {}
   }
   // #707 桌面图标区轴：独立写 --mochi-desk-adj（home.css 的 #desktop-pages padding-top 消费）——
@@ -3274,38 +3423,23 @@
       else if (origGet('--mochi-side-adj')) origRemove('--mochi-side-adj');
     } catch (e) {}
   }
-  function applyCached() {
-    for (var n in base) {
-      try { origSet(n, (base[n] + adj[NAMES[n]]) + 'px'); } catch (e) {}
-    }
-    applyBottom();
+  // #1318：到这里为止，本模块只做两件事——「记住用户这台屏幕调了几 px」＋「请写入方重算」。
+  // 删掉的三样：① documentElement.style 的方法包装（包装后的 getPropertyValue 把基准和
+  // 偏移混在一起交还给写入方，写入方拿裸基准去比＝偏移量自己把差值顶开：#189 的 ≥6px
+  // 迟滞与「值没变就不写」的守卫全部永久失效，vv 每抖 1px 就真写一次整页高度）；
+  // ② applyBottom 与 ③ 按秒重写同一个属性的那条复述定时器——它与 #129/#556/#530
+  // 的三个系统写入方抢同一个 DOM 属性，落值在 calc(env()+偏移) 与 env() 之间每秒跳一次，
+  // 事件侧（visibilitychange/pageshow/focusout/vv resize）随时把它提前＝用户实报的
+  // 「重新进入时底部变成初始状态」「聊天时底部栏上下跳动」本体（16PM 实测差 40px）。
+  // 现在偏移在【写入方内部】由 screenVarPx / bottomSafeCss 叠加，一个属性只剩一个主人。
+  function syncScreenVars() {
     applyDesk();
     applyShift();
     applyText();
     applySide();
+    try { if (window.__mochiSyncScreenVars) window.__mochiSyncScreenVars(); } catch (e) {}
   }
-  st.setProperty = function (n, v) {
-    n = String(n).toLowerCase();
-    if (NAMES[n] !== undefined) {
-      var b = parseFloat(v); if (isNaN(b)) b = 0;
-      base[n] = b;
-      v = (b + adj[NAMES[n]]) + 'px';
-    }
-    return origSet(n, v);
-  };
-  st.removeProperty = function (n) {
-    n = String(n).toLowerCase();
-    if (NAMES[n] !== undefined) delete base[n];
-    return origRemove(n);
-  };
-  st.getPropertyValue = function (n) {
-    n = String(n).toLowerCase();
-    if (NAMES[n] !== undefined && base[n] !== undefined) return (base[n] + adj[NAMES[n]]) + 'px';
-    return origGet(n);
-  };
-  // 底部复述循环：安卓收键盘会 removeProperty 掉我们的 calc 写入，1s 内补回（iOS 侧无人写，幂等）
-  setInterval(applyBottom, 1000);
-  applyCached();
+  syncScreenVars();
   // 设置页接线 API（personalize.js 面板用）：读当前偏移 / 设置并立即生效
   window.mochiScreenAdj = {
     all: function () { return { top: adj.top, bottom: adj.bottom, h: adj.h, desk: adj.desk, shift: adj.shift, text: adj.text, side: adj.side }; },
@@ -3316,10 +3450,22 @@
       if (isNaN(v) || v < rg[0] || v > rg[1]) return false;
       adj[k] = v;
       lsSet(k, v || '');
-      applyCached();
+      syncScreenVars(); // #1318：偏移改了请写入方按新偏移重算（旧写法是重放包装层缓存的基准）
       return true;
     }
   };
+  // #1393：冷启动这一次读到的是「此刻读得到的」。LS 被系统清空过的设备（iOS 会整域清网站数据，
+  // 站内那条定期备份提醒就是为它设的）权威值还躺在 IndexedDB 里，而回填是异步的——本模块求值
+  // 时那份还没进内存缓存。回填放行开屏之后（含备份导入，两处都派发同一发 mochi-restore-done）
+  // 重读一次补回。不会被库里的旧值顶掉本会话刚调的那一份：xyStore.get 优先内存缓存，而 set
+  // 无条件把最新值写进缓存（idbRestore 那一侧则以「LS 有值且未标脏」为最新）。
+  function adoptStored() {
+    var changed = false;
+    for (var k in adj) { var v = loadAdj(k); if (v !== adj[k]) { adj[k] = v; changed = true; } }
+    if (changed) syncScreenVars();
+    return changed;
+  }
+  document.addEventListener('mochi-restore-done', function () { try { adoptStored(); } catch (e) {} });
 })();
 
 /* FIX 2026-09-20 #913 手机发烫收口①：页面切后台（document.hidden）全局暂停 CSS 动画——「后台保活」
