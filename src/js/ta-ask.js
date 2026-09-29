@@ -23,6 +23,14 @@
     t._timer = setTimeout(() => { t.className = 'cc-toast'; }, 2000);
   }
   function escG(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+  // #1415：题库条目上的题型徽标——单选题一直写的是「单选·N选项」，多选题进来必须换个词，
+  // 否则列表里两种题长得一模一样，出题的人分不清自己哪道会让 TA 多挑几个。
+  function askTypeBadge(q) {
+    const n = q && Array.isArray(q.options) ? q.options.length : 0;
+    if (q && q.type === 'single') return ' <span class="tc-known">单选·' + n + '选项</span>';
+    if (q && q.type === 'multi') return ' <span class="tc-known">多选·' + n + '选项</span>';
+    return '';
+  }
   // FIX 2026-09-17 #648 问答/收藏记录页「TA回应」列——存量落库的媒体卡回应（@@m: 令牌/
   // 「名称|||data:」/图链）先清洗为 [图片]/名称再转义；此前这些列表直拼 f.reply/x.reply
   //（连转义都没有），既直出令牌串又可能把导入数据里的 HTML 当标签执行
@@ -895,9 +903,10 @@
   function pushAsk(q, opts) {
     if (!window.chatAddSystem) return;
     // v3.6.x：单选题不弹窗（弹窗是纯文字输入界面）——只进聊天卡片，点卡片就地点选
-    const isSingle = q && q.type === 'single' && Array.isArray(q.options) && q.options.length;
+    // #1415：多选题同理，而且弹窗根本挂不出勾选态，也必须走点卡两拍
+    const isPick = q && (q.type === 'single' || q.type === 'multi') && Array.isArray(q.options) && q.options.length;
     let popup = false;
-    if (!isSingle) {
+    if (!isPick) {
       if (opts && typeof opts.popupProb === 'number') popup = Math.random() * 100 < opts.popupProb;
       else if (opts && opts.popup === false) popup = false;
     }
@@ -906,7 +915,7 @@
     window.chatAddSystem('TA想问你一个问题。', { special: 'ask-msg' });
     // v3.26.x：askTs 作为提问记录的稳定关联键（透传进 chat-msgs 记录，回答时据此更新 history）
     const askTs = Date.now();
-    const el = window.chatAddSystem(q.text, { special: 'ask-card', askQuestion: q.text, askOptions: isSingle ? q.options : null, askType: isSingle ? 'single' : 'text', askTs: askTs });
+    const el = window.chatAddSystem(q.text, { special: 'ask-card', askQuestion: q.text, askOptions: isPick ? q.options : null, askType: isPick ? q.type : 'text', askTs: askTs });
     // v3.26.x：提问即进记录——发卡同步写一条 pending，回答后由 chatAskReply 包装层更新
     // （此前只有回答才写 history，且单选题点选项直接调 chatAskReply 不经 openAskReply，history 永远空）
     try {
@@ -1198,20 +1207,26 @@
       if (!lines.length) { toast('请先输入问题，每行一个；单选题第一行用【问题】，下面每行一个选项'); return; }
       // v3.26.x #291：批量导入支持单选题——【问题】开头的行开一道单选题，其后到下一个【】之间每行一个选项；
       // 普通行仍按「一行一个问题」导入（选项不足 2 个时按普通文字题导入）
+      // #1415：题干里带「多选」标记的走多选题，判据与批量问卷同一条（askMultiMarkOf）
       const d2 = taAskLoad();
       let cur = null, imported = 0, singles = 0;
       const flush = () => {
         if (!cur) return;
         const q = { id: 'q_' + Date.now() + '_' + Math.floor(Math.random() * 9999), text: cur.text, cat: parsed.cat || 'daily', enabled: true, isPreset: false };
         if (parsed.grp) q.grp = parsed.grp;
-        if (cur.opts.length >= 2) { q.type = 'single'; q.options = cur.opts.slice(); singles++; }
+        if (cur.opts.length >= 2) { q.type = cur.multi ? 'multi' : 'single'; q.options = cur.opts.slice(); singles++; }
         d2.questions.push(q);
         imported++;
         cur = null;
       };
       lines.forEach(t => {
         const m = t.match(/^【(.+?)】$/);
-        if (m) { flush(); if (m[1].trim()) cur = { text: m[1].trim(), opts: [] }; return; }
+        if (m) {
+          flush();
+          const mk = askMultiMarkOf(m[1]);
+          if (mk.text) cur = { text: mk.text, opts: [], multi: mk.multi };
+          return;
+        }
         if (cur) { cur.opts.push(t); return; }
         cur = { text: t, opts: [] };
         flush();
@@ -1270,7 +1285,7 @@
         const idx = d.questions.indexOf(q);
         html += '<div class="ta-row' + (!useDefault ? ' off' : '') + '">' +
           '<label class="toggle"><input type="checkbox"' + (q.enabled !== false ? ' checked' : '') + ' data-idx="' + idx + '"><span class="tk"></span></label>' +
-          '<span class="ta-txt">' + q.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + (q.type === 'single' ? ' <span class="tc-known">单选·' + (q.options ? q.options.length : 0) + '选项</span>' : '') + ' <span class="tc-known">系统</span></span>' +
+          '<span class="ta-txt">' + q.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + askTypeBadge(q) + ' <span class="tc-known">系统</span></span>' +
           '</div>';
         html += interactPoolInlineHtml('询问·回应');
       });
@@ -1300,7 +1315,7 @@
         const delBtn = preset ? '' : '<button class="ta-del" data-idx="' + idx + '">✕</button>';
         html += '<div class="ta-row' + (preset && !useDefault ? ' off' : '') + '">' +
           '<label class="toggle"><input type="checkbox"' + (q.enabled !== false ? ' checked' : '') + ' data-idx="' + idx + '"><span class="tk"></span></label>' +
-          '<span class="ta-txt">' + q.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + (q.type === 'single' ? ' <span class="tc-known">单选·' + (q.options ? q.options.length : 0) + '选项</span>' : '') + (preset ? ' <span class="tc-known">系统</span>' : '') + '</span>' +
+          '<span class="ta-txt">' + q.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + askTypeBadge(q) + (preset ? ' <span class="tc-known">系统</span>' : '') + '</span>' +
           delBtn +
           '</div>';
         if (presetOnly) html += interactPoolInlineHtml('询问·回应');
@@ -1335,7 +1350,7 @@
   function askItemHtml(q, idx) {
     return '<div class="ta-row">' +
       '<label class="toggle"><input type="checkbox"' + (q.enabled !== false ? ' checked' : '') + ' data-idx="' + idx + '"><span class="tk"></span></label>' +
-      '<span class="ta-txt">' + escG(q.text) + (q.type === 'single' ? ' <span class="tc-known">单选·' + (q.options ? q.options.length : 0) + '选项</span>' : '') + '</span>' +
+      '<span class="ta-txt">' + escG(q.text) + askTypeBadge(q) + '</span>' +
       '<button class="ta-del" data-idx="' + idx + '">✕</button>' +
       '</div>';
   }
@@ -1361,6 +1376,7 @@
       '<select class="ta-type tc-input" data-key="' + blockKey + '">' +
       '<option value="text">文字回复</option>' +
       '<option value="single">单选题</option>' +
+      '<option value="multi">多选题</option>' +
       '</select>' +
       '<div class="dec-inp-wrap ta-inp-flex"><input id="ta-new-' + blockKey + '" type="text" placeholder="添加问题…"><button type="button" class="dec-inp-clear" data-clear="ta-new-' + blockKey + '" aria-label="清空" title="清空">✕</button></div>' +
       '<button class="ta-add-btn" data-key="' + blockKey + '" data-cat="' + (cat || 'daily') + '" data-grp="' + (grp || '') + '">添加</button>' +
@@ -1428,7 +1444,7 @@
       const toggleOpts = () => {
         const o = document.getElementById('ta-opts-' + sel.dataset.key);
         if (!o) return;
-        o.hidden = sel.value !== 'single';
+        o.hidden = sel.value !== 'single' && sel.value !== 'multi';
         if (o.__ceBox) o.__ceBox.hidden = o.hidden;
         // #292：textarea 已包进 .dec-inp-wrap（旁边是清空按钮），ce-box 兜底改为按父容器扫
         else if (o.parentElement) o.parentElement.querySelectorAll('.ce-box').forEach(b => { b.hidden = o.hidden; });
@@ -1447,7 +1463,7 @@
         const d2 = taAskLoad();
         const q = { id: 'q_' + Date.now() + '_' + Math.floor(Math.random() * 999), text: v, cat: b.dataset.cat || 'daily', enabled: true, isPreset: false };
         if (b.dataset.grp) q.grp = b.dataset.grp;
-        if (type === 'single') {
+        if (type === 'single' || type === 'multi') {
           const optsEl = document.getElementById('ta-opts-' + key);
           const opts = (optsEl ? optsEl.value : '').split(/\r?\n/).map(s => s.trim()).filter(Boolean).map(line => {
             const i = line.indexOf('~');
@@ -1456,8 +1472,10 @@
             const replies = line.slice(i + 1).split(';').map(s => s.trim()).filter(Boolean);
             return { t: t, reply: replies.length > 1 ? replies : (replies[0] || '') };
           });
-          if (!opts.length) { toast('单选题请填写选项，每行一个'); return; }
-          q.type = 'single';
+          if (!opts.length) { toast((type === 'multi' ? '多选题' : '单选题') + '请填写选项，每行一个'); return; }
+          // #1415：多选题只 1 个选项就没得「多」——按题型实际含义当场拦（单选题沿用原口径不拦）
+          if (type === 'multi' && opts.length < 2) { toast('多选题至少填 2 个选项'); return; }
+          q.type = type;
           q.options = opts;
         }
         d2.questions.push(q);
@@ -4061,6 +4079,7 @@ window.openTCPanel = openTCPanel;
 
   // ================= 批量提问问卷（v3.32.x：用户批量出题 → 联系人作答交卷） =================
   // 题目格式（textarea 批量编辑）：单选题 = 第一行【问题】+ 下面每行一个选项（≥2 个成单选）；
+  // 多选题 = 题干里带「多选」标记（【问题（多选）】）+ 每行一个选项，TA 一次答好几个；
   // 文字题 = 第一行【问题】+ 下一行只写一个「一」（与单选题的区别标记）。
   // 联系人文字题用字卡作答，与正常聊天同源：自定义字卡 1~5 张空格连发，系统预设默认聊天
   // 字卡（getDefaultCards('chat')）可覆盖——后者内部尊重 #319 未成年人防护锁（锁定时系统
@@ -4093,20 +4112,36 @@ window.openTCPanel = openTCPanel;
   function surveySyncCard(d) {
     try { if (window.chatSyncSurveyCard) window.chatSyncSurveyCard(d.sentAt, d.status, d.answers.slice()); } catch (e) {}
   }
-  // 解析问卷文本：返回 [{type:'single'|'text', text, options}]
+  // #1415：「多选」标记的唯一定义处——批量问卷解析与题库批量导入共用一份判据。
+  // 认两种写法：括号式「题？（多选）」与裸后缀「题？多选」，命中后从题干里剥掉，屏上念的是干净问题。
+  function askMultiMarkOf(text) {
+    const s = String(text == null ? '' : text).trim();
+    const br = s.match(/[（(]\s*多\s*选\s*[)）]\s*$/);
+    if (br) return { text: s.slice(0, br.index).trim(), multi: true };
+    if (s.length > 2 && /\s*多\s*选$/.test(s)) return { text: s.replace(/\s*多\s*选$/, '').trim(), multi: true };
+    return { text: s, multi: false };
+  }
+  // 解析问卷文本：返回 [{type:'single'|'multi'|'text', text, options}]
+  // #1415：多选题的写法＝题干里带「多选」标记（【今晚想吃点什么？（多选）】或【……？多选】），
+  // 标记在入库前从题干剥掉，屏上念出来的就是干净问题。选项仍不足 2 个时按文字题处理（同单选口径）。
   function surveyParse(text) {
     const lines = String(text || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
     const qs = [];
     let cur = null, marked = false;
     const flush = () => {
       if (!cur) return;
-      if (!marked && cur.opts.length >= 2) qs.push({ type: 'single', text: cur.text, options: cur.opts.slice() });
+      if (!marked && cur.opts.length >= 2) qs.push({ type: cur.multi ? 'multi' : 'single', text: cur.text, options: cur.opts.slice() });
       else qs.push({ type: 'text', text: cur.text, options: [] });
       cur = null; marked = false;
     };
     lines.forEach(t => {
       const m = t.match(/^【(.+?)】$/);
-      if (m) { flush(); if (m[1].trim()) cur = { text: m[1].trim(), opts: [] }; return; }
+      if (m) {
+        flush();
+        const mk = askMultiMarkOf(m[1]);
+        if (mk.text) cur = { text: mk.text, opts: [], multi: mk.multi };
+        return;
+      }
       if (cur) {
         if (!marked && !cur.opts.length && t === '一') { marked = true; return; }
         cur.opts.push(t); return;
@@ -4152,8 +4187,15 @@ window.openTCPanel = openTCPanel;
   // d.answers 并回写卡片；是否把该答案作为聊天消息逐条发出由 settings.sendToChat 决定
   // （v3.33.x #523：批量问卷题多、逐条刷聊天太吵，用户可在发出前取消勾选）。
   function surveyPickAnswer(q) {
-    if (q && q.type === 'single' && Array.isArray(q.options) && q.options.length) {
-      return q.options[Math.floor(Math.random() * q.options.length)];
+    if (q && Array.isArray(q.options) && q.options.length) {
+      // #1415：多选题一次抽「2 ~ min(最多选几个, 选项数)」个，按题目原序念成「A、B」整串。
+      // 上限取全站共用的那一根杆（chat.js 的 per-cid 键 ask-multi-max）——半框里改过这里就跟着变，
+      // 不留两把尺；助手取不到时（单独载入本文件的探针）退化成抽 1 个，不抛错。
+      if (q.type === 'multi' && typeof window.mochiPickMulti === 'function') {
+        const max = typeof window.askMultiMaxLoad === 'function' ? window.askMultiMaxLoad() : 3;
+        return window.mochiPickMulti(q.options.length, max).map(k => String(q.options[k] == null ? '' : q.options[k])).join('、');
+      }
+      if (q.type === 'single' || q.type === 'multi') return q.options[Math.floor(Math.random() * q.options.length)];
     }
     return surveyAnswerText();
   }
@@ -4167,7 +4209,9 @@ window.openTCPanel = openTCPanel;
     surveySave(cur);
     surveySyncCard(cur);
     if (cur.settings.sendToChat !== false) {
-      const msg = (q.type === 'single' && Array.isArray(q.options) && q.options.length)
+      // #1415：多选题也是「从选项里挑」，逐条发到聊天时要带「我的选择：」，别念成一条自由文本
+      const isPick = (q.type === 'single' || q.type === 'multi') && Array.isArray(q.options) && q.options.length;
+      const msg = isPick
         ? '【' + q.text + '】我的选择：' + ans
         : '【' + q.text + '】' + ans;
       try { window.chatAddIn(msg, {}); } catch (e) {}
@@ -4254,11 +4298,18 @@ window.openTCPanel = openTCPanel;
     if (pv) pv.textContent = d.settings.prob + '%';
     const schatEl = document.getElementById('ta-survey-chat');
     if (schatEl) schatEl.checked = d.settings.sendToChat !== false;
+    // #1415：多选题上限回显——这一格与「问问TA」半框里那行是同一个 per-cid 键，任一处改完另一处跟上
+    const mmaxEl = document.getElementById('ta-survey-mmax-val');
+    if (mmaxEl) mmaxEl.value = typeof window.askMultiMaxLoad === 'function' ? window.askMultiMaxLoad() : 3;
     const st = document.getElementById('ta-survey-status');
     if (st) {
       if (d.status === 'draft') {
         const nS = d.qs.filter(q => q.type === 'single').length;
-        st.innerHTML = '当前状态：草稿 —— 已解析 <b>' + d.qs.length + '</b> 题' + (d.qs.length ? '（单选 ' + nS + ' 题 / 文字 ' + (d.qs.length - nS) + ' 题）' : '') + '。填好后点「发出问卷给TA」。';
+        // #1415：多选题单独计一格，草稿态一眼看出这一卷里几种题型各有多少
+        const nM = d.qs.filter(q => q.type === 'multi').length;
+        const brk = d.qs.length ? '（单选 ' + nS + ' 题' + (nM ? ' / 多选 ' + nM + ' 题' : '') + ' / 文字 ' + (d.qs.length - nS - nM) + ' 题）' : '';
+        const cap = (typeof window.askMultiMaxLoad === 'function' ? window.askMultiMaxLoad() : 3);
+        st.innerHTML = '当前状态：草稿 —— 已解析 <b>' + d.qs.length + '</b> 题' + brk + (nM ? '；多选题每次最多选 ' + cap + ' 个。' : '。') + '填好后点「发出问卷给TA」。';
       } else if (d.status === 'sent') {
         st.innerHTML = '当前状态：TA 作答中 —— 已答 <b>' + d.answers.length + '</b> / ' + d.qs.length + ' 题' + (d.settings.deadline ? '；交卷时间 ' + fmtDeadlineText(d.settings.deadline) : '；未设交卷时间') + '；每 30 秒按 ' + d.settings.prob + '% 概率提前交卷。';
       } else {
@@ -4320,7 +4371,7 @@ window.openTCPanel = openTCPanel;
         html += '<div class="tc-listitem" style="text-align:left">' +
           '<div class="tc-li-top">' +
           '<input type="checkbox" class="sv-fav-cb" data-i="' + i + '" style="width:16px;height:16px;flex-shrink:0;cursor:pointer">' +
-          '<span class="tc-li-q">' + (i + 1) + '. ' + escT((q && q.text) || '') + (opts ? ' <span class="tc-known">单选·' + opts.length + '选项</span>' : '') + '</span>' +
+          '<span class="tc-li-q">' + (i + 1) + '. ' + escT((q && q.text) || '') + (opts ? ' <span class="tc-known">' + (q.type === 'multi' ? '多选·' : '单选·') + opts.length + '选项</span>' : '') + '</span>' +
           '<span class="sv-fav-state" data-i="' + i + '" style="font-size:11px;font-weight:600;color:#c2864b;flex-shrink:0;white-space:nowrap">' + (favStates[i] ? '★ 已收藏' : '') + '</span>' +
           '</div>' +
           (opts ? '<div class="tc-li-line">选项：' + escT(opts.join(' / ')) + '</div>' : '') +
@@ -4346,7 +4397,7 @@ window.openTCPanel = openTCPanel;
           if (!text) { dup++; return; }
           if ((d.questions || []).some(b => b && String(b.text || '') === text)) { dup++; return; }
           const nq = { id: 'q_' + Date.now() + '_' + Math.floor(Math.random() * 9999), text: text, cat: 'daily', enabled: true, isPreset: false };
-          if (q && Array.isArray(q.options) && q.options.length >= 2) { nq.type = 'single'; nq.options = q.options.slice(0, 12).map(o => String(o)); }
+          if (q && Array.isArray(q.options) && q.options.length >= 2) { nq.type = q.type === 'multi' ? 'multi' : 'single'; nq.options = q.options.slice(0, 12).map(o => String(o)); }
           d.questions.push(nq);
           added++;
         });
@@ -4460,6 +4511,22 @@ window.openTCPanel = openTCPanel;
       surveySave(d);
       toast(schat.checked ? 'TA 的每条作答都会发送到聊天消息' : 'TA 的作答只写入问卷卡片，不再逐条发到聊天消息');
     });
+    // #1415：多选题「最多选几个」。这一行与「问问TA」半框里那行读写同一个 per-cid 键
+    // （ask-multi-max，定义与取数都在 chat.js）——两处一起调，不会各量一把尺。
+    const mmaxRow = document.getElementById('ta-survey-mmax');
+    if (mmaxRow) {
+      const mmaxVal = document.getElementById('ta-survey-mmax-val');
+      const clampMMax = () => {
+        // 与半框那一行同一条收边：越界钉在端点，不打回默认值（两处控件读写同一个键，行为也得一致）
+        let n = parseInt(mmaxVal.value, 10);
+        if (isNaN(n)) n = 3;
+        else n = n < 2 ? 2 : (n > 6 ? 6 : n);
+        mmaxVal.value = n;
+        if (typeof window.askMultiMaxSave === 'function') window.askMultiMaxSave(n);
+      };
+      mmaxRow.querySelector('.stp-min').addEventListener('click', (e) => { if (e) e.stopPropagation(); mmaxVal.value = (parseInt(mmaxVal.value, 10) || 3) - 1; clampMMax(); });
+      mmaxRow.querySelector('.stp-max').addEventListener('click', (e) => { if (e) e.stopPropagation(); mmaxVal.value = (parseInt(mmaxVal.value, 10) || 3) + 1; clampMMax(); });
+    }
     const ssend = document.getElementById('ta-survey-send');
     if (ssend) ssend.addEventListener('click', surveySend);
     const sreset = document.getElementById('ta-survey-reset');

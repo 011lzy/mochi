@@ -38,6 +38,11 @@
   function csFor(cid) { return cid ? window.storeFor(cid) : store; }
   function prefixFor(cid) { return cid ? ('xy-home-v2:' + cid) : window.activePrefix(); }
   function snapKey(cid) { return prefixFor(cid) + ':' + SNAP_KEY; }
+  // FIX 2026-09-29 #1442：剥图快照改走数据层门面（xyStore）＝同一个键名、内存＋LS＋IndexedDB 三个 home——
+  //   LS 整域被写满的机器（#1454 取证：同账号兄弟站点吃满配额、本项目写入被拒）上裸 localStorage
+  //   一声不响地失败＝「兜底」根本不存在；走句柄后写不进 LS 还能落 IDB，读空窗口里写下的那一封
+  //   才真有一条能活过页面回收的腿。键名逐字不变（句柄内部自己加前缀）⇒ 老快照照常读得到，无迁移。
+  function snapStore(cid) { return cid ? window.xyStore(prefixFor(cid)) : store; }
   // ================= 媒体载荷形态：统一口径（FIX 2026-09-25 #1235） =================
   // 荣耀 100 + Edge 实报「回信 / 主动发信 / 联系人来信有乱码＝字卡库图片变成乱码与乱码令牌」，
   // 且明说多机型同现、此问题早年修过又回来了。根因不是机型，是信箱自己另写了一份「串首小写
@@ -100,7 +105,7 @@
   function loadSnap(cid) {
     try {
       const k = snapKey(cid);
-      const v = localStorage.getItem(k);
+      const v = snapStore(cid).get(SNAP_KEY);
       if (v) return cachedParse(k, v);
     } catch (e) {}
     return [];
@@ -120,8 +125,13 @@
     return c;
   }
   function writeSnap(list, cid) {
-    if (!list || !list.length) { try { localStorage.removeItem(snapKey(cid)); } catch (e) {} return; }
-    try { const snap = JSON.stringify(list.map(stripLetterImg)); if (snap.length <= LS_BIG_LIMIT) localStorage.setItem(snapKey(cid), snap); } catch (e) {}
+    const ss = snapStore(cid);
+    // FIX 2026-09-29 #1442：removeItem/setItem 换成同一句柄的 remove/set（键名与体积上限逐字照旧）——
+    //   裸写在 LS 失效的机器上原本一声不响地失败＝「兜底」根本不存在；顺带落 IDB 之后，读空窗口里
+    //   写下的那一封才真有一条能活过页面回收的腿。清空信箱时同样一起销账，免得库里那份旧快照在
+    //   下一次读空时把已删的信并回来。
+    if (!list || !list.length) { try { ss.remove(SNAP_KEY); } catch (e) {} return; }
+    try { const snap = JSON.stringify(list.map(stripLetterImg)); if (snap.length <= LS_BIG_LIMIT) ss.set(SNAP_KEY, snap); } catch (e) {}
   }
   function load(cid) {
     const cs = csFor(cid);
@@ -375,6 +385,11 @@
     try { if (window.__mochiPhase) window.__mochiPhase('mail-auth-retry:' + mailAuthTries); } catch (e) {}
     setTimeout(function () { mailAuthAsk(cid, guard, after); }, wait);
   }
+  // FIX 2026-09-29 #1442：写回前先问数据层那一句尺——「这一桌面此刻交不交得出权威读数」。
+  //   #1361b 的静默版：拦下的同时顺手请一次库（单次飞行闸），库值回来后写回资格自然恢复。
+  //   三条后台通路（来信/到期回信/摸鱼小结）在生成前各自让路（见三处 mailBlindRead 调用点），
+  //   save() 这一道只是兜底：当前桌面的信照旧并入 mailPending＋快照，不凭空蒸发。
+  function mailBlindRead(cid) { return !!window.xyBigWriteHold(csFor(cid), KEY); }
   function save(list, cid) {
     // v3.7.x：cid undefined = 当前桌面，走 mailDbReady 门槛（防启动早期 save([]) 覆盖 IDB）；
     //   cid 指定 = 后台遍历该联系人来信，直接写（maybeIncomingLetterFor 已确认该桌面
@@ -391,7 +406,10 @@
     // FIX 2026-09-29 #1417：判据合一——残缺读数（读空 #1358f ／读到「写失败留下的旧值」 #1417）
     //   都没有整包写回资格：手上一页旧账盖进库里那整包，就是那封回信的永久丢失。增量并进
     //   mailPending 留在屏上，并顺手把库里那份问回来（问回来＝字段级合并＋恢复写回资格）。
-    if (mailReadIncomplete(cid)) {
+    // FIX 2026-09-29 #1442：判据再并一枚——数据层那句尺（xyBigWriteHold）说「此刻交不出权威读数」
+    //   时同样没有整包写回资格（#1195e 切后台按体积放掉内存副本的窗口里，load 交出的可能是空页
+    //   或旧账）。当前桌面这一发照旧并入 mailPending＋快照，等权威读数回来再落盘。
+    if (mailReadIncomplete(cid) || mailBlindRead(cid)) {
       try { mailPending = mergeLists(mailPending || [], list || []); } catch (e) {}
       writeSnap(list, cid);
       mailRescueArm(cid);
@@ -730,6 +748,9 @@
       // [图片] 剥图版；等权威加载回调/保险丝置真后补查（那里会再调 checkPendingReply）。
       if (cid === (window.__activeCid || 'default') && !mailDbReady) return;
       const now = Date.now();
+      // FIX 2026-09-29 #1442b 回信让路：读不出权威这一班不落地——回信计划留在原处不烧，
+      //   整本也不许被「读空/旧账＋一封回信」拼出来的版本顶掉。
+      if (mailBlindRead(cid)) return; // #1442b 回信让路
       const pending = replyPendingLoad(cid);
       if (!pending.length) return;
       const name = partnerNameFor(cid);
@@ -1335,6 +1356,9 @@ window.showDeskPopup({ name: '信箱', text: mailPlainDesc('给你回了一封�
       const now = Date.now();
       // v3.12.x：按该联系人桌面读设置（每天最多写信/概率/间隔各自独立生效）
       const cfg = mailCfgFor(cid);
+      // FIX 2026-09-29 #1442a 来信让路：读不出权威这一班整发不生成（不烧 last/next/当日上限、
+      //   不发「给你寄来了一封信」的通知）——拿读空拼出来的那一封会把库里整本顶掉。
+      if (mailBlindRead(cid)) return; // #1442a 来信让路
       // #296：联系人主动写信总开关——关闭后本桌面 TA 不再主动来信（回信/摸鱼小结不受影响）
       if (!cfg.writeEn) return;
       let last = letterLast(cid), next = letterNext(cid);
@@ -1381,6 +1405,8 @@ window.showDeskPopup({ name: '信箱', text: mailPlainDesc('给你回了一封�
     if (cid === (window.__activeCid || 'default') && !mailDbReady) return;
     // #645：回复设置→信箱「摸鱼小结寄信」开关（ml-fish-week-en）——关闭后不再寄小结；
     // 判定放在防重发标记写入之前，关掉再开若仍在周一~周三补发窗口内会补上该周小结
+    // FIX 2026-09-29 #1442c 小结让路：读不出权威这一班不许把周标记烧掉（烧了这一周就永不补发）。
+    if (mailBlindRead(cid)) return; // #1442c 小结让路
     if (!mailCfgFor(cid).fishWeekEn) return;
     const cs = csFor(cid);
     const now = window.__fishWeekNowOverride ? window.__fishWeekNowOverride() : new Date(); // 测试钩子：生产为 null

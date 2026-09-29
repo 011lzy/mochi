@@ -352,6 +352,9 @@
   let rafId = 0;
   let settleTimer = null;
   let swipeBlurTimer = null; // #976：滑页暂停壁纸模糊的收尾计时
+  // #1445d：桌面模糊载体（.phone）静态锚缓存——与 #338 的 _scPhone／tabs.js 的 _blurPh 同款假设
+  //（.phone 是 template.html 静态锚点），只在第一次真正要用时查一次
+  let _swBlurPh = null;
   function syncFrame() {
     rafId = 0;
     sync();
@@ -359,10 +362,18 @@
     if (!rafId) rafId = requestAnimationFrame(syncFrame);
     perfSample(); // #690：翻页现场记一段帧耗时（静止时不跑）
     // #976：滑页期间挂 desk-swiping（暂停壁纸全屏模糊，见 home.css 注释），停下 150ms 后摘
+    // #1445d：与 tabs.js #1445a 同一处成本、同一把尺——该类全站唯一消费者是 home.css 的
+    // `html.desk-swiping .phone.desk-blur-on #phone-bg-layer{filter:none}`，未开背景模糊
+    //（出厂默认）时那条规则永不匹配＝零收益；而对 <html> 增删类名会让整棵文档样式失效重算，
+    // 桌面滑页是高频手势、且摘类正好落在吸附/回弹那一帧，一次滑动白付两遍。
+    // 判据只问「模糊载体在不在」这一个内核无关事实，零机型／零 UA 分支。
     try {
-      document.documentElement.classList.add('desk-swiping');
-      clearTimeout(swipeBlurTimer);
-      swipeBlurTimer = setTimeout(function () { document.documentElement.classList.remove('desk-swiping'); }, 150);
+      const bph = _swBlurPh || (_swBlurPh = document.querySelector('.phone'));
+      if (bph && bph.classList.contains('desk-blur-on')) {
+        document.documentElement.classList.add('desk-swiping');
+        clearTimeout(swipeBlurTimer);
+        swipeBlurTimer = setTimeout(function () { document.documentElement.classList.remove('desk-swiping'); }, 150);
+      }
     } catch (e0) {}
     // 吸附/回弹终点再校一次：末次 scroll 事件与 snap 终点可能差一帧亚像素；
     // 对不派 rAF 的内核（后台标签页/被节流）也是兜底。跟随本身由上面的 rAF 负责。

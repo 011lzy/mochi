@@ -697,10 +697,17 @@ const seen = new Set(); const out = [];
 arr.forEach(x => { if (!seen.has(x)) { seen.add(x); out.push(x); } });
 return out;
 }
+function feedPresetLines(group, fallback) {
+try { if (typeof window.getPresetGroupLines === 'function') return window.getPresetGroupLines(group, fallback); } catch (e) {}
+return fallback.slice();
+}
+function feedFallbackPool() {
+return uniqArr(feedPresetLines('朋友圈·TA的点评', TA_COMMENT_POOL).concat(feedPresetLines('朋友圈·TA的回复', TA_REPLY_POOL)));
+}
 function genMixedCards(cfg, minN, maxN, opts, cid) {
 const o = opts || {};
 const pool = cardPool(cid);
-const fb = uniqArr(TA_COMMENT_POOL.concat(TA_REPLY_POOL));
+const fb = feedFallbackPool();
 const pick = {
 image: makePicker(uniqArr(pool.image), true),
 sticker: makePicker(uniqArr(pool.sticker), true),
@@ -730,7 +737,7 @@ return (window.pyJoinCards && rcf) ? window.pyJoinCards(parts, rcf, rcf['fd-punc
 }
 function genPostContent(cfg, cid) {
 const pool = cardPool(cid);
-const fb = uniqArr(TA_COMMENT_POOL.concat(TA_REPLY_POOL));
+const fb = feedFallbackPool();
 const pick = {
 image: makePicker(uniqArr(pool.image), true),
 sticker: makePicker(uniqArr(pool.sticker), true),
@@ -3005,15 +3012,6 @@ const g = genPostContent(feedCfgFor(cid), cid);
 return { content: String(g.content || ''), imgN: (g.imgs || []).length };
 } catch (e) { return null; }
 };
-window.__cardSearchFns = window.__cardSearchFns || [];
-window.__cardSearchFns.push({ name: '朋友圈互动', fn: function (kw) {
-const out = [];
-try {
-TA_COMMENT_POOL.forEach(c => { if (String(c).toLowerCase().indexOf(kw) >= 0) out.push({ t: String(c), cat: 'TA评论' }); });
-TA_REPLY_POOL.forEach(c => { if (String(c).toLowerCase().indexOf(kw) >= 0) out.push({ t: String(c), cat: 'TA回应回复' }); });
-} catch (e) {}
-return out;
-} });
 })();
 if (window.__mochiLoaded) window.__mochiLoaded.push("feed.js");
 } catch (__e) { if (window.__mochiErrLoaded) window.__mochiErrLoaded.push("feed.js"); try { console.error("[JS] feed.js", __e && __e.message || __e); } catch (x) {} if (window.__jsErrors) window.__jsErrors.push("[feed.js] " + String(__e && __e.message || __e)); } })();

@@ -329,6 +329,15 @@ try { if (ageOk) localStorage.setItem(AGE_KEY, '1'); } catch (e) {}
 updateEnterState();
 });
 }
+const ageView = document.getElementById('splash-age-view');
+if (ageView) {
+ageView.addEventListener('click', function (ev) {
+const card = document.getElementById('splash-disclaimer');
+if (!card) return;
+ev.preventDefault();
+card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+}
 const forceEnterEl = document.getElementById('splash-force-enter');
 let slow = false;
 try { if (window.__mochiDataSlow) slow = true; } catch (e) {} // 事件先于监听派发时兜底

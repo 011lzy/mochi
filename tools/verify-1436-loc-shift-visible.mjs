@@ -158,11 +158,12 @@ async function boot() {
 }
 // 播种：上一张位置卡必须存在（弹窗判据＝与上一次不同），三枚换位开关回到默认（无键＝开）
 async function seed(extraKv) {
+    // 收口批修：种子从「1 小时前」改「2 分钟前」——跨午夜跑尺时 1h 前落在昨天、按日视图把新旧两条分进两天＝B3 假红（2026-09-30 00:1x 实测）；断言语义不变。
   return evalJs(`(function(){
     var st=window.activeStore();
     var t=Date.now();
-    st.set('loc-current', JSON.stringify({text:'在你左边',type:'dir',ts:t-3600000,auto:true}));
-    st.set('loc-history', JSON.stringify([{text:'在你左边',type:'dir',ts:t-3600000,auto:true}]));
+    st.set('loc-current', JSON.stringify({text:'在你左边',type:'dir',ts:t-120000,auto:true}));
+    st.set('loc-history', JSON.stringify([{text:'在你左边',type:'dir',ts:t-120000,auto:true}]));
     st.remove('loc-auto'); st.remove('loc-chat'); st.remove('loc-bubble'); st.remove('loc-sense-shift');
     ${Object.entries(extraKv || {}).map(([k, v]) => `st.set(${JSON.stringify(k)}, ${JSON.stringify(v)});`).join(' ')}
     var e=document.getElementById('loc-change-bubble'); if(e) e.classList.remove('loc-bubble-show');

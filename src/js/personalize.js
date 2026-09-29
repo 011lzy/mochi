@@ -20,7 +20,8 @@
     // FIX 2026-09-12 #351：空图标网格不算内容——新页自带 .app-grid（pg* 网格）后，
     // 空 grid 也带 data-desk-widget，按旧判法新页提示永远不显示
     const hasContent = Array.prototype.slice.call(slide.querySelectorAll('[data-desk-widget]')).some(n => !(n.classList.contains('app-grid') && !n.querySelector('.app'))) ||
-      !!slide.querySelector('[data-desk-image]');
+      // #1278：文字/倒计时自绘组件同图片算页面内容，避免「只有自绘组件」的页误显示空白提示
+      !!slide.querySelector('[data-desk-image]') || !!slide.querySelector('[data-desk-text]') || !!slide.querySelector('[data-desk-countdown]');
     hint.style.display = hasContent ? 'none' : '';
   };
 
@@ -6298,6 +6299,69 @@ try {
     }
     return a;
   };
+  // ===== v3.27.x #1278：文字/图片/倒计时组件纳入桌面布局统一排序 =====
+  //（重装 2026-09-29：首次实施后因从未入库、被并行会话重置而全量丢失；见 WORKLOG）
+  // 红米 Note 13 Pro/Edge 等实报「刷新重开桌面布局变了 + 自加文字组件无法上移」。
+  // 根因：desk-layout 只收集 [data-desk-widget]，三种自绘组件（文字/图片/倒计时）
+  // 每次渲染都全量重建插到页底，跨类型顺序无法保存；moveDeskText 上移又只与同类型
+  // 相邻交换，页首文字点「上移」静默无操作。改法：统一选择器收集四种组件 id 进
+  // desk-layout，渲染器按布局定位插入，拖拽/上移菜单按布局数组跨类型换位。
+  // 布局校验语义不变（全字符串/无重复/页数界）；老布局（无自绘 id）渐进兼容——
+  // 用户拖拽/移动一次后自动补全，零机型/零 UA 分支，只取 DOM 顺序事实。
+  const DESK_SEL_ALL = '[data-desk-widget],[data-desk-text],[data-desk-image],[data-desk-countdown]';
+  // 按 id 查四种组件节点（id 由代码生成，仅含字母数字与 _，无引号注入风险）
+  const deskNodeById = (wid) => {
+    if (!wid) return null;
+    return document.querySelector('[data-desk-widget="' + wid + '"],[data-desk-text="' + wid + '"],[data-desk-image="' + wid + '"],[data-desk-countdown="' + wid + '"]');
+  };
+  // 取节点归属的组件 id（四种属性任一）
+  const deskWidOf = (n) => {
+    if (!n) return null;
+    return n.getAttribute('data-desk-widget') || n.getAttribute('data-desk-text') ||
+      n.getAttribute('data-desk-image') || n.getAttribute('data-desk-countdown');
+  };
+  // 按布局数组定位插入自绘组件：优先插到布局中该 id「之后」第一个已在页内的节点前，
+  // 否则插到「之前」第一个节点后，都找不到回退页底——三个渲染器独立重建、执行顺序
+  // 不定，双向查找保证任何顺序下最终顺序与 desk-layout 一致。
+  const insertDeskNodeByLayout = (slide, node, id, pageArr) => {
+    const addBtn = slide.querySelector('.desk-page-add');
+    let ref = null;
+    if (pageArr) {
+      const pos = pageArr.indexOf(id);
+      if (pos >= 0) {
+        for (let i = pos + 1; i < pageArr.length; i++) {
+          const rn = deskNodeById(pageArr[i]);
+          if (rn && rn.parentNode === slide) { ref = rn; break; }
+        }
+        if (ref) { slide.insertBefore(node, ref); return; }
+        for (let i = pos - 1; i >= 0; i--) {
+          const rn = deskNodeById(pageArr[i]);
+          if (rn && rn.parentNode === slide) { ref = rn; break; }
+        }
+        if (ref) { slide.insertBefore(node, ref.nextSibling); return; }
+      }
+    }
+    if (addBtn) slide.insertBefore(node, addBtn);
+    else slide.appendChild(node);
+  };
+  // 自绘组件增删时同步 desk-layout（addArr=[{id,page}] 追加到页尾、removeArr=[id] 全页剔除）；
+  // 布局为坏键/不存在时跳过——renderDesk* 重建后 doDrop/上移调 saveDeskLayout 会兜底补全
+  const syncDeskLayout = (addArr, removeArr) => {
+    const lay = deskLayout();
+    if (!lay) return;
+    let changed = false;
+    (removeArr || []).forEach(id => {
+      lay.forEach(page => {
+        const i = page.indexOf(id);
+        if (i >= 0) { page.splice(i, 1); changed = true; }
+      });
+    });
+    (addArr || []).forEach(it => {
+      const page = lay[it.page];
+      if (page && page.indexOf(it.id) < 0) { page.push(it.id); changed = true; }
+    });
+    if (changed) { try { store.set('desk-layout', JSON.stringify(lay)); } catch (e) {} }
+  };
   // 重建桌面页结构：保证页数 = desk-page-count，新增页为空 page-slide
   const buildDeskPages = () => {
     if (!pagesBox) return;
@@ -6657,7 +6721,9 @@ try {
   // 保存布局（按当前 DOM 状态，含隐藏池外的所有页）
   const saveDeskLayout = () => {
     const slides = Array.prototype.slice.call(pagesBox.querySelectorAll('.page-slide'));
-    const lay = slides.map(s => Array.prototype.slice.call(s.querySelectorAll('[data-desk-widget]')).map(n => n.getAttribute('data-desk-widget')));
+    // #1278：收集选择器从 [data-desk-widget] 扩为四种组件（deskWidOf 取 id）——
+    // 文字/图片/倒计时与标准组件统一排序持久化，刷新后跨类型摆放不再丢失
+    const lay = slides.map(s => Array.prototype.slice.call(s.querySelectorAll(DESK_SEL_ALL)).map(n => deskWidOf(n)).filter(Boolean));
     // v3.27.x（#140）：写前防损坏——非数组/页数超界/组件 id 重复（嵌套遍历或并发装修
     // 可产生重复 id，回填后校验必失败 → 全卡进隐藏池复发）。异常时放弃本次保存并清除，
     // 保持 template 默认桌面，不把坏值固化进 IDB。
@@ -6691,7 +6757,7 @@ try {
     // 变成竖向排列（刷新后图标从横变竖）。与池逻辑的保护一致。
     const inGrid = (wid) => {
       if (wid.indexOf('app-') === 0) {
-        const n = document.querySelector('[data-desk-widget="' + wid + '"]');
+        const n = deskNodeById(wid);
         return !!(n && n.closest('.app-grid'));
       }
       return false;
@@ -6701,9 +6767,11 @@ try {
       if (!slide) return;
       const wids = pageWidgets || [];
       // 1) 移入不在本页的节点（插入到「+ 添加卡片」按钮之前）
+      // #1278：查节点从 data-desk-widget 扩为四种组件——自绘组件跨页拖拽后，
+      // 刷新时按布局数组归位到正确页，不再被渲染器按 meta.page 放回旧页
       wids.forEach(wid => {
         if (inGrid(wid)) return;
-        const node = document.querySelector('[data-desk-widget="' + wid + '"]');
+        const node = deskNodeById(wid);
         if (!node || node.parentNode === slide) return;
         const addBtn = slide.querySelector('.desk-page-add');
         if (addBtn) slide.insertBefore(node, addBtn);
@@ -6712,16 +6780,16 @@ try {
       // 2) 顺序校正：比对当前 DOM 顺序与布局数组顺序，不一致才重排
       const want = wids.filter(wid => {
         if (inGrid(wid)) return false;
-        const n = document.querySelector('[data-desk-widget="' + wid + '"]');
+        const n = deskNodeById(wid);
         return !!(n && n.parentNode === slide);
       });
-      const cur = Array.prototype.slice.call(slide.querySelectorAll('[data-desk-widget]'))
-        .map(n => n.getAttribute('data-desk-widget'))
+      const cur = Array.prototype.slice.call(slide.querySelectorAll(DESK_SEL_ALL))
+        .map(n => deskWidOf(n))
         .filter(w => want.indexOf(w) >= 0);
       if (cur.join('|') !== want.join('|') && want.length) {
         const addBtn = slide.querySelector('.desk-page-add');
         want.forEach(wid => {
-          const node = document.querySelector('[data-desk-widget="' + wid + '"]');
+          const node = deskNodeById(wid);
           if (!node) return;
           if (addBtn) slide.insertBefore(node, addBtn);
           else slide.appendChild(node);
@@ -7371,9 +7439,17 @@ try {
     if (!pagesBox) return;
     pagesBox.querySelectorAll('[data-desk-image]').forEach(n => n.remove());
     const meta = loadDeskImagesMeta();
+    const lay = deskLayout();
     const slides = pagesBox.querySelectorAll('.page-slide');
     meta.forEach(m => {
-      const slide = slides[m.page];
+      // #1278：页归属优先布局数组（拖拽跨页后按布局归位），不在布局中用 meta.page 兜底
+      let pageIdx = m.page, pageArr = null;
+      if (lay) {
+        for (let pi = 0; pi < lay.length; pi++) {
+          if (lay[pi] && lay[pi].indexOf(m.id) >= 0) { pageIdx = pi; pageArr = lay[pi]; break; }
+        }
+      }
+      const slide = slides[pageIdx] || slides[m.page];
       if (!slide) return;
       const node = document.createElement('div');
       node.className = 'desk-image-widget';
@@ -7386,8 +7462,7 @@ try {
       if (wv < 100) node.style.alignSelf = m.align === 'c' ? 'center' : (m.align === 'r' ? 'flex-end' : 'flex-start');
       const img = document.createElement('img');
       node.appendChild(img);
-      const addBtn = slide.querySelector('.desk-page-add');
-      if (addBtn) slide.insertBefore(node, addBtn); else slide.appendChild(node);
+      insertDeskNodeByLayout(slide, node, m.id, pageArr);
       const srcKey = window.activePrefix() + ':desk-image-src-' + m.id;
       if (window.idbGet) {
         window.idbGet(srcKey).then(src => { if (src && node.dataset.deskImage === m.id) img.src = src; });
@@ -7399,8 +7474,25 @@ try {
     // v3.6.x：图片也算页面内容——有图页隐藏空白提示，空页恢复（装修模式才显示）
     for (let i = 0; i < slides.length; i++) syncPageHint(slides[i]);
   }
-  // v3.6.x：图片组件上移/下移——只与同页相邻图片交换顺序，持久化到 meta
+  // #1278：图片组件上移/下移改为跨类型（布局数组内与相邻项交换）——页首图片也能上移到
+  // 标准组件上方，不再静默无操作；布局无此 id（老数据）时回退原「同页相邻图片交换」语义
   function moveDeskImage(id, dir) {
+    const lay = deskLayout();
+    if (lay) {
+      for (const page of lay) {
+        const i = page.indexOf(id);
+        if (i >= 0) {
+          const j = dir === 'up' ? i - 1 : i + 1;
+          if (j < 0 || j >= page.length) { toast(dir === 'up' ? '已在最前' : '已在最后'); return; }
+          const t = page[i]; page[i] = page[j]; page[j] = t;
+          try { store.set('desk-layout', JSON.stringify(lay)); } catch (e) {}
+          renderDeskImages();
+          try { window.applyDeskLayout(); } catch (e) {}
+          toast(dir === 'up' ? '已上移' : '已下移');
+          return;
+        }
+      }
+    }
     const meta = loadDeskImagesMeta();
     const idx = meta.findIndex(x => x.id === id);
     if (idx < 0) return;
@@ -7413,11 +7505,10 @@ try {
     } else if (dir === 'down' && pos < same.length - 1) {
       const a = same[pos + 1];
       const t = meta[a]; meta[a] = meta[idx]; meta[idx] = t;
-    } else {
-      return;
-    }
+    } else { toast(dir === 'up' ? '已在最前' : '已在最后'); return; }
     saveDeskImagesMeta(meta);
     renderDeskImages();
+    try { saveDeskLayout(); } catch (e) {}
     toast(dir === 'up' ? '已上移' : '已下移');
   }
   // 上传新图片到指定页（FIX 2026-09-18 #755：统一走 window.mochiFilePick，原实现 detached＋无 label）
@@ -7435,6 +7526,7 @@ try {
             const meta = loadDeskImagesMeta();
             meta.push({ id: id, page: pageIdx, addedAt: Date.now() });
             saveDeskImagesMeta(meta);
+            syncDeskLayout([{ id: id, page: pageIdx }]);
             const srcKey = window.activePrefix() + ':desk-image-src-' + id;
             if (window.idbSet) window.idbSet(srcKey, data); else store.set('desk-image-src-' + id, data);
             renderDeskImages();
@@ -7474,6 +7566,7 @@ try {
   function removeDeskImage(id) {
     const meta = loadDeskImagesMeta().filter(m => m.id !== id);
     saveDeskImagesMeta(meta);
+    syncDeskLayout(null, [id]);
     try { if (window.idbDelete) window.idbDelete(window.activePrefix() + ':desk-image-src-' + id); } catch (e) {}
     try { store.remove('desk-image-src-' + id); } catch (e) {}
     renderDeskImages();
@@ -7485,6 +7578,7 @@ try {
     const toRemove = meta.filter(m => m.page === pageIdx);
     const remain = meta.filter(m => m.page !== pageIdx);
     saveDeskImagesMeta(remain);
+    syncDeskLayout(null, toRemove.map(m => m.id));
     toRemove.forEach(m => {
       try { if (window.idbDelete) window.idbDelete(window.activePrefix() + ':desk-image-src-' + m.id); } catch (e) {}
       try { store.remove('desk-image-src-' + m.id); } catch (e) {}
@@ -7599,9 +7693,17 @@ try {
     if (!pagesBox) return;
     pagesBox.querySelectorAll('[data-desk-text]').forEach(n => n.remove());
     const meta = loadDeskTextsMeta();
+    const lay = deskLayout();
     const slides = pagesBox.querySelectorAll('.page-slide');
     meta.forEach(m => {
-      const slide = slides[m.page];
+      // #1278：页归属优先布局数组，不在布局中用 meta.page 兜底（同 renderDeskImages）
+      let pageIdx = m.page, pageArr = null;
+      if (lay) {
+        for (let pi = 0; pi < lay.length; pi++) {
+          if (lay[pi] && lay[pi].indexOf(m.id) >= 0) { pageIdx = pi; pageArr = lay[pi]; break; }
+        }
+      }
+      const slide = slides[pageIdx] || slides[m.page];
       if (!slide) return;
       const node = document.createElement('div');
       node.className = 'desk-text-widget';
@@ -7611,8 +7713,7 @@ try {
       p.style.fontSize = (m.size || 15) + 'px';
       p.style.color = m.color || '#333';
       node.appendChild(p);
-      const addBtn = slide.querySelector('.desk-page-add');
-      if (addBtn) slide.insertBefore(node, addBtn); else slide.appendChild(node);
+      insertDeskNodeByLayout(slide, node, m.id, pageArr);
     });
     for (let i = 0; i < slides.length; i++) syncPageHint(slides[i]);
   }
@@ -7624,17 +7725,37 @@ try {
       const meta = loadDeskTextsMeta();
       meta.push({ id: id, page: pageIdx, text: v.trim(), size: 15, color: '#333' });
       saveDeskTextsMeta(meta);
+      syncDeskLayout([{ id: id, page: pageIdx }]);
       renderDeskTexts();
       toast('已添加文字');
     }, { placeholder: '输入要显示的文字' });
   }
   function removeDeskText(id) {
     saveDeskTextsMeta(loadDeskTextsMeta().filter(m => m.id !== id));
+    syncDeskLayout(null, [id]);
     renderDeskTexts();
     toast('已删除');
   }
-  // v3.26.x：文字组件上移/下移——只与同页相邻文字交换顺序，持久化到 meta
+  // v3.26.x：文字组件上移/下移——#1278 改为跨类型（布局数组内与相邻项交换）：
+  // 页首文字也能上移到标准组件上方，不再静默无操作；布局无此 id（老数据）时
+  // 回退原「同页相邻文字交换」语义并把结果同步进布局
   function moveDeskText(id, dir) {
+    const lay = deskLayout();
+    if (lay) {
+      for (const page of lay) {
+        const i = page.indexOf(id);
+        if (i >= 0) {
+          const j = dir === 'up' ? i - 1 : i + 1;
+          if (j < 0 || j >= page.length) { toast(dir === 'up' ? '已在最前' : '已在最后'); return; }
+          const t = page[i]; page[i] = page[j]; page[j] = t;
+          try { store.set('desk-layout', JSON.stringify(lay)); } catch (e) {}
+          renderDeskTexts();
+          try { window.applyDeskLayout(); } catch (e) {}
+          toast(dir === 'up' ? '已上移' : '已下移');
+          return;
+        }
+      }
+    }
     const meta = loadDeskTextsMeta();
     const idx = meta.findIndex(x => x.id === id);
     if (idx < 0) return;
@@ -7647,13 +7768,17 @@ try {
     } else if (dir === 'down' && pos < same.length - 1) {
       const a = same[pos + 1];
       const t = meta[a]; meta[a] = meta[idx]; meta[idx] = t;
-    } else return;
+    } else { toast(dir === 'up' ? '已在最前' : '已在最后'); return; }
     saveDeskTextsMeta(meta);
     renderDeskTexts();
+    try { saveDeskLayout(); } catch (e) {}
     toast(dir === 'up' ? '已上移' : '已下移');
   }
   function removeDeskTextsOnPage(pageIdx) {
-    saveDeskTextsMeta(loadDeskTextsMeta().filter(m => m.page !== pageIdx));
+    const all = loadDeskTextsMeta();
+    saveDeskTextsMeta(all.filter(m => m.page !== pageIdx));
+    // #1278：删页时同步布局数组，否则残留 id 会在刷新时被渲染器拉回已删页
+    syncDeskLayout(null, all.filter(m => m.page === pageIdx).map(m => m.id));
   }
   function setupDeskTextClick() {
     if (!pagesBox) return;
@@ -7721,9 +7846,17 @@ try {
     if (!pagesBox) return;
     pagesBox.querySelectorAll('[data-desk-countdown]').forEach(n => n.remove());
     const meta = loadDeskCountdownsMeta();
+    const lay = deskLayout();
     const slides = pagesBox.querySelectorAll('.page-slide');
     meta.forEach(m => {
-      const slide = slides[m.page];
+      // #1278：页归属优先布局数组，不在布局中用 meta.page 兜底（同 renderDeskTexts）
+      let pageIdx = m.page, pageArr = null;
+      if (lay) {
+        for (let pi = 0; pi < lay.length; pi++) {
+          if (lay[pi] && lay[pi].indexOf(m.id) >= 0) { pageIdx = pi; pageArr = lay[pi]; break; }
+        }
+      }
+      const slide = slides[pageIdx] || slides[m.page];
       if (!slide) return;
       const node = document.createElement('div');
       node.className = 'desk-countdown-widget';
@@ -7734,8 +7867,7 @@ try {
       node.innerHTML = '<div class="dcd-label">距' + (m.title || '事件') + '</div>' +
         '<div class="dcd-days">' + (days >= 0 ? days : '已过') + (days >= 0 ? ' 天' : '') + '</div>' +
         '<div class="dcd-date">' + m.date + '</div>';
-      const addBtn = slide.querySelector('.desk-page-add');
-      if (addBtn) slide.insertBefore(node, addBtn); else slide.appendChild(node);
+      insertDeskNodeByLayout(slide, node, m.id, pageArr);
     });
     for (let i = 0; i < slides.length; i++) syncPageHint(slides[i]);
   }
@@ -7752,17 +7884,37 @@ try {
       const meta = loadDeskCountdownsMeta();
       meta.push({ id: id, page: pageIdx, title: title, date: date });
       saveDeskCountdownsMeta(meta);
+      syncDeskLayout([{ id: id, page: pageIdx }]);
       renderDeskCountdowns();
       toast('已添加倒计时');
     }, { placeholder: '标题|日期，如 出差|2026-09-16', value: '|' + today });
   }
   function removeDeskCountdown(id) {
     saveDeskCountdownsMeta(loadDeskCountdownsMeta().filter(m => m.id !== id));
+    syncDeskLayout(null, [id]);
     renderDeskCountdowns();
     toast('已删除');
   }
-  // v3.26.x：倒计时组件上移/下移——只与同页相邻倒计时交换顺序，持久化到 meta
+  // v3.26.x：倒计时组件上移/下移——#1278 改为跨类型（布局数组内与相邻项交换）：
+  // 页首倒计时也能上移到标准组件上方，不再静默无操作；布局无此 id（老数据）时
+  // 回退原「同页相邻倒计时交换」语义并把结果同步进布局
   function moveDeskCountdown(id, dir) {
+    const lay = deskLayout();
+    if (lay) {
+      for (const page of lay) {
+        const i = page.indexOf(id);
+        if (i >= 0) {
+          const j = dir === 'up' ? i - 1 : i + 1;
+          if (j < 0 || j >= page.length) { toast(dir === 'up' ? '已在最前' : '已在最后'); return; }
+          const t = page[i]; page[i] = page[j]; page[j] = t;
+          try { store.set('desk-layout', JSON.stringify(lay)); } catch (e) {}
+          renderDeskCountdowns();
+          try { window.applyDeskLayout(); } catch (e) {}
+          toast(dir === 'up' ? '已上移' : '已下移');
+          return;
+        }
+      }
+    }
     const meta = loadDeskCountdownsMeta();
     const idx = meta.findIndex(x => x.id === id);
     if (idx < 0) return;
@@ -7775,13 +7927,17 @@ try {
     } else if (dir === 'down' && pos < same.length - 1) {
       const a = same[pos + 1];
       const t = meta[a]; meta[a] = meta[idx]; meta[idx] = t;
-    } else return;
+    } else { toast(dir === 'up' ? '已在最前' : '已在最后'); return; }
     saveDeskCountdownsMeta(meta);
     renderDeskCountdowns();
+    try { saveDeskLayout(); } catch (e) {}
     toast(dir === 'up' ? '已上移' : '已下移');
   }
   function removeDeskCountdownsOnPage(pageIdx) {
-    saveDeskCountdownsMeta(loadDeskCountdownsMeta().filter(m => m.page !== pageIdx));
+    const all = loadDeskCountdownsMeta();
+    saveDeskCountdownsMeta(all.filter(m => m.page !== pageIdx));
+    // #1278：删页时同步布局数组（同 removeDeskTextsOnPage）
+    syncDeskLayout(null, all.filter(m => m.page === pageIdx).map(m => m.id));
   }
   function setupDeskCountdownClick() {
     if (!pagesBox) return;
@@ -7972,7 +8128,7 @@ try {
     pagesBox.addEventListener('touchstart', (e) => {
       if (!inMoveMode) return;
       if (e.target.closest('.desk-lib, .desk-page-add, .decor-bar')) return;
-      if (!e.target.closest('[data-desk-widget], .app')) return;
+      if (!e.target.closest(DESK_SEL_ALL + ', .app')) return;
       e.preventDefault();
     }, { capture: true, passive: false });
     // v3.14.x：touchmove capture 兜底——组件已允许 pan-x pan-y（移动模式下桌面横滑翻页），
@@ -7983,7 +8139,7 @@ try {
     pagesBox.addEventListener('touchmove', (e) => {
       if (!inMoveMode) return;
       if (e.target.closest('.desk-lib, .desk-page-add, .decor-bar')) return;
-      if (!e.target.closest('[data-desk-widget], .app')) return;
+      if (!e.target.closest(DESK_SEL_ALL + ', .app')) return;
       e.preventDefault();
     }, { capture: true, passive: false });
 
@@ -7991,7 +8147,7 @@ try {
     pagesBox.addEventListener('pointerdown', (e) => {
       if (e.button !== 0 && e.pointerType === 'mouse') return;
       if (e.target.closest('.desk-lib, .desk-page-add, .decor-bar')) return;
-      const target = e.target.closest('[data-desk-widget], .app');
+      const target = e.target.closest(DESK_SEL_ALL + ', .app');
       if (!target) return;
       // v3.27.x：非移动模式不再有长按入口——日常点按/长按图标无副作用（点击照常），
       // 拖动排序只走「装饰模式→编辑布局」主动入口。下方逻辑仅在 inMoveMode 时生效。
@@ -8010,7 +8166,7 @@ try {
       // v3.27.x：非移动模式长按入口已移除，pressTimer 位移取消逻辑随之删除
       // 移动模式下的横滑翻页判定：手指按下但未进入拖拽（_swiping 未定）时判定方向
       if (inMoveMode && !dragging) {
-        const t = e.target.closest ? e.target.closest('[data-desk-widget], .app') : null;
+        const t = e.target.closest ? e.target.closest(DESK_SEL_ALL + ', .app') : null;
         if (t && t._swiping !== undefined && t._swiping === null) {
           const dx = e.clientX - t._swipeX, dy = e.clientY - t._swipeY;
           // 长按超过 MOVE_DELAY 后移动 → 直接拖拽（按住图标/组件拖动的场景）
@@ -8033,7 +8189,7 @@ try {
     // v3.27.x：pressTimer/cancelPress 已随长按入口移除（pointerdown 仅移动模式生效）
     // v3.14.x：移动模式下横滑判定结束/取消时清理（避免残留 _swiping 状态）
     const clearSwipe = (e) => {
-      const t = e.target.closest ? e.target.closest('[data-desk-widget], .app') : null;
+      const t = e.target.closest ? e.target.closest(DESK_SEL_ALL + ', .app') : null;
       if (t) { t._swiping = undefined; t._swipeX = undefined; t._swipeY = undefined; }
     };
     pagesBox.addEventListener('pointerup', clearSwipe);
@@ -8189,7 +8345,7 @@ try {
           return gridDropInfo(curGrid, dragged, clientX, clientY);
         }
       }
-      const items = Array.prototype.slice.call(slide.querySelectorAll('[data-desk-widget]')).filter(n => {
+      const items = Array.prototype.slice.call(slide.querySelectorAll(DESK_SEL_ALL)).filter(n => {
         if (n === dragged) return false;
         const p = n.parentElement;
         if (p === slide) return true;
@@ -8271,7 +8427,7 @@ try {
     // 点空白退出移动模式
     pagesBox.addEventListener('click', (e) => {
       if (!inMoveMode) return;
-      if (e.target.closest('[data-desk-widget], .app, .desk-page-add, .desk-lib, .decor-bar')) return;
+      if (e.target.closest(DESK_SEL_ALL + ', .app, .desk-page-add, .desk-lib, .decor-bar')) return;
       if (window.exitDecor) window.exitDecor();
     }, true);
   }

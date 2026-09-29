@@ -1479,7 +1479,11 @@
           //   screen-innerHeight 是系统状态栏/Home 指示条（非工具条），且 viewport-fit=cover
           //   下 Home 指示条在可视区内，归零会让 tabbar/底部组件不避让被遮（iPhone 主屏幕
           //   打开报障"桌面组件显示不全"）。standalone 下摘除属性让 CSS 回落 env() 正确避让。
-          var cur = d.style.getPropertyValue('--mochi-safe-bottom');
+          // FIX 2026-09-29 #1318 补：下面两处「钉 0」原来直写 setProperty，绕开唯一写入点
+          //   syncBottomSafe ⇒ 诊断里的「底部基准」(_bottomPin) 会停在上一档说假话（落值本身
+          //   仍对，因为报告那一格取的是现场计算值）。改走 syncBottomSafe('pin')：落值逐字
+          //   不变（bottomSafeCss('pin') 恒返回 '0px'），同值不写的守卫也从原来的 cur!=='0px'
+          //   收进写入点内部，一处主人、一份记录。
           // FIX 2026-09-16 #556：iOS 键盘期底部安全区归零（安卓同症状 #530 的 iOS 镜像）。
           // 现象（iPhone 16 Pro / iOS 18.7 主屏幕 standalone，用户明说多机型同现；设置里
           //   的全屏模式同样出现）：聊天输入栏与输入法之间露一块白/底色。
@@ -1496,11 +1500,11 @@
           //   走下方原有分支摘除变量回落 env()，避让行为原样恢复。env() 本就报 0 的设备
           //   /形态两值相等 = 零视觉变化，不引入跨机型回归。
           if (_kbActive || _iProv || _kbNowLike()) { // #556 键盘在场判据（与 syncVvFit 摘 --mochi-ios-h 同源）
-            if (cur !== '0px') d.style.setProperty('--mochi-safe-bottom', '0px'); // #556 键盘期钉 0
+            syncBottomSafe('pin'); // #556 键盘期钉 0（交回唯一写入点，「底部基准」记录随之同步）
             return;
           }
           if (sh && ih && sh - ih > 60 && !d.classList.contains('ios-pwa-standalone')) {
-            if (cur !== '0px') d.style.setProperty('--mochi-safe-bottom', '0px'); // #530 镜像·浏览器工具条占用期钉 0
+            syncBottomSafe('pin'); // #530 镜像·浏览器工具条占用期钉 0（同上，不再另开第二个写入点）
           } else {
             // #1318：standalone／铺满物理屏这一支原来直写 removeProperty（#129 让 CSS 回落
             // env()），而 #707 的 1s 复述循环往同一格写 calc(env()+偏移)＝两个主人交替改写

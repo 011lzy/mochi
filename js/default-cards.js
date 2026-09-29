@@ -1109,8 +1109,8 @@ window.getDefaultCardGroups = function (cat) {
 if (LOCKED()) return []; // #319 锁定＝系统预设字卡不存在
 return (DATA[cat] || []).slice();
 };
-window.getLibPool = function (cat, group, fallback) {
-if (LOCKED()) { // #319 锁定＝只回自建功能字卡，内置同源池与 fallback 兜底都不给
+window.getLibPool = function (cat, group, fallback, exemptLock) {
+if (LOCKED() && !exemptLock) { // #319 锁定＝只回自建功能字卡，内置同源池与 fallback 兜底都不给
 try { return (window.getCustomFuncCards && window.getCustomFuncCards(cat)) || []; } catch (e) { return []; }
 }
 const g = (DATA[cat] || []).find(x => x[0] === group);
@@ -1121,6 +1121,15 @@ const cf = (window.getCustomFuncCards && window.getCustomFuncCards(cat)) || [];
 if (cf.length) arr = arr.concat(cf);
 } catch (e) {}
 return arr;
+};
+window.getPresetGroupLines = function (group, fallback) {
+let arr = [];
+try {
+const g = ((window.DEFAULT_CARD_DATA || {}).interact || []).find(x => x && x[0] === group);
+arr = g && Array.isArray(g[1]) && g[1].length ? g[1].slice() : (Array.isArray(fallback) ? fallback.slice() : []);
+} catch (e) { arr = Array.isArray(fallback) ? fallback.slice() : []; }
+const off = window.isDefaultCardOff;
+return off ? arr.filter(c => !off('interact', c)) : arr;
 };
 window.getInteractPool = function (name, fallback) {
 return window.getLibPool('interact', name, fallback);

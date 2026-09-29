@@ -120,28 +120,92 @@ const list = caresLoad();
 list.unshift({ kind: kind, text: text || '', ts: ts || Date.now() });
 caresSave(list);
 const hp = document.getElementById('page-home');
-if (hp && !hp.hidden && htab === 'care') renderCarePanel();
+if (hp && !hp.hidden && (htab === 'care' || (htab === 'xck' && kind === 'desk-checkin'))) render();
 };
-window.addCareRecordFor = function (cid, kind, text, ts) {
+window.addCareRecordFor = function (cid, kind, text, ts, res) {
 try {
 const s = (cid && window.storeFor) ? window.storeFor(cid) : store;
 let list = [];
 try { list = JSON.parse(s.get('records-care') || '[]'); } catch (e) { list = []; }
 if (!Array.isArray(list)) list = [];
-list.unshift({ kind: kind, text: text || '', ts: ts || Date.now() });
+list.unshift({ kind: kind, text: text || '', ts: ts || Date.now(), res: res || '' });
 s.set('records-care', JSON.stringify(list.slice(0, 100)));
+if (cid === (window.__activeCid || 'default')) {
+const hp = document.getElementById('page-home');
+if (hp && !hp.hidden && htab === 'xck') renderXckPanel();
+}
 } catch (e) {}
+};
+function cuddleLoad() {
+try { const l = JSON.parse(store.get('records-cuddle') || '[]'); return Array.isArray(l) ? l : []; } catch (e) { return []; }
+}
+function cuddleSaveFor(cid, list) {
+try {
+const s = (cid && window.storeFor) ? window.storeFor(cid) : store;
+s.set('records-cuddle', JSON.stringify(list));
+} catch (e) {}
+}
+function cuddleLoadFor(cid) {
+try {
+const s = (cid && window.storeFor) ? window.storeFor(cid) : store;
+const l = JSON.parse(s.get('records-cuddle') || '[]');
+return Array.isArray(l) ? l : [];
+} catch (e) { return []; }
+}
+window.addCuddleRecordFor = function (cid, rec) {
+try {
+if (!rec || !rec.ts) return false;
+const list = cuddleLoadFor(cid);
+if (list.some(x => x && x.ts === rec.ts)) return false; // 同一次邀请只记一条
+list.unshift({ ts: rec.ts, text: rec.text || '', res: rec.res || 'pending' });
+cuddleSaveFor(cid, list);
+const hp = document.getElementById('page-home');
+if (cid === (window.__activeCid || 'default') && hp && !hp.hidden && htab === 'cuddle') renderCuddlePanel();
+return true;
+} catch (e) { return false; }
+};
+window.setCuddleRecordResult = function (cid, ts, res) {
+try {
+const list = cuddleLoadFor(cid);
+let hit = false;
+list.forEach(x => { if (x && x.ts === ts) { x.res = res; hit = true; } });
+if (!hit) return false;
+cuddleSaveFor(cid, list);
+const hp = document.getElementById('page-home');
+if (cid === (window.__activeCid || 'default') && hp && !hp.hidden && htab === 'cuddle') renderCuddlePanel();
+return true;
+} catch (e) { return false; }
 };
 function renderCarePanel() {
 const el = document.getElementById('home-care');
 if (!el) return;
 const name = dispName();
 const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-const KIND_ICON = { checkin: '📋', period: '🌸', water: '💧', eat: '🍚', pomo: '🍅', deskcheck: '🏠' };
+const KIND_ICON = { period: '🌸', water: '💧', eat: '🍚', pomo: '🍅' };
 const rows = [];
 caresLoad().forEach(r => { if (r.kind === 'pomo') rows.push({ icon: '🍅', main: '番茄钟陪伴', sub: fmtDT(r.ts), ts: r.ts }); });
-let careTs = [];
-try { caresLoad().forEach(r => { if (r && r.kind === 'desk-checkin') careTs.push(r.ts || 0); }); } catch (e) {}
+let msgs = [];
+try { msgs = (window.getChatMsgs ? window.getChatMsgs() : JSON.parse(store.get('chat-msgs') || '[]')); } catch (e) {}
+(msgs || []).forEach(m => {
+if (!m) return;
+const t = m.ts || 0;
+const tag = (m.mood && m.mood[0] && m.mood[0].tag) || '';
+if (tag === '经期关心') rows.push({ icon: KIND_ICON.period, main: '经期关心 · ' + esc(m.text || ''), sub: fmtDT(t), ts: t });
+else if (tag === '喝水提醒') rows.push({ icon: KIND_ICON.water, main: '提醒喝水 · ' + esc(m.text || ''), sub: fmtDT(t), ts: t });
+else if (tag === '吃饭提醒') rows.push({ icon: KIND_ICON.eat, main: '提醒吃饭 · ' + esc(m.text || ''), sub: fmtDT(t), ts: t });
+});
+if (!rows.length) { el.innerHTML = recEmpty('<div class="ta-empty">暂无联系人的关心记录（TA 会提醒你喝水吃饭、关心经期、陪你专注；查岗看「联系人对我查岗」与「联系人跨桌面查岗」两栏）</div>'); return; }
+rows.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+el.innerHTML = window.mochiHistFold(rows.map(r => ({ ts: Number(r.ts) || 0, html: '<div class="tc-listitem"><div class="tc-li-top"><span class="tc-li-q">' + r.icon + ' ' + r.main + '</span><span class="tc-li-time">' + r.sub + '</span></div></div>' })), {
+key: 'records-care',
+todayEmpty: '<div class="dc-h-day-empty">今天暂无关心记录</div>'
+});
+}
+function renderCkPanel() {
+const el = document.getElementById('home-ck');
+if (!el) return;
+const name = dispName();
+const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 let msgs = [];
 try { msgs = (window.getChatMsgs ? window.getChatMsgs() : JSON.parse(store.get('chat-msgs') || '[]')); } catch (e) {}
 const askCardTs = [];
@@ -153,38 +217,97 @@ const from = t - 30000, to = t + 30000;
 while (lo < hi) { const mid = (lo + hi) >> 1; if (askCardTs[mid] <= from) lo = mid + 1; else hi = mid; }
 return lo < askCardTs.length && askCardTs[lo] < to;
 };
+const ckRows = [];
 (msgs || []).forEach(m => {
 if (!m) return;
 const t = m.ts || 0;
-const tag = (m.mood && m.mood[0] && m.mood[0].tag) || '';
-if (tag === '经期关心') rows.push({ icon: KIND_ICON.period, main: '经期关心 · ' + esc(m.text || ''), sub: fmtDT(t), ts: t });
-else if (tag === '喝水提醒') rows.push({ icon: KIND_ICON.water, main: '提醒喝水 · ' + esc(m.text || ''), sub: fmtDT(t), ts: t });
-else if (tag === '吃饭提醒') rows.push({ icon: KIND_ICON.eat, main: '提醒吃饭 · ' + esc(m.text || ''), sub: fmtDT(t), ts: t });
-else if (m.special === 'ask-card' && m.askQuestion && !(m.deskCk && careTs.some(ct => Math.abs(ct - t) <= 90000))) rows.push({ icon: KIND_ICON.checkin, main: '查岗 · ' + esc(m.askQuestion), sub: fmtDT(t), ts: t });
-else if (m.special === 'ask-msg' && /查岗/.test(m.text || '')) {
+if (m.special === 'ask-card' && m.askQuestion && !m.askTs && !m.deskCk) {
+ckRows.push({ ts: t, q: '📋 ' + name + ' 查岗 · ' + esc(m.askQuestion), sub: fmtDT(t),
+line: m.askAnswer ? '✓ 已回答：' + esc(m.askAnswer) : '还没回答（在聊天里点那张卡作答）' });
+} else if (m.special === 'ask-msg' && /查岗/.test(m.text || '')) {
 const nearCard = hasAskCardNear(t); // #588：二分查，不再对全表 some()
-if (!nearCard) rows.push({ icon: KIND_ICON.checkin, main: '查岗', sub: fmtDT(t), ts: t });
+if (!nearCard) ckRows.push({ ts: t, q: '📋 ' + name + ' 查岗', sub: fmtDT(t), line: '' });
 }
 });
-if (window.getContacts) {
+if (!ckRows.length) { el.innerHTML = recEmpty('<div class="ta-empty">暂无查岗记录（TA 按回复设置里的概率与冷却主动来查岗，问你在干嘛/在做什么）</div>'); return; }
+ckRows.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+el.innerHTML = window.mochiHistFold(ckRows.map(r => ({ ts: Number(r.ts) || 0, html: '<div class="tc-listitem"><div class="tc-li-top"><span class="tc-li-q">' + r.q + '</span><span class="tc-li-time">' + r.sub + '</span></div>' + (r.line ? '<div class="tc-li-line">' + (window.taFit ? window.taFit(r.line) : r.line) + '</div>' : '') + '</div>' })), {
+key: 'records-ck', // #1416 那族口径：开合态交给 mochiHistFold 的模块级 map，每张列表一个前缀（不写 key 就全站的月块共用 'hist'，在查岗栏展开「8 月」会顺手掀开别栏）
+todayEmpty: '<div class="dc-h-day-empty">今天没有被查岗</div>'
+});
+}
+function renderXckPanel() {
+const el = document.getElementById('home-xck');
+if (!el) return;
+const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+const RES = {
+replied: '点了「现在回TA」，卡已在TA桌面的聊天里',
+later: '选了稍后，卡留在TA桌面的聊天里',
+missed: '错过未回应（没点【确认】，聊天里没有这条）'
+};
+const xckRows = [];
+const cur = window.__activeCid || 'default';
 (window.getContacts() || []).forEach(function (c) {
+if (!c) return;
+const cname = c.name || 'TA';
 let care = [];
 try {
 const s = (c.id && window.storeFor) ? window.storeFor(c.id) : store;
 care = JSON.parse(s.get('records-care') || '[]');
 } catch (e) { care = []; }
-(Array.isArray(care) ? care : []).forEach(function (r) {
+if (!Array.isArray(care)) care = [];
+const ckTs = [];
+care.forEach(function (r) {
 if (!r || r.kind !== 'desk-checkin') return;
-const cname = (c && c.name) || 'TA';
-rows.push({ icon: KIND_ICON.deskcheck, main: '桌面查岗 · ' + esc(cname) + ' · ' + esc(r.text || ''), sub: fmtDT(r.ts || 0), ts: r.ts || 0 });
+const t = Number(r.ts) || 0;
+ckTs.push(t);
+xckRows.push({ ts: t, q: '🏠 ' + esc(cname) + ' · ' + esc(r.text || ''), sub: fmtDT(t), line: RES[r.res] || '' });
 });
+if (c.id !== cur) return;
+let msgs = [];
+try { msgs = (window.getChatMsgs ? window.getChatMsgs() : JSON.parse(store.get('chat-msgs') || '[]')); } catch (e) {}
+(msgs || []).forEach(function (m) {
+if (!m || !m.deskCk || m.special !== 'ask-card' || !m.askQuestion) return;
+const t = m.ts || 0;
+if (ckTs.some(ct => Math.abs(ct - t) <= 90000)) return;
+xckRows.push({ ts: t, q: '🏠 ' + esc(cname) + ' · ' + esc(m.askQuestion), sub: fmtDT(t),
+line: m.askAnswer ? '✓ 已回答：' + esc(m.askAnswer) : '' });
+});
+});
+if (!xckRows.length) { el.innerHTML = recEmpty('<div class="ta-empty">暂无跨桌面查岗记录（其他桌面的 TA 会按「跨桌面查岗频率」来查岗；错过没点【确认】的也记在这里，但不进聊天）</div>'); return; }
+xckRows.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+el.innerHTML = window.mochiHistFold(xckRows.map(r => ({ ts: Number(r.ts) || 0, html: '<div class="tc-listitem"><div class="tc-li-top"><span class="tc-li-q">' + r.q + '</span><span class="tc-li-time">' + r.sub + '</span></div>' + (r.line ? '<div class="tc-li-line">' + (window.taFit ? window.taFit(r.line) : r.line) + '</div>' : '') + '</div>' })), {
+key: 'records-xck', // 同上：每张列表一枚前缀，月块开合态互不串
+todayEmpty: '<div class="dc-h-day-empty">今天没有跨桌面查岗</div>'
 });
 }
-if (!rows.length) { el.innerHTML = recEmpty('<div class="ta-empty">暂无联系人的关心记录（TA 会主动查岗、提醒你喝水吃饭、关心经期、陪你专注）</div>'); return; }
-rows.sort((a, b) => (b.ts || 0) - (a.ts || 0));
-el.innerHTML = window.mochiHistFold(rows.map(r => ({ ts: Number(r.ts) || 0, html: '<div class="tc-listitem"><div class="tc-li-top"><span class="tc-li-q">' + r.icon + ' ' + r.main + '</span><span class="tc-li-time">' + r.sub + '</span></div></div>' })), {
-key: 'records-care',
-todayEmpty: '<div class="dc-h-day-empty">今天暂无关心记录</div>'
+function renderCuddlePanel() {
+const el = document.getElementById('home-cuddle');
+if (!el) return;
+const name = dispName();
+const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+const RES = { pending: '待回应', replied: '你接受了', declined: '你拒绝了', missed: '错过未回应' };
+const list = cuddleLoad();
+if (!list.length) { el.innerHTML = recEmpty('<div class="ta-empty">暂无贴贴邀请记录（TA 会按回复设置里的概率发起贴贴邀请；弹窗不自动关，切后台回来还在）</div>'); return; }
+const cuItems = list.map((x) => ({ ts: Number(x.ts) || 0, html:
+'<div class="tc-listitem"><div class="tc-li-top"><span class="tc-li-q">🫂 ' + esc(name) + ' 邀请贴贴 · ' + esc(x.text || '') + '</span><span class="tc-li-time">' + fmtDT(x.ts) + '</span>' + window.mochiHistDel('t' + x.ts, (name + ' 的贴贴邀请 · ' + (x.text || ''))) + '</div>' +
+'<div class="tc-li-line">' + (RES[x.res] || '待回应') + '</div></div>'
+}));
+el.innerHTML = window.mochiHistFold(cuItems, {
+key: 'records-cuddle', // 同上：这一栏也会因新邀请整栏重画，开合态得活过重画
+empty: recEmpty('<div class="ta-empty">暂无贴贴邀请记录</div>'),
+todayEmpty: '<div class="dc-h-day-empty">今天没有贴贴邀请</div>'
+});
+window.mochiHistDelBind(el, {
+title: '删除这条贴贴邀请记录？',
+onDel: function (k) {
+const ts = Number(String(k).replace(/^t/, ''));
+const arr = cuddleLoad();
+const left = arr.filter(x => x && Number(x.ts) !== ts);
+if (left.length === arr.length) return;
+cuddleSaveFor(window.__activeCid || 'default', left);
+render();
+}
 });
 }
 function renderRpPanel() {
@@ -328,6 +451,15 @@ renderRpPanel();
 }
 if (showOnly === 'care') {
 renderCarePanel();
+}
+if (showOnly === 'ck') {
+renderCkPanel();
+}
+if (showOnly === 'xck') {
+renderXckPanel();
+}
+if (showOnly === 'cuddle') {
+renderCuddlePanel();
 }
 if (showOnly === 'divine') {
 renderDivinePanel();

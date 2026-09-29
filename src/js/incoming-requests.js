@@ -11,6 +11,11 @@
 //    掷概率（查岗读回复设置 ckq-*、求聊天读 as-*），激活桌面不做跨桌面打扰。
 // ③ 每联系人独立冷却 + 未处理 pending 不重复触发；页面在后台时走 bgNotifyCheck
 //    系统通知，不弹页面窗。
+// ③b v8.45 #1435：后台命中不再「命中即把卡写进 TA 桌面聊天」——查岗改成像来电一样挂起
+//    （CK_BG_HOLD_MS＝3 分钟，与 call.js 的 CALL_HOLD_MS 同口径），通知写明「快回来回应，TA 会
+//    等你几分钟」，回前台由 resumeHeldCheckins() 弹同一个窗；3 分钟没回来＝错过，只在该联系人
+//    桌面的记录里留一行 res='missed'（主页「联系人跨桌面查岗」那一栏），**聊天里不落卡**——
+//    「没点【确认】就不进聊天」是作者点名要保持的规则。求聊天/来电的后台口径不变。
 // ④ v3.17.x：全局开关「桌面查岗」默认开启、可在设置页关闭——键 xy-home-v2:desk-checkin-en
 //    存根命名空间（全桌面通，不随联系人隔离）；关闭后不再触发任何跨桌面查岗/求聊天。
 //    设置页开关行由本文件动态插入（不动 template.html，避免跨域改 AI-B 文件）。
@@ -36,6 +41,24 @@
   const SESSION_ID = 's' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
   const PENDING_TTL_MS = 10 * 60 * 1000;
   const BUSY_ESCAPE = 3;                // 软互斥最多让路 3 轮（3 分钟），之后照投——防别的弹窗长期占屏变成新的永不触发
+  // #1435（作者「新增当我把浏览器放在后台时，收到了联系人跨桌面查岗的消息弹窗，跨桌面查岗可以
+  //   和联系人打电话一样等我几分钟」）：后台命中的跨桌面查岗不再「命中即把卡写进聊天」，改挂起，
+  //   时长与 call.js 的 CALL_HOLD_MS 同口径＝3 分钟。同一句提示、同一个数，用户只需记一条规则。
+  const CK_BG_HOLD_MS = 3 * 60 * 1000;
+
+  // #1435：这条查岗「错过未回应」的落账口——作者点名两句话都要守：
+  //   ① 没点【确认】的那一次，聊天里**不落卡**（本函数一次都不碰 chatAppendDeskCkTo，规则保持）；
+  //   ② 但要在【那个联系人自己桌面】的记录里留痕 → res='missed'，主页「联系人跨桌面查岗」那一栏看得到。
+  // 调用点都挂在「状态确实从 pending 翻走」那一步之后（setStatus 命中才为真），所以天然幂等、不双写。
+  function recordMissedCheckin(req) {
+    try {
+      if (window.addCareRecordFor) window.addCareRecordFor(req.cid, 'desk-checkin', req.text || '', req.ts || Date.now(), 'missed');
+    } catch (e) {}
+  }
+  function msgTitle(req) {
+    const name = cName(req.cid);
+    return req.kind === 'chat' ? name + ' 想找你聊天' : (req.kind === 'call' ? name + ' 来电了' : name + ' 来查岗了');
+  }
 
   // ---- 全局开关（全桌面通，默认开启） ----
   function deskCheckinEn() {
@@ -175,7 +198,7 @@
       title: '联系人跨桌面查岗',
       subTag: '功能说明',
       tagTitle: '联系人跨桌面查岗',
-      detail: '其他桌面的联系人是各自独立触发、互不影响：TA 每 60 秒「探测」一次你是否还醒着，触发频率按「跨桌面查岗频率」档位全局统一控制（原频率/安静/更安静/最安静，下方可选，含来电；没有比「原频率」更高的档）；同一联系人触发后有冷却、不重复打扰。你回复后 TA 会现场回应。关闭后其他桌面的 TA 不再来查岗、也不再找你聊天。想立刻来一次：聊天 →「更多功能 → TA的提问 → 跨桌面查岗」（不看概率与冷却；本开关关着时只提示、不触发）。',
+      detail: '其他桌面的联系人是各自独立触发、互不影响：TA 每 60 秒「探测」一次你是否还醒着，触发频率按「跨桌面查岗频率」档位全局统一控制（原频率/安静/更安静/最安静，下方可选，含来电；没有比「原频率」更高的档）；同一联系人触发后有冷却、不重复打扰。你回复后 TA 会现场回应。浏览器在后台时收到的查岗会像来电一样等你 3 分钟（通知里写明「快回来回应」），回到应用弹同一个窗；3 分钟内没回来＝错过，这一次不会出现在 TA 桌面的聊天里，只在主页「联系人跨桌面查岗」记一行「错过未回应」。弹窗里点了「稍后」或「现在回TA」的，卡都留在 TA 桌面的聊天里可补答。关闭后其他桌面的 TA 不再来查岗、也不再找你聊天。想立刻来一次：聊天 →「更多功能 → TA的提问 → 跨桌面查岗」（不看概率与冷却；本开关关着时只提示、不触发）。',
       get: deskCheckinEn,
       set: window.setDeskCheckinEn,
       toast: function (en) { return en ? '已开启：其他桌面的TA会来查岗、找你聊天' : '已关闭：其他桌面的TA不再来查岗打扰'; }
@@ -376,9 +399,13 @@
       // #441：被顶掉/关闭未应答的跨桌面来电补记「未接听」（与「稍后」同口径——
       // setStatus 命中才记，幂等不双写；归属联系人桌面）
       var wasCall = queue().some(function (x) { return x.cid === cid && x.status === 'pending' && x.kind === 'call'; });
+      // #1435：同样地，被顶掉/关闭未应答的跨桌面**查岗**补记「错过未回应」——但**只写记录、
+      // 不落聊天卡**（作者点名：没点【确认】就不许出现在那个联系人的聊天里，规则保持）
+      var wasCk = queue().filter(function (x) { return x.cid === cid && x.status === 'pending' && x.kind === 'checkin'; }).pop() || null;
       if (setStatus(cid, 'seen')) {
         noteRelease('弹窗消失未应答，释放 ' + cName(cid));
         if (wasCall && window.callRecordMissed) window.callRecordMissed(cid, cName(cid));
+        if (wasCk) recordMissedCheckin(wasCk);
       }
     });
   }
@@ -394,10 +421,13 @@
     let healed = 0;
     q.forEach(function (x) {
       if (x.status === 'pending' && x.sid !== SESSION_ID && now - (x.ts || 0) > PENDING_TTL_MS) {
+        const arrivedAt = x.ts || now; // #1435：记录里的时间用「TA 发起那一刻」，不是自愈那一刻
         x.status = 'seen'; x.ts = now; healed++;
         // #441：跨会话孤儿的来电同样补记未接——弹窗随上个会话一起消失＝这通电话用户永远
         // 无从得知，与「稍后/被顶」同口径落归属桌面记录+系统消息（healed 只走一次，幂等）
         if (x.kind === 'call' && window.callRecordMissed) { try { window.callRecordMissed(x.cid, cName(x.cid)); } catch (e) {} }
+        // #1435：跨会话孤儿的查岗同样补记「错过未回应」（只写记录，不落聊天卡）
+        if (x.kind === 'checkin') recordMissedCheckin({ cid: x.cid, text: x.text, ts: arrivedAt });
       }
     });
     const filtered = q.filter(x => x.status !== 'seen' || now - (x.ts || 0) < seenKeepMs);
@@ -498,14 +528,17 @@
     // 拒绝即不入队、不写冷却，该联系人下一轮照样有机会；force 时才顶（对账会善后）。
     if (!force && !document.hidden && layerBusy()) return false;
     req.sid = SESSION_ID;   // v3.26.x #264：弹窗只活在本页面会话，标记归属才能识别跨会话孤儿
+    // #1435：后台命中的跨桌面查岗＝挂起（等回前台重投同一个窗）。标记随队列一起落盘，
+    // 页面被冻结/刷新后依然认得这条在等的查岗。
+    if (document.hidden && req.kind === 'checkin') req.bgHold = 1;
     q.push(req);
     saveQ(q);
     markLast(req.cid, req.kind);
     const name = cName(req.cid);
-    const title = req.kind === 'chat' ? name + ' 想找你聊天' : (req.kind === 'call' ? name + ' 来电了' : name + ' 来查岗了');
+    const title = msgTitle(req);
     if (document.hidden) {
-      // v3.19.x：后台命中时不再只是通知——查岗/求聊天直接把卡写入对应联系人桌面聊天，
-      // 切回前台到该联系人即可看到并回答；来电无法后台接听，只保留系统通知。
+      // v3.19.x：后台命中时不再只是通知——求聊天直接把话写入对应联系人桌面聊天，切回前台到
+      // 该联系人即可看到；来电无法后台接听，走 call.js 的响铃挂起；#1435 起查岗同样改挂起。
       try {
         // avFixed：明示大头像由本页面的 cAvatar(req.cid) 权威决定（该联系人自己桌面的头像）。
         // 若不传，bg-keep 会在 av 为空时回退当前桌面头像 → 把「当前桌面的联系人头像」错当成
@@ -523,22 +556,33 @@
           // 同一道题最近已在该联系人桌面聊天里出现过（用户看过/答过）→ 后台不再重复
           // 追问、也不再重复弹系统通知（仅释放 pending 防占用队列）。
           if (!deskQSeenRecently(req.cid, req.text)) {
-            if (window.chatAppendDeskCkTo) window.chatAppendDeskCkTo(req.cid, req.q);
-            // v3.25.x：后台落卡同样要写主页关心记录——此前只有前台「现在回TA」路径
-            // （fire()）写 records-care，后台触发的跨桌面查岗在主页「桌面查岗」区块消失。
-            try { if (window.addCareRecordFor) window.addCareRecordFor(req.cid, 'desk-checkin', req.text, Date.now()); } catch (e) {}
-            if (window.bgNotifyCheck) window.bgNotifyCheck(title + '：' + (req.text || ''), Date.now(), { name: name + '查岗', av: av, avFixed: true });
+            // #1435（作者点名）：后台命中不再「命中即把卡写进该联系人桌面聊天」，改成像来电
+            // 那样挂着等——只发系统通知（文案抄 call.js 那句「对方会等你几分钟」），pending 留在
+            // 队列、不入聊天、不写记录；回到前台由 resumeHeldCheckins() 弹同一个窗，3 分钟没回来
+            // 才按「错过未回应」收尾（那时只写记录，聊天里照样不落卡）。
+            if (window.bgNotifyCheck) window.bgNotifyCheck(title + '：' + (req.text || '') + '，快回来回应，TA 会等你几分钟', Date.now(), { name: name + '查岗', av: av, avFixed: true });
+            return true;
           }
         } else { // chat 求聊天
           if (window.chatAppendDeskTextTo) window.chatAppendDeskTextTo(req.cid, req.text || '想你了，来聊聊天吧。');
           if (window.bgNotifyCheck) window.bgNotifyCheck(title + '：来陪我聊聊天吧', Date.now(), { name: name + '来聊天', av: av, avFixed: true });
         }
       } catch (e) {}
-      // 卡已入库聊天，释放 pending（避免占用队列挡住下一次正常弹窗查岗）
+      // 已按后台口径处理完毕（求聊天落了聊天、来电挂了 call-hold、或这道题刚被去重挡掉），
+      // 释放 pending——查岗那条在上面已 return，不走这里，它要留着等回前台。
       setStatus(req.cid, 'seen');
       return true;
     }
     if (!window.openModal) return true;
+    showPopup(req);
+    return true;
+  }
+
+  // 前台弹窗本体——#1435 从 deliver 拆出：后台挂起的跨桌面查岗回到前台后要重投，必须复用同一份，
+  // 保证弹窗形态、默认选中（#623）与回调口径和首次投递一字不差。
+  function showPopup(req) {
+    if (!window.openModal) return false;
+    const title = msgTitle(req);
     const okText = req.kind === 'chat' ? '同意' : (req.kind === 'call' ? '接听' : '现在回TA');
     const staticText = req.kind === 'call'
       ? '想听听你的声音，接一下好吗？'
@@ -561,11 +605,11 @@
       }
       delete liveModals[req.cid]; // 已应答（无论选哪边）→ 不再需要对账
       if (v === 'later') {
-        // v3.25.x：查岗点「稍后」不再凭空消失——与后台路径同口径，把卡落到该联系人
-        // 桌面聊天（稍后进聊天仍可作答）并写主页「桌面查岗」关心记录，事件留痕。
+        // v3.25.x：查岗点「稍后」不再凭空消失——把卡落到该联系人桌面聊天（稍后进聊天仍可作答）
+        // 并写记录，事件留痕；#1435 起这条记录带结局 res='later'（主页「联系人跨桌面查岗」可见）。
         if (req.kind === 'checkin' && !deskQSeenRecently(req.cid, req.text)) {
           try { if (window.chatAppendDeskCkTo) window.chatAppendDeskCkTo(req.cid, req.q); } catch (e) {}
-          try { if (window.addCareRecordFor) window.addCareRecordFor(req.cid, 'desk-checkin', req.text, Date.now()); } catch (e) {}
+          try { if (window.addCareRecordFor) window.addCareRecordFor(req.cid, 'desk-checkin', req.text, Date.now(), 'later'); } catch (e) {}
         }
         // #441：跨桌面来电点「稍后」不再无声消失——补记「未接听」到该联系人桌面
         //（与桌内来电拒绝/超时有记录同口径；记录/系统消息归属 TA 自己的桌面）
@@ -587,6 +631,40 @@
     liveModals[req.cid] = title; // v3.26.x #264：登记活弹窗，弹窗被顶掉/关闭时对账释放 pending
     return true;
   }
+
+  // #1435：回前台/每一轮轮询都在这里收尾后台挂起的跨桌面查岗——
+  //  · CK_BG_HOLD_MS（3 分钟，与通话挂起同口径）内、屏幕空得下来 → 弹同一个窗（showPopup）；
+  //  · 超时没回来 → 记「错过未回应」，**不落聊天卡**（作者点名的规则：没点【确认】就不进聊天）；
+  //  · 弹出去了（liveModals 有它）就不再重投，之后交给 reconcileLiveModals 对账。
+  // 幂等靠 setStatus：状态真从 pending 翻走才记一次，重复调用不会补第二行。
+  function resumeHeldCheckins() {
+    try {
+      const held = queue().filter(function (x) { return x && x.kind === 'checkin' && x.status === 'pending' && x.bgHold; });
+      if (!held.length) return;
+      const now = Date.now();
+      held.forEach(function (x) {
+        if (liveModals[x.cid]) return;
+        if (now - (x.ts || 0) > CK_BG_HOLD_MS) {
+          if (setStatus(x.cid, 'seen')) {
+            recordMissedCheckin(x);
+            noteRelease('后台挂起超时未回，记为错过 ' + cName(x.cid));
+          }
+          return;
+        }
+        if (document.hidden || hardLocked() || typingBusy() || layerBusy()) return; // 还没轮得到它
+        // 重投：归零挂起标记（此后按普通活弹窗对账），再弹同一个窗
+        try {
+          const q2 = queue();
+          let hit = false;
+          q2.forEach(function (y) { if (y && y.cid === x.cid && y.kind === 'checkin' && y.status === 'pending') { y.bgHold = 0; hit = true; } });
+          if (hit) saveQ(q2);
+        } catch (e) {}
+        x.bgHold = 0;
+        if (showPopup(x)) noteRelease('回前台重投挂起的查岗 ' + cName(x.cid));
+      });
+    } catch (e) {}
+  }
+
 
   // 切换 + （查岗/聊天）进聊天 + 等加载就绪后 TA 当场发话；来电只切桌面不等聊天
   function goReply(req) {
@@ -652,9 +730,11 @@
       if (req.kind === 'checkin') {
         ensureTaName(req.cid);
         // v3.17.x：桌面查岗——切过来当场发卡前，先把这次查岗记进【该联系人自己桌面】的
-        // records-care（主页「TA的关心」→「桌面查岗」区块按联系人聚合展示，见 records.js）
+        // records-care。#1435 起这一类不再挤在「TA的关心」里，主页有自己那一栏
+        // 「联系人跨桌面查岗」（renderXckPanel）；res='replied'＝这次是点了【确认】走过来的，
+        // 卡随即由 ckQuestionFire 落进该桌面聊天，与 res='missed' 那条（只有记录、没有卡）相对。
         if (window.addCareRecordFor) {
-          try { window.addCareRecordFor(req.cid, 'desk-checkin', req.text, Date.now()); } catch (e) {}
+          try { window.addCareRecordFor(req.cid, 'desk-checkin', req.text, Date.now(), 'replied'); } catch (e) {}
         }
         // 用弹窗时抽好的题（req.q 入队时随申请保存）发卡——弹窗显示哪题、切过去就发哪题，
         // 保证用户看到的问题与回答时一致；题库被关/题被删时回退重抽。
@@ -684,6 +764,9 @@
       try { if (window.__mochiPhase) window.__mochiPhase('xd-poll'); } catch (e0) {}
       ticks++;
       reconcileLiveModals();
+      // #1435：先把后台挂起的跨桌面查岗收尾（重投或记错过）——放在夜间/锁屏那几道闸之前，
+      // 否则「夜间模式开着」会让一条已在等的查岗永远挂在 pending 里不回账。
+      resumeHeldCheckins();
       // 夜间模式：整个时段内暂停一切跨桌面打扰（查岗/求聊天/来电），时段外行为不变
       if (window.nightModeActive && window.nightModeActive()) return;
       // v3.26.x #264：锁屏期整轮不掷（弹窗会压在锁底下）；打字期不掷也不计数（IME 组合
@@ -802,6 +885,13 @@
         ticks: ticks,
         mode: deskFreqMode(), prob: dm.prob, cool: dm.cool,
         pending: q.filter(function (x) { return x.status === 'pending'; }).length,
+        // #1435：其中「后台挂起、正在等你回来」的查岗有几条、最早那条还差多久过期
+        holding: q.filter(function (x) { return x.status === 'pending' && x.bgHold && x.kind === 'checkin'; }).length,
+        holdLeftMs: (function () {
+          var old = q.filter(function (x) { return x.status === 'pending' && x.bgHold && x.kind === 'checkin'; })
+            .reduce(function (m, x) { return Math.min(m, (x.ts || 0) + CK_BG_HOLD_MS); }, Infinity);
+          return old === Infinity ? 0 : Math.max(0, old - now);
+        })(),
         live: Object.keys(liveModals).length,
         gate: hardLocked() ? '锁屏中' : (typingBusy() ? '输入中暂停' : (layerBusy() ? ('浮层占用让路' + busyTicks + '/' + BUSY_ESCAPE) : '空闲')),
         hidden: !!document.hidden,
@@ -825,6 +915,9 @@
   document.addEventListener('visibilitychange', function () {
     if (document.hidden || !started) return;
     reconcileLiveModals();
+    // #1435：回前台立刻先补一次挂起收尾（与 call.js 的 resumeHeldCall 同拍），
+    // 不等那 3 秒——「TA 等你几分钟」这件事不该在回来的第一秒还看不见。
+    resumeHeldCheckins();
     setTimeout(maybeIncoming, 3000);
   });
 })();

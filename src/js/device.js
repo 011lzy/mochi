@@ -5111,6 +5111,11 @@ window.mochiPickDoorCensus = function () {
 // click 顺手吞掉——否则「touchend 开弹窗」后补发的那一发会按新布局命中遮罩，把弹窗刚开即关（#522 同源）。
 // **绝不在 touch/pointer 上 preventDefault**（#991 勿踩：那会压掉兼容鼠标事件，各内核是否补发 click
 // 不一致＝把修复做成新的机型差异）。原语放 device.js：它是唯一内联的系统基座，外置包没加载成功时它也在。
+// 【#1460 第四腿：cancel 腿】内核接管这一次手势去滚动／起选字时，不补发 click、只丢一发 touchcancel／
+// pointercancel——#1273 的三路里 touchcancel／pointercancel 当时只清布点、click 又被内核吞，于是「手指
+// 真的点了、界面零反馈」在这一型内核上原样复发（无头真跑：位移 3px 后 touchCancel ⇒ 解锁弹窗 0 次）。
+// 现按同一轻点判据收口：布点后最大位移 ≤12px 且 ≤450ms（复用 tapIsTap）才认这发 cancel 是「点到了」；
+// 超过判据的真滑动／长按保持不触发、页面滚动照旧（判据只取事件形态，零机型／零 UA 分支）。
 window.mochiTapOn = function (el, fn) {
   if (!el || typeof fn !== 'function') return false;
   var tDown = null;   // touch 路布点
@@ -5123,11 +5128,18 @@ window.mochiTapOn = function (el, fn) {
     tapGuard = now + 800;
     fn();
   }
+  // cancel 腿共用判据：布点后最大位移（mx＝最大位移的平方）与时长仍落在轻点范围内才认「点到了」，
+  // 真滑动／长按让位给滚动（复用同一把尺 tapIsTap，不另造阈值）。
+  function tapCancel(d) {
+    if (!d) return;
+    if (!tapIsTap(Math.sqrt(d.mx || 0), 0, Date.now() - d.t)) return;
+    tapFire();
+  }
   try {
     el.addEventListener('touchstart', function (e) {
       var t = e.changedTouches && e.changedTouches[0];
       if (!t) return;
-      tDown = { x: t.clientX, y: t.clientY, t: Date.now(), id: t.identifier };
+      tDown = { x: t.clientX, y: t.clientY, t: Date.now(), id: t.identifier, mx: 0 };
     }, { passive: true });
     el.addEventListener('touchend', function (e) {
       var t = e.changedTouches && e.changedTouches[0];
@@ -5137,10 +5149,16 @@ window.mochiTapOn = function (el, fn) {
       if (!tapIsTap(dx, dy, dt)) return;
       tapFire();
     }, { passive: true });
-    el.addEventListener('touchcancel', function () { tDown = null; }, { passive: true });
+    el.addEventListener('touchmove', function (e) {
+      var t = e.changedTouches && e.changedTouches[0];
+      if (!tDown || !t || t.identifier !== tDown.id) return;
+      var dx = t.clientX - tDown.x, dy = t.clientY - tDown.y, m = dx * dx + dy * dy;
+      if (m > tDown.mx) tDown.mx = m;
+    }, { passive: true });
+    el.addEventListener('touchcancel', function () { var d = tDown; tDown = null; tapCancel(d); }, { passive: true });
     el.addEventListener('pointerdown', function (e) {
       if (e.pointerType === 'mouse') return;
-      pDown = { x: e.clientX, y: e.clientY, t: Date.now(), id: e.pointerId };
+      pDown = { x: e.clientX, y: e.clientY, t: Date.now(), id: e.pointerId, mx: 0 };
     });
     el.addEventListener('pointerup', function (e) {
       if (!pDown || e.pointerId !== pDown.id || e.pointerType === 'mouse') return;
@@ -5149,7 +5167,12 @@ window.mochiTapOn = function (el, fn) {
       if (!tapIsTap(dx, dy, dt)) return;
       tapFire();
     });
-    el.addEventListener('pointercancel', function () { pDown = null; });
+    el.addEventListener('pointermove', function (e) {
+      if (!pDown || e.pointerId !== pDown.id || e.pointerType === 'mouse') return;
+      var dx = e.clientX - pDown.x, dy = e.clientY - pDown.y, m = dx * dx + dy * dy;
+      if (m > pDown.mx) pDown.mx = m;
+    });
+    el.addEventListener('pointercancel', function () { var d = pDown; pDown = null; tapCancel(d); });
     el.addEventListener('click', function (e) {
       if (Date.now() < tapGuard) { e.preventDefault(); e.stopPropagation(); return; }
       tapFire();

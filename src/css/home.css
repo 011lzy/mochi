@@ -858,6 +858,12 @@ html.desk-zoom-card .week-card, html.desk-zoom-card .desk-period, html.desk-zoom
 .desk-move-mode .page-slide { touch-action: pan-x pan-y; -webkit-touch-callout: none; }
 .desk-move-mode .app,
 .desk-move-mode [data-desk-widget]:not(.app-grid) { touch-action: none; cursor: grab; }
+/* #1278（跨域改动见 WORKLOG）：文字/图片/倒计时自绘组件纳入拖拽——
+   不加 touch-action:none 则安卓浏览器按 pan 手势接管触摸序列，pointermove
+   被抢占→自绘组件拖不动（标准组件 #134 同款兜底） */
+.desk-move-mode [data-desk-text],
+.desk-move-mode [data-desk-image],
+.desk-move-mode [data-desk-countdown] { touch-action: none; cursor: grab; }
 /* 拖拽中源项半透明占位 */
 .desk-dragging { opacity: .22 !important; animation: none !important; }
 /* 拖拽跟手 clone */

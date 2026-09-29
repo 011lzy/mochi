@@ -197,6 +197,7 @@ let swOn = false;
 let rafId = 0;
 let settleTimer = null;
 let swipeBlurTimer = null; // #976：滑页暂停壁纸模糊的收尾计时
+let _swBlurPh = null;
 function syncFrame() {
 rafId = 0;
 sync();
@@ -204,9 +205,12 @@ sync();
 if (!rafId) rafId = requestAnimationFrame(syncFrame);
 perfSample(); // #690：翻页现场记一段帧耗时（静止时不跑）
 try {
+const bph = _swBlurPh || (_swBlurPh = document.querySelector('.phone'));
+if (bph && bph.classList.contains('desk-blur-on')) {
 document.documentElement.classList.add('desk-swiping');
 clearTimeout(swipeBlurTimer);
 swipeBlurTimer = setTimeout(function () { document.documentElement.classList.remove('desk-swiping'); }, 150);
+}
 } catch (e0) {}
 clearTimeout(settleTimer);
 settleTimer = setTimeout(sync, 80);

@@ -139,6 +139,11 @@ const clickRow = (nm) => ev(`(()=>{
   r.click(); return true;
 })()`);
 
+// #1452（阶段 A）：目录改「首开才建」——先点设置行入口把目录建出来，再量分组数/组内条目（契约不变：
+// 开页后仍是 10 组、桌面应用组 = 29 图标 + 1 条找回说明；B4 会再点一次入口，幂等）。
+await ev(`document.getElementById('row-featurehub').click()`);
+await sleep(150);
+
 // ---- B1 分组数=10（桌面补全批新增【桌面应用】组） ----
 const gs = await ev(`document.querySelectorAll('#fhub-body .gs-title').length`);
 A('B1 分组数=10（新增【桌面应用】组）', gs === 10, '实际 ' + gs);

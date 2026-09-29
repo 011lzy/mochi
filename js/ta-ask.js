@@ -12,6 +12,12 @@ clearTimeout(t._timer);
 t._timer = setTimeout(() => { t.className = 'cc-toast'; }, 2000);
 }
 function escG(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+function askTypeBadge(q) {
+const n = q && Array.isArray(q.options) ? q.options.length : 0;
+if (q && q.type === 'single') return ' <span class="tc-known">单选·' + n + '选项</span>';
+if (q && q.type === 'multi') return ' <span class="tc-known">多选·' + n + '选项</span>';
+return '';
+}
 function taReplyShow(s) {
 const t = (window.askCardReplyClean ? window.askCardReplyClean(s) : String(s == null ? '' : s));
 return escG(window.taFit ? window.taFit(t) : t);
@@ -682,15 +688,15 @@ return null;
 }
 function pushAsk(q, opts) {
 if (!window.chatAddSystem) return;
-const isSingle = q && q.type === 'single' && Array.isArray(q.options) && q.options.length;
+const isPick = q && (q.type === 'single' || q.type === 'multi') && Array.isArray(q.options) && q.options.length;
 let popup = false;
-if (!isSingle) {
+if (!isPick) {
 if (opts && typeof opts.popupProb === 'number') popup = Math.random() * 100 < opts.popupProb;
 else if (opts && opts.popup === false) popup = false;
 }
 window.chatAddSystem('TA想问你一个问题。', { special: 'ask-msg' });
 const askTs = Date.now();
-const el = window.chatAddSystem(q.text, { special: 'ask-card', askQuestion: q.text, askOptions: isSingle ? q.options : null, askType: isSingle ? 'single' : 'text', askTs: askTs });
+const el = window.chatAddSystem(q.text, { special: 'ask-card', askQuestion: q.text, askOptions: isPick ? q.options : null, askType: isPick ? q.type : 'text', askTs: askTs });
 try {
 const d = taAskLoad();
 d.history.push({ q: q.text, a: '', reply: '', ts: askTs, status: 'pending' });
@@ -936,14 +942,19 @@ const flush = () => {
 if (!cur) return;
 const q = { id: 'q_' + Date.now() + '_' + Math.floor(Math.random() * 9999), text: cur.text, cat: parsed.cat || 'daily', enabled: true, isPreset: false };
 if (parsed.grp) q.grp = parsed.grp;
-if (cur.opts.length >= 2) { q.type = 'single'; q.options = cur.opts.slice(); singles++; }
+if (cur.opts.length >= 2) { q.type = cur.multi ? 'multi' : 'single'; q.options = cur.opts.slice(); singles++; }
 d2.questions.push(q);
 imported++;
 cur = null;
 };
 lines.forEach(t => {
 const m = t.match(/^【(.+?)】$/);
-if (m) { flush(); if (m[1].trim()) cur = { text: m[1].trim(), opts: [] }; return; }
+if (m) {
+flush();
+const mk = askMultiMarkOf(m[1]);
+if (mk.text) cur = { text: mk.text, opts: [], multi: mk.multi };
+return;
+}
 if (cur) { cur.opts.push(t); return; }
 cur = { text: t, opts: [] };
 flush();
@@ -997,7 +1008,7 @@ arr.forEach(q => {
 const idx = d.questions.indexOf(q);
 html += '<div class="ta-row' + (!useDefault ? ' off' : '') + '">' +
 '<label class="toggle"><input type="checkbox"' + (q.enabled !== false ? ' checked' : '') + ' data-idx="' + idx + '"><span class="tk"></span></label>' +
-'<span class="ta-txt">' + q.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + (q.type === 'single' ? ' <span class="tc-known">单选·' + (q.options ? q.options.length : 0) + '选项</span>' : '') + ' <span class="tc-known">系统</span></span>' +
+'<span class="ta-txt">' + q.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + askTypeBadge(q) + ' <span class="tc-known">系统</span></span>' +
 '</div>';
 html += interactPoolInlineHtml('询问·回应');
 });
@@ -1027,7 +1038,7 @@ const preset = q.isPreset === true;
 const delBtn = preset ? '' : '<button class="ta-del" data-idx="' + idx + '">✕</button>';
 html += '<div class="ta-row' + (preset && !useDefault ? ' off' : '') + '">' +
 '<label class="toggle"><input type="checkbox"' + (q.enabled !== false ? ' checked' : '') + ' data-idx="' + idx + '"><span class="tk"></span></label>' +
-'<span class="ta-txt">' + q.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + (q.type === 'single' ? ' <span class="tc-known">单选·' + (q.options ? q.options.length : 0) + '选项</span>' : '') + (preset ? ' <span class="tc-known">系统</span>' : '') + '</span>' +
+'<span class="ta-txt">' + q.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + askTypeBadge(q) + (preset ? ' <span class="tc-known">系统</span>' : '') + '</span>' +
 delBtn +
 '</div>';
 if (presetOnly) html += interactPoolInlineHtml('询问·回应');
@@ -1058,7 +1069,7 @@ renderAskCatsInto(container, false, search);
 function askItemHtml(q, idx) {
 return '<div class="ta-row">' +
 '<label class="toggle"><input type="checkbox"' + (q.enabled !== false ? ' checked' : '') + ' data-idx="' + idx + '"><span class="tk"></span></label>' +
-'<span class="ta-txt">' + escG(q.text) + (q.type === 'single' ? ' <span class="tc-known">单选·' + (q.options ? q.options.length : 0) + '选项</span>' : '') + '</span>' +
+'<span class="ta-txt">' + escG(q.text) + askTypeBadge(q) + '</span>' +
 '<button class="ta-del" data-idx="' + idx + '">✕</button>' +
 '</div>';
 }
@@ -1081,6 +1092,7 @@ return '<div class="ta-add">' +
 '<select class="ta-type tc-input" data-key="' + blockKey + '">' +
 '<option value="text">文字回复</option>' +
 '<option value="single">单选题</option>' +
+'<option value="multi">多选题</option>' +
 '</select>' +
 '<div class="dec-inp-wrap ta-inp-flex"><input id="ta-new-' + blockKey + '" type="text" placeholder="添加问题…"><button type="button" class="dec-inp-clear" data-clear="ta-new-' + blockKey + '" aria-label="清空" title="清空">✕</button></div>' +
 '<button class="ta-add-btn" data-key="' + blockKey + '" data-cat="' + (cat || 'daily') + '" data-grp="' + (grp || '') + '">添加</button>' +
@@ -1145,7 +1157,7 @@ mineCatsEl.querySelectorAll('.ta-type').forEach(sel => {
 const toggleOpts = () => {
 const o = document.getElementById('ta-opts-' + sel.dataset.key);
 if (!o) return;
-o.hidden = sel.value !== 'single';
+o.hidden = sel.value !== 'single' && sel.value !== 'multi';
 if (o.__ceBox) o.__ceBox.hidden = o.hidden;
 else if (o.parentElement) o.parentElement.querySelectorAll('.ce-box').forEach(b => { b.hidden = o.hidden; });
 };
@@ -1163,7 +1175,7 @@ const type = typeSel ? typeSel.value : 'text';
 const d2 = taAskLoad();
 const q = { id: 'q_' + Date.now() + '_' + Math.floor(Math.random() * 999), text: v, cat: b.dataset.cat || 'daily', enabled: true, isPreset: false };
 if (b.dataset.grp) q.grp = b.dataset.grp;
-if (type === 'single') {
+if (type === 'single' || type === 'multi') {
 const optsEl = document.getElementById('ta-opts-' + key);
 const opts = (optsEl ? optsEl.value : '').split(/\r?\n/).map(s => s.trim()).filter(Boolean).map(line => {
 const i = line.indexOf('~');
@@ -1172,8 +1184,9 @@ const t = line.slice(0, i).trim();
 const replies = line.slice(i + 1).split(';').map(s => s.trim()).filter(Boolean);
 return { t: t, reply: replies.length > 1 ? replies : (replies[0] || '') };
 });
-if (!opts.length) { toast('单选题请填写选项，每行一个'); return; }
-q.type = 'single';
+if (!opts.length) { toast((type === 'multi' ? '多选题' : '单选题') + '请填写选项，每行一个'); return; }
+if (type === 'multi' && opts.length < 2) { toast('多选题至少填 2 个选项'); return; }
+q.type = type;
 q.options = opts;
 }
 d2.questions.push(q);
@@ -3554,19 +3567,31 @@ function surveySave(d) { try { store.set(SKEY, JSON.stringify(d)); } catch (e) {
 function surveySyncCard(d) {
 try { if (window.chatSyncSurveyCard) window.chatSyncSurveyCard(d.sentAt, d.status, d.answers.slice()); } catch (e) {}
 }
+function askMultiMarkOf(text) {
+const s = String(text == null ? '' : text).trim();
+const br = s.match(/[（(]\s*多\s*选\s*[)）]\s*$/);
+if (br) return { text: s.slice(0, br.index).trim(), multi: true };
+if (s.length > 2 && /\s*多\s*选$/.test(s)) return { text: s.replace(/\s*多\s*选$/, '').trim(), multi: true };
+return { text: s, multi: false };
+}
 function surveyParse(text) {
 const lines = String(text || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
 const qs = [];
 let cur = null, marked = false;
 const flush = () => {
 if (!cur) return;
-if (!marked && cur.opts.length >= 2) qs.push({ type: 'single', text: cur.text, options: cur.opts.slice() });
+if (!marked && cur.opts.length >= 2) qs.push({ type: cur.multi ? 'multi' : 'single', text: cur.text, options: cur.opts.slice() });
 else qs.push({ type: 'text', text: cur.text, options: [] });
 cur = null; marked = false;
 };
 lines.forEach(t => {
 const m = t.match(/^【(.+?)】$/);
-if (m) { flush(); if (m[1].trim()) cur = { text: m[1].trim(), opts: [] }; return; }
+if (m) {
+flush();
+const mk = askMultiMarkOf(m[1]);
+if (mk.text) cur = { text: mk.text, opts: [], multi: mk.multi };
+return;
+}
 if (cur) {
 if (!marked && !cur.opts.length && t === '一') { marked = true; return; }
 cur.opts.push(t); return;
@@ -3604,8 +3629,12 @@ t = '……';
 return t;
 }
 function surveyPickAnswer(q) {
-if (q && q.type === 'single' && Array.isArray(q.options) && q.options.length) {
-return q.options[Math.floor(Math.random() * q.options.length)];
+if (q && Array.isArray(q.options) && q.options.length) {
+if (q.type === 'multi' && typeof window.mochiPickMulti === 'function') {
+const max = typeof window.askMultiMaxLoad === 'function' ? window.askMultiMaxLoad() : 3;
+return window.mochiPickMulti(q.options.length, max).map(k => String(q.options[k] == null ? '' : q.options[k])).join('、');
+}
+if (q.type === 'single' || q.type === 'multi') return q.options[Math.floor(Math.random() * q.options.length)];
 }
 return surveyAnswerText();
 }
@@ -3619,7 +3648,8 @@ cur.answers.push(ans);
 surveySave(cur);
 surveySyncCard(cur);
 if (cur.settings.sendToChat !== false) {
-const msg = (q.type === 'single' && Array.isArray(q.options) && q.options.length)
+const isPick = (q.type === 'single' || q.type === 'multi') && Array.isArray(q.options) && q.options.length;
+const msg = isPick
 ? '【' + q.text + '】我的选择：' + ans
 : '【' + q.text + '】' + ans;
 try { window.chatAddIn(msg, {}); } catch (e) {}
@@ -3698,11 +3728,16 @@ const pv = document.getElementById('ta-survey-prob-val');
 if (pv) pv.textContent = d.settings.prob + '%';
 const schatEl = document.getElementById('ta-survey-chat');
 if (schatEl) schatEl.checked = d.settings.sendToChat !== false;
+const mmaxEl = document.getElementById('ta-survey-mmax-val');
+if (mmaxEl) mmaxEl.value = typeof window.askMultiMaxLoad === 'function' ? window.askMultiMaxLoad() : 3;
 const st = document.getElementById('ta-survey-status');
 if (st) {
 if (d.status === 'draft') {
 const nS = d.qs.filter(q => q.type === 'single').length;
-st.innerHTML = '当前状态：草稿 —— 已解析 <b>' + d.qs.length + '</b> 题' + (d.qs.length ? '（单选 ' + nS + ' 题 / 文字 ' + (d.qs.length - nS) + ' 题）' : '') + '。填好后点「发出问卷给TA」。';
+const nM = d.qs.filter(q => q.type === 'multi').length;
+const brk = d.qs.length ? '（单选 ' + nS + ' 题' + (nM ? ' / 多选 ' + nM + ' 题' : '') + ' / 文字 ' + (d.qs.length - nS - nM) + ' 题）' : '';
+const cap = (typeof window.askMultiMaxLoad === 'function' ? window.askMultiMaxLoad() : 3);
+st.innerHTML = '当前状态：草稿 —— 已解析 <b>' + d.qs.length + '</b> 题' + brk + (nM ? '；多选题每次最多选 ' + cap + ' 个。' : '。') + '填好后点「发出问卷给TA」。';
 } else if (d.status === 'sent') {
 st.innerHTML = '当前状态：TA 作答中 —— 已答 <b>' + d.answers.length + '</b> / ' + d.qs.length + ' 题' + (d.settings.deadline ? '；交卷时间 ' + fmtDeadlineText(d.settings.deadline) : '；未设交卷时间') + '；每 30 秒按 ' + d.settings.prob + '% 概率提前交卷。';
 } else {
@@ -3752,7 +3787,7 @@ const opts = (q && Array.isArray(q.options) && q.options.length) ? q.options : n
 html += '<div class="tc-listitem" style="text-align:left">' +
 '<div class="tc-li-top">' +
 '<input type="checkbox" class="sv-fav-cb" data-i="' + i + '" style="width:16px;height:16px;flex-shrink:0;cursor:pointer">' +
-'<span class="tc-li-q">' + (i + 1) + '. ' + escT((q && q.text) || '') + (opts ? ' <span class="tc-known">单选·' + opts.length + '选项</span>' : '') + '</span>' +
+'<span class="tc-li-q">' + (i + 1) + '. ' + escT((q && q.text) || '') + (opts ? ' <span class="tc-known">' + (q.type === 'multi' ? '多选·' : '单选·') + opts.length + '选项</span>' : '') + '</span>' +
 '<span class="sv-fav-state" data-i="' + i + '" style="font-size:11px;font-weight:600;color:#c2864b;flex-shrink:0;white-space:nowrap">' + (favStates[i] ? '★ 已收藏' : '') + '</span>' +
 '</div>' +
 (opts ? '<div class="tc-li-line">选项：' + escT(opts.join(' / ')) + '</div>' : '') +
@@ -3776,7 +3811,7 @@ const text = String((q && q.text) || '').trim();
 if (!text) { dup++; return; }
 if ((d.questions || []).some(b => b && String(b.text || '') === text)) { dup++; return; }
 const nq = { id: 'q_' + Date.now() + '_' + Math.floor(Math.random() * 9999), text: text, cat: 'daily', enabled: true, isPreset: false };
-if (q && Array.isArray(q.options) && q.options.length >= 2) { nq.type = 'single'; nq.options = q.options.slice(0, 12).map(o => String(o)); }
+if (q && Array.isArray(q.options) && q.options.length >= 2) { nq.type = q.type === 'multi' ? 'multi' : 'single'; nq.options = q.options.slice(0, 12).map(o => String(o)); }
 d.questions.push(nq);
 added++;
 });
@@ -3885,6 +3920,19 @@ d.settings.sendToChat = schat.checked;
 surveySave(d);
 toast(schat.checked ? 'TA 的每条作答都会发送到聊天消息' : 'TA 的作答只写入问卷卡片，不再逐条发到聊天消息');
 });
+const mmaxRow = document.getElementById('ta-survey-mmax');
+if (mmaxRow) {
+const mmaxVal = document.getElementById('ta-survey-mmax-val');
+const clampMMax = () => {
+let n = parseInt(mmaxVal.value, 10);
+if (isNaN(n)) n = 3;
+else n = n < 2 ? 2 : (n > 6 ? 6 : n);
+mmaxVal.value = n;
+if (typeof window.askMultiMaxSave === 'function') window.askMultiMaxSave(n);
+};
+mmaxRow.querySelector('.stp-min').addEventListener('click', (e) => { if (e) e.stopPropagation(); mmaxVal.value = (parseInt(mmaxVal.value, 10) || 3) - 1; clampMMax(); });
+mmaxRow.querySelector('.stp-max').addEventListener('click', (e) => { if (e) e.stopPropagation(); mmaxVal.value = (parseInt(mmaxVal.value, 10) || 3) + 1; clampMMax(); });
+}
 const ssend = document.getElementById('ta-survey-send');
 if (ssend) ssend.addEventListener('click', surveySend);
 const sreset = document.getElementById('ta-survey-reset');

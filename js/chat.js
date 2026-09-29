@@ -2823,7 +2823,7 @@ const done =
 (type === 'curious' && rec.curiousStatus === 'answered') ||
 (type === 'roast' && rec.roastStatus === 'answered') ||
 (type === 'ask' && rec.askStatus === 'answered');
-if (done && type === 'ask' && rec.askType === 'single' && Array.isArray(rec.askOptions) && rec.askOptions.length) {
+if (done && type === 'ask' && (rec.askType === 'single' || rec.askType === 'multi') && Array.isArray(rec.askOptions) && rec.askOptions.length) {
 const card = el.querySelector('.msg-ask-card');
 if (!card) return false;
 const wrap = document.createElement('div');
@@ -2831,7 +2831,7 @@ wrap.className = 'msg-inplace';
 const chosen = String(rec.askAnswer || '');
 (rec.askOptions || []).forEach(o => {
 const row = document.createElement('div');
-row.className = 'ip-opt-row' + (String(o.t || '') === chosen ? ' sel' : '');
+row.className = 'ip-opt-row' + (window.mochiAnswerHits && window.mochiAnswerHits(String(o.t || ''), chosen) ? ' sel' : '');
 let replyTxt = '';
 if (Array.isArray(o.reply) && o.reply.length) {
 const arr = o.reply.filter(s => typeof s === 'string' && s.trim()).map(s => s.trim());
@@ -2872,6 +2872,51 @@ if (window.logFish) window.logFish();
 });
 wrap.appendChild(b);
 });
+} else if (type === 'ask' && (rec.askType === 'multi' || rec.type === 'multi')) {
+const opts = Array.isArray(rec.askOptions) ? rec.askOptions : (Array.isArray(rec.options) ? rec.options : []);
+if (!opts.length) return false;
+const rows = [];
+const picked = [];
+const btn = document.createElement('button');
+btn.className = 'ip-multi-submit';
+btn.type = 'button';
+const syncSubmit = () => {
+btn.disabled = !picked.length;
+btn.textContent = picked.length ? '提交（已选 ' + picked.length + ' 个）' : '先勾选答案';
+};
+const repliesOf = o => {
+const r = o && o.reply;
+if (Array.isArray(r)) return r.filter(s => typeof s === 'string' && s.trim());
+if (typeof r === 'string') return r.split(';').map(s => s.trim()).filter(Boolean);
+return [];
+};
+opts.forEach(o => {
+const t = String((o && o.t) || '');
+const row = document.createElement('div');
+row.className = 'ip-opt-row ip-opt-chk';
+const replyArr = repliesOf(o);
+row.innerHTML = '<span class="ip-opt-box"></span><span class="ip-opt-t">' + escTxt(t) + '</span>' +
+(replyArr.length ? '<span class="ip-opt-reply">' + escTxt(replyArr.length > 1 ? replyArr[0] + ' 等' + replyArr.length + '条' : replyArr[0]) + '</span>' : '');
+row.addEventListener('click', () => {
+const at = picked.indexOf(t);
+if (at >= 0) picked.splice(at, 1); else picked.push(t);
+row.classList.toggle('on', at < 0);
+syncSubmit();
+});
+rows.push({ row: row, t: t, o: o });
+wrap.appendChild(row);
+});
+btn.addEventListener('click', () => {
+if (!picked.length) return;
+const chosen = rows.filter(r => picked.indexOf(r.t) >= 0);
+const answers = [];
+const replies = [];
+chosen.forEach(r => { answers.push(r.t); repliesOf(r.o).forEach(s => replies.push(s)); });
+if (window.chatAskReply) window.chatAskReply(idx, answers.join('、'), replies.length ? replies : undefined);
+if (window.logFish) window.logFish();
+});
+wrap.appendChild(btn);
+syncSubmit();
 } else if (type === 'ask' && (rec.askType === 'single' || (rec.type === 'single' && Array.isArray(rec.options) && rec.options.length))) {
 const opts = Array.isArray(rec.askOptions) ? rec.askOptions : (Array.isArray(rec.options) ? rec.options : []);
 if (!opts.length) return false;
@@ -3070,7 +3115,7 @@ if (!item || item.dataset.idx === undefined) return;
 const idx = Number(item.dataset.idx);
 const rec = msgs[idx];
 if (!rec) return;
-if (card.classList.contains('answered') && rec.special === 'ask' && rec.askType === 'single' && Array.isArray(rec.askOptions) && rec.askOptions.length) {
+if (card.classList.contains('answered') && rec.special === 'ask' && (rec.askType === 'single' || rec.askType === 'multi') && Array.isArray(rec.askOptions) && rec.askOptions.length) {
 e.stopPropagation();
 const hadFav = card.classList.contains('show-fav');
 body.querySelectorAll('.msg-ask-card.show-fav, .msg-choose-card.show-fav').forEach(c => c.classList.remove('show-fav'));
@@ -4099,7 +4144,7 @@ const a = answers[i] || '';
 rows += '<div class="msg-survey-item' + (a ? ' answered' : '') + '">' +
 '<div class="msg-survey-q">' + (i + 1) + '. ' + escTxt(q.text || '') + '</div>' +
 (Array.isArray(q.options) && q.options.length
-? '<div class="msg-survey-opts">' + q.options.map(o => '<span class="msg-survey-opt' + (a && String(o) === String(a) ? ' sel' : '') + '">' + escTxt(o) + '</span>').join('') + '</div>'
+? '<div class="msg-survey-opts">' + q.options.map(o => '<span class="msg-survey-opt' + (window.mochiAnswerHits && window.mochiAnswerHits(o, a) ? ' sel' : '') + '">' + escTxt(o) + '</span>').join('') + '</div>'
 : '') +
 (a ? '<div class="msg-survey-a">' + (window.taFit ? window.taFit('TA：') : 'TA：') + escTxt(window.taFit ? window.taFit(a) : a) + '</div>' : '') +
 '</div>';
@@ -4208,12 +4253,12 @@ if (rec.special === 'ask') {
 m.className = 'msg-ask';
 m.dataset.idx = __msgAt; // #1326：分支重写读调用方给的这一格
 const answered = rec.askStatus === 'answered';
-const askIsSingle = rec.askType === 'single';
+const askIsPick = rec.askType === 'single' || rec.askType === 'multi';
 m.innerHTML = '<div class="msg-ask-card' + (answered ? ' answered' : '') + '">' +
 '<div class="msg-ask-q">' + T('问问TA') + ' · ' + escTxt(rec.askQuestion || '') + '</div>' +
 (answered
 ? '<div class="msg-ask-a">✓ ' + T('TA：') + escTxt(T(rec.askAnswer || '回答了你')) + '</div>' + (rec.askReply ? '<div class="msg-choose-r">' + T('TA：') + escTxt(T(askCardReplyClean(rec.askReply))) + '</div>' : '')
-: '<div class="msg-ask-tip">' + (askIsSingle ? T('等待 TA 选择…') : T('等待 TA 回答…')) + '</div>') +
+: '<div class="msg-ask-tip">' + (askIsPick ? T('等待 TA 选择…') : T('等待 TA 回答…')) + '</div>') +
 favHeartHtml(rec) +
 '</div>';
 appendMsg(m);
@@ -4493,11 +4538,12 @@ m.className = 'msg-ask';
 m.dataset.idx = __msgAt; // #1326：分支重写读调用方给的这一格
 const answered = rec.askStatus === 'answered';
 const isSingle = rec.askType === 'single' || (rec.type === 'single' && Array.isArray(rec.options) && rec.options.length);
+const isMulti = rec.askType === 'multi' || (rec.type === 'multi' && Array.isArray(rec.options) && rec.options.length);
 m.innerHTML = '<div class="msg-ask-card' + (answered ? ' answered' : '') + '">' +
 '<div class="msg-ask-q">' + escTxt(rec.askQuestion || rec.text) + '</div>' +
 (answered
 ? '<div class="msg-ask-a">✓ 已回答：' + escTxt(rec.askAnswer) + '</div>' + (rec.askReply ? '<div class="msg-choose-r">' + T('TA：') + escTxt(T(askCardReplyClean(rec.askReply))) + '</div>' : '')
-: '<div class="msg-ask-tip">' + (isSingle ? '点击选择你的答案' : T('点击回答 TA 的提问')) + '</div>') +
+: '<div class="msg-ask-tip">' + (isMulti ? '可多选，选完点「提交」' : isSingle ? '点击选择你的答案' : T('点击回答 TA 的提问')) + '</div>') +
 favHeartHtml(rec) +
 '</div>';
 appendMsg(m);
@@ -5063,6 +5109,17 @@ return !!(window.nightModeActive && window.nightModeActive());
 function nightOpenReply() {
 if (window.nightModeActive && window.nightModeActive()) window.__nightReplyOpen = Date.now();
 }
+const PENDING_CARD_STATUS_FIELD = {
+'ask-card': 'askStatus', ask: 'askStatus', 'ask-choose': 'choiceStatus', 'ask-curious': 'curiousStatus',
+'ask-roast': 'roastStatus', invite: 'inviteStatus', survey: 'surveyStatus', redpacket: 'rpStatus'
+};
+const PENDING_CARD_SETTLED = { answered: 1, done: 1, received: 1, expired: 1, returned: 1 };
+function isPendingCardRec(rec) {
+if (!rec) return false;
+const f = PENDING_CARD_STATUS_FIELD[rec.special];
+if (!f) return false;
+return !PENDING_CARD_SETTLED[rec[f]];
+}
 function addRec(rec) {
 if (rec.side === 'in' && nightBlocksIn(rec.initiative, rec.nightAllow)) return null;
 if (rateBlocksIn(rec)) return null; // #1180 总量限流兜底（chatAddGift 等不过 addIn 的入口也走这里）
@@ -5155,6 +5212,7 @@ return true;
 return false;
 };
 saveMsgs();
+try { if (isPendingCardRec(rec)) flushPersistNow(); } catch (ePC) {}
 const notable = rec.side === 'in' && rec.special !== 'read';
 if (notable && !rec.silent && (!chatVisible() || document.visibilityState === 'hidden')) {
 if (!chatVisible()) incChatUnread();
@@ -6521,24 +6579,30 @@ try { if (window.replyCfg) scheduleAutoSend(); } catch (e) {}
 const INVITE_DECLINE = ['下次吧，现在不太想玩~', '等会儿再陪你玩好不好', '先不玩啦，待会儿再说', '现在没状态，下次一定'];
 const CUDDLE_DECLINE = ['下次再贴吧，先记着这笔~', '等会儿补给你，说话算数', '先欠着，攒到晚上一起还~', '今天想先自己待会儿，明天加倍还你'];
 const CUDDLE_REPLIES = ['嗯……蹭到了。暖暖的，很喜欢。', '那我要贴很久哦，不许偷偷跑掉。', '手被握住了，就这样待一会儿。', '感觉到了，你在旁边。很安心。', '贴贴充电中……好，满格了。'];
+function presetReplyPick(group, fallback) {
+try {
+if (typeof window.getPresetGroupLines === 'function') {
+const l = window.getPresetGroupLines(group, fallback);
+return l.length ? pick(l) : '';
+}
+} catch (e) {}
+return fallback.length ? pick(fallback) : '';
+}
 window.__cardSearchFns = window.__cardSearchFns || [];
 window.__cardSearchFns.push({ name: '聊天系统回应', fn: function (kw) {
 const out = [];
 try {
 FALLBACK_REPLY_POOL.forEach(c => { if (String(c).toLowerCase().indexOf(kw) >= 0) out.push({ t: String(c), cat: '兜底回复' }); });
-INVITE_DECLINE.forEach(c => { if (String(c).toLowerCase().indexOf(kw) >= 0) out.push({ t: String(c), cat: '游戏邀请·婉拒' }); });
-CUDDLE_DECLINE.forEach(c => { if (String(c).toLowerCase().indexOf(kw) >= 0) out.push({ t: String(c), cat: '贴贴·婉拒' }); });
-CUDDLE_REPLIES.forEach(c => { if (String(c).toLowerCase().indexOf(kw) >= 0) out.push({ t: String(c), cat: '贴贴·回应' }); });
 } catch (e) {}
 return out;
 } });
-function openInviteConfirm(title, staticText, onAccept, declinePool, onDecline) {
+function openInviteConfirm(title, staticText, onAccept, declinePool, declineGroup, onDecline) {
 const mask = document.getElementById('modal-mask');
 if ((mask && !mask.hidden) || !window.openModal) { onAccept(); return; }
 window.openModal(title, '', (v) => {
 if (v === '1') onAccept();
 else if (typeof onDecline === 'function') onDecline();
-else addOut(pick(declinePool || INVITE_DECLINE));
+else { const _dl = presetReplyPick(declineGroup || '游戏邀请·婉拒', declinePool || INVITE_DECLINE); if (_dl) addOut(_dl); }
 }, {
 noInput: true,
 lock: true,
@@ -6547,10 +6611,111 @@ pill: '1', // v3.16.x：邀请弹窗默认选中「同意」，无需手动点�
 staticText: staticText
 });
 }
+const CP_KEY = 'records-cuddle-pending';
+const CP_HOLD_MS = 10 * 60 * 1000; // 作者选的那档：10 分钟内回来就还在，超时＝错过未回应
+const CP_TICK_MS = 20 * 1000;       // 只在有挂起时才跑的心跳；没有挂起自动停
+let _cpLive = null;                 // 当前挂在屏上的那一条：{ ts, title }
+function _cpStore(cid) { return (cid && window.storeFor) ? window.storeFor(cid) : store; }
+function _cpLoad(cid) {
+try { const v = _cpStore(cid).get(CP_KEY); if (!v) return null; const p = JSON.parse(v); return (p && p.ts) ? p : null; } catch (e) { return null; }
+}
+function _cpSave(cid, p) { try { _cpStore(cid).set(CP_KEY, JSON.stringify(p)); } catch (e) {} }
+function _cpClear(cid) { try { _cpStore(cid).remove(CP_KEY); } catch (e) {} }
+function _cpBusy() {
+return ['modal-mask', 'tc-mask', 'qa-mask', 'call-mask', 'applock-mask'].some(function (id) {
+const el = document.getElementById(id);
+return el && !el.hidden;
+});
+}
+function _cpOnScreen(ts) {
+if (!_cpLive || (ts && _cpLive.ts !== ts)) return false;
+const mask = document.getElementById('modal-mask');
+const tEl = document.getElementById('modal-title');
+return !!(mask && !mask.hidden && tEl && tEl.textContent === _cpLive.title);
+}
+let _cpTimer = null;
+function _cpStart() { if (!_cpTimer) _cpTimer = setInterval(_cpTick, CP_TICK_MS); }
+function _cpStop() { if (_cpTimer) { clearInterval(_cpTimer); _cpTimer = null; } }
+function _cpCids() {
+const out = [window.__activeCid || 'default'];
+try { (window.getContacts() || []).forEach(function (c) { if (c && c.id && out.indexOf(c.id) < 0) out.push(c.id); }); } catch (e) {}
+return out;
+}
+function _cpAny() { return _cpCids().some(function (cid) { return !!_cpLoad(cid); }); }
+function _cpTick() {
+_cpCids().forEach(_cpPump);
+if (!_cpAny()) _cpStop(); // 全部落定（答完/过期）就撤掉心跳，不留常驻定时器
+}
+function _cpPump(cid) {
+const p = _cpLoad(cid);
+if (!p) return false;
+if (Date.now() - (p.ts || 0) > CP_HOLD_MS) {
+_cpClear(cid);
+try { if (window.setCuddleRecordResult) window.setCuddleRecordResult(cid, p.ts, 'missed'); } catch (e) {}
+return false;
+}
+if (cid !== (window.__activeCid || 'default')) return false;
+if (document.hidden) return false;
+if (_cpOnScreen(p.ts)) return true;
+if (_cpBusy()) return false;
+return _cpOpen(p, cid);
+}
+function _cpOpen(p, cid) {
+if (!window.openModal) return false;
+const name = p.name || chatPartnerName();
+const title = name + ' 的贴贴邀请';
+_cpLive = { ts: p.ts, title: title };
+window.openModal(title, '', (v) => {
+_cpLive = null;
+const accepted = v === '1';
+try { if (window.chatAddSystem) window.chatAddSystem(accepted ? '你接受了 ' + name + ' 的贴贴邀请' : '你拒绝了 ' + name + ' 的贴贴邀请'); } catch (e) {}
+try { if (window.setCuddleRecordResult) window.setCuddleRecordResult(cid, p.ts, accepted ? 'replied' : 'declined'); } catch (e) {}
+try { if (window.clearCuddleInvitePending) window.clearCuddleInvitePending(cid, p.ts); } catch (e) {}
+if (accepted) { try { openInvitePanelFor('cuddle', name); } catch (e) {} }
+else { try { const _cl = presetReplyPick('贴贴·婉拒', CUDDLE_DECLINE); if (_cl) addOut(_cl); } catch (e) {} }
+}, {
+noInput: true,
+lock: true,
+pills: [{ label: '同意', value: '1' }, { label: '拒绝', value: '0' }],
+pill: '1', // 与 openInviteConfirm 同款默认选中「同意」
+staticText: name + ' ' + (p.text || '')
+});
+return true;
+}
+window.queueCuddleInvite = function (payload) {
+try {
+payload = payload || {};
+const cid = payload.cid || window.__activeCid || 'default';
+const p = { ts: payload.ts || Date.now(), text: payload.text || '', name: payload.name || '' };
+_cpSave(cid, p);
+try { if (window.addCuddleRecordFor) window.addCuddleRecordFor(cid, { ts: p.ts, text: p.text, res: 'pending' }); } catch (e) {}
+_cpPump(cid);
+_cpStart();
+return true;
+} catch (e) { return false; }
+};
+window.clearCuddleInvitePending = function (cid, ts) {
+try {
+const p = _cpLoad(cid);
+if (p && (!ts || p.ts === ts)) _cpClear(cid);
+if (!_cpAny()) _cpStop();
+return true;
+} catch (e) { return false; }
+};
+window.cuddleInvitePopupLive = function (ts) { return _cpOnScreen(ts); };
+['mochi-fg-resume', 'contact-switched', 'mochi-restore-done'].forEach(function (ev) {
+try {
+document.addEventListener(ev, function () {
+_cpPump(window.__activeCid || 'default');
+if (!_cpAny()) _cpStop();
+});
+} catch (e) {}
+});
+try { if (window.mochiOnDataReady) window.mochiOnDataReady(function () { _cpPump(window.__activeCid || 'default'); if (_cpAny()) _cpStart(); }); } catch (e) {}
 function openInvitePanelFor(kind, name) {
 if (kind === 'cuddle') {
 try { if (navigator.vibrate) navigator.vibrate([30, 60, 90]); } catch (e) {}
-try { addInTyped(name + ' ' + pick(CUDDLE_REPLIES)); } catch (e) {}
+try { const _cr = presetReplyPick('贴贴·回应', CUDDLE_REPLIES); if (_cr) addInTyped(name + ' ' + _cr); } catch (e) {}
 return;
 }
 if (kind === 'rps') { if (window.openRpsPanel) window.openRpsPanel(); return; }
@@ -6584,12 +6749,16 @@ showTyping();
 setTimeout(() => {
 hideTyping();
 const _cuddleInv = inv.kind === 'cuddle';
+if (_cuddleInv && window.queueCuddleInvite) {
+try { window.queueCuddleInvite({ name: name, text: inv.text || '' }); } catch (e) {}
+return;
+}
 openInviteConfirm(name + ' 的' + meta.title, name + ' ' + (inv.text || ''), () => {
 if (_cuddleInv && window.chatAddSystem) window.chatAddSystem('你接受了 ' + name + ' 的贴贴邀请');
 openInvitePanelFor(inv.kind, name);
-}, _cuddleInv ? CUDDLE_DECLINE : null, _cuddleInv ? () => {
+}, _cuddleInv ? CUDDLE_DECLINE : null, _cuddleInv ? '贴贴·婉拒' : '游戏邀请·婉拒', _cuddleInv ? () => {
 if (window.chatAddSystem) window.chatAddSystem('你拒绝了 ' + name + ' 的贴贴邀请');
-addOut(pick(CUDDLE_DECLINE));
+const _cl = presetReplyPick('贴贴·婉拒', CUDDLE_DECLINE); if (_cl) addOut(_cl);
 } : null);
 }, randInt(700, 1400));
 }
@@ -8389,7 +8558,11 @@ const chatAskOk = document.getElementById('chat-ask-ok');
 const chatAskCancel = document.getElementById('chat-ask-cancel');
 const chatAskClose = document.getElementById('chat-ask-close');
 let chatAskMode = 'invite'; // invite / ask
-let chatAskType = 'text'; // ask 模式回复类型：text 文字回复 / single 单选题
+let chatAskType = 'text'; // ask 模式回复类型：text 文字回复 / single 单选题 / multi 多选题（#1415）
+const ASK_OPTS_PH = {
+single: '单选题选项：每行一个；可写 选项~TA回应，TA会选一个并用该回应回复',
+multi: '多选题选项：每行一个；可写 选项~TA回应，TA会按「最多选几个」选若干个并用该回应回复'
+};
 function ensureChatAskTypeRow() {
 if (!chatAskPanel || chatAskPanel.querySelector('.chat-ask-type')) return;
 const askBody = chatAskPanel.querySelector('.chat-ask-body');
@@ -8399,7 +8572,8 @@ typeRow.className = 'chat-ask-type';
 typeRow.hidden = true;
 typeRow.innerHTML =
 '<button class="chat-ask-type-btn sel" data-atype="text">文字回复</button>' +
-'<button class="chat-ask-type-btn" data-atype="single">单选题</button>';
+'<button class="chat-ask-type-btn" data-atype="single">单选题</button>' +
+'<button class="chat-ask-type-btn" data-atype="multi">多选题</button>';
 const optsWrap = document.createElement('div');
 optsWrap.className = 'dec-inp-wrap chat-ask-opts-wrap';
 optsWrap.hidden = true;
@@ -8407,7 +8581,7 @@ const opts = document.createElement('textarea');
 opts.id = 'chat-ask-opts';
 opts.className = 'chat-ask-opts';
 opts.rows = 3;
-opts.placeholder = '单选题选项：每行一个；可写 选项~TA回应，TA会选一个并用该回应回复';
+opts.placeholder = ASK_OPTS_PH.single;
 opts.hidden = true;
 const optsClear = document.createElement('button');
 optsClear.type = 'button';
@@ -8430,7 +8604,9 @@ const actions = askBody.querySelector('.chat-ask-actions');
 if (actions) { askBody.insertBefore(typeRow, actions); askBody.insertBefore(optsWrap, actions); }
 else { askBody.appendChild(typeRow); askBody.appendChild(optsWrap); }
 const syncOptsHidden = () => {
-const show = chatAskType === 'single';
+const show = chatAskType === 'single' || chatAskType === 'multi';
+opts.placeholder = ASK_OPTS_PH[chatAskType] || ASK_OPTS_PH.single;
+syncAskMultiRow();
 optsWrap.hidden = !show;
 opts.hidden = !show;
 if (opts.__ceBox) opts.__ceBox.style.display = show ? 'block' : 'none';
@@ -8440,7 +8616,7 @@ try { obox.style.transform = show ? 'translateZ(0)' : ''; } catch (e) {}
 };
 typeRow.querySelectorAll('.chat-ask-type-btn').forEach(btn => {
 btn.addEventListener('click', () => {
-chatAskType = btn.dataset.atype === 'single' ? 'single' : 'text';
+chatAskType = btn.dataset.atype === 'single' || btn.dataset.atype === 'multi' ? btn.dataset.atype : 'text';
 typeRow.querySelectorAll('.chat-ask-type-btn').forEach(b => b.classList.toggle('sel', b === btn));
 syncOptsHidden();
 askBoxes().forEach(({ box }) => {
@@ -8469,7 +8645,38 @@ if (wrap) wrap.hidden = true;
 if (opts.__ceBox) opts.__ceBox.style.display = 'none';
 else if (opts.previousElementSibling && opts.previousElementSibling.classList && opts.previousElementSibling.classList.contains('ce-box')) opts.previousElementSibling.style.display = 'none';
 }
+syncAskMultiRow();
 }
+function askMultiMaxLoad() {
+try { const n = parseInt(store.get('ask-multi-max'), 10); return (n >= 2 && n <= 6) ? n : 3; } catch (e) { return 3; }
+}
+function askMultiMaxSave(n) {
+try { store.set('ask-multi-max', String(n >= 2 && n <= 6 ? n : 3)); } catch (e) {}
+}
+window.askMultiMaxLoad = askMultiMaxLoad;
+window.askMultiMaxSave = askMultiMaxSave;
+function mochiPickMulti(len, maxPick) {
+const n = Number(len) || 0;
+if (n <= 0) return [];
+const hi = Math.min(Math.max(2, Number(maxPick) || 2), n);
+const lo = Math.min(2, n);
+const count = lo + Math.floor(Math.random() * (hi - lo + 1));
+const idx = [];
+for (let i = 0; i < n; i++) idx.push(i);
+for (let i = idx.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = idx[i]; idx[i] = idx[j]; idx[j] = t; }
+return idx.slice(0, count).sort((a, b) => a - b);
+}
+window.mochiPickMulti = mochiPickMulti;
+function mochiAnswerHits(optText, answer) {
+const o = String(optText == null ? '' : optText).trim();
+const a = String(answer == null ? '' : answer).trim();
+if (!o || !a) return false;
+if (a === o) return true;
+const segs = a.split('、').map(s => s.trim()).filter(Boolean);
+if (segs.length <= 1) return false;
+return segs.indexOf(o) >= 0;
+}
+window.mochiAnswerHits = mochiAnswerHits;
 function askThinkSecsLoad() {
 try { const n = parseInt(store.get('ask-think-secs'), 10); return (n >= 1 && n <= 10) ? n : 3; } catch (e) { return 3; }
 }
@@ -8496,6 +8703,41 @@ row.querySelector('.stp-max').addEventListener('click', (e) => { if (e) e.stopPr
 }
 row.hidden = chatAskMode !== 'ask';
 row.querySelector('.stp-val').value = askThinkSecsLoad();
+}
+function syncAskMultiRow() {
+const row = chatAskPanel ? chatAskPanel.querySelector('.chat-ask-multi-row') : null;
+if (!row) return;
+row.hidden = !(chatAskMode === 'ask' && chatAskType === 'multi');
+const val = row.querySelector('.stp-val');
+if (val) val.value = askMultiMaxLoad();
+}
+function ensureChatAskMultiRow() {
+if (!chatAskPanel) return;
+const askBody = chatAskPanel.querySelector('.chat-ask-body');
+if (!askBody) return;
+let row = chatAskPanel.querySelector('.chat-ask-multi-row');
+if (!row) {
+row = document.createElement('div');
+row.className = 'gs-row chat-ask-multi-row';
+row.innerHTML = '<span>最多选几个</span><div class="stepper" id="chat-ask-mmax" data-min="2" data-max="6" data-step="1"><button type="button" class="stp-min">−</button><input class="stp-val" readonly><button type="button" class="stp-max">+</button></div>';
+const think = chatAskPanel.querySelector('.chat-ask-think-row');
+if (think && think.parentElement) think.parentElement.insertBefore(row, think.nextSibling);
+else {
+const actions = askBody.querySelector('.chat-ask-actions');
+if (actions) askBody.insertBefore(row, actions); else askBody.appendChild(row);
+}
+const val = row.querySelector('.stp-val');
+const clampSave = () => {
+let n = parseInt(val.value, 10);
+if (isNaN(n)) n = 3;
+else n = n < 2 ? 2 : (n > 6 ? 6 : n);
+val.value = n;
+askMultiMaxSave(n);
+};
+row.querySelector('.stp-min').addEventListener('click', (e) => { if (e) e.stopPropagation(); val.value = (parseInt(val.value, 10) || 3) - 1; clampSave(); });
+row.querySelector('.stp-max').addEventListener('click', (e) => { if (e) e.stopPropagation(); val.value = (parseInt(val.value, 10) || 3) + 1; clampSave(); });
+}
+syncAskMultiRow();
 }
 function askBoxes() {
 const arr = [chatAskInput, document.getElementById('chat-ask-opts')];
@@ -8560,6 +8802,7 @@ if (!chatAskPanel) return;
 chatAskMode = mode || 'invite';
 ensureChatAskTypeRow();
 ensureChatAskThinkRow();
+ensureChatAskMultiRow();
 resetChatAskType();
 if (chatAskTitle) chatAskTitle.textContent = chatAskMode === 'invite' ? '邀请TA' : '问问TA';
 if (chatAskInput) {
@@ -8617,20 +8860,21 @@ if (!chatAskInput) return;
 const content = (chatAskInput.value || '').trim();
 if (!content) { toast('请输入内容'); return; }
 let askOpts = null;
-if (chatAskMode === 'ask' && chatAskType === 'single') {
+if (chatAskMode === 'ask' && (chatAskType === 'single' || chatAskType === 'multi')) {
+const multi = chatAskType === 'multi';
 const optsEl = document.getElementById('chat-ask-opts');
 askOpts = String(optsEl ? optsEl.value || '' : '').split(/\r?\n/).map(s => s.trim()).filter(Boolean).map(line => {
 const i = line.indexOf('~');
 return i >= 0 ? { t: line.slice(0, i).trim(), reply: line.slice(i + 1).trim() } : { t: line, reply: '' };
 });
-if (!askOpts.length) { toast('单选题请填写选项，每行一个'); return; }
+if (!askOpts.length) { toast((multi ? '多选题' : '单选题') + '请填写选项，每行一个'); return; }
+if (multi && askOpts.length < 2) { toast('多选题至少填 2 个选项'); return; }
 }
 closeChatAskPanel();
 if (chatAskMode === 'invite') {
 sendInviteContent(content);
 } else {
-const isSingle = !!askOpts;
-addRec({ side: 'out', text: '问：' + content, special: 'ask', askQuestion: content, askType: isSingle ? 'single' : 'text', askOptions: askOpts, askStatus: 'pending' });
+addRec({ side: 'out', text: '问：' + content, special: 'ask', askQuestion: content, askType: askOpts ? chatAskType : 'text', askOptions: askOpts, askStatus: 'pending' });
 const askIdx = msgs.length - 1;
 const askRecTs = (msgs[askIdx] && msgs[askIdx].special === 'ask') ? msgs[askIdx].ts : 0;
 const locateAsk = () => {
@@ -8648,9 +8892,12 @@ const defs = window.getInteractPool
 ? window.getInteractPool('问问TA·回应', ['嗯嗯', '我想想…', '应该吧', '好呀', '我陪你', '可以的', '那挺好呀', '我觉得可以', '听你的', '当然可以', '我很乐意'])
 : ['嗯嗯', '我想想…', '应该吧', '好呀', '我陪你', '可以的', '那挺好呀', '我觉得可以', '听你的', '当然可以', '我很乐意'];
 let text;
-if (isSingle && askOpts && askOpts.length) {
-const o = askOpts[Math.floor(Math.random() * askOpts.length)];
-text = o.t;
+if (askOpts && askOpts.length) {
+if (chatAskType === 'multi') {
+text = mochiPickMulti(askOpts.length, askMultiMaxLoad()).map(k => String(askOpts[k].t || '')).join('、');
+} else {
+text = String(askOpts[Math.floor(Math.random() * askOpts.length)].t || '');
+}
 } else {
 text = (window.pickAskCardReply ? window.pickAskCardReply(defs) : defs[Math.floor(Math.random() * defs.length)]);
 }
@@ -8920,7 +9167,7 @@ return false;
 function myInviteView() {
 const out = [];
 const pre = myInviteG().find(g => g[0] === '__preset');
-out.push({ key: '__preset', label: '预设', cards: (pre && Array.isArray(pre[1])) ? pre[1].slice() : MY_INVITE_PRESETS.slice(), preset: true });
+out.push({ key: '__preset', label: '预设', cards: ((pre && Array.isArray(pre[1])) ? pre[1].slice() : MY_INVITE_PRESETS.slice()).filter(c => !(typeof window.isDefaultCardOff === 'function' && window.isDefaultCardOff('interact', c))), preset: true });
 myInviteG().forEach(g => {
 if (g[0] === '__preset') return;
 if (!Array.isArray(g) || !Array.isArray(g[1]) || !g[0]) return;

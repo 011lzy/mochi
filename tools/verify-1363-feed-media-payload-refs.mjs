@@ -372,7 +372,7 @@ console.log('\n— 存量自愈（老动态里原样存着的载荷，下一轮�
       return { id: 'old_' + i, role: 'ta', owner: 'default', authorName: '小桃', taName: '小桃', authorAv: '', taAv: '',
         content: '老的一条 ' + i + ' ' + c, imgs: [c], stickers: [{ src: c, emoji: '', x: 20, y: 30, ts: 1700000000000 + i, role: 'me', owner: 'me', authorName: '我' }],
         comments: [{ role: 'me', owner: 'me', authorName: '我', ts: 1700000009000 + i, content: '老的评论带图 ZZ1363B ' + c, replies: [{ role: 'ta', owner: 'default', authorName: '小桃', ts: 1700000019000 + i, content: '老的回复带图 ' + c, replies: [] }] }],
-        likes: [], ts: 1700000000000 + i * 60000 };
+        likes: [], ts: Date.now() - i * 60000 };
     });
     var raw = JSON.stringify(posts);
     localStorage.setItem(${JSON.stringify(K_MAIN)}, raw);
@@ -406,7 +406,7 @@ console.log('\n— 旧契约（#1257/#1219/#1336/#187/#186 领地一字不许动
 {
   // B2 小于 1024 的载荷：媒体池本就不收，保持内联（不硬塞、不判缺失）
   const setupB2 = `
-    localStorage.setItem(${JSON.stringify(K_MAIN)}, JSON.stringify([{ id: 'tiny_1', role: 'me', owner: 'me', authorName: '我', authorAv: '', taName: '小桃', taAv: '', content: '小图一条 ZZ1363T', imgs: [window.__small], stickers: [], comments: [], likes: [], ts: 1700000000000 }]));
+    localStorage.setItem(${JSON.stringify(K_MAIN)}, JSON.stringify([{ id: 'tiny_1', role: 'me', owner: 'me', authorName: '我', authorAv: '', taName: '小桃', taAv: '', content: '小图一条 ZZ1363T', imgs: [window.__small], stickers: [], comments: [], likes: [], ts: Date.now() }]));
     window.__fd('fd-post-en', 0);
   `;
   const { ctx, page } = await session({ setup: setupB2 });

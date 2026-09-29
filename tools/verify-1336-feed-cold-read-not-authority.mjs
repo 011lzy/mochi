@@ -54,7 +54,10 @@ const ok = (c, n, x) => { if (c) { pass++; console.log('  ✓ ' + n); } else { f
 
 const K_MAIN = 'xy-home-v2:feed-posts';
 const K_SNAP = 'xy-home-v2:default:feed-posts-snap';
-const T = 1700000000000;
+// #1434：朋友圈列表改成「本周＋按月」翻页折叠——种子必须落在默认那一页（本自然周）里，否则尺子量的
+//   「屏上条数」会被折到 2023 年 11 月那一页去（数据层断言照旧对、屏幕读数归零＝假红）。本尺测的是
+//   「冷读时不许把剥图快照当权威」，与这批数据是哪一年写的无关。
+const T = (function () { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime() + 60000; })();
 const mkArr = (n, tag, pad) => Array.from({ length: n }, (_, i) => ({
   id: tag + '_' + i, role: i % 2 ? 'ta' : 'me', owner: 'default',
   authorName: i % 2 ? '小桃' : '我', authorAv: '', taName: '小桃', taAv: '',

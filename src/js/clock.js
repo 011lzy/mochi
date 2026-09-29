@@ -446,6 +446,19 @@
       updateEnterState();
     });
   }
+  // #1453：勾选行旁「查看免责声明」→ 滚回上面那张免责卡（#splash-disclaimer）。
+  //   preventDefault：挡掉 <a> 默认的 hash 跳转（#splash-box 才是整页滚动容器，走 scrollIntoView
+  //   的手感与目录跳转一致）。该 <a> 在 <label> 内，但交互元素本身不触发 label 的勾选激活。
+  //   只提供「查看」入口，门控一字未动：未勾选仍进不去（updateEnterState）。
+  const ageView = document.getElementById('splash-age-view');
+  if (ageView) {
+    ageView.addEventListener('click', function (ev) {
+      const card = document.getElementById('splash-disclaimer');
+      if (!card) return;
+      ev.preventDefault();
+      card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
   // v3.26.x：数据加载较慢（idbRestore 12 秒保险丝触发）且未真就绪时显示的逃生口链接
   const forceEnterEl = document.getElementById('splash-force-enter');
   let slow = false;

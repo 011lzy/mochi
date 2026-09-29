@@ -13,6 +13,16 @@ const POKE_MSGS = ['在干嘛呢？', '忙完了吗？', '想我了没有？', '
 const SESSION_ID = 's' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
 const PENDING_TTL_MS = 10 * 60 * 1000;
 const BUSY_ESCAPE = 3;                // 软互斥最多让路 3 轮（3 分钟），之后照投——防别的弹窗长期占屏变成新的永不触发
+const CK_BG_HOLD_MS = 3 * 60 * 1000;
+function recordMissedCheckin(req) {
+try {
+if (window.addCareRecordFor) window.addCareRecordFor(req.cid, 'desk-checkin', req.text || '', req.ts || Date.now(), 'missed');
+} catch (e) {}
+}
+function msgTitle(req) {
+const name = cName(req.cid);
+return req.kind === 'chat' ? name + ' 想找你聊天' : (req.kind === 'call' ? name + ' 来电了' : name + ' 来查岗了');
+}
 function deskCheckinEn() {
 try {
 const v = window.xyStore(ROOT).get(EN_KEY);
@@ -122,7 +132,7 @@ ico: '<svg viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.8" s
 title: '联系人跨桌面查岗',
 subTag: '功能说明',
 tagTitle: '联系人跨桌面查岗',
-detail: '其他桌面的联系人是各自独立触发、互不影响：TA 每 60 秒「探测」一次你是否还醒着，触发频率按「跨桌面查岗频率」档位全局统一控制（原频率/安静/更安静/最安静，下方可选，含来电；没有比「原频率」更高的档）；同一联系人触发后有冷却、不重复打扰。你回复后 TA 会现场回应。关闭后其他桌面的 TA 不再来查岗、也不再找你聊天。想立刻来一次：聊天 →「更多功能 → TA的提问 → 跨桌面查岗」（不看概率与冷却；本开关关着时只提示、不触发）。',
+detail: '其他桌面的联系人是各自独立触发、互不影响：TA 每 60 秒「探测」一次你是否还醒着，触发频率按「跨桌面查岗频率」档位全局统一控制（原频率/安静/更安静/最安静，下方可选，含来电；没有比「原频率」更高的档）；同一联系人触发后有冷却、不重复打扰。你回复后 TA 会现场回应。浏览器在后台时收到的查岗会像来电一样等你 3 分钟（通知里写明「快回来回应」），回到应用弹同一个窗；3 分钟内没回来＝错过，这一次不会出现在 TA 桌面的聊天里，只在主页「联系人跨桌面查岗」记一行「错过未回应」。弹窗里点了「稍后」或「现在回TA」的，卡都留在 TA 桌面的聊天里可补答。关闭后其他桌面的 TA 不再来查岗、也不再找你聊天。想立刻来一次：聊天 →「更多功能 → TA的提问 → 跨桌面查岗」（不看概率与冷却；本开关关着时只提示、不触发）。',
 get: deskCheckinEn,
 set: window.setDeskCheckinEn,
 toast: function (en) { return en ? '已开启：其他桌面的TA会来查岗、找你聊天' : '已关闭：其他桌面的TA不再来查岗打扰'; }
@@ -291,9 +301,11 @@ const ours = !!(mask && !mask.hidden && titleEl && titleEl.textContent === liveM
 if (ours) return;
 delete liveModals[cid];
 var wasCall = queue().some(function (x) { return x.cid === cid && x.status === 'pending' && x.kind === 'call'; });
+var wasCk = queue().filter(function (x) { return x.cid === cid && x.status === 'pending' && x.kind === 'checkin'; }).pop() || null;
 if (setStatus(cid, 'seen')) {
 noteRelease('弹窗消失未应答，释放 ' + cName(cid));
 if (wasCall && window.callRecordMissed) window.callRecordMissed(cid, cName(cid));
+if (wasCk) recordMissedCheckin(wasCk);
 }
 });
 }
@@ -304,8 +316,10 @@ const now = Date.now();
 let healed = 0;
 q.forEach(function (x) {
 if (x.status === 'pending' && x.sid !== SESSION_ID && now - (x.ts || 0) > PENDING_TTL_MS) {
+const arrivedAt = x.ts || now; // #1435：记录里的时间用「TA 发起那一刻」，不是自愈那一刻
 x.status = 'seen'; x.ts = now; healed++;
 if (x.kind === 'call' && window.callRecordMissed) { try { window.callRecordMissed(x.cid, cName(x.cid)); } catch (e) {} }
+if (x.kind === 'checkin') recordMissedCheckin({ cid: x.cid, text: x.text, ts: arrivedAt });
 }
 });
 const filtered = q.filter(x => x.status !== 'seen' || now - (x.ts || 0) < seenKeepMs);
@@ -381,11 +395,12 @@ if (req.kind === 'call' && window.callInProgress && window.callInProgress()) ret
 if (!document.hidden && (hardLocked() || typingBusy())) return false;
 if (!force && !document.hidden && layerBusy()) return false;
 req.sid = SESSION_ID;   // v3.26.x #264：弹窗只活在本页面会话，标记归属才能识别跨会话孤儿
+if (document.hidden && req.kind === 'checkin') req.bgHold = 1;
 q.push(req);
 saveQ(q);
 markLast(req.cid, req.kind);
 const name = cName(req.cid);
-const title = req.kind === 'chat' ? name + ' 想找你聊天' : (req.kind === 'call' ? name + ' 来电了' : name + ' 来查岗了');
+const title = msgTitle(req);
 if (document.hidden) {
 try {
 const av = cAvatar(req.cid);
@@ -394,9 +409,8 @@ if (window.callHoldIncoming) window.callHoldIncoming(name, req.cid, av);
 else if (window.bgNotifyCheck) window.bgNotifyCheck(title, Date.now(), { name: name + '来电', av: av, avFixed: true, force: true });
 } else if (req.kind === 'checkin') {
 if (!deskQSeenRecently(req.cid, req.text)) {
-if (window.chatAppendDeskCkTo) window.chatAppendDeskCkTo(req.cid, req.q);
-try { if (window.addCareRecordFor) window.addCareRecordFor(req.cid, 'desk-checkin', req.text, Date.now()); } catch (e) {}
-if (window.bgNotifyCheck) window.bgNotifyCheck(title + '：' + (req.text || ''), Date.now(), { name: name + '查岗', av: av, avFixed: true });
+if (window.bgNotifyCheck) window.bgNotifyCheck(title + '：' + (req.text || '') + '，快回来回应，TA 会等你几分钟', Date.now(), { name: name + '查岗', av: av, avFixed: true });
+return true;
 }
 } else { // chat 求聊天
 if (window.chatAppendDeskTextTo) window.chatAppendDeskTextTo(req.cid, req.text || '想你了，来聊聊天吧。');
@@ -407,6 +421,12 @@ setStatus(req.cid, 'seen');
 return true;
 }
 if (!window.openModal) return true;
+showPopup(req);
+return true;
+}
+function showPopup(req) {
+if (!window.openModal) return false;
+const title = msgTitle(req);
 const okText = req.kind === 'chat' ? '同意' : (req.kind === 'call' ? '接听' : '现在回TA');
 const staticText = req.kind === 'call'
 ? '想听听你的声音，接一下好吗？'
@@ -422,7 +442,7 @@ delete liveModals[req.cid]; // 已应答（无论选哪边）→ 不再需要对
 if (v === 'later') {
 if (req.kind === 'checkin' && !deskQSeenRecently(req.cid, req.text)) {
 try { if (window.chatAppendDeskCkTo) window.chatAppendDeskCkTo(req.cid, req.q); } catch (e) {}
-try { if (window.addCareRecordFor) window.addCareRecordFor(req.cid, 'desk-checkin', req.text, Date.now()); } catch (e) {}
+try { if (window.addCareRecordFor) window.addCareRecordFor(req.cid, 'desk-checkin', req.text, Date.now(), 'later'); } catch (e) {}
 }
 if (req.kind === 'call' && window.callRecordMissed) window.callRecordMissed(req.cid, cName(req.cid));
 setStatus(req.cid, 'seen');
@@ -439,6 +459,32 @@ pill: req.kind === 'call' ? undefined : 'reply'
 try { if (modalCtl && modalCtl.okText) modalCtl.okText('确认'); } catch (e) {}
 liveModals[req.cid] = title; // v3.26.x #264：登记活弹窗，弹窗被顶掉/关闭时对账释放 pending
 return true;
+}
+function resumeHeldCheckins() {
+try {
+const held = queue().filter(function (x) { return x && x.kind === 'checkin' && x.status === 'pending' && x.bgHold; });
+if (!held.length) return;
+const now = Date.now();
+held.forEach(function (x) {
+if (liveModals[x.cid]) return;
+if (now - (x.ts || 0) > CK_BG_HOLD_MS) {
+if (setStatus(x.cid, 'seen')) {
+recordMissedCheckin(x);
+noteRelease('后台挂起超时未回，记为错过 ' + cName(x.cid));
+}
+return;
+}
+if (document.hidden || hardLocked() || typingBusy() || layerBusy()) return; // 还没轮得到它
+try {
+const q2 = queue();
+let hit = false;
+q2.forEach(function (y) { if (y && y.cid === x.cid && y.kind === 'checkin' && y.status === 'pending') { y.bgHold = 0; hit = true; } });
+if (hit) saveQ(q2);
+} catch (e) {}
+x.bgHold = 0;
+if (showPopup(x)) noteRelease('回前台重投挂起的查岗 ' + cName(x.cid));
+});
+} catch (e) {}
 }
 function goReply(req) {
 const cid = req.cid;
@@ -489,7 +535,7 @@ return;
 if (req.kind === 'checkin') {
 ensureTaName(req.cid);
 if (window.addCareRecordFor) {
-try { window.addCareRecordFor(req.cid, 'desk-checkin', req.text, Date.now()); } catch (e) {}
+try { window.addCareRecordFor(req.cid, 'desk-checkin', req.text, Date.now(), 'replied'); } catch (e) {}
 }
 let q = (req.q && req.q.text) ? req.q : (window.ckQuestionPickFor ? window.ckQuestionPickFor(req.cid) : null);
 if (!q || !q.text) q = window.ckQuestionPickFor ? window.ckQuestionPickFor(req.cid) : null;
@@ -513,6 +559,7 @@ try {
 try { if (window.__mochiPhase) window.__mochiPhase('xd-poll'); } catch (e0) {}
 ticks++;
 reconcileLiveModals();
+resumeHeldCheckins();
 if (window.nightModeActive && window.nightModeActive()) return;
 if (hardLocked()) return;
 var escape = false; // 本轮一次性额度：只授权顶掉一次屏幕，投成功即收回
@@ -602,6 +649,12 @@ return {
 ticks: ticks,
 mode: deskFreqMode(), prob: dm.prob, cool: dm.cool,
 pending: q.filter(function (x) { return x.status === 'pending'; }).length,
+holding: q.filter(function (x) { return x.status === 'pending' && x.bgHold && x.kind === 'checkin'; }).length,
+holdLeftMs: (function () {
+var old = q.filter(function (x) { return x.status === 'pending' && x.bgHold && x.kind === 'checkin'; })
+.reduce(function (m, x) { return Math.min(m, (x.ts || 0) + CK_BG_HOLD_MS); }, Infinity);
+return old === Infinity ? 0 : Math.max(0, old - now);
+})(),
 live: Object.keys(liveModals).length,
 gate: hardLocked() ? '锁屏中' : (typingBusy() ? '输入中暂停' : (layerBusy() ? ('浮层占用让路' + busyTicks + '/' + BUSY_ESCAPE) : '空闲')),
 hidden: !!document.hidden,
@@ -621,6 +674,7 @@ setTimeout(startIncomingTick, 12000);
 document.addEventListener('visibilitychange', function () {
 if (document.hidden || !started) return;
 reconcileLiveModals();
+resumeHeldCheckins();
 setTimeout(maybeIncoming, 3000);
 });
 })();

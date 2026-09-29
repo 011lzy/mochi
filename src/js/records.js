@@ -147,48 +147,138 @@
   function caresSave(list) { store.set('records-care', JSON.stringify(list.slice(0, 100))); }
   // kind: checkin=查岗 / period=经期关心 / water=喝水提醒 / eat=吃饭提醒 / pomo=番茄陪伴
   // v3.17.x：desk-checkin=桌面查岗（跨桌面「来消息」触发的查岗，记到【该联系人自己桌面】的
-  // records-care，主页关心记录按联系人聚合展示；与聊天里触发的 checkin 区分，见 renderCarePanel）
+  // records-care）。#1435 起这一类不再在「TA的关心」里出现，改由主页「联系人跨桌面查岗」一栏
+  // 按联系人聚合展示（作者口径：移出来，各归各 tab）；res 是新加的结局标签（replied/later/missed），
+  // 老记录没有这个字段，那一行就不显示结局，绝不拿默认值冒充「错过」。
   window.addCareRecord = function (kind, text, ts) {
     const list = caresLoad();
     list.unshift({ kind: kind, text: text || '', ts: ts || Date.now() });
     caresSave(list);
     const hp = document.getElementById('page-home');
-    if (hp && !hp.hidden && htab === 'care') renderCarePanel();
+    if (hp && !hp.hidden && (htab === 'care' || (htab === 'xck' && kind === 'desk-checkin'))) render();
   };
   // v3.17.x：写【指定联系人桌面】的关心记录——跨桌面查岗落在该桌面自己的命名空间
-  window.addCareRecordFor = function (cid, kind, text, ts) {
+  // #1435：第 5 参 res＝这次跨桌面查岗的结局（'replied' 点了现在回TA / 'later' 选了稍后 /
+  // 'missed' 弹窗错过没点【确认】）。错过的那条**只落这里、不进聊天**——聊天里没有这张卡是
+  // 作者点名的规则，主页这一栏是它唯一的留痕处。
+  window.addCareRecordFor = function (cid, kind, text, ts, res) {
     try {
       const s = (cid && window.storeFor) ? window.storeFor(cid) : store;
       let list = [];
       try { list = JSON.parse(s.get('records-care') || '[]'); } catch (e) { list = []; }
       if (!Array.isArray(list)) list = [];
-      list.unshift({ kind: kind, text: text || '', ts: ts || Date.now() });
+      list.unshift({ kind: kind, text: text || '', ts: ts || Date.now(), res: res || '' });
       s.set('records-care', JSON.stringify(list.slice(0, 100)));
+      // 记录落在【那个联系人自己的桌面】；只有它正是当前桌面、且主页停在这两栏之一时才重画
+      if (cid === (window.__activeCid || 'default')) {
+        const hp = document.getElementById('page-home');
+        if (hp && !hp.hidden && htab === 'xck') renderXckPanel();
+      }
     } catch (e) {}
   };
+  // ---- 邀请贴贴记录（#1435：TA 发起的贴贴邀请，此前主页查不到，只散在聊天气泡与弹窗里）----
+  // 一条邀请一行，res 随用户回应/超时就地更新（同一 ts 那一行，不另起第二行＝一件事一条记录）。
+  // 键 records-cuddle 走联系人桌面命名空间；feature-data 的 /^records-(?!coin)/ 与整包备份的
+  // 'records-' 前缀都自动认领，无需另登记。
+  function cuddleLoad() {
+    try { const l = JSON.parse(store.get('records-cuddle') || '[]'); return Array.isArray(l) ? l : []; } catch (e) { return []; }
+  }
+  function cuddleSaveFor(cid, list) {
+    // 作者口径（#1403）：不封顶，「我都要保存历史记录」——长靠折叠、要清靠按条删
+    try {
+      const s = (cid && window.storeFor) ? window.storeFor(cid) : store;
+      s.set('records-cuddle', JSON.stringify(list));
+    } catch (e) {}
+  }
+  function cuddleLoadFor(cid) {
+    try {
+      const s = (cid && window.storeFor) ? window.storeFor(cid) : store;
+      const l = JSON.parse(s.get('records-cuddle') || '[]');
+      return Array.isArray(l) ? l : [];
+    } catch (e) { return []; }
+  }
+  window.addCuddleRecordFor = function (cid, rec) {
+    try {
+      if (!rec || !rec.ts) return false;
+      const list = cuddleLoadFor(cid);
+      if (list.some(x => x && x.ts === rec.ts)) return false; // 同一次邀请只记一条
+      list.unshift({ ts: rec.ts, text: rec.text || '', res: rec.res || 'pending' });
+      cuddleSaveFor(cid, list);
+      const hp = document.getElementById('page-home');
+      if (cid === (window.__activeCid || 'default') && hp && !hp.hidden && htab === 'cuddle') renderCuddlePanel();
+      return true;
+    } catch (e) { return false; }
+  };
+  // 结局回收：把同一 ts 那行的 res 换成 replied/declined/missed（找不到＝那条已被删，静默不补行）
+  window.setCuddleRecordResult = function (cid, ts, res) {
+    try {
+      const list = cuddleLoadFor(cid);
+      let hit = false;
+      list.forEach(x => { if (x && x.ts === ts) { x.res = res; hit = true; } });
+      if (!hit) return false;
+      cuddleSaveFor(cid, list);
+      const hp = document.getElementById('page-home');
+      if (cid === (window.__activeCid || 'default') && hp && !hp.hidden && htab === 'cuddle') renderCuddlePanel();
+      return true;
+    } catch (e) { return false; }
+  };
+
   // 查岗/经期/喝水/吃饭从聊天记录回溯（带 tag 或 ask-card），番茄陪伴读 records-care
   function renderCarePanel() {
     const el = document.getElementById('home-care');
     if (!el) return;
     const name = dispName();
     const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-    const KIND_ICON = { checkin: '📋', period: '🌸', water: '💧', eat: '🍚', pomo: '🍅', deskcheck: '🏠' };
+    const KIND_ICON = { period: '🌸', water: '💧', eat: '🍚', pomo: '🍅' };
     const rows = [];
     // 1) 番茄陪伴：records-care 里的 pomo 记录（只记时间）
     caresLoad().forEach(r => { if (r.kind === 'pomo') rows.push({ icon: '🍅', main: '番茄钟陪伴', sub: fmtDT(r.ts), ts: r.ts }); });
-    // 2) 查岗 / 经期 / 喝水 / 吃饭：从聊天记录回溯
-    // v3.25.x：跨桌面查岗卡（deskCk）与该联系人 records-care 里的 desk-checkin 记录是
-    // 同一次事件（记录随卡同刻写入；同联系人冷却 30 分钟，90s 窗口内不会误合并）——
-    // 已有对应记录的卡不再按「查岗」重复列，防同一次查岗在来源桌面出两行；
-    // 无记录的旧卡（历史数据/仅聊天触发）仍照列。
-    let careTs = [];
-    try { caresLoad().forEach(r => { if (r && r.kind === 'desk-checkin') careTs.push(r.ts || 0); }); } catch (e) {}
+    // 2) 经期 / 喝水 / 吃饭：从聊天记录的 mood tag 回溯
+    // #1435（作者「移出来，各归各 tab」）：这一栏原有的两类查岗行不再在这儿现算——
+    //  · 本桌面的查岗卡 → 主页「联系人对我查岗」（renderCkPanel）
+    //  · 其他桌面来查岗（records-care 的 desk-checkin）→ 主页「联系人跨桌面查岗」（renderXckPanel）
+    // 顺带修掉一处指认错误：TA 的询问（ta-ask.js:918 的 ask-card，带 askTs）此前也被这一栏
+    // 列成「查岗 · <问题>」，它其实是「询问」不是查岗，那一类有各自的提问记录页。
     let msgs = [];
     try { msgs = (window.getChatMsgs ? window.getChatMsgs() : JSON.parse(store.get('chat-msgs') || '[]')); } catch (e) {}
-    // FIX 2026-09-16 #588：本段原是 O(n²)——每条 ask-msg 都要把整个 msgs 再 some() 一遍找
-    //   30s 内的问卡；聊天记录上千条时，点开「关心」页签会明显卡住（用户感知＝点了没反应）。
-    //   改为先把问卡时间戳排序一次，再按 [t-30000, t+30000) 二分查，
-    //   与原判定 Math.abs((o.ts||0) - t) < 30000 完全等价。
+    (msgs || []).forEach(m => {
+      if (!m) return;
+      const t = m.ts || 0;
+      const tag = (m.mood && m.mood[0] && m.mood[0].tag) || '';
+      if (tag === '经期关心') rows.push({ icon: KIND_ICON.period, main: '经期关心 · ' + esc(m.text || ''), sub: fmtDT(t), ts: t });
+      else if (tag === '喝水提醒') rows.push({ icon: KIND_ICON.water, main: '提醒喝水 · ' + esc(m.text || ''), sub: fmtDT(t), ts: t });
+      else if (tag === '吃饭提醒') rows.push({ icon: KIND_ICON.eat, main: '提醒吃饭 · ' + esc(m.text || ''), sub: fmtDT(t), ts: t });
+    });
+    if (!rows.length) { el.innerHTML = recEmpty('<div class="ta-empty">暂无联系人的关心记录（TA 会提醒你喝水吃饭、关心经期、陪你专注；查岗看「联系人对我查岗」与「联系人跨桌面查岗」两栏）</div>'); return; }
+    rows.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+    // #1403：这两栏（关心／红包）只做「当天直显＋更早按月折叠」，**刻意不给按条删除**——
+    // 它们是**现算出来的汇总视图**：关心＝聊天记录里带 mood 标记的那几条 ＋ records-care 里的番茄陪伴，
+    // 红包＝聊天记录里 special==='redpacket' 的那几条。条目身份就是聊天原文本身，
+    // 在这一页删一条＝替用户改动聊天历史；而站内删消息只在聊天里做、且有「只允许删对方发来的」那一族
+    // 限制（chat.js 的 del 分支），从汇总页绕过它＝造出第二份真相与「删了又回来」的新竞态。
+    // 所以这一栏的职责是「看全」，要清就回那条消息所在的地方清；能按条删的都是本站自己的数组
+    // （寻踪记录、摸鱼/打工值、心意柜、提问记录五档、#1435 的邀请贴贴）。
+    el.innerHTML = window.mochiHistFold(rows.map(r => ({ ts: Number(r.ts) || 0, html: '<div class="tc-listitem"><div class="tc-li-top"><span class="tc-li-q">' + r.icon + ' ' + r.main + '</span><span class="tc-li-time">' + r.sub + '</span></div></div>' })), {
+      key: 'records-care',
+      todayEmpty: '<div class="dc-h-day-empty">今天暂无关心记录</div>'
+    });
+  }
+  // ---- 联系人对我查岗（#1435：从「TA的关心」搬出来单列）----
+  // 现算自【本桌面】聊天记录，不另开数组：查岗卡＝ck-question.js:337 发的 ask-card。
+  // 两个排除条件都是身份判据，不是猜的：
+  //  · m.askTs 有值＝ta-ask.js:918 的「TA 的询问」（有自己的提问记录页），不是查岗；
+  //  · m.deskCk 有值＝跨桌面那一路发的卡，归「联系人跨桌面查岗」。
+  // ask-msg 提示语只作补充（卡被删掉时留个痕）；这一栏与关心同族＝汇总视图 → 只折叠、不给按条删。
+  function renderCkPanel() {
+    const el = document.getElementById('home-ck');
+    if (!el) return;
+    const name = dispName();
+    const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    let msgs = [];
+    try { msgs = (window.getChatMsgs ? window.getChatMsgs() : JSON.parse(store.get('chat-msgs') || '[]')); } catch (e) {}
+    // FIX 2026-09-16 #588 同款（这段随「查岗」一起从关心搬过来，口径一字未动）：本段原是 O(n²)——
+    //   每条 ask-msg 都要把整个 msgs 再 some() 一遍找 30s 内的问卡；聊天记录上千条时点开页签会明显卡住。
+    //   先把问卡时间戳排序一次，再按 [t-30000, t+30000) 二分查，与原判定 Math.abs(dt) < 30000 完全等价。
     const askCardTs = [];
     (msgs || []).forEach(o => { if (o && o.special === 'ask-card' && o.askQuestion) askCardTs.push(o.ts || 0); });
     askCardTs.sort((a, b) => a - b);
@@ -200,51 +290,114 @@
       while (lo < hi) { const mid = (lo + hi) >> 1; if (askCardTs[mid] <= from) lo = mid + 1; else hi = mid; }
       return lo < askCardTs.length && askCardTs[lo] < to;
     };
+    const ckRows = [];
     (msgs || []).forEach(m => {
       if (!m) return;
       const t = m.ts || 0;
-      const tag = (m.mood && m.mood[0] && m.mood[0].tag) || '';
-      if (tag === '经期关心') rows.push({ icon: KIND_ICON.period, main: '经期关心 · ' + esc(m.text || ''), sub: fmtDT(t), ts: t });
-      else if (tag === '喝水提醒') rows.push({ icon: KIND_ICON.water, main: '提醒喝水 · ' + esc(m.text || ''), sub: fmtDT(t), ts: t });
-      else if (tag === '吃饭提醒') rows.push({ icon: KIND_ICON.eat, main: '提醒吃饭 · ' + esc(m.text || ''), sub: fmtDT(t), ts: t });
-      // 查岗：ask-card 是问题卡本体；ask-msg 提示语只作补充（若 30s 内已有问卡则不重复列）
-      else if (m.special === 'ask-card' && m.askQuestion && !(m.deskCk && careTs.some(ct => Math.abs(ct - t) <= 90000))) rows.push({ icon: KIND_ICON.checkin, main: '查岗 · ' + esc(m.askQuestion), sub: fmtDT(t), ts: t });
-      else if (m.special === 'ask-msg' && /查岗/.test(m.text || '')) {
+      if (m.special === 'ask-card' && m.askQuestion && !m.askTs && !m.deskCk) {
+        ckRows.push({ ts: t, q: '📋 ' + name + ' 查岗 · ' + esc(m.askQuestion), sub: fmtDT(t),
+          line: m.askAnswer ? '✓ 已回答：' + esc(m.askAnswer) : '还没回答（在聊天里点那张卡作答）' });
+      } else if (m.special === 'ask-msg' && /查岗/.test(m.text || '')) {
         const nearCard = hasAskCardNear(t); // #588：二分查，不再对全表 some()
-        if (!nearCard) rows.push({ icon: KIND_ICON.checkin, main: '查岗', sub: fmtDT(t), ts: t });
+        if (!nearCard) ckRows.push({ ts: t, q: '📋 ' + name + ' 查岗', sub: fmtDT(t), line: '' });
       }
     });
-    // 3) 桌面查岗（v3.17.x）：跨桌面「来消息」触发的查岗——记在各联系人自己桌面的
-    //    records-care（addCareRecordFor 写入），这里按联系人聚合展示。
-    //    与聊天触发的查岗（上一节 checkin）分开列：主文案「桌面查岗 · <联系人昵称>」。
-    if (window.getContacts) {
-      (window.getContacts() || []).forEach(function (c) {
-        let care = [];
-        try {
-          const s = (c.id && window.storeFor) ? window.storeFor(c.id) : store;
-          care = JSON.parse(s.get('records-care') || '[]');
-        } catch (e) { care = []; }
-        (Array.isArray(care) ? care : []).forEach(function (r) {
-          if (!r || r.kind !== 'desk-checkin') return;
-          const cname = (c && c.name) || 'TA';
-          rows.push({ icon: KIND_ICON.deskcheck, main: '桌面查岗 · ' + esc(cname) + ' · ' + esc(r.text || ''), sub: fmtDT(r.ts || 0), ts: r.ts || 0 });
-        });
-      });
-    }
-    if (!rows.length) { el.innerHTML = recEmpty('<div class="ta-empty">暂无联系人的关心记录（TA 会主动查岗、提醒你喝水吃饭、关心经期、陪你专注）</div>'); return; }
-    rows.sort((a, b) => (b.ts || 0) - (a.ts || 0));
-    // #1403：这两栏（关心／红包）只做「当天直显＋更早按月折叠」，**刻意不给按条删除**——
-    // 它们是**现算出来的汇总视图**：关心＝records-care 里的桌面查岗 ＋ 聊天记录里带 mood/询问标记的
-    // 消息（含跨桌面），红包＝聊天记录里 special==='redpacket' 的那几条。条目身份就是聊天原文本身，
-    // 在这一页删一条＝替用户改动聊天历史；而站内删消息只在聊天里做、且有「只允许删对方发来的」那一族
-    // 限制（chat.js 的 del 分支），从汇总页绕过它＝造出第二份真相与「删了又回来」的新竞态。
-    // 所以这一栏的职责是「看全」，要清就回那条消息所在的地方清；能按条删的都是本站自己的数组
-    // （寻踪记录、摸鱼/打工值、心意柜、提问记录五档）。
-    el.innerHTML = window.mochiHistFold(rows.map(r => ({ ts: Number(r.ts) || 0, html: '<div class="tc-listitem"><div class="tc-li-top"><span class="tc-li-q">' + r.icon + ' ' + r.main + '</span><span class="tc-li-time">' + r.sub + '</span></div></div>' })), {
-      key: 'records-care',
-      todayEmpty: '<div class="dc-h-day-empty">今天暂无关心记录</div>'
+    if (!ckRows.length) { el.innerHTML = recEmpty('<div class="ta-empty">暂无查岗记录（TA 按回复设置里的概率与冷却主动来查岗，问你在干嘛/在做什么）</div>'); return; }
+    ckRows.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+    el.innerHTML = window.mochiHistFold(ckRows.map(r => ({ ts: Number(r.ts) || 0, html: '<div class="tc-listitem"><div class="tc-li-top"><span class="tc-li-q">' + r.q + '</span><span class="tc-li-time">' + r.sub + '</span></div>' + (r.line ? '<div class="tc-li-line">' + (window.taFit ? window.taFit(r.line) : r.line) + '</div>' : '') + '</div>' })), {
+      key: 'records-ck', // #1416 那族口径：开合态交给 mochiHistFold 的模块级 map，每张列表一个前缀（不写 key 就全站的月块共用 'hist'，在查岗栏展开「8 月」会顺手掀开别栏）
+      todayEmpty: '<div class="dc-h-day-empty">今天没有被查岗</div>'
     });
   }
+  // ---- 联系人跨桌面查岗（#1435：其他桌面的 TA 来查岗，按联系人聚合）----
+  // 数据源＝各联系人自己桌面 records-care 里 kind==='desk-checkin' 的那几条（写入方
+  // incoming-requests.js，一条查岗一次落账）。这一栏是它们唯一的完整账本：
+  // 弹窗错过、没点【确认】的那些**不会出现在聊天里**（作者点名的规则），只在这里留一行「错过未回应」。
+  // 与关心同款＝汇总视图（源数组别的用途共用、且缺 res 的老记录不该被标成任何结局）→ 只折叠、不给按条删。
+  function renderXckPanel() {
+    const el = document.getElementById('home-xck');
+    if (!el) return;
+    const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    const RES = {
+      replied: '点了「现在回TA」，卡已在TA桌面的聊天里',
+      later: '选了稍后，卡留在TA桌面的聊天里',
+      missed: '错过未回应（没点【确认】，聊天里没有这条）'
+    };
+    const xckRows = [];
+    const cur = window.__activeCid || 'default';
+    (window.getContacts() || []).forEach(function (c) {
+      if (!c) return;
+      const cname = c.name || 'TA';
+      let care = [];
+      try {
+        const s = (c.id && window.storeFor) ? window.storeFor(c.id) : store;
+        care = JSON.parse(s.get('records-care') || '[]');
+      } catch (e) { care = []; }
+      if (!Array.isArray(care)) care = [];
+      const ckTs = [];
+      care.forEach(function (r) {
+        if (!r || r.kind !== 'desk-checkin') return;
+        const t = Number(r.ts) || 0;
+        ckTs.push(t);
+        xckRows.push({ ts: t, q: '🏠 ' + esc(cname) + ' · ' + esc(r.text || ''), sub: fmtDT(t), line: RES[r.res] || '' });
+      });
+      // 老数据兜底：v3.25.x 之前「记录随卡同刻写」这条还没接通，跨桌面卡可能只有聊天里没有账。
+      // 只补扫【当前桌面】自己的聊天（别的桌面的大键不在这里啃，避免关心页那次 O(n²) 卡顿复发）。
+      if (c.id !== cur) return;
+      let msgs = [];
+      try { msgs = (window.getChatMsgs ? window.getChatMsgs() : JSON.parse(store.get('chat-msgs') || '[]')); } catch (e) {}
+      (msgs || []).forEach(function (m) {
+        if (!m || !m.deskCk || m.special !== 'ask-card' || !m.askQuestion) return;
+        const t = m.ts || 0;
+        // 同一次事件：记录与卡同刻写入，90s 窗口内已有记录就不再列一遍（与关心原口径一致）
+        if (ckTs.some(ct => Math.abs(ct - t) <= 90000)) return;
+        xckRows.push({ ts: t, q: '🏠 ' + esc(cname) + ' · ' + esc(m.askQuestion), sub: fmtDT(t),
+          line: m.askAnswer ? '✓ 已回答：' + esc(m.askAnswer) : '' });
+      });
+    });
+    if (!xckRows.length) { el.innerHTML = recEmpty('<div class="ta-empty">暂无跨桌面查岗记录（其他桌面的 TA 会按「跨桌面查岗频率」来查岗；错过没点【确认】的也记在这里，但不进聊天）</div>'); return; }
+    xckRows.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+    el.innerHTML = window.mochiHistFold(xckRows.map(r => ({ ts: Number(r.ts) || 0, html: '<div class="tc-listitem"><div class="tc-li-top"><span class="tc-li-q">' + r.q + '</span><span class="tc-li-time">' + r.sub + '</span></div>' + (r.line ? '<div class="tc-li-line">' + (window.taFit ? window.taFit(r.line) : r.line) + '</div>' : '') + '</div>' })), {
+      key: 'records-xck', // 同上：每张列表一枚前缀，月块开合态互不串
+      todayEmpty: '<div class="dc-h-day-empty">今天没有跨桌面查岗</div>'
+    });
+  }
+  // ---- 邀请贴贴记录（#1435）----
+  // 读本站自己的数组 records-cuddle（写入方 chat.js 的 sendTaInvite），一条邀请一行，
+  // res 随回应就地更新——所以这一栏**给按条删**（和摸鱼抓包同款），且删除键用 ts 而不是下标
+  // （#1403 那族事故：unshift 之后按渲染下标删会删错行；ts 在一行里唯一，重画也不怕错位）。
+  function renderCuddlePanel() {
+    const el = document.getElementById('home-cuddle');
+    if (!el) return;
+    const name = dispName();
+    const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    const RES = { pending: '待回应', replied: '你接受了', declined: '你拒绝了', missed: '错过未回应' };
+    const list = cuddleLoad();
+    if (!list.length) { el.innerHTML = recEmpty('<div class="ta-empty">暂无贴贴邀请记录（TA 会按回复设置里的概率发起贴贴邀请；弹窗不自动关，切后台回来还在）</div>'); return; }
+    // 行先攒成 cuItems 再交折叠尺（刻意不写成 mochiHistFold(list.map(...)) 那一形——
+    // 那个片段是摸鱼抓包那栏 #1403r 哨兵的 needle，撞上去会让那条针变成删掉也照绿的哑针）
+    const cuItems = list.map((x) => ({ ts: Number(x.ts) || 0, html:
+      '<div class="tc-listitem"><div class="tc-li-top"><span class="tc-li-q">🫂 ' + esc(name) + ' 邀请贴贴 · ' + esc(x.text || '') + '</span><span class="tc-li-time">' + fmtDT(x.ts) + '</span>' + window.mochiHistDel('t' + x.ts, (name + ' 的贴贴邀请 · ' + (x.text || ''))) + '</div>' +
+      '<div class="tc-li-line">' + (RES[x.res] || '待回应') + '</div></div>'
+    }));
+    el.innerHTML = window.mochiHistFold(cuItems, {
+      key: 'records-cuddle', // 同上：这一栏也会因新邀请整栏重画，开合态得活过重画
+      empty: recEmpty('<div class="ta-empty">暂无贴贴邀请记录</div>'),
+      todayEmpty: '<div class="dc-h-day-empty">今天没有贴贴邀请</div>'
+    });
+    window.mochiHistDelBind(el, {
+      title: '删除这条贴贴邀请记录？',
+      onDel: function (k) {
+        const ts = Number(String(k).replace(/^t/, ''));
+        const arr = cuddleLoad();
+        const left = arr.filter(x => x && Number(x.ts) !== ts);
+        if (left.length === arr.length) return;
+        cuddleSaveFor(window.__activeCid || 'default', left);
+        render();
+      }
+    });
+  }
+
   // ---- 心意币红包记录（v3.16.x：双向——我发 + 联系人发；红包即心意币，读当前桌面聊天记录） ----
   function renderRpPanel() {
     const el = document.getElementById('home-coinrp');
@@ -414,6 +567,16 @@
     // 联系人的关心/提醒记录（v3.16.x）
     if (showOnly === 'care') {
       renderCarePanel();
+    }
+    // #1435：查岗两类与贴贴邀请各成一栏（作者「移出来，各归各 tab」）
+    if (showOnly === 'ck') {
+      renderCkPanel();
+    }
+    if (showOnly === 'xck') {
+      renderXckPanel();
+    }
+    if (showOnly === 'cuddle') {
+      renderCuddlePanel();
     }
     // 占卜记录（v3.26.x：抽牌选了对象，存该联系人桌面 records-divine）
     if (showOnly === 'divine') {

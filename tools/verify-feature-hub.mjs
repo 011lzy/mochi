@@ -71,6 +71,11 @@ console.log('diag readyState=', await ev('document.readyState'),
   '| errs=', JSON.stringify(await ev('window.__jsErrors ? window.__jsErrors.slice(0,3).map(e=>e.msg||e) : null')));
 const A = (name, ok, extra) => { console.log((ok ? 'PASS' : 'FAIL') + ' ' + name + (extra !== undefined ? ' | ' + extra : '')); if (!ok) fail++; };
 
+// #1452（阶段 A）：功能大全的目录行改「首次打开才建」——先走一次真实入口（设置行）把目录建出来，
+// 再量渲染数。契约未变：开页后仍是 10 组 / 条目数下限；下面 A2 会再点一次入口（幂等）。
+await ev(`document.getElementById('row-featurehub').click()`);
+await sleep(150);
+
 // A1 渲染：10 组 / 总条目数（v3.27.x 全量收口 194 条：聊天美化与设置+桌面美化与外观两新组+群聊子功能+通话背景；
 // #865 桌面补全批新增【桌面应用】组 → 10 组）
 const r1 = await ev(`(()=>{ const gs=document.querySelectorAll('#fhub-body .gs-title').length; const rows=document.querySelectorAll('#fhub-body .set-row').length; return gs+'|'+rows; })()`);

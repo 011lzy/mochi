@@ -370,7 +370,16 @@
       function run() {
         try {
           const tx = db.transaction(STORE, 'readonly');
+          // #1445：两条回调都是「闭包里读外层 req 变量」（`() => finish(req.result)`），而下面
+          // 超时重试那一发会把 req 换成**新的、还没完结的**那个请求。旧请求迟到 success 时读到
+          // 的就是新请求 ⇒ InvalidStateError: Failed to read the 'result' property from
+          // 'IDBRequest': The request has not finished.（实报：page-phone，js/idb.js:237:33 ×2）；
+          // 且 finish() 永不执行＝这一发读结果被丢，上层把「读不到」当「键不存在」——正是本仓
+          // 反复出现的毁数链那一族。换请求前先把旧请求的这两个回调摘掉（lateArm 挂的是
+          // addEventListener，不受影响，放弃等待窗之后的迟到回执照旧能投递）。
+          const prev = req;
           req = tx.objectStore(STORE).get(key); // #1360：这发请求提到外层，放弃等待窗之后还要给它加落地监听
+          if (prev) { try { prev.onsuccess = null; prev.onerror = null; } catch (ePrev) {} }
           req.onsuccess = () => finish(req.result);
           req.onerror = () => { if (connLost(req.error)) dbPromise = null; amb(); finish(undefined); };
         } catch (e) { if (connLost(e)) dbPromise = null; amb(); finish(undefined); }

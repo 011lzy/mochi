@@ -10,7 +10,7 @@ if (!slide) return;
 const hint = slide.querySelector('.desk-page-hint');
 if (!hint) return;
 const hasContent = Array.prototype.slice.call(slide.querySelectorAll('[data-desk-widget]')).some(n => !(n.classList.contains('app-grid') && !n.querySelector('.app'))) ||
-!!slide.querySelector('[data-desk-image]');
+!!slide.querySelector('[data-desk-image]') || !!slide.querySelector('[data-desk-text]') || !!slide.querySelector('[data-desk-countdown]');
 hint.style.display = hasContent ? 'none' : '';
 };
 const ingestTo = (src, opts) => (window.mochiImgCompressTo ? window.mochiImgCompressTo(src, opts)
@@ -5071,6 +5071,53 @@ return null;
 }
 return a;
 };
+const DESK_SEL_ALL = '[data-desk-widget],[data-desk-text],[data-desk-image],[data-desk-countdown]';
+const deskNodeById = (wid) => {
+if (!wid) return null;
+return document.querySelector('[data-desk-widget="' + wid + '"],[data-desk-text="' + wid + '"],[data-desk-image="' + wid + '"],[data-desk-countdown="' + wid + '"]');
+};
+const deskWidOf = (n) => {
+if (!n) return null;
+return n.getAttribute('data-desk-widget') || n.getAttribute('data-desk-text') ||
+n.getAttribute('data-desk-image') || n.getAttribute('data-desk-countdown');
+};
+const insertDeskNodeByLayout = (slide, node, id, pageArr) => {
+const addBtn = slide.querySelector('.desk-page-add');
+let ref = null;
+if (pageArr) {
+const pos = pageArr.indexOf(id);
+if (pos >= 0) {
+for (let i = pos + 1; i < pageArr.length; i++) {
+const rn = deskNodeById(pageArr[i]);
+if (rn && rn.parentNode === slide) { ref = rn; break; }
+}
+if (ref) { slide.insertBefore(node, ref); return; }
+for (let i = pos - 1; i >= 0; i--) {
+const rn = deskNodeById(pageArr[i]);
+if (rn && rn.parentNode === slide) { ref = rn; break; }
+}
+if (ref) { slide.insertBefore(node, ref.nextSibling); return; }
+}
+}
+if (addBtn) slide.insertBefore(node, addBtn);
+else slide.appendChild(node);
+};
+const syncDeskLayout = (addArr, removeArr) => {
+const lay = deskLayout();
+if (!lay) return;
+let changed = false;
+(removeArr || []).forEach(id => {
+lay.forEach(page => {
+const i = page.indexOf(id);
+if (i >= 0) { page.splice(i, 1); changed = true; }
+});
+});
+(addArr || []).forEach(it => {
+const page = lay[it.page];
+if (page && page.indexOf(it.id) < 0) { page.push(it.id); changed = true; }
+});
+if (changed) { try { store.set('desk-layout', JSON.stringify(lay)); } catch (e) {} }
+};
 const buildDeskPages = () => {
 if (!pagesBox) return;
 const target = deskPageCount();
@@ -5360,7 +5407,7 @@ return pool;
 }
 const saveDeskLayout = () => {
 const slides = Array.prototype.slice.call(pagesBox.querySelectorAll('.page-slide'));
-const lay = slides.map(s => Array.prototype.slice.call(s.querySelectorAll('[data-desk-widget]')).map(n => n.getAttribute('data-desk-widget')));
+const lay = slides.map(s => Array.prototype.slice.call(s.querySelectorAll(DESK_SEL_ALL)).map(n => deskWidOf(n)).filter(Boolean));
 try {
 const seen = {};
 const ok = Array.isArray(lay) && lay.length >= DESK_PAGE_MIN && lay.length <= DESK_PAGE_MAX &&
@@ -5376,7 +5423,7 @@ if (!lay) { restoreTemplateDesk(); return; }
 const slides = Array.prototype.slice.call(pagesBox.querySelectorAll('.page-slide'));
 const inGrid = (wid) => {
 if (wid.indexOf('app-') === 0) {
-const n = document.querySelector('[data-desk-widget="' + wid + '"]');
+const n = deskNodeById(wid);
 return !!(n && n.closest('.app-grid'));
 }
 return false;
@@ -5387,7 +5434,7 @@ if (!slide) return;
 const wids = pageWidgets || [];
 wids.forEach(wid => {
 if (inGrid(wid)) return;
-const node = document.querySelector('[data-desk-widget="' + wid + '"]');
+const node = deskNodeById(wid);
 if (!node || node.parentNode === slide) return;
 const addBtn = slide.querySelector('.desk-page-add');
 if (addBtn) slide.insertBefore(node, addBtn);
@@ -5395,16 +5442,16 @@ else slide.appendChild(node);
 });
 const want = wids.filter(wid => {
 if (inGrid(wid)) return false;
-const n = document.querySelector('[data-desk-widget="' + wid + '"]');
+const n = deskNodeById(wid);
 return !!(n && n.parentNode === slide);
 });
-const cur = Array.prototype.slice.call(slide.querySelectorAll('[data-desk-widget]'))
-.map(n => n.getAttribute('data-desk-widget'))
+const cur = Array.prototype.slice.call(slide.querySelectorAll(DESK_SEL_ALL))
+.map(n => deskWidOf(n))
 .filter(w => want.indexOf(w) >= 0);
 if (cur.join('|') !== want.join('|') && want.length) {
 const addBtn = slide.querySelector('.desk-page-add');
 want.forEach(wid => {
-const node = document.querySelector('[data-desk-widget="' + wid + '"]');
+const node = deskNodeById(wid);
 if (!node) return;
 if (addBtn) slide.insertBefore(node, addBtn);
 else slide.appendChild(node);
@@ -5885,9 +5932,16 @@ function renderDeskImages() {
 if (!pagesBox) return;
 pagesBox.querySelectorAll('[data-desk-image]').forEach(n => n.remove());
 const meta = loadDeskImagesMeta();
+const lay = deskLayout();
 const slides = pagesBox.querySelectorAll('.page-slide');
 meta.forEach(m => {
-const slide = slides[m.page];
+let pageIdx = m.page, pageArr = null;
+if (lay) {
+for (let pi = 0; pi < lay.length; pi++) {
+if (lay[pi] && lay[pi].indexOf(m.id) >= 0) { pageIdx = pi; pageArr = lay[pi]; break; }
+}
+}
+const slide = slides[pageIdx] || slides[m.page];
 if (!slide) return;
 const node = document.createElement('div');
 node.className = 'desk-image-widget';
@@ -5898,8 +5952,7 @@ node.style.width = wv + '%';
 if (wv < 100) node.style.alignSelf = m.align === 'c' ? 'center' : (m.align === 'r' ? 'flex-end' : 'flex-start');
 const img = document.createElement('img');
 node.appendChild(img);
-const addBtn = slide.querySelector('.desk-page-add');
-if (addBtn) slide.insertBefore(node, addBtn); else slide.appendChild(node);
+insertDeskNodeByLayout(slide, node, m.id, pageArr);
 const srcKey = window.activePrefix() + ':desk-image-src-' + m.id;
 if (window.idbGet) {
 window.idbGet(srcKey).then(src => { if (src && node.dataset.deskImage === m.id) img.src = src; });
@@ -5911,6 +5964,22 @@ if (src) img.src = src;
 for (let i = 0; i < slides.length; i++) syncPageHint(slides[i]);
 }
 function moveDeskImage(id, dir) {
+const lay = deskLayout();
+if (lay) {
+for (const page of lay) {
+const i = page.indexOf(id);
+if (i >= 0) {
+const j = dir === 'up' ? i - 1 : i + 1;
+if (j < 0 || j >= page.length) { toast(dir === 'up' ? '已在最前' : '已在最后'); return; }
+const t = page[i]; page[i] = page[j]; page[j] = t;
+try { store.set('desk-layout', JSON.stringify(lay)); } catch (e) {}
+renderDeskImages();
+try { window.applyDeskLayout(); } catch (e) {}
+toast(dir === 'up' ? '已上移' : '已下移');
+return;
+}
+}
+}
 const meta = loadDeskImagesMeta();
 const idx = meta.findIndex(x => x.id === id);
 if (idx < 0) return;
@@ -5923,11 +5992,10 @@ const t = meta[a]; meta[a] = meta[idx]; meta[idx] = t;
 } else if (dir === 'down' && pos < same.length - 1) {
 const a = same[pos + 1];
 const t = meta[a]; meta[a] = meta[idx]; meta[idx] = t;
-} else {
-return;
-}
+} else { toast(dir === 'up' ? '已在最前' : '已在最后'); return; }
 saveDeskImagesMeta(meta);
 renderDeskImages();
+try { saveDeskLayout(); } catch (e) {}
 toast(dir === 'up' ? '已上移' : '已下移');
 }
 function addDeskImage(pageIdx) {
@@ -5944,6 +6012,7 @@ const id = 'img_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
 const meta = loadDeskImagesMeta();
 meta.push({ id: id, page: pageIdx, addedAt: Date.now() });
 saveDeskImagesMeta(meta);
+syncDeskLayout([{ id: id, page: pageIdx }]);
 const srcKey = window.activePrefix() + ':desk-image-src-' + id;
 if (window.idbSet) window.idbSet(srcKey, data); else store.set('desk-image-src-' + id, data);
 renderDeskImages();
@@ -5979,6 +6048,7 @@ reader.readAsDataURL(f);
 function removeDeskImage(id) {
 const meta = loadDeskImagesMeta().filter(m => m.id !== id);
 saveDeskImagesMeta(meta);
+syncDeskLayout(null, [id]);
 try { if (window.idbDelete) window.idbDelete(window.activePrefix() + ':desk-image-src-' + id); } catch (e) {}
 try { store.remove('desk-image-src-' + id); } catch (e) {}
 renderDeskImages();
@@ -5989,6 +6059,7 @@ const meta = loadDeskImagesMeta();
 const toRemove = meta.filter(m => m.page === pageIdx);
 const remain = meta.filter(m => m.page !== pageIdx);
 saveDeskImagesMeta(remain);
+syncDeskLayout(null, toRemove.map(m => m.id));
 toRemove.forEach(m => {
 try { if (window.idbDelete) window.idbDelete(window.activePrefix() + ':desk-image-src-' + m.id); } catch (e) {}
 try { store.remove('desk-image-src-' + m.id); } catch (e) {}
@@ -6089,9 +6160,16 @@ function renderDeskTexts() {
 if (!pagesBox) return;
 pagesBox.querySelectorAll('[data-desk-text]').forEach(n => n.remove());
 const meta = loadDeskTextsMeta();
+const lay = deskLayout();
 const slides = pagesBox.querySelectorAll('.page-slide');
 meta.forEach(m => {
-const slide = slides[m.page];
+let pageIdx = m.page, pageArr = null;
+if (lay) {
+for (let pi = 0; pi < lay.length; pi++) {
+if (lay[pi] && lay[pi].indexOf(m.id) >= 0) { pageIdx = pi; pageArr = lay[pi]; break; }
+}
+}
+const slide = slides[pageIdx] || slides[m.page];
 if (!slide) return;
 const node = document.createElement('div');
 node.className = 'desk-text-widget';
@@ -6101,8 +6179,7 @@ p.textContent = m.text || '点击编辑文字';
 p.style.fontSize = (m.size || 15) + 'px';
 p.style.color = m.color || '#333';
 node.appendChild(p);
-const addBtn = slide.querySelector('.desk-page-add');
-if (addBtn) slide.insertBefore(node, addBtn); else slide.appendChild(node);
+insertDeskNodeByLayout(slide, node, m.id, pageArr);
 });
 for (let i = 0; i < slides.length; i++) syncPageHint(slides[i]);
 }
@@ -6114,16 +6191,34 @@ const id = 'txt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
 const meta = loadDeskTextsMeta();
 meta.push({ id: id, page: pageIdx, text: v.trim(), size: 15, color: '#333' });
 saveDeskTextsMeta(meta);
+syncDeskLayout([{ id: id, page: pageIdx }]);
 renderDeskTexts();
 toast('已添加文字');
 }, { placeholder: '输入要显示的文字' });
 }
 function removeDeskText(id) {
 saveDeskTextsMeta(loadDeskTextsMeta().filter(m => m.id !== id));
+syncDeskLayout(null, [id]);
 renderDeskTexts();
 toast('已删除');
 }
 function moveDeskText(id, dir) {
+const lay = deskLayout();
+if (lay) {
+for (const page of lay) {
+const i = page.indexOf(id);
+if (i >= 0) {
+const j = dir === 'up' ? i - 1 : i + 1;
+if (j < 0 || j >= page.length) { toast(dir === 'up' ? '已在最前' : '已在最后'); return; }
+const t = page[i]; page[i] = page[j]; page[j] = t;
+try { store.set('desk-layout', JSON.stringify(lay)); } catch (e) {}
+renderDeskTexts();
+try { window.applyDeskLayout(); } catch (e) {}
+toast(dir === 'up' ? '已上移' : '已下移');
+return;
+}
+}
+}
 const meta = loadDeskTextsMeta();
 const idx = meta.findIndex(x => x.id === id);
 if (idx < 0) return;
@@ -6136,13 +6231,16 @@ const t = meta[a]; meta[a] = meta[idx]; meta[idx] = t;
 } else if (dir === 'down' && pos < same.length - 1) {
 const a = same[pos + 1];
 const t = meta[a]; meta[a] = meta[idx]; meta[idx] = t;
-} else return;
+} else { toast(dir === 'up' ? '已在最前' : '已在最后'); return; }
 saveDeskTextsMeta(meta);
 renderDeskTexts();
+try { saveDeskLayout(); } catch (e) {}
 toast(dir === 'up' ? '已上移' : '已下移');
 }
 function removeDeskTextsOnPage(pageIdx) {
-saveDeskTextsMeta(loadDeskTextsMeta().filter(m => m.page !== pageIdx));
+const all = loadDeskTextsMeta();
+saveDeskTextsMeta(all.filter(m => m.page !== pageIdx));
+syncDeskLayout(null, all.filter(m => m.page === pageIdx).map(m => m.id));
 }
 function setupDeskTextClick() {
 if (!pagesBox) return;
@@ -6201,9 +6299,16 @@ function renderDeskCountdowns() {
 if (!pagesBox) return;
 pagesBox.querySelectorAll('[data-desk-countdown]').forEach(n => n.remove());
 const meta = loadDeskCountdownsMeta();
+const lay = deskLayout();
 const slides = pagesBox.querySelectorAll('.page-slide');
 meta.forEach(m => {
-const slide = slides[m.page];
+let pageIdx = m.page, pageArr = null;
+if (lay) {
+for (let pi = 0; pi < lay.length; pi++) {
+if (lay[pi] && lay[pi].indexOf(m.id) >= 0) { pageIdx = pi; pageArr = lay[pi]; break; }
+}
+}
+const slide = slides[pageIdx] || slides[m.page];
 if (!slide) return;
 const node = document.createElement('div');
 node.className = 'desk-countdown-widget';
@@ -6214,8 +6319,7 @@ const days = Math.round((target - today) / 86400000);
 node.innerHTML = '<div class="dcd-label">距' + (m.title || '事件') + '</div>' +
 '<div class="dcd-days">' + (days >= 0 ? days : '已过') + (days >= 0 ? ' 天' : '') + '</div>' +
 '<div class="dcd-date">' + m.date + '</div>';
-const addBtn = slide.querySelector('.desk-page-add');
-if (addBtn) slide.insertBefore(node, addBtn); else slide.appendChild(node);
+insertDeskNodeByLayout(slide, node, m.id, pageArr);
 });
 for (let i = 0; i < slides.length; i++) syncPageHint(slides[i]);
 }
@@ -6232,16 +6336,34 @@ const id = 'cd_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
 const meta = loadDeskCountdownsMeta();
 meta.push({ id: id, page: pageIdx, title: title, date: date });
 saveDeskCountdownsMeta(meta);
+syncDeskLayout([{ id: id, page: pageIdx }]);
 renderDeskCountdowns();
 toast('已添加倒计时');
 }, { placeholder: '标题|日期，如 出差|2026-09-16', value: '|' + today });
 }
 function removeDeskCountdown(id) {
 saveDeskCountdownsMeta(loadDeskCountdownsMeta().filter(m => m.id !== id));
+syncDeskLayout(null, [id]);
 renderDeskCountdowns();
 toast('已删除');
 }
 function moveDeskCountdown(id, dir) {
+const lay = deskLayout();
+if (lay) {
+for (const page of lay) {
+const i = page.indexOf(id);
+if (i >= 0) {
+const j = dir === 'up' ? i - 1 : i + 1;
+if (j < 0 || j >= page.length) { toast(dir === 'up' ? '已在最前' : '已在最后'); return; }
+const t = page[i]; page[i] = page[j]; page[j] = t;
+try { store.set('desk-layout', JSON.stringify(lay)); } catch (e) {}
+renderDeskCountdowns();
+try { window.applyDeskLayout(); } catch (e) {}
+toast(dir === 'up' ? '已上移' : '已下移');
+return;
+}
+}
+}
 const meta = loadDeskCountdownsMeta();
 const idx = meta.findIndex(x => x.id === id);
 if (idx < 0) return;
@@ -6254,13 +6376,16 @@ const t = meta[a]; meta[a] = meta[idx]; meta[idx] = t;
 } else if (dir === 'down' && pos < same.length - 1) {
 const a = same[pos + 1];
 const t = meta[a]; meta[a] = meta[idx]; meta[idx] = t;
-} else return;
+} else { toast(dir === 'up' ? '已在最前' : '已在最后'); return; }
 saveDeskCountdownsMeta(meta);
 renderDeskCountdowns();
+try { saveDeskLayout(); } catch (e) {}
 toast(dir === 'up' ? '已上移' : '已下移');
 }
 function removeDeskCountdownsOnPage(pageIdx) {
-saveDeskCountdownsMeta(loadDeskCountdownsMeta().filter(m => m.page !== pageIdx));
+const all = loadDeskCountdownsMeta();
+saveDeskCountdownsMeta(all.filter(m => m.page !== pageIdx));
+syncDeskLayout(null, all.filter(m => m.page === pageIdx).map(m => m.id));
 }
 function setupDeskCountdownClick() {
 if (!pagesBox) return;
@@ -6404,19 +6529,19 @@ if (phone) phone.addEventListener('contextmenu', (e) => e.preventDefault());
 pagesBox.addEventListener('touchstart', (e) => {
 if (!inMoveMode) return;
 if (e.target.closest('.desk-lib, .desk-page-add, .decor-bar')) return;
-if (!e.target.closest('[data-desk-widget], .app')) return;
+if (!e.target.closest(DESK_SEL_ALL + ', .app')) return;
 e.preventDefault();
 }, { capture: true, passive: false });
 pagesBox.addEventListener('touchmove', (e) => {
 if (!inMoveMode) return;
 if (e.target.closest('.desk-lib, .desk-page-add, .decor-bar')) return;
-if (!e.target.closest('[data-desk-widget], .app')) return;
+if (!e.target.closest(DESK_SEL_ALL + ', .app')) return;
 e.preventDefault();
 }, { capture: true, passive: false });
 pagesBox.addEventListener('pointerdown', (e) => {
 if (e.button !== 0 && e.pointerType === 'mouse') return;
 if (e.target.closest('.desk-lib, .desk-page-add, .decor-bar')) return;
-const target = e.target.closest('[data-desk-widget], .app');
+const target = e.target.closest(DESK_SEL_ALL + ', .app');
 if (!target) return;
 if (!inMoveMode) return;
 const t = target;
@@ -6427,7 +6552,7 @@ return; // 等 pointermove 判定方向
 });
 pagesBox.addEventListener('pointermove', (e) => {
 if (inMoveMode && !dragging) {
-const t = e.target.closest ? e.target.closest('[data-desk-widget], .app') : null;
+const t = e.target.closest ? e.target.closest(DESK_SEL_ALL + ', .app') : null;
 if (t && t._swiping !== undefined && t._swiping === null) {
 const dx = e.clientX - t._swipeX, dy = e.clientY - t._swipeY;
 if (Date.now() - t._swipeT > MOVE_DELAY) {
@@ -6443,7 +6568,7 @@ startDeskDrag(e, t);
 }
 });
 const clearSwipe = (e) => {
-const t = e.target.closest ? e.target.closest('[data-desk-widget], .app') : null;
+const t = e.target.closest ? e.target.closest(DESK_SEL_ALL + ', .app') : null;
 if (t) { t._swiping = undefined; t._swipeX = undefined; t._swipeY = undefined; }
 };
 pagesBox.addEventListener('pointerup', clearSwipe);
@@ -6574,7 +6699,7 @@ if (clientX >= gr.left && clientX <= gr.right && clientY >= gr.top && clientY <=
 return gridDropInfo(curGrid, dragged, clientX, clientY);
 }
 }
-const items = Array.prototype.slice.call(slide.querySelectorAll('[data-desk-widget]')).filter(n => {
+const items = Array.prototype.slice.call(slide.querySelectorAll(DESK_SEL_ALL)).filter(n => {
 if (n === dragged) return false;
 const p = n.parentElement;
 if (p === slide) return true;
@@ -6647,7 +6772,7 @@ if (navigator.vibrate) try { navigator.vibrate(10); } catch (e) {}
 }
 pagesBox.addEventListener('click', (e) => {
 if (!inMoveMode) return;
-if (e.target.closest('[data-desk-widget], .app, .desk-page-add, .desk-lib, .decor-bar')) return;
+if (e.target.closest(DESK_SEL_ALL + ', .app, .desk-page-add, .desk-lib, .decor-bar')) return;
 if (window.exitDecor) window.exitDecor();
 }, true);
 }

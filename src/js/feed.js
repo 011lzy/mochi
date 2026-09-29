@@ -1017,10 +1017,22 @@
   //       imgP 为表情包+图片合并概率（评论/回复用「使用表情包概率」fd-image-prob）
   // v3.6.x：cid 指定用该联系人桌面的字卡（朋友圈 TA 评论/回复/动态都用所属桌面字卡）
   // v3.6.x：各分类字卡去重 + 无重复抽取（同轮不抽同一张卡），修复小池内容大量重复
+  // #1422（作者 2026-09-29）：TA 在朋友圈的点评与回复这两池原写死在本文件里（字卡库没有页面，
+  //   旧的跨分类搜索登记过 → 「搜得到、看不到、关不掉」）。现单一数据源在
+  //   DEFAULT_CARD_DATA.interact 的「朋友圈·TA的点评」「朋友圈·TA的回复」两组
+  //   （字卡库→系统预设字卡→其他互动功能字卡→互动回应），逐句开关 dc-off-interact:<文案>
+  //   与整组停用都在取用时生效；上面/下面的数组只留作数据缺失时的兜底，句子逐字未改。
+  function feedPresetLines(group, fallback) {
+    try { if (typeof window.getPresetGroupLines === 'function') return window.getPresetGroupLines(group, fallback); } catch (e) {}
+    return fallback.slice();
+  }
+  function feedFallbackPool() {
+    return uniqArr(feedPresetLines('朋友圈·TA的点评', TA_COMMENT_POOL).concat(feedPresetLines('朋友圈·TA的回复', TA_REPLY_POOL)));
+  }
   function genMixedCards(cfg, minN, maxN, opts, cid) {
     const o = opts || {};
     const pool = cardPool(cid);
-    const fb = uniqArr(TA_COMMENT_POOL.concat(TA_REPLY_POOL));
+    const fb = feedFallbackPool();
     const pick = {
       image: makePicker(uniqArr(pool.image), true),
       sticker: makePicker(uniqArr(pool.sticker), true),
@@ -1060,7 +1072,7 @@
   // v3.6.x：各分类字卡去重 + 无重复抽取（同轮不抽同一张卡），修复小池内容大量重复
   function genPostContent(cfg, cid) {
     const pool = cardPool(cid);
-    const fb = uniqArr(TA_COMMENT_POOL.concat(TA_REPLY_POOL));
+    const fb = feedFallbackPool();
     const pick = {
       image: makePicker(uniqArr(pool.image), true),
       sticker: makePicker(uniqArr(pool.sticker), true),
@@ -3875,14 +3887,7 @@ if (comInput) comInput.addEventListener('keydown', (e) => { if (e.key === 'Enter
       return { content: String(g.content || ''), imgN: (g.imgs || []).length };
     } catch (e) { return null; }
   };
-  // v3.26.x(#122)：注册朋友圈内置互动回应池跨分类搜索（字卡库列表页搜索同源可查，不再搜不到）
-  window.__cardSearchFns = window.__cardSearchFns || [];
-  window.__cardSearchFns.push({ name: '朋友圈互动', fn: function (kw) {
-    const out = [];
-    try {
-      TA_COMMENT_POOL.forEach(c => { if (String(c).toLowerCase().indexOf(kw) >= 0) out.push({ t: String(c), cat: 'TA评论' }); });
-      TA_REPLY_POOL.forEach(c => { if (String(c).toLowerCase().indexOf(kw) >= 0) out.push({ t: String(c), cat: 'TA回应回复' }); });
-    } catch (e) {}
-    return out;
-  } });
+  // v3.26.x(#122) 曾在此登记「朋友圈互动」跨分类搜索；#1422 两池已进系统预设（DEFAULT_CARD_DATA.interact），
+  //   chatcard.js 的「默认聊天字卡」登记项会遍历全部分类自动收录（标成「[互动回应] 分组名」），
+  //   再列一遍＝同一句搜出两行，故整块撤掉。兜底池的读取见上面 feedFallbackPool()。
 })();

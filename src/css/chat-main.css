@@ -1388,6 +1388,28 @@ html.tablet #page-chat.cs-bg-on > #cs-bg-layer { min-height:100vh; min-height:ma
 .msg-inplace .ip-opt-row.sel { border-color:var(--ink); background:rgba(0,0,0,.04); font-weight:600; }
 .msg-inplace .ip-opt-row .ip-opt-t { min-width:0; }
 .msg-inplace .ip-opt-row .ip-opt-reply { flex-shrink:0; font-size:12px; opacity:.6; }
+/* #1415 多选题就地作答：整行点一下＝勾上/取消（左边缘那枚方框是「勾没勾」的唯一读数），
+   勾完必须再点底下那枚「提交」才算落地——单选题是点一下就答，两拍只在多选题上出现。 */
+.msg-inplace .ip-opt-chk { justify-content:flex-start; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.msg-inplace .ip-opt-chk .ip-opt-t { flex:1 1 auto; text-align:left; }
+.msg-inplace .ip-opt-chk .ip-opt-reply { margin-left:auto; }
+.msg-inplace .ip-opt-box {
+  position:relative; flex:none; width:16px; height:16px; margin-right:9px;
+  box-sizing:border-box; border:1.5px solid rgba(0,0,0,.3); border-radius:5px; background:#fff;
+}
+.msg-inplace .ip-opt-chk.on { border-color:var(--ink); background:rgba(0,0,0,.04); font-weight:600; }
+.msg-inplace .ip-opt-chk.on .ip-opt-box { border-color:var(--ink); background:var(--ink); }
+.msg-inplace .ip-opt-chk.on .ip-opt-box::after {
+  content:''; position:absolute; left:4px; top:1px; width:4px; height:8px;
+  border:solid #fff; border-width:0 2px 2px 0; transform:rotate(45deg);
+}
+.msg-inplace .ip-multi-submit {
+  display:block; width:100%; margin-top:2px; padding:10px 12px; border:none; border-radius:10px;
+  background:var(--ink); color:#fff; font-size:13px; font-weight:600; cursor:pointer;
+  font-family:inherit; -webkit-tap-highlight-color:transparent;
+}
+.msg-inplace .ip-multi-submit:active { opacity:.85; }
+.msg-inplace .ip-multi-submit:disabled { opacity:.42; cursor:default; }
 
 /* ===== TA鐨勮闂?===== */
 /* 鑱婂ぉ閲岀殑璇㈤棶鍗＄墖 */

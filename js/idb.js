@@ -233,7 +233,9 @@ function finish(val) { if (done) return; done = true; if (timer) clearTimeout(ti
 function run() {
 try {
 const tx = db.transaction(STORE, 'readonly');
+const prev = req;
 req = tx.objectStore(STORE).get(key); // #1360：这发请求提到外层，放弃等待窗之后还要给它加落地监听
+if (prev) { try { prev.onsuccess = null; prev.onerror = null; } catch (ePrev) {} }
 req.onsuccess = () => finish(req.result);
 req.onerror = () => { if (connLost(req.error)) dbPromise = null; amb(); finish(undefined); };
 } catch (e) { if (connLost(e)) dbPromise = null; amb(); finish(undefined); }

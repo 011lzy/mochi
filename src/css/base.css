@@ -448,6 +448,14 @@ input.mochi-pick-surface::-webkit-file-upload-button { display:none; }
   accent-color:var(--btn-bg); cursor:pointer;
 }
 .splash-age[hidden] { display:none; }
+/* #1453：勾选行内「查看免责声明」锚点——点它滚回上面那张免责卡（clock.js 接线）。
+   红色沿用免责卡的警示红族（浅色 #c22b27；暗色覆写在 dark.css）；margin-left:auto 靠行尾，
+   不挤占勾选文案的换行宽度。只做查看入口，与门控无关（未勾选仍进不去） */
+.splash-age-view {
+  flex:none; margin-left:auto; padding-left:8px;
+  color:#c22b27; font-weight:700; text-decoration:underline; text-underline-offset:2px;
+  cursor:pointer; -webkit-tap-highlight-color:transparent;
+}
 /* v3.8.y：底部操作区——「点击进入」按钮（居中，间距由卡片 padding 控制） */
 .splash-btns {
   display:flex; align-items:center; justify-content:center; gap:10px;

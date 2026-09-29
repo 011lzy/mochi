@@ -1371,8 +1371,8 @@
   // 各功能统一走它取同源池（消费侧再按 isDefaultCardOff(分类, 文案) 过滤已关卡片）
   // v3.32.x：并入用户自建的功能字卡（字卡库→可自定义字卡→其他互动功能字卡，存 cc-groups
   // 功能分类字段）——自定义卡追加在同源池后一起随机抽取；非功能分类/无自定义时不影响原行为
-  window.getLibPool = function (cat, group, fallback) {
-    if (LOCKED()) { // #319 锁定＝只回自建功能字卡，内置同源池与 fallback 兜底都不给
+  window.getLibPool = function (cat, group, fallback, exemptLock) {
+    if (LOCKED() && !exemptLock) { // #319 锁定＝只回自建功能字卡，内置同源池与 fallback 兜底都不给
       try { return (window.getCustomFuncCards && window.getCustomFuncCards(cat)) || []; } catch (e) { return []; }
     }
     const g = (DATA[cat] || []).find(x => x[0] === group);
@@ -1383,6 +1383,24 @@
       if (cf.length) arr = arr.concat(cf);
     } catch (e) {}
     return arr;
+  };
+  // #1422（作者 2026-09-29 定）：这六池原是 chat.js／feed.js 里写死的「互动必答句」，字卡库里
+  //   没有页面——搜得到（旧的跨分类搜索钩子登记过）却看不到、也逐句关不掉。现并到
+  //   字卡库→系统预设字卡→【其他互动功能字卡→互动回应】同名分组，与「邀请TA·接受／拒绝」
+  //   「游戏胜负平·回应」同页同类；逐句开关（dc-off-interact:<文案>）与整组停用
+  //   （dc-groups-off.interact）全部复用 #926/#1315 既有闸（isDefaultCardOff 一条同时认这两样）。
+  // 三条与 getDeskCheckPool 不同的口径，都是刻意的：
+  //   ① 豁免 #319 二级锁——婉拒与回应是交互的必需回应，锁定设备不能让「拒绝贴贴邀请后 TA 一句话都不回」；
+  //   ② 不并自建功能字卡——「我发出的邀请」那组本就由「邀请TA」半框自己的分组表呈现，混进来＝同一批卡两处显示；
+  //   ③ 分组成员全被关掉时返回空数组（＝真停用），不回落代码兜底；兜底只在数据文件缺该分组时用。
+  window.getPresetGroupLines = function (group, fallback) {
+    let arr = [];
+    try {
+      const g = ((window.DEFAULT_CARD_DATA || {}).interact || []).find(x => x && x[0] === group);
+      arr = g && Array.isArray(g[1]) && g[1].length ? g[1].slice() : (Array.isArray(fallback) ? fallback.slice() : []);
+    } catch (e) { arr = Array.isArray(fallback) ? fallback.slice() : []; }
+    const off = window.isDefaultCardOff;
+    return off ? arr.filter(c => !off('interact', c)) : arr;
   };
   window.getInteractPool = function (name, fallback) {
     return window.getLibPool('interact', name, fallback);

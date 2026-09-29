@@ -834,13 +834,12 @@ try {
 var d = document.documentElement;
 var ih = window.innerHeight || 0;
 var sh = (window.screen && window.screen.height) || 0;
-var cur = d.style.getPropertyValue('--mochi-safe-bottom');
 if (_kbActive || _iProv || _kbNowLike()) { // #556 键盘在场判据（与 syncVvFit 摘 --mochi-ios-h 同源）
-if (cur !== '0px') d.style.setProperty('--mochi-safe-bottom', '0px'); // #556 键盘期钉 0
+syncBottomSafe('pin'); // #556 键盘期钉 0（交回唯一写入点，「底部基准」记录随之同步）
 return;
 }
 if (sh && ih && sh - ih > 60 && !d.classList.contains('ios-pwa-standalone')) {
-if (cur !== '0px') d.style.setProperty('--mochi-safe-bottom', '0px'); // #530 镜像·浏览器工具条占用期钉 0
+syncBottomSafe('pin'); // #530 镜像·浏览器工具条占用期钉 0（同上，不再另开第二个写入点）
 } else {
 syncBottomSafe('env');
 }

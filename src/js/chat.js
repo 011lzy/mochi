@@ -3888,7 +3888,7 @@ const done =
 (type === 'curious' && rec.curiousStatus === 'answered') ||
 (type === 'roast' && rec.roastStatus === 'answered') ||
 (type === 'ask' && rec.askStatus === 'answered');
-if (done && type === 'ask' && rec.askType === 'single' && Array.isArray(rec.askOptions) && rec.askOptions.length) {
+if (done && type === 'ask' && (rec.askType === 'single' || rec.askType === 'multi') && Array.isArray(rec.askOptions) && rec.askOptions.length) {
 const card = el.querySelector('.msg-ask-card');
 if (!card) return false;
 const wrap = document.createElement('div');
@@ -3896,7 +3896,8 @@ wrap.className = 'msg-inplace';
 const chosen = String(rec.askAnswer || '');
 (rec.askOptions || []).forEach(o => {
 const row = document.createElement('div');
-row.className = 'ip-opt-row' + (String(o.t || '') === chosen ? ' sel' : '');
+// #1415：多选题的答案是「A、B」整串，逐格比全文会一灰到底——交给 mochiAnswerHits 按段判
+row.className = 'ip-opt-row' + (window.mochiAnswerHits && window.mochiAnswerHits(String(o.t || ''), chosen) ? ' sel' : '');
 let replyTxt = '';
 if (Array.isArray(o.reply) && o.reply.length) {
 const arr = o.reply.filter(s => typeof s === 'string' && s.trim()).map(s => s.trim());
@@ -3937,6 +3938,54 @@ if (window.logFish) window.logFish();
 });
 wrap.appendChild(b);
 });
+} else if (type === 'ask' && (rec.askType === 'multi' || rec.type === 'multi')) {
+// #1415：多选题手动作答＝勾选＋提交两拍（单选题保持「点一下就落地」不动）。
+// 这里不能沿用单选那条「点即答」的按钮：一次点选只表达一个答案，多选必须有第二拍才算数。
+const opts = Array.isArray(rec.askOptions) ? rec.askOptions : (Array.isArray(rec.options) ? rec.options : []);
+if (!opts.length) return false;
+const rows = [];
+const picked = [];
+const btn = document.createElement('button');
+btn.className = 'ip-multi-submit';
+btn.type = 'button';
+const syncSubmit = () => {
+btn.disabled = !picked.length;
+btn.textContent = picked.length ? '提交（已选 ' + picked.length + ' 个）' : '先勾选答案';
+};
+// 所选选项各自写过的「~TA回应」并成一份候选，交给 chatAskReply 抽一条（一条都没有＝走预设池）
+const repliesOf = o => {
+const r = o && o.reply;
+if (Array.isArray(r)) return r.filter(s => typeof s === 'string' && s.trim());
+if (typeof r === 'string') return r.split(';').map(s => s.trim()).filter(Boolean);
+return [];
+};
+opts.forEach(o => {
+const t = String((o && o.t) || '');
+const row = document.createElement('div');
+row.className = 'ip-opt-row ip-opt-chk';
+const replyArr = repliesOf(o);
+row.innerHTML = '<span class="ip-opt-box"></span><span class="ip-opt-t">' + escTxt(t) + '</span>' +
+(replyArr.length ? '<span class="ip-opt-reply">' + escTxt(replyArr.length > 1 ? replyArr[0] + ' 等' + replyArr.length + '条' : replyArr[0]) + '</span>' : '');
+row.addEventListener('click', () => {
+const at = picked.indexOf(t);
+if (at >= 0) picked.splice(at, 1); else picked.push(t);
+row.classList.toggle('on', at < 0);
+syncSubmit();
+});
+rows.push({ row: row, t: t, o: o });
+wrap.appendChild(row);
+});
+btn.addEventListener('click', () => {
+if (!picked.length) return;
+const chosen = rows.filter(r => picked.indexOf(r.t) >= 0);
+const answers = [];
+const replies = [];
+chosen.forEach(r => { answers.push(r.t); repliesOf(r.o).forEach(s => replies.push(s)); });
+if (window.chatAskReply) window.chatAskReply(idx, answers.join('、'), replies.length ? replies : undefined);
+if (window.logFish) window.logFish();
+});
+wrap.appendChild(btn);
+syncSubmit();
 } else if (type === 'ask' && (rec.askType === 'single' || (rec.type === 'single' && Array.isArray(rec.options) && rec.options.length))) {
 const opts = Array.isArray(rec.askOptions) ? rec.askOptions : (Array.isArray(rec.options) ? rec.options : []);
 if (!opts.length) return false;
@@ -4171,7 +4220,7 @@ if (!item || item.dataset.idx === undefined) return;
 const idx = Number(item.dataset.idx);
 const rec = msgs[idx];
 if (!rec) return;
-if (card.classList.contains('answered') && rec.special === 'ask' && rec.askType === 'single' && Array.isArray(rec.askOptions) && rec.askOptions.length) {
+if (card.classList.contains('answered') && rec.special === 'ask' && (rec.askType === 'single' || rec.askType === 'multi') && Array.isArray(rec.askOptions) && rec.askOptions.length) {
 e.stopPropagation();
 const hadFav = card.classList.contains('show-fav');
 body.querySelectorAll('.msg-ask-card.show-fav, .msg-choose-card.show-fav').forEach(c => c.classList.remove('show-fav'));
@@ -5644,7 +5693,8 @@ const a = answers[i] || '';
 rows += '<div class="msg-survey-item' + (a ? ' answered' : '') + '">' +
 '<div class="msg-survey-q">' + (i + 1) + '. ' + escTxt(q.text || '') + '</div>' +
 (Array.isArray(q.options) && q.options.length
-? '<div class="msg-survey-opts">' + q.options.map(o => '<span class="msg-survey-opt' + (a && String(o) === String(a) ? ' sel' : '') + '">' + escTxt(o) + '</span>').join('') + '</div>'
+// #1415：多选题的答案是「A、B」整串——原来拿它去和单个选项比全文，多选题永远一个都不亮
+? '<div class="msg-survey-opts">' + q.options.map(o => '<span class="msg-survey-opt' + (window.mochiAnswerHits && window.mochiAnswerHits(o, a) ? ' sel' : '') + '">' + escTxt(o) + '</span>').join('') + '</div>'
 : '') +
 (a ? '<div class="msg-survey-a">' + (window.taFit ? window.taFit('TA：') : 'TA：') + escTxt(window.taFit ? window.taFit(a) : a) + '</div>' : '') +
 '</div>';
@@ -5800,12 +5850,13 @@ if (rec.special === 'ask') {
 m.className = 'msg-ask';
 m.dataset.idx = __msgAt; // #1326：分支重写读调用方给的这一格
 const answered = rec.askStatus === 'answered';
-const askIsSingle = rec.askType === 'single';
+// #1415：多选题与单选题在「等 TA 从选项里挑」这一点上是同一件事，提示语共用一句
+const askIsPick = rec.askType === 'single' || rec.askType === 'multi';
 m.innerHTML = '<div class="msg-ask-card' + (answered ? ' answered' : '') + '">' +
 '<div class="msg-ask-q">' + T('问问TA') + ' · ' + escTxt(rec.askQuestion || '') + '</div>' +
 (answered
 ? '<div class="msg-ask-a">✓ ' + T('TA：') + escTxt(T(rec.askAnswer || '回答了你')) + '</div>' + (rec.askReply ? '<div class="msg-choose-r">' + T('TA：') + escTxt(T(askCardReplyClean(rec.askReply))) + '</div>' : '')
-: '<div class="msg-ask-tip">' + (askIsSingle ? T('等待 TA 选择…') : T('等待 TA 回答…')) + '</div>') +
+: '<div class="msg-ask-tip">' + (askIsPick ? T('等待 TA 选择…') : T('等待 TA 回答…')) + '</div>') +
 favHeartHtml(rec) +
 '</div>';
 appendMsg(m);
@@ -6102,11 +6153,13 @@ m.className = 'msg-ask';
 m.dataset.idx = __msgAt; // #1326：分支重写读调用方给的这一格
 const answered = rec.askStatus === 'answered';
 const isSingle = rec.askType === 'single' || (rec.type === 'single' && Array.isArray(rec.options) && rec.options.length);
+// #1415：多选题的提示要说出这一拍的规则（勾完要点提交，点一下不会落地）
+const isMulti = rec.askType === 'multi' || (rec.type === 'multi' && Array.isArray(rec.options) && rec.options.length);
 m.innerHTML = '<div class="msg-ask-card' + (answered ? ' answered' : '') + '">' +
 '<div class="msg-ask-q">' + escTxt(rec.askQuestion || rec.text) + '</div>' +
 (answered
 ? '<div class="msg-ask-a">✓ 已回答：' + escTxt(rec.askAnswer) + '</div>' + (rec.askReply ? '<div class="msg-choose-r">' + T('TA：') + escTxt(T(askCardReplyClean(rec.askReply))) + '</div>' : '')
-: '<div class="msg-ask-tip">' + (isSingle ? '点击选择你的答案' : T('点击回答 TA 的提问')) + '</div>') +
+: '<div class="msg-ask-tip">' + (isMulti ? '可多选，选完点「提交」' : isSingle ? '点击选择你的答案' : T('点击回答 TA 的提问')) + '</div>') +
 favHeartHtml(rec) +
 '</div>';
 appendMsg(m);
@@ -6762,6 +6815,33 @@ return !!(window.nightModeActive && window.nightModeActive());
 function nightOpenReply() {
 if (window.nightModeActive && window.nightModeActive()) window.__nightReplyOpen = Date.now();
 }
+// ==== #1438（作者 2026-09-29 直派「聊天里联系人发送的卡片，如果我没有回答，刷新重新打开网页，
+// 聊天里的卡片会消失，没有显示」＋「总之不要丢失我的记录」）====
+// 洞是不对称，不是渲染：回答那侧处处走 `saveMsgsNow()`（#489 注释原话「回答即落盘……切桌面
+// flush 前不止内存一份」），而**建卡**这侧只有 `saveMsgs()`＝空闲回调＋最小间隔合并的低频整包落盘
+// （v3.26.x 止血留下的），第二副本仅尾巴日志一条——而尾巴日志对互动卡并不保险：
+// `chatTailAppend` 有「序列化超 3000 字符宁可不兜底」那道拒收，实测第一张查岗卡（整包 437 字节）
+// 就没进日志。于是「还没答的卡」在整包落盘之前被刷新／杀进程／系统回收打断，IDB 与 LS 快照里
+// 都没有它，重开时权威读库判它「不存在」，从此彻底消失（往上翻也没有）；答过的因为早强制落过盘，
+// 永远在。作者看到的「只有没回答的卡会消失」正是这一条，与机型无关。
+// 修法＝把建卡拉到与答卡同一档位：这类记录一进 msgs 就把待写的整包 flush 掉。
+// 刻意不另开写路径——仍走 saveMsgs→schedulePersist 那个闭包，#88「本会话没读到权威就不整包写」
+// 与 #90 条数账本两道守卫一字不动；权威未到手时 saveMsgs 自己走「暂存 pendingLocal＋LS 有损快照＋
+// 重试读回」那条分支，此刻没有待写手，flush 自然空转（不会把半截内存写成整包）。
+const PENDING_CARD_STATUS_FIELD = {
+'ask-card': 'askStatus', ask: 'askStatus', 'ask-choose': 'choiceStatus', 'ask-curious': 'curiousStatus',
+'ask-roast': 'roastStatus', invite: 'inviteStatus', survey: 'surveyStatus', redpacket: 'rpStatus'
+};
+// 已落定的取值枚举：互动卡答完是 'answered'，问卷 'done'，红包被领/过期/退回都不再是「等人来操作」
+const PENDING_CARD_SETTLED = { answered: 1, done: 1, received: 1, expired: 1, returned: 1 };
+function isPendingCardRec(rec) {
+if (!rec) return false;
+const f = PENDING_CARD_STATUS_FIELD[rec.special];
+if (!f) return false;
+// 没有这个字段也算「未落定」：ck-question 发卡时根本不传 askStatus（回答后才写），
+// 拿「字段缺失」当已落定＝把最容易丢的那一类（刚发来、没人碰过）漏在闸外
+return !PENDING_CARD_SETTLED[rec[f]];
+}
 function addRec(rec) {
 if (rec.side === 'in' && nightBlocksIn(rec.initiative, rec.nightAllow)) return null;
 if (rateBlocksIn(rec)) return null; // #1180 总量限流兜底（chatAddGift 等不过 addIn 的入口也走这里）
@@ -6918,6 +6998,9 @@ return true;
 return false;
 };
 saveMsgs();
+// #1438：未落定的互动卡当场把待写整包 flush 掉（建卡与答卡同一持久性档位；为什么必须这样，
+// 见上面 PENDING_CARD_STATUS_FIELD 那段注释——作者报的「没回答的卡刷新就没了」＝这条不对称）
+try { if (isPendingCardRec(rec)) flushPersistNow(); } catch (ePC) {}
 	// FIX 2026-09-27 #1347（OPPO 一加12 PJD110／Chrome 153 桌面 PWA 实报「主动发的消息在桌面消息
 	// （软件内部的消息）弹出有问题，主动发的消息桌面的【聊天】角标会不显示数字」＋「这个问题其他
 	// 设备型号也有出现，不要覆盖修改」）：下面这条「值得提醒」判据原来是【卡片类型名白名单】——
@@ -8718,20 +8801,36 @@ document.addEventListener('contact-switched', function () {
 try { if (window.replyCfg) scheduleAutoSend(); } catch (e) {}
 });
 // FIX 2026-09-04 #158 本池是「我」拒绝 TA 邀请后自己发的婉拒话术，逐条必须是拒绝者视角；原第二条「等会儿再陪我玩好不好」是邀请者(TA)口吻（陪我玩=要对方陪），用户误以为该由联系人发送，改为「等会儿再陪你玩好不好」
-const INVITE_DECLINE = ['下次吧，现在不太想玩~', '等会儿再陪你玩好不好', '先不玩啦，待会儿再说', '现在没状态，下次一定'];
 // v3.14.x：贴贴邀请（cuddle）——正常情侣贴贴互动（贴/抱/牵手/靠着），没有游戏半框：
 // 同意后轻震动一下（体感反馈），TA 稍后回应一句贴贴的话；婉拒用专属文案
+// #1422（作者 2026-09-29「把没在库里的 6 个预设池加进系统预设页」）：这三池的预设语**单一数据源**
+//   已迁至 default-cards-data.js 的 DEFAULT_CARD_DATA.interact（同名分组「游戏邀请·婉拒」
+//   「贴贴·婉拒」「贴贴·回应」），字卡库→系统预设字卡→其他互动功能字卡→互动回应 同源展示、
+//   逐句开关（dc-off-interact:<文案>）与整组停用都生效；下面三个数组只留作**数据缺失时的兜底**
+//   （同 v3.14.x 经期关心的做法，勿当数据源改）。取用一律走 presetReplyPick(分组名, 兜底)——
+//   ⚠ 必须在调用时取：本文件先于 default-cards.js 加载，模块初始化时窗口出口还不存在。
+const INVITE_DECLINE = ['下次吧，现在不太想玩~', '等会儿再陪你玩好不好', '先不玩啦，待会儿再说', '现在没状态，下次一定'];
 const CUDDLE_DECLINE = ['下次再贴吧，先记着这笔~', '等会儿补给你，说话算数', '先欠着，攒到晚上一起还~', '今天想先自己待会儿，明天加倍还你'];
 const CUDDLE_REPLIES = ['嗯……蹭到了。暖暖的，很喜欢。', '那我要贴很久哦，不许偷偷跑掉。', '手被握住了，就这样待一会儿。', '感觉到了，你在旁边。很安心。', '贴贴充电中……好，满格了。'];
+// #1422：取一句该组现存的预设语。返回空串＝用户把这一组逐句关掉/整组停用（＝真停用），
+//   调用方必须「什么都不说」，不许回落兜底句、更不许抓别的组顶上。
+function presetReplyPick(group, fallback) {
+try {
+if (typeof window.getPresetGroupLines === 'function') {
+const l = window.getPresetGroupLines(group, fallback);
+return l.length ? pick(l) : '';
+}
+} catch (e) {}
+return fallback.length ? pick(fallback) : '';
+}
 // v3.26.x(#122)：注册聊天内置系统回应池跨分类搜索（字卡库列表页搜索同源可查，不再搜不到）
+// #1422：三池已进系统预设，chatcard.js 的「默认聊天字卡」登记项会遍历 DEFAULT_CARD_DATA 全部分类
+//   自动收录它们（标成「[互动回应] 分组名」），此处再列一遍＝同一句搜出两行，故只留没进库的那池。
 window.__cardSearchFns = window.__cardSearchFns || [];
 window.__cardSearchFns.push({ name: '聊天系统回应', fn: function (kw) {
   const out = [];
   try {
     FALLBACK_REPLY_POOL.forEach(c => { if (String(c).toLowerCase().indexOf(kw) >= 0) out.push({ t: String(c), cat: '兜底回复' }); });
-    INVITE_DECLINE.forEach(c => { if (String(c).toLowerCase().indexOf(kw) >= 0) out.push({ t: String(c), cat: '游戏邀请·婉拒' }); });
-    CUDDLE_DECLINE.forEach(c => { if (String(c).toLowerCase().indexOf(kw) >= 0) out.push({ t: String(c), cat: '贴贴·婉拒' }); });
-    CUDDLE_REPLIES.forEach(c => { if (String(c).toLowerCase().indexOf(kw) >= 0) out.push({ t: String(c), cat: '贴贴·回应' }); });
   } catch (e) {}
   return out;
 } });
@@ -8739,13 +8838,15 @@ window.__cardSearchFns.push({ name: '聊天系统回应', fn: function (kw) {
 // 亲亲/贴贴申请弹窗，我同意后系统消息里没有相关消息」——口径对齐换头像邀请（avatar-lib replyMeInvite）
 // 与听歌邀请（music-player sm-req-*）：同意/拒绝都写一条 chatAddSystem 留痕。
 // 猜拳/游戏类邀请不传 onDecline，保持原样（对局结束另有系统消息，避免同一件事留痕两次）。
-function openInviteConfirm(title, staticText, onAccept, declinePool, onDecline) {
+function openInviteConfirm(title, staticText, onAccept, declinePool, declineGroup, onDecline) {
 const mask = document.getElementById('modal-mask');
 if ((mask && !mask.hidden) || !window.openModal) { onAccept(); return; }
 window.openModal(title, '', (v) => {
 if (v === '1') onAccept();
 else if (typeof onDecline === 'function') onDecline();
-else addOut(pick(declinePool || INVITE_DECLINE));
+// #1422：婉拒句改从系统预设取（分组名随邀请类型走），整组/逐句关掉就什么都不发——
+//   这句是「我」发的婉拒，关掉后留空比抓别的组顶上去诚实。
+else { const _dl = presetReplyPick(declineGroup || '游戏邀请·婉拒', declinePool || INVITE_DECLINE); if (_dl) addOut(_dl); }
 }, {
 noInput: true,
 lock: true,
@@ -8754,10 +8855,128 @@ pill: '1', // v3.16.x：邀请弹窗默认选中「同意」，无需手动点�
 staticText: staticText
 });
 }
+// ==== #1435：贴贴邀请的「挂起等待」：弹窗本体（形态抄 openInviteConfirm，一字不差：锁屏、
+// 默认选中「同意」、不自动关）＋ 挂起状态机（落盘/重投时机/超时）。====
+// 为什么必须拆开：旧链路里那一句 `if ((mask && !mask.hidden) ...) { onAccept(); return; }`
+// 是「弹窗没弹出来却算用户同意了」的根因——屏幕上已有别的层时，贴贴直接静默通过；页面在后台、
+// 被冻结、或 700~1400ms 那一跳正好赶上刷新，回调就永远不跑，这条邀请彻底消失（聊天里只留一句
+// 「TA 想贴贴」）。现在：同意/拒绝都只由这条弹窗的回调落一次，弹不出去＝挂着重投，不算任何结局。
+// 挂起键 records-cuddle-pending 与主页记录 records-cuddle 都走联系人桌面命名空间，
+// 「切后台回来还能看到」因此同时覆盖同一会话内切走、切桌面、以及刷新/冷启动三种情形。
+const CP_KEY = 'records-cuddle-pending';
+const CP_HOLD_MS = 10 * 60 * 1000; // 作者选的那档：10 分钟内回来就还在，超时＝错过未回应
+const CP_TICK_MS = 20 * 1000;       // 只在有挂起时才跑的心跳；没有挂起自动停
+let _cpLive = null;                 // 当前挂在屏上的那一条：{ ts, title }
+function _cpStore(cid) { return (cid && window.storeFor) ? window.storeFor(cid) : store; }
+function _cpLoad(cid) {
+try { const v = _cpStore(cid).get(CP_KEY); if (!v) return null; const p = JSON.parse(v); return (p && p.ts) ? p : null; } catch (e) { return null; }
+}
+function _cpSave(cid, p) { try { _cpStore(cid).set(CP_KEY, JSON.stringify(p)); } catch (e) {} }
+function _cpClear(cid) { try { _cpStore(cid).remove(CP_KEY); } catch (e) {} }
+// 别的层占屏＝让路（不是同意）；与跨桌面那族的 layerBusy 同一批选择器，含应用锁
+function _cpBusy() {
+return ['modal-mask', 'tc-mask', 'qa-mask', 'call-mask', 'applock-mask'].some(function (id) {
+const el = document.getElementById(id);
+return el && !el.hidden;
+});
+}
+// 这一条现在是不是就在我眼前（用于「已在屏上就别重开」与「被顶掉后要能再投」）
+function _cpOnScreen(ts) {
+if (!_cpLive || (ts && _cpLive.ts !== ts)) return false;
+const mask = document.getElementById('modal-mask');
+const tEl = document.getElementById('modal-title');
+return !!(mask && !mask.hidden && tEl && tEl.textContent === _cpLive.title);
+}
+let _cpTimer = null;
+function _cpStart() { if (!_cpTimer) _cpTimer = setInterval(_cpTick, CP_TICK_MS); }
+function _cpStop() { if (_cpTimer) { clearInterval(_cpTimer); _cpTimer = null; } }
+function _cpCids() {
+const out = [window.__activeCid || 'default'];
+try { (window.getContacts() || []).forEach(function (c) { if (c && c.id && out.indexOf(c.id) < 0) out.push(c.id); }); } catch (e) {}
+return out;
+}
+function _cpAny() { return _cpCids().some(function (cid) { return !!_cpLoad(cid); }); }
+function _cpTick() {
+_cpCids().forEach(_cpPump);
+if (!_cpAny()) _cpStop(); // 全部落定（答完/过期）就撤掉心跳，不留常驻定时器
+}
+// 一次投喂：过期就收尾成「错过未回应」；不是当前桌面/在后台/有别的层就继续等
+function _cpPump(cid) {
+const p = _cpLoad(cid);
+if (!p) return false;
+if (Date.now() - (p.ts || 0) > CP_HOLD_MS) {
+_cpClear(cid);
+try { if (window.setCuddleRecordResult) window.setCuddleRecordResult(cid, p.ts, 'missed'); } catch (e) {}
+return false;
+}
+if (cid !== (window.__activeCid || 'default')) return false;
+if (document.hidden) return false;
+// 先认自己那条：已经在屏上就是「没关、还在等」，什么都不做（顺序不能倒——判占屏会把自己也算进去）
+if (_cpOnScreen(p.ts)) return true;
+if (_cpBusy()) return false;
+return _cpOpen(p, cid);
+}
+// 弹窗本体：只在这条挂起确实归当前桌面、且屏幕空得下来时开
+function _cpOpen(p, cid) {
+if (!window.openModal) return false;
+const name = p.name || chatPartnerName();
+const title = name + ' 的贴贴邀请';
+_cpLive = { ts: p.ts, title: title };
+window.openModal(title, '', (v) => {
+_cpLive = null;
+const accepted = v === '1';
+// 系统消息先落（记录动作），TA 的回应/婉拒随后——顺序沿用 #510 的口径
+try { if (window.chatAddSystem) window.chatAddSystem(accepted ? '你接受了 ' + name + ' 的贴贴邀请' : '你拒绝了 ' + name + ' 的贴贴邀请'); } catch (e) {}
+try { if (window.setCuddleRecordResult) window.setCuddleRecordResult(cid, p.ts, accepted ? 'replied' : 'declined'); } catch (e) {}
+try { if (window.clearCuddleInvitePending) window.clearCuddleInvitePending(cid, p.ts); } catch (e) {}
+if (accepted) { try { openInvitePanelFor('cuddle', name); } catch (e) {} }
+else { try { const _cl = presetReplyPick('贴贴·婉拒', CUDDLE_DECLINE); if (_cl) addOut(_cl); } catch (e) {} }
+}, {
+noInput: true,
+lock: true,
+pills: [{ label: '同意', value: '1' }, { label: '拒绝', value: '0' }],
+pill: '1', // 与 openInviteConfirm 同款默认选中「同意」
+staticText: name + ' ' + (p.text || '')
+});
+return true;
+}
+window.queueCuddleInvite = function (payload) {
+try {
+payload = payload || {};
+const cid = payload.cid || window.__activeCid || 'default';
+const p = { ts: payload.ts || Date.now(), text: payload.text || '', name: payload.name || '' };
+_cpSave(cid, p);
+// 主页「邀请贴贴」那一行先以「待回应」落账，结局由 _cpOpen 的回调或超时改写（同一 ts，不另起行）
+try { if (window.addCuddleRecordFor) window.addCuddleRecordFor(cid, { ts: p.ts, text: p.text, res: 'pending' }); } catch (e) {}
+_cpPump(cid);
+_cpStart();
+return true;
+} catch (e) { return false; }
+};
+window.clearCuddleInvitePending = function (cid, ts) {
+try {
+const p = _cpLoad(cid);
+if (p && (!ts || p.ts === ts)) _cpClear(cid);
+if (!_cpAny()) _cpStop();
+return true;
+} catch (e) { return false; }
+};
+// 供外部（探针/其他补弹通道）查询：某一条贴贴弹窗此刻是不是挂在屏上
+window.cuddleInvitePopupLive = function (ts) { return _cpOnScreen(ts); };
+// 回前台（bg-keep 统一信号）／切桌面／数据回填完成——三个「屏幕大概空得下来」的时刻各补投一次
+['mochi-fg-resume', 'contact-switched', 'mochi-restore-done'].forEach(function (ev) {
+try {
+document.addEventListener(ev, function () {
+_cpPump(window.__activeCid || 'default');
+if (!_cpAny()) _cpStop();
+});
+} catch (e) {}
+});
+try { if (window.mochiOnDataReady) window.mochiOnDataReady(function () { _cpPump(window.__activeCid || 'default'); if (_cpAny()) _cpStart(); }); } catch (e) {}
 function openInvitePanelFor(kind, name) {
 if (kind === 'cuddle') {
 try { if (navigator.vibrate) navigator.vibrate([30, 60, 90]); } catch (e) {}
-try { addInTyped(name + ' ' + pick(CUDDLE_REPLIES)); } catch (e) {}
+try { const _cr = presetReplyPick('贴贴·回应', CUDDLE_REPLIES); if (_cr) addInTyped(name + ' ' + _cr); } catch (e) {}
 return;
 }
 if (kind === 'rps') { if (window.openRpsPanel) window.openRpsPanel(); return; }
@@ -8797,12 +9016,22 @@ hideTyping();
 // 聊天记录里没有任何系统消息 → 用户报「同意后系统消息里没有相关消息」。
 // 顺序：系统消息先落（记录动作），TA 的回应/婉拒话术随后，时间线符合直觉。
 const _cuddleInv = inv.kind === 'cuddle';
+// #1435（作者「邀请贴贴弹窗是和其他提问弹窗一样不会自己关闭，切换后台回来也能看到」）：
+// 贴贴这一路改走「先落挂起＋主页记录，再尽力弹窗」——弹不出去（别的层占屏／页面在后台／
+// 正好被冻结刷新）不算回答，由本文件下方那份挂起状态机（CP_KEY 那段）在 10 分钟内挑屏幕
+// 空得下来的时机重投，超时才记「错过未回应」。挂起与状态机都收在 chat.js：它要读 openInvitePanelFor/
+// CUDDLE_DECLINE/chatAddSystem 这些只有聊天页才有的东西，放 ta-invite.js（纯题库模块）就得把这些反向暴露出去。
+// window.queueCuddleInvite 缺失（本文件没装载到的极端场景）才退回旧链路，至少不静默吞掉这次邀请。
+if (_cuddleInv && window.queueCuddleInvite) {
+try { window.queueCuddleInvite({ name: name, text: inv.text || '' }); } catch (e) {}
+return;
+}
 openInviteConfirm(name + ' 的' + meta.title, name + ' ' + (inv.text || ''), () => {
 if (_cuddleInv && window.chatAddSystem) window.chatAddSystem('你接受了 ' + name + ' 的贴贴邀请');
 openInvitePanelFor(inv.kind, name);
-}, _cuddleInv ? CUDDLE_DECLINE : null, _cuddleInv ? () => {
+}, _cuddleInv ? CUDDLE_DECLINE : null, _cuddleInv ? '贴贴·婉拒' : '游戏邀请·婉拒', _cuddleInv ? () => {
 if (window.chatAddSystem) window.chatAddSystem('你拒绝了 ' + name + ' 的贴贴邀请');
-addOut(pick(CUDDLE_DECLINE));
+const _cl = presetReplyPick('贴贴·婉拒', CUDDLE_DECLINE); if (_cl) addOut(_cl);
 } : null);
 }, randInt(700, 1400));
 }
@@ -10876,7 +11105,12 @@ const chatAskOk = document.getElementById('chat-ask-ok');
 const chatAskCancel = document.getElementById('chat-ask-cancel');
 const chatAskClose = document.getElementById('chat-ask-close');
 let chatAskMode = 'invite'; // invite / ask
-let chatAskType = 'text'; // ask 模式回复类型：text 文字回复 / single 单选题
+let chatAskType = 'text'; // ask 模式回复类型：text 文字回复 / single 单选题 / multi 多选题（#1415）
+// #1415：切题型时选项框那句话跟着改口——同一格里写「TA 会选一个」去出多选题是指错地方。
+const ASK_OPTS_PH = {
+single: '单选题选项：每行一个；可写 选项~TA回应，TA会选一个并用该回应回复',
+multi: '多选题选项：每行一个；可写 选项~TA回应，TA会按「最多选几个」选若干个并用该回应回复'
+};
 function ensureChatAskTypeRow() {
 if (!chatAskPanel || chatAskPanel.querySelector('.chat-ask-type')) return;
 const askBody = chatAskPanel.querySelector('.chat-ask-body');
@@ -10886,7 +11120,8 @@ typeRow.className = 'chat-ask-type';
 typeRow.hidden = true;
 typeRow.innerHTML =
 '<button class="chat-ask-type-btn sel" data-atype="text">文字回复</button>' +
-'<button class="chat-ask-type-btn" data-atype="single">单选题</button>';
+'<button class="chat-ask-type-btn" data-atype="single">单选题</button>' +
+'<button class="chat-ask-type-btn" data-atype="multi">多选题</button>';
 const optsWrap = document.createElement('div');
 optsWrap.className = 'dec-inp-wrap chat-ask-opts-wrap';
 optsWrap.hidden = true;
@@ -10894,7 +11129,7 @@ const opts = document.createElement('textarea');
 opts.id = 'chat-ask-opts';
 opts.className = 'chat-ask-opts';
 opts.rows = 3;
-opts.placeholder = '单选题选项：每行一个；可写 选项~TA回应，TA会选一个并用该回应回复';
+opts.placeholder = ASK_OPTS_PH.single;
 opts.hidden = true;
 const optsClear = document.createElement('button');
 optsClear.type = 'button';
@@ -10917,7 +11152,9 @@ const actions = askBody.querySelector('.chat-ask-actions');
 if (actions) { askBody.insertBefore(typeRow, actions); askBody.insertBefore(optsWrap, actions); }
 else { askBody.appendChild(typeRow); askBody.appendChild(optsWrap); }
 const syncOptsHidden = () => {
-const show = chatAskType === 'single';
+const show = chatAskType === 'single' || chatAskType === 'multi';
+opts.placeholder = ASK_OPTS_PH[chatAskType] || ASK_OPTS_PH.single;
+syncAskMultiRow();
 optsWrap.hidden = !show;
 opts.hidden = !show;
 if (opts.__ceBox) opts.__ceBox.style.display = show ? 'block' : 'none';
@@ -10927,7 +11164,7 @@ try { obox.style.transform = show ? 'translateZ(0)' : ''; } catch (e) {}
 };
 typeRow.querySelectorAll('.chat-ask-type-btn').forEach(btn => {
 btn.addEventListener('click', () => {
-chatAskType = btn.dataset.atype === 'single' ? 'single' : 'text';
+chatAskType = btn.dataset.atype === 'single' || btn.dataset.atype === 'multi' ? btn.dataset.atype : 'text';
 typeRow.querySelectorAll('.chat-ask-type-btn').forEach(b => b.classList.toggle('sel', b === btn));
 syncOptsHidden();
 askBoxes().forEach(({ box }) => {
@@ -10956,7 +11193,48 @@ if (wrap) wrap.hidden = true;
 if (opts.__ceBox) opts.__ceBox.style.display = 'none';
 else if (opts.previousElementSibling && opts.previousElementSibling.classList && opts.previousElementSibling.classList.contains('ce-box')) opts.previousElementSibling.style.display = 'none';
 }
+syncAskMultiRow();
 }
+// ==== #1415 多选题（作者直派「问问TA 没有联系人答题可多选」「批量问卷也不能多选」）单一口径 ====
+// 两枚助手都在 chat.js 顶层定义并挂 window：ta-ask.js（批量问卷、TA 的题库）与本页（问问TA 半框、
+// 点卡作答）读写同一把尺，避免出现「半框里最多选 3 个、问卷里另算一套」。
+// 「最多选几个」与 #809 思考时间同为 per-cid 裸键（store 即当前桌面命名空间）。
+function askMultiMaxLoad() {
+try { const n = parseInt(store.get('ask-multi-max'), 10); return (n >= 2 && n <= 6) ? n : 3; } catch (e) { return 3; }
+}
+function askMultiMaxSave(n) {
+try { store.set('ask-multi-max', String(n >= 2 && n <= 6 ? n : 3)); } catch (e) {}
+}
+window.askMultiMaxLoad = askMultiMaxLoad;
+window.askMultiMaxSave = askMultiMaxSave;
+// 随机抽 count 个不重复下标：count 在「2 ~ min(上限, 选项数)」之间现掷，选项不足 2 时退回 1 个
+// （多选题理论上≥2 选项，这里兜住脏数据免得吐出空答案）。返回按选项原序排好的下标，
+// 于是答案串念出来永远是「火锅、烧烤」这种题目里的顺序，不会每次换个读法。
+function mochiPickMulti(len, maxPick) {
+const n = Number(len) || 0;
+if (n <= 0) return [];
+const hi = Math.min(Math.max(2, Number(maxPick) || 2), n);
+const lo = Math.min(2, n);
+const count = lo + Math.floor(Math.random() * (hi - lo + 1));
+const idx = [];
+for (let i = 0; i < n; i++) idx.push(i);
+for (let i = idx.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = idx[i]; idx[i] = idx[j]; idx[j] = t; }
+return idx.slice(0, count).sort((a, b) => a - b);
+}
+window.mochiPickMulti = mochiPickMulti;
+// 已答态回显判据：多选题的答案是「、」连接的整串，按段全等才算被选中；单选/老记录仍是整串相等。
+// 选项自身含「、」时按段切会切坏它，那一格退化成不高亮（答案整行文字照旧正确）——不另存一份
+// 选中下标，是为了让 surveyAnswers / askAnswer 的形状一字不动，老卡片与跨桌面补投递照旧能读。
+function mochiAnswerHits(optText, answer) {
+const o = String(optText == null ? '' : optText).trim();
+const a = String(answer == null ? '' : answer).trim();
+if (!o || !a) return false;
+if (a === o) return true;
+const segs = a.split('、').map(s => s.trim()).filter(Boolean);
+if (segs.length <= 1) return false;
+return segs.indexOf(o) >= 0;
+}
+window.mochiAnswerHits = mochiAnswerHits;
 // v3.26.x #809：问问TA「思考时间（秒）」——同帮我决定/多人决定的 stepper（1~10 秒），
 // per-cid 持久化（store 即当前桌面命名空间），默认 3 秒＝原随机 1.5~4 秒的常用档；
 // 只在 ask（问问TA）模式显示，invite（邀请TA）模式隐藏（.gs-row[hidden] 已有 #727 兜底）。
@@ -10986,6 +11264,44 @@ row.querySelector('.stp-max').addEventListener('click', (e) => { if (e) e.stopPr
 }
 row.hidden = chatAskMode !== 'ask';
 row.querySelector('.stp-val').value = askThinkSecsLoad();
+}
+// #1415：多选题的「最多选几个」——只在选了「多选题」那一档时出现（单选题只抽 1 个，用不到这根杆）。
+// TA 自己那一路（批量问卷、TA 题库里的多选题）读的是同一个 per-cid 键，两处不会各量一把尺。
+function syncAskMultiRow() {
+const row = chatAskPanel ? chatAskPanel.querySelector('.chat-ask-multi-row') : null;
+if (!row) return;
+row.hidden = !(chatAskMode === 'ask' && chatAskType === 'multi');
+const val = row.querySelector('.stp-val');
+if (val) val.value = askMultiMaxLoad();
+}
+function ensureChatAskMultiRow() {
+if (!chatAskPanel) return;
+const askBody = chatAskPanel.querySelector('.chat-ask-body');
+if (!askBody) return;
+let row = chatAskPanel.querySelector('.chat-ask-multi-row');
+if (!row) {
+row = document.createElement('div');
+row.className = 'gs-row chat-ask-multi-row';
+row.innerHTML = '<span>最多选几个</span><div class="stepper" id="chat-ask-mmax" data-min="2" data-max="6" data-step="1"><button type="button" class="stp-min">−</button><input class="stp-val" readonly><button type="button" class="stp-max">+</button></div>';
+const think = chatAskPanel.querySelector('.chat-ask-think-row');
+if (think && think.parentElement) think.parentElement.insertBefore(row, think.nextSibling);
+else {
+const actions = askBody.querySelector('.chat-ask-actions');
+if (actions) askBody.insertBefore(row, actions); else askBody.appendChild(row);
+}
+const val = row.querySelector('.stp-val');
+// 越界钉回端点而不是打回默认值：拖过头那一下应当停在 6，跳回 3 等于把人刚做的选择抹掉
+const clampSave = () => {
+let n = parseInt(val.value, 10);
+if (isNaN(n)) n = 3;
+else n = n < 2 ? 2 : (n > 6 ? 6 : n);
+val.value = n;
+askMultiMaxSave(n);
+};
+row.querySelector('.stp-min').addEventListener('click', (e) => { if (e) e.stopPropagation(); val.value = (parseInt(val.value, 10) || 3) - 1; clampSave(); });
+row.querySelector('.stp-max').addEventListener('click', (e) => { if (e) e.stopPropagation(); val.value = (parseInt(val.value, 10) || 3) + 1; clampSave(); });
+}
+syncAskMultiRow();
 }
 function askBoxes() {
 const arr = [chatAskInput, document.getElementById('chat-ask-opts')];
@@ -11062,6 +11378,7 @@ if (!chatAskPanel) return;
 chatAskMode = mode || 'invite';
 ensureChatAskTypeRow();
 ensureChatAskThinkRow();
+ensureChatAskMultiRow();
 resetChatAskType();
 if (chatAskTitle) chatAskTitle.textContent = chatAskMode === 'invite' ? '邀请TA' : '问问TA';
 if (chatAskInput) {
@@ -11144,20 +11461,22 @@ if (!chatAskInput) return;
 const content = (chatAskInput.value || '').trim();
 if (!content) { toast('请输入内容'); return; }
 let askOpts = null;
-if (chatAskMode === 'ask' && chatAskType === 'single') {
+if (chatAskMode === 'ask' && (chatAskType === 'single' || chatAskType === 'multi')) {
+const multi = chatAskType === 'multi';
 const optsEl = document.getElementById('chat-ask-opts');
 askOpts = String(optsEl ? optsEl.value || '' : '').split(/\r?\n/).map(s => s.trim()).filter(Boolean).map(line => {
 const i = line.indexOf('~');
 return i >= 0 ? { t: line.slice(0, i).trim(), reply: line.slice(i + 1).trim() } : { t: line, reply: '' };
 });
-if (!askOpts.length) { toast('单选题请填写选项，每行一个'); return; }
+if (!askOpts.length) { toast((multi ? '多选题' : '单选题') + '请填写选项，每行一个'); return; }
+// #1415：多选题只给 1 个选项就没什么可「多」的——按题型的实际含义拦一下
+if (multi && askOpts.length < 2) { toast('多选题至少填 2 个选项'); return; }
 }
 closeChatAskPanel();
 if (chatAskMode === 'invite') {
 sendInviteContent(content);
 } else {
-const isSingle = !!askOpts;
-addRec({ side: 'out', text: '问：' + content, special: 'ask', askQuestion: content, askType: isSingle ? 'single' : 'text', askOptions: askOpts, askStatus: 'pending' });
+addRec({ side: 'out', text: '问：' + content, special: 'ask', askQuestion: content, askType: askOpts ? chatAskType : 'text', askOptions: askOpts, askStatus: 'pending' });
 const askIdx = msgs.length - 1;
 // v3.26.x #489：卡片 ts 作定位键——回答延迟窗内 loadMsgs 可能重建 msgs（索引错位，
 // 同 ta-ask.js locateCardIdx 的防御理由）；跨桌面补投递也按它定位
@@ -11181,9 +11500,13 @@ const defs = window.getInteractPool
 ? window.getInteractPool('问问TA·回应', ['嗯嗯', '我想想…', '应该吧', '好呀', '我陪你', '可以的', '那挺好呀', '我觉得可以', '听你的', '当然可以', '我很乐意'])
 : ['嗯嗯', '我想想…', '应该吧', '好呀', '我陪你', '可以的', '那挺好呀', '我觉得可以', '听你的', '当然可以', '我很乐意'];
 let text;
-if (isSingle && askOpts && askOpts.length) {
-const o = askOpts[Math.floor(Math.random() * askOpts.length)];
-text = o.t;
+if (askOpts && askOpts.length) {
+// #1415：多选题一次抽「2 ~ min(最多选几个, 选项数)」个、按题目原序念出来；单选保持抽 1 个
+if (chatAskType === 'multi') {
+text = mochiPickMulti(askOpts.length, askMultiMaxLoad()).map(k => String(askOpts[k].t || '')).join('、');
+} else {
+text = String(askOpts[Math.floor(Math.random() * askOpts.length)].t || '');
+}
 } else {
 text = (window.pickAskCardReply ? window.pickAskCardReply(defs) : defs[Math.floor(Math.random() * defs.length)]);
 }
@@ -11485,7 +11808,7 @@ return false;
 function myInviteView() {
 	const out = [];
 	const pre = myInviteG().find(g => g[0] === '__preset');
-	out.push({ key: '__preset', label: '预设', cards: (pre && Array.isArray(pre[1])) ? pre[1].slice() : MY_INVITE_PRESETS.slice(), preset: true });
+	out.push({ key: '__preset', label: '预设', cards: ((pre && Array.isArray(pre[1])) ? pre[1].slice() : MY_INVITE_PRESETS.slice()).filter(c => !(typeof window.isDefaultCardOff === 'function' && window.isDefaultCardOff('interact', c))), preset: true });
 	myInviteG().forEach(g => {
 	if (g[0] === '__preset') return;
 	if (!Array.isArray(g) || !Array.isArray(g[1]) || !g[0]) return;

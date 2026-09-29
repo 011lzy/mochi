@@ -44,7 +44,7 @@
     { g: '桌面应用', items: [
       { n: '聊天（桌面图标）', d: '桌面第 1 页 · 和 TA 的主聊天：字卡回复、图文、引用、撤回补发', k: '桌面 图标 第1页 第一页 聊天 消息 字卡 找不到 在哪 没了', go: ['.app[data-app="chat"]'] },
       { n: '群聊（桌面图标）', d: '桌面第 1 页 · 所有桌面成员聚在一个窗口聊天（需先在设置开启群聊模式，未开启时图标是收起的）', k: '桌面 图标 第1页 第一页 群聊 多人 找不到 在哪 没了', go: ['.app[data-app="group-chat"]'] },
-      { n: '主页（桌面图标）', d: '桌面第 1 页 · 多 tab 统计：换头像/通话/摸鱼/TA 的关心/心意币', k: '桌面 图标 第1页 第一页 主页 统计 情侣空间 找不到 在哪', go: ['.app[data-app="home"]'] },
+      { n: '主页（桌面图标）', d: '桌面第 1 页 · 多 tab 统计：换头像/通话/摸鱼/TA 的关心/心意币，另有三栏查岗与贴贴记录——联系人对我查岗、联系人跨桌面查岗（含错过未回应的）、邀请贴贴', k: '桌面 图标 第1页 第一页 主页 统计 情侣空间 查岗 贴贴 记录 找不到 在哪', go: ['.app[data-app="home"]'] },
       { n: '信箱（桌面图标）', d: '桌面第 1 页 · 和 TA 写信/回信，支持图文信件', k: '桌面 图标 第1页 第一页 信箱 写信 信件 邮件 找不到 在哪', go: ['.app[data-app="mail"]'] },
       { n: '朋友圈（桌面图标）', d: '桌面第 1 页 · 发动态/点赞评论/TA 也会发', k: '桌面 图标 第1页 第一页 朋友圈 动态 点评 找不到 在哪', go: ['.app[data-app="feed"]'] },
       { n: '日历（桌面图标）', d: '桌面第 1 页 · TA 的每日留言、情话、我的备忘与心情', k: '桌面 图标 第1页 第一页 日历 留言 签到 找不到 在哪', go: ['.app[data-app="calendar"]'] },
@@ -108,9 +108,9 @@
       { n: '现在让 TA 好奇一次', d: '直接让 TA 立刻发来一条好奇提问', k: '现在 好奇 提问 立刻', go: ['.app[data-app="chat"]', '#more-curious-now'] },
       { n: '现在让 TA 邀请一次', d: '直接让 TA 立刻发来猜拳/Pong/贪吃蛇/贴贴邀请（四类里随机一种；只想贴贴见下面那条）', k: '现在 邀请 猜拳 对战 贴贴 立刻', go: ['.app[data-app="chat"]', '#more-invite-now'] },
       // v8.29 #1003：三枚手动触发新增（聊天「更多功能 → TA的提问 → 贴贴 / 查岗 / 跨桌面查岗」）
-      { n: '现在让 TA 发一次贴贴邀请', d: '直接让 TA 立刻发来一次贴贴邀请（贴贴/抱抱/牵手/靠着，一定是贴贴、不会随机成别的邀请）', k: '现在 贴贴 抱抱 牵手 邀请 立刻', go: ['.app[data-app="chat"]', '#more-cuddle-now'] },
+      { n: '现在让 TA 发一次贴贴邀请', d: '直接让 TA 立刻发来一次贴贴邀请（贴贴/抱抱/牵手/靠着，一定是贴贴、不会随机成别的邀请）；弹窗不会自己关，切后台再回来还在（10 分钟内），历史看主页「邀请贴贴」', k: '现在 贴贴 抱抱 牵手 邀请 立刻 弹窗 记录', go: ['.app[data-app="chat"]', '#more-cuddle-now'] },
       { n: '现在让 TA 来查一次岗', d: '直接让 TA 立刻发来一张查岗问题卡（平常只按概率出现，这里点一次就来一次）', k: '现在 查岗 主动查岗 立刻', go: ['.app[data-app="chat"]', '#more-ck-now'] },
-      { n: '现在让其他桌面来查一次岗', d: '立刻让另一个桌面的联系人来查你的岗（弹出「XX 来查岗了」，点「现在回TA」切到 TA 的桌面）', k: '现在 跨桌面 查岗 其他桌面 立刻', go: ['.app[data-app="chat"]', '#more-xck-now'] },
+      { n: '现在让其他桌面来查一次岗', d: '立刻让另一个桌面的联系人来查你的岗（弹出「XX 来查岗了」，点「现在回TA」切到 TA 的桌面）；浏览器在后台时它像来电一样等你 3 分钟，回来弹同一个窗；错过没点【确认】的不进聊天、只在主页「联系人跨桌面查岗」留一行', k: '现在 跨桌面 查岗 其他桌面 立刻 错过 记录', go: ['.app[data-app="chat"]', '#more-xck-now'] },
       { n: '现在让 TA 吐槽一次', d: '直接让 TA 立刻发来一条吐槽/调侃', k: '现在 吐槽 调侃 立刻', go: ['.app[data-app="chat"]', '#more-roast-now'] },
       { n: '收藏', d: '我的收藏 / TA 的收藏 分页浏览与批量管理', k: '收藏 星标', go: ['.app[data-app="note"]'] },
       { n: '收藏设置', d: 'TA 自动收藏消息/字卡/信件/动态的概率与统计', k: '收藏 设置 概率 自动收藏', go: ['.app[data-app="note"]', '#fav-settings-btn'] },
@@ -186,10 +186,16 @@
       { n: '字卡库完整导入', d: '从字卡库导出文件恢复全部字卡；也支持导入 milk 字卡库导出的 json（主字卡/拍一拍/Emoji 库/字卡分组，含分组结构）——只适配 milk，其他网站的字卡格式不支持', k: '字卡库 导入 完整 恢复 milk 主字卡 拍一拍 emoji 分组 其他网站 不支持', go: ['.tab[data-page="page-chatcard"]', '#li-cc-full-import'] },
       { n: '查岗互动字卡', d: '温柔关心式查岗问题卡内容自定义', k: '查岗 定位', go: ['.tab[data-page="page-chatcard"]', '#li-ta-checkin'] },
       { n: 'TA的查岗·我的添加', d: '你添加的查岗问题内容', k: '查岗 问题 我的添加', go: ['.tab[data-page="page-chatcard"]', '#li-ta-checkin-mine'] },
-      { n: '寻踪日常字卡', d: 'TA 的日常/在哪里/在做什么/想对你说 内容', k: '寻踪 日常 位置', go: ['.tab[data-page="page-chatcard"]', '#li-loc-cards'] },
+      { n: '寻踪日常字卡', d: 'TA 的日常/在哪里/在做什么/想对你说 内容', k: '寻踪 日常', go: ['.tab[data-page="page-chatcard"]', '#li-checkin-cards'] },
       { n: '寻踪日常·我的添加', d: '你添加的地点/做的事/说的话内容', k: '寻踪 日常 我的添加 地点', go: ['.tab[data-page="page-chatcard"]', '#li-checkin-cards-mine'] },
+      // #1417：原「寻踪日常字卡」这一行的落点是 #li-loc-cards（＝字卡库里的「TA在身边位置卡」），
+      // 点进去到的是另一页；位置卡自此在功能大全里没有自己的条目，故补一行，落点仍是 #li-loc-cards。
+      { n: 'TA在身边位置卡', d: 'TA 的方位/距离/状态/感知位置卡内容管理', k: '位置卡 方位 距离 感知 位置', go: ['.tab[data-page="page-chatcard"]', '#li-loc-cards'] },
       { n: '桌面查岗字卡', d: '联系人跨桌面查岗的系统预设字卡管理', k: '桌面查岗 跨桌面', go: ['.tab[data-page="page-chatcard"]', '#li-deskcheck'] },
-      { n: '贴贴邀请字卡', d: '贴贴/抱抱/牵手等邀请的内容词库', k: '贴贴 抱抱 牵手', go: ['.tab[data-page="page-chatcard"]', '#li-checkin-cards'] }
+      // #1417：作者实报「功能大全搜贴贴字卡 → 点跳转，错跳到寻踪」。原落点 #li-checkin-cards
+      // 是字卡库的「寻踪日常字卡」；贴贴话术实际在「TA的邀请」页的 cuddle 分类，故第三段直连
+      // 该分类子标签（jump() 按顺序 click，页面同帧渲染完，跳过去就停在「贴贴邀请」那一栏）。
+      { n: '贴贴邀请字卡', d: '贴贴/抱抱/牵手等邀请的内容词库', k: '贴贴 抱抱 牵手', go: ['.tab[data-page="page-chatcard"]', '#li-ta-invite', '#ti-sys-cats .cc-tab[data-cat="cuddle"]'] }
     ] },
     { g: '互动与心意', items: [
       { n: '红包', d: '双向红包：预设档/随机/自定义金额、留言与封面', k: '红包 转账 钱', go: ['.app[data-app="chat"]', '#more-rp'] },
@@ -327,7 +333,7 @@
       { n: '完整外观方案', d: '整套外观（桌面+聊天等）方案一键应用', k: '外观 方案 完整 套装 应用', go: ['#row-appearance', '#row-full-beauty-schemes'] }
     ] },
     { g: '记录与统计', items: [
-      { n: '主页', d: '多 tab 统计：换头像/通话/摸鱼/TA 的关心/心意币', k: '主页 情侣空间 统计', go: ['.app[data-app="home"]'] },
+      { n: '主页', d: '多 tab 统计：换头像/通话/摸鱼/TA 的关心/心意币/联系人对我查岗/联系人跨桌面查岗/邀请贴贴', k: '主页 情侣空间 统计 查岗 贴贴 记录', go: ['.app[data-app="home"]'] },
       { n: '聊天统计', d: '相处记录/聊天记录/情绪表达多维统计', k: '统计 聊天统计 数据', go: ['.app[data-app="stats"]'] },
       { n: '提问记录', d: 'TA 的询问/小问题/好奇/吐槽/我的邀请历史', k: '提问记录 历史 记录', go: ['.app[data-app="interact"]'] },
       { n: '查岗打卡', d: 'TA 的查岗打卡与位置记录（桌面图标叫「寻踪」）', k: '查岗 打卡 定位 寻踪 日常 在哪', go: ['.app[data-app="checkin"]'] },
@@ -627,9 +633,21 @@
   }
 
   // 分组列表：默认全部隐藏，由 update() 按当前视图显隐
+  // ---- #1452 阶段 A：行列表改「首次打开才建」----
+  // 本页启动常驻的 JS 现建节点里，213 行 × 每行 9 个节点 ≈2050 个（占本页 ~99%）全在下面这两句；
+  // 真机 iPhone13 实报「桌面图标打开即卡、屏幕无法滑动」的静态成本之一就是它们（隐藏页也参与样式重算）。
+  // 宫格 / 「常用」行 / tag / 未试横幅仍随启动建（合计仅数十节点）——故 #937 到达埋点与未试横幅
+  // **不受影响**：捕获监听、seen 名单与横幅文本照旧从启动就位，首开前用过的桌面图标照样算到达。
+  // 打开后的对外契约完全不变：10 组、条目数、搜索过滤、未试视图、埋点行为一致。
   const groups = [];
-  HUB.forEach(grp => groups.push(groupBlock(grp)));
-  groups.forEach(el => body.appendChild(el));
+  let built = false;
+  function ensureBuilt() {
+    if (built) return; // 幂等：切回重进不再重建
+    built = true;
+    HUB.forEach(grp => groups.push(groupBlock(grp)));
+    groups.forEach(el => body.appendChild(el));
+    update(); // 首建后按当前视图（home）落一次显隐，横幅/角标同步
+  }
 
   // （视图状态 view 的声明已上移至 #937 埋点段首）
 
@@ -764,6 +782,7 @@
   // hubFrom 记住来源，返回键据此回桌面或回设置页（原实现恒回设置页，桌面进入会迷路）
   let hubFrom = 'setting';
   function openHub(from, kw) {
+    ensureBuilt(); // #1452 阶段 A：首次打开才建目录行（幂等；已建则空转）
     document.querySelectorAll('.page').forEach(p => { p.hidden = true; });
     page.hidden = false;
     hubFrom = from;
@@ -814,6 +833,20 @@
       return out;
     } catch (e) { return []; }
   };
+
+  // #1452 兜底：任何不经过 openHub 的直接显隐（深链 / 恢复上次页面 / 后续新增入口）也触发首建；
+  // 已经由 openHub 建过则此处空转（ensureBuilt 幂等），观察器只跑一次即断开。
+  {
+    if (!page.hidden) ensureBuilt();
+    else {
+      const mo = new MutationObserver(function () {
+        if (page.hidden) return;
+        mo.disconnect(); // 只跑一次
+        ensureBuilt();
+      });
+      mo.observe(page, { attributes: true, attributeFilter: ['hidden'] });
+    }
+  }
 
   // #937：埋点/横幅初始化收在文件尾——renderSeen→update 会触到 groups/seenWraps 等后置声明，
   // 早期调用撞 TDZ（loadSeen 的 IDB 回填与横幅重绘都在其后的异步回调里，不受影响）。

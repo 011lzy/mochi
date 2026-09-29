@@ -60,7 +60,10 @@ const PHOTO = stickerDataUrl(9);
 // 小载荷（~300 字符）：M 组要的是「两份都留在大键线以内」，这样 idbRestore 的「LS 有值以 LS 为准」
 //   成立，合并两侧才是真的两份不同数据（用 160K 的那批会被回填顶成一份，测不到并集）
 const SMALL = stickerDataUrl(5, 8, 8);
-const T = 1700000000000;
+// #1434：朋友圈列表改成「本周＋按月」翻页折叠——种子动态必须落在默认那一页（本自然周）里，
+//   否则「屏上看得到贴纸」那一类断言会被折到 2023 年 11 月那一页去（本尺测的是贴纸落盘与快照，
+//   与这批数据是哪一年写的无关）
+const T = (function () { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime() + 60000; })();
 const POST_ID = 'f_1219_probe';
 const LS_MAIN = 'xy-home-v2:feed-posts';
 const LS_SNAP = 'xy-home-v2:default:feed-posts-snap';

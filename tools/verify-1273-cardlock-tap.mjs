@@ -9,8 +9,12 @@
 //      （外置包首拉失败、#802 自愈没补回来）时整张卡一个按钮都不出；收口＝状态问不到按默认锁定态渲染。
 //   ③ 渲染了但静默 —— promptCardUnlock 开头「任一组件缺失就 return」，删掉 window.openModal 后 click 到了
 //      处理函数、弹窗零次、屏幕上一句反馈都没有；收口＝缺哪个组件就在卡上讲哪句真话＋有界复核。
+//   ④（#1460 第四腿）内核接管手势去滚动 —— 按在按钮上后位移几像素，内核判定要滚动、接管这一次手势，
+//      丢一发 touchcancel/pointercancel 且不补发 click；#1273 三路里 cancel 只清布点、click 又没了 ⇒ 三点
+//      同时失效、手指真的点了界面零反馈（无头真跑：位移 3px 后 touchCancel ⇒ 解锁弹窗 0 次）；收口＝
+//      给 touch/pointer 各加一条 cancel 腿 + 位移跟踪，复用 tapIsTap 判据（真滑动/长按仍不触发）。
 // 用例（VERIFY_ROOT／位置参数指被测副本；两侧同一把尺子）：
-//   S1~S6 源锚／产物锚（三路原语、轻点判据、状态探测、缺件真话、容器禁选）
+//   S1~S12 源锚／产物锚（三路原语、轻点判据、状态探测、缺件真话、容器禁选、cancel 腿＋位移跟踪）
 //   B1 正常设备真触摸 → 解锁弹窗恰开 1 次
 //   B2 吞掉 click 的内核 → 仍然开弹窗（RED＝零反馈＝症状本体）
 //   B3 无 PointerEvent 且吞 click → 仍然开弹窗（RED＝零反馈）
@@ -21,6 +25,9 @@
 //   B8 js/card-lock.js 整件没加载 → 按钮仍然出现（RED＝一个按钮都不出）
 //   B9 按钮生效样式：touch-action:manipulation ＋ 禁选（RED＝auto/可长按选中）
 //   B10 全程零 JS 异常（对照组）
+//   C1 小位移被内核接管（touchCancel）→ 仍开弹窗（RED＝#1459 症状本体）
+//   C2 真滑动 40px 被内核接管 → 不触发（对照组：滚动不受影响）
+//   C3 长按 700ms 后被内核接管 → 不触发（对照组）
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { readFileSync, statSync } from 'node:fs';
@@ -100,6 +107,9 @@ t('S6 缺件真话（改回「任一缺失就静默 return」＝点了像没反�
 t('S7 产物侧：内联底座已接入 mochiTapOn', artOf('index.html').includes('window.mochiTapOn = function (el, fn) {'));
 t('S8 产物侧：外置 js/clock.js 已接入', artOf('js/clock.js').includes('cardLockTap(unlock, function () {'));
 t('S9 容器禁选在（src 与产物同一形态）', css.includes('.cardlock-actions { margin-top:9px; display:flex; gap:8px; flex-wrap:wrap; user-select:none;') && artOf('index.html').includes('.cardlock-actions { margin-top:9px; display:flex; gap:8px; flex-wrap:wrap; user-select:none;'));
+t('S10 cancel 腿在（删＝内核接管手势去滚动时 touchcancel/pointercancel 只清布点，本批症状原样复发）', dev.includes('function tapCancel(d) {') && dev.includes('if (!tapIsTap(Math.sqrt(d.mx || 0), 0, Date.now() - d.t)) return;'));
+t('S11 两路位移跟踪在（删＝cancel 判据恒见最大位移 0，真滑动被接管时也误开弹窗）', dev.includes('if (m > tDown.mx) tDown.mx = m;') && dev.includes('if (m > pDown.mx) pDown.mx = m;'));
+t('S12 产物侧：内联底座已接入 cancel 腿', artOf('index.html').includes('function tapCancel(d) {'));
 
 // ===== 无头真触摸 =====
 const SEL = '#splash-cardlock-actions .cardlock-btn';
@@ -120,15 +130,29 @@ async function boot(pre) {
 async function btnRect() {
   return await ev("(function(){var b=document.querySelector('" + SEL + "');if(!b)return null;var r=b.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2};})()");
 }
-async function tapBtn(hold) {
+async function aim() {
   const p = await btnRect();
-  if (!p) return 'nobtn';
+  if (!p) return { bad: 'nobtn' };
   // 落点必须真是这颗按钮（被别的层盖住时不硬测，免得把「盖住了」记成「点不动」）
   const covered = await ev("(function(){var b=document.querySelector('" + SEL + "');var h=document.elementFromPoint(" + ((p.x) | 0) + "," + ((p.y) | 0) + ");return !(h===b||(b&&b.contains(h)));})()");
-  if (covered) return 'covered';
-  await cap(cdp('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: p.x, y: p.y, id: 1 }] }), 25000, 'touchStart');
+  return covered ? { bad: 'covered' } : { p };
+}
+async function tapBtn(hold) {
+  const a = await aim(); if (a.bad) return a.bad;
+  await cap(cdp('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: a.p.x, y: a.p.y, id: 1 }] }), 25000, 'touchStart');
   if (hold) await sleep(hold);
   await cap(cdp('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }), 25000, 'touchEnd');
+  await sleep(800);
+  return 'tapped';
+}
+// #1459 第四腿要接住的那一发：按在按钮上 → 位移几像素（内核判定要滚动、接管手势）→ touchCancel
+//（内核接管后不补发 click）。位移仍在轻点判据内的应认成「点到了」；超出判据的真滑动／长按不触发。
+async function cancelBtn(dx, dy, hold) {
+  const a = await aim(); if (a.bad) return a.bad;
+  await cap(cdp('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: a.p.x, y: a.p.y, id: 1 }] }), 25000, 'touchStart');
+  if (dx || dy) await cap(cdp('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: a.p.x + dx, y: a.p.y + dy, id: 1 }] }), 25000, 'touchMove');
+  if (hold) await sleep(hold);
+  await cap(cdp('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] }), 25000, 'touchCancel');
   await sleep(800);
   return 'tapped';
 }
@@ -191,6 +215,21 @@ await boot();
   t('B9 按钮生效样式 touch-action:manipulation ＋ 禁选（防长按选中/双击缩放等待吞掉这一下）', !!f && f.touchAction === 'manipulation' && f.userSelect === 'none', f); }
 // B10 零 JS 异常（对照组）
 { t('B10 全程零未捕获异常（对照组）', pageExcs.length === 0, pageExcs.slice(0, 2)); }
+
+// ===== C 组：#1460 第四腿——内核接管手势（touchCancel）时不丢这一下点按 =====
+// C1 小位移（3px）→ 内核判定要滚动、接管手势、丢 touchCancel、且不补发 click → 仍开弹窗
+//（RED＝三点同时失效：touchcancel 只清布点 + click 被内核接管吞掉 ⇒ 手指真的点了界面零反馈）
+await boot();
+{ const ok = await cancelBtn(3, 2, 0); const s = await seen();
+  t('C1 小位移被内核接管（touchCancel）→ 仍然开弹窗（RED＝#1460 症状本体）', ok === 'tapped' && unlockHits(s) >= 1, { ok, s }); }
+// C2 对照组：真滑动（40px）→ cancel 腿不触发（页面滚动不受影响，防把翻页修成误点）
+await boot();
+{ const ok = await cancelBtn(40, 0, 0); const s = await seen();
+  t('C2 真滑动 40px 被内核接管 → 不触发解锁（对照组：滚动不受影响）', ok === 'tapped' && unlockHits(s) === 0, { ok, s }); }
+// C3 对照组：长按（700ms）后被内核接管 → 不触发（防把长按修成点按）
+await boot();
+{ const ok = await cancelBtn(0, 0, 700); const s = await seen();
+  t('C3 长按 700ms 后被内核接管 → 不触发解锁（对照组：防长按被误判成点按）', ok === 'tapped' && unlockHits(s) === 0, { ok, s }); }
 
 const pass = results.filter((r) => r.ok).length, fail = results.length - pass;
 console.log('合计 ' + pass + '/' + results.length + '（失败 ' + fail + '）');

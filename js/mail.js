@@ -24,6 +24,7 @@ t._timer = setTimeout(() => { t.className = 'cc-toast'; }, 2000);
 function csFor(cid) { return cid ? window.storeFor(cid) : store; }
 function prefixFor(cid) { return cid ? ('xy-home-v2:' + cid) : window.activePrefix(); }
 function snapKey(cid) { return prefixFor(cid) + ':' + SNAP_KEY; }
+function snapStore(cid) { return cid ? window.xyStore(prefixFor(cid)) : store; }
 const MAIL_DATAURL_SRC = '[Dd][Aa][Tt][Aa]:[a-zA-Z0-9.+-]*(?:\\/[a-zA-Z0-9.+-]+)?(?:;[^,]*)?,[^\\s"\'<>]+';
 const MAIL_PAYLOAD_RE = new RegExp(MAIL_DATAURL_SRC + '|@@m:[0-9a-f]{32}', 'g');
 const MAIL_IMGREF_RE = new RegExp(MAIL_DATAURL_SRC, 'g');
@@ -62,7 +63,7 @@ return list.map(x => (x && typeof x === 'object') ? Object.assign({}, x) : x);
 function loadSnap(cid) {
 try {
 const k = snapKey(cid);
-const v = localStorage.getItem(k);
+const v = snapStore(cid).get(SNAP_KEY);
 if (v) return cachedParse(k, v);
 } catch (e) {}
 return [];
@@ -77,8 +78,9 @@ if (c.partnerReply) { c.partnerReply = Object.assign({}, c.partnerReply); c.part
 return c;
 }
 function writeSnap(list, cid) {
-if (!list || !list.length) { try { localStorage.removeItem(snapKey(cid)); } catch (e) {} return; }
-try { const snap = JSON.stringify(list.map(stripLetterImg)); if (snap.length <= LS_BIG_LIMIT) localStorage.setItem(snapKey(cid), snap); } catch (e) {}
+const ss = snapStore(cid);
+if (!list || !list.length) { try { ss.remove(SNAP_KEY); } catch (e) {} return; }
+try { const snap = JSON.stringify(list.map(stripLetterImg)); if (snap.length <= LS_BIG_LIMIT) ss.set(SNAP_KEY, snap); } catch (e) {}
 }
 function load(cid) {
 const cs = csFor(cid);
@@ -256,9 +258,10 @@ const wait = MAIL_AUTH_BACKOFF[mailAuthTries++];
 try { if (window.__mochiPhase) window.__mochiPhase('mail-auth-retry:' + mailAuthTries); } catch (e) {}
 setTimeout(function () { mailAuthAsk(cid, guard, after); }, wait);
 }
+function mailBlindRead(cid) { return !!window.xyBigWriteHold(csFor(cid), KEY); }
 function save(list, cid) {
 if (!cid && !mailWriteOpen()) { try { mailPending = (list || []).slice(); } catch (e) {} writeSnap(list, cid); return; }
-if (mailReadIncomplete(cid)) {
+if (mailReadIncomplete(cid) || mailBlindRead(cid)) {
 try { mailPending = mergeLists(mailPending || [], list || []); } catch (e) {}
 writeSnap(list, cid);
 mailRescueArm(cid);
@@ -506,6 +509,7 @@ function checkPendingReplyFor(cid) {
 try {
 if (cid === (window.__activeCid || 'default') && !mailDbReady) return;
 const now = Date.now();
+if (mailBlindRead(cid)) return; // #1442b 回信让路
 const pending = replyPendingLoad(cid);
 if (!pending.length) return;
 const name = partnerNameFor(cid);
@@ -925,6 +929,7 @@ if (cid === (window.__activeCid || 'default') && !mailDbReady) return;
 const cs = csFor(cid);
 const now = Date.now();
 const cfg = mailCfgFor(cid);
+if (mailBlindRead(cid)) return; // #1442a 来信让路
 if (!cfg.writeEn) return;
 let last = letterLast(cid), next = letterNext(cid);
 if (last > now || last < 0 || isNaN(last)) { last = 0; next = 0; }
@@ -961,6 +966,7 @@ list.forEach(c => maybeIncomingLetterFor(c.id));
 }
 function fishWeekReportFor(cid) {
 if (cid === (window.__activeCid || 'default') && !mailDbReady) return;
+if (mailBlindRead(cid)) return; // #1442c 小结让路
 if (!mailCfgFor(cid).fishWeekEn) return;
 const cs = csFor(cid);
 const now = window.__fishWeekNowOverride ? window.__fishWeekNowOverride() : new Date(); // 测试钩子：生产为 null
