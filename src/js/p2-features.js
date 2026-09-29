@@ -1880,13 +1880,15 @@ if (ckRefresh) {
     // #558 功能说明补全：光点落点规则原先只在代码注释里（用户问「再远一点会不会跑到屏幕右侧」）
     html += '<div class="loc-sec-sub" style="padding:10px 2px 0;line-height:1.7">光点落在哪儿，就是 TA 在哪儿：方位卡落在画面对应方向；距离卡、状态卡跟着最近一张方位卡的方位走——「再近一点」朝屏幕中心靠、「再远一点」朝屏幕边缘退开（上一张说的是「在你右边」时，光点贴屏幕右侧属正常）。</div>';
     // 换位提醒设置组：TA 自动换位总开关 / 换位提醒弹窗 / 换位发到聊天（只管「TA 自动」这条路，手动发的位置卡不受限）
+    // ＋ #1436「主动感知即刻换位」（管的是「你去感知的那一发」，与上面三枚不同路）
     html += '<div class="set-group glass" style="margin:14px 2px 0">'
       + '<div class="gs-row"><span>TA 自动换位</span><label class="toggle"><input type="checkbox" id="loc-auto-tg"' + (store.get('loc-auto') === '0' ? '' : ' checked') + '><span class="tk"></span></label></div>'
       + '<div class="gs-row"><span>换位提醒弹窗</span><label class="toggle"><input type="checkbox" id="loc-bubble-tg"' + (store.get('loc-bubble') === '0' ? '' : ' checked') + '><span class="tk"></span></label></div>'
       + '<div class="gs-row"><span>换位发到聊天</span><label class="toggle"><input type="checkbox" id="loc-chat-tg"' + (store.get('loc-chat') === '0' ? '' : ' checked') + '><span class="tk"></span></label></div>'
+      + '<div class="gs-row"><span>主动感知即刻换位</span><label class="toggle"><input type="checkbox" id="loc-shift-tg"' + (store.get('loc-sense-shift') === '1' ? ' checked' : '') + '><span class="tk"></span></label></div>'
       + '</div>'
       // #902：换位机制的触发间隔与概率写进设置说明（用户反馈「概率和触发时间要写清楚」）
-      + '<div class="gs-sub" style="padding:0 2px 10px">TA 自动换位：开启后每 2～6 小时随机换一次位置（关掉后到点也不换；「问 TA 一声」不受影响）。换位内容 70% 是陪伴卡（在你身边／一直没走远等），30% 从字卡库启用的位置卡里随机；每次换位都会记进「位置时间线」，换位内容与上一次不同时才算「换了位置」才弹提醒。<br>换位提醒弹窗：TA 自动换位置时顶部弹的黑色轻提示。<br>换位发到聊天：关掉后 TA 自动换位只记进「位置时间线」，不再发进聊天记录。</div>';
+      + '<div class="gs-sub" style="padding:0 2px 10px">TA 自动换位：开启后每 2～6 小时随机换一次位置（关掉后到点也不换；「问 TA 一声」不受影响）。换位内容 70% 是陪伴卡（在你身边／一直没走远等），30% 从字卡库启用的位置卡里随机；每次换位都会记进「位置时间线」，换位内容与上一次不同时才算「换了位置」才弹提醒。<br>换位提醒弹窗：TA 自动换位置时顶部弹的黑色轻提示。<br>换位发到聊天：关掉后 TA 自动换位只记进「位置时间线」，不再发进聊天记录。<br>主动感知即刻换位（默认关）：打开后点上方「方位感知」里的【感知一下】＝先让 TA 当场换一次位置、再按新位置报方位，不用等那发 2～6 小时；它不受「TA 自动换位」总开关与夜间静默管（那两枚管的是 TA 自己到点来打扰），发进聊天与弹提醒仍照上面两枚开关。</div>';
     // 问 TA 一声
     html += '<button class="loc-ask-btn" id="loc-ask-btn">问 TA 一声「你在哪？」</button>';
 
@@ -1895,7 +1897,8 @@ if (ckRefresh) {
     const askBtn = document.getElementById('loc-ask-btn');
     if (askBtn) askBtn.addEventListener('click', askWhere);
 
-    // 换位提醒三开关（写入 per-cid 键，doLocAuto / showLocChangeBubble 消费；重开「TA 自动换位」立刻重排下一次）
+    // 换位提醒三开关＋#1436「主动感知即刻换位」（写入 per-cid 键，doLocAuto / emitLocChange /
+    // showLocChangeBubble / getSense 消费；重开「TA 自动换位」立刻重排下一次）
     const bindLocTg = function (id, key) {
       const tg = document.getElementById(id);
       if (tg) tg.addEventListener('change', function () {
@@ -1906,6 +1909,7 @@ if (ckRefresh) {
     bindLocTg('loc-auto-tg', 'loc-auto');
     bindLocTg('loc-bubble-tg', 'loc-bubble');
     bindLocTg('loc-chat-tg', 'loc-chat');
+    bindLocTg('loc-shift-tg', 'loc-sense-shift');
 
     // 日期切换
     const prevBtn = document.getElementById('loc-day-prev');
@@ -1967,34 +1971,62 @@ if (ckRefresh) {
     if (window.nightModeActive && window.nightModeActive()) return;
     if (document.hidden || Date.now() < locWakeAt || !window.__mochiDataReady) return;
     if (store.get('loc-auto') === '0') return; // 设置「TA 自动换位」关：到点也不发（拦设置后仍残留的当次定时器）
+    emitLocChange(null);
+  }
+  // #1436：把「换一次位」那一发从定时器里抽出来，供方位感知的【感知一下】复用同一张卡。
+  // 上面三道闸门只管「TA 自己到点来打扰」（夜间静默／页面不可见／自动换位总开关），
+  // 用户主动感知不该被它们拦——与「问 TA 一声」同口径；而「换位发到聊天」「换位提醒弹窗」
+  // 两枚开关与字卡库那道闸照常生效（它们管的是这一发长什么样，不是什么时候发）。
+  // avoidText＝上一张是什么就重抽（最多三发）：同一句再抽一遍＝用户点了半天「此刻的位置」与方位一动不动。
+  function emitLocChange(avoidText) {
     const companion = ['在你身边', '一直没走远', '隔着世界在你身边', '隐约在你身旁', '在你看不到的地方']
       // #1315：这五行是「状态/感知」两类位置卡的字面量副本，旧写法从不过闸＝在字卡库里整组停用
       //   或逐张关掉后，TA 自动换位照发这些话（用户报的「关不掉」）。按所属分类反查一次同一判据。
       .filter(function (t) { return !(window.locLibTextOff && window.locLibTextOff(t)); });
     let text;
-    if (companion.length && Math.random() < 0.7) {
-      text = companion[Math.floor(Math.random() * companion.length)];
-    } else {
-      // v3.13.x：词源 = 字卡库全部启用（系统预设 dir/dist/state/sense + 我的添加）
-      const all = (window.locLibAllEnabled ? window.locLibAllEnabled() : []).slice();
-      // #1315：旧写法在词源被关空时硬塞「在你身边」——那是用户刚关掉的一句，等于开关归零；
-      //   现在按「全部关光＝这一发不发」处理（自建卡还在时照常抽）。
-      if (!all.length) return;
-      text = all[Math.floor(Math.random() * all.length)];
+    for (let retry = 0, tries = avoidText ? 3 : 1; retry < tries; retry++) {
+      if (companion.length && Math.random() < 0.7) {
+        text = companion[Math.floor(Math.random() * companion.length)];
+      } else {
+        // v3.13.x：词源 = 字卡库全部启用（系统预设 dir/dist/state/sense + 我的添加）
+        const all = (window.locLibAllEnabled ? window.locLibAllEnabled() : []).slice();
+        // #1315：旧写法在词源被关空时硬塞「在你身边」——那是用户刚关掉的一句，等于开关归零；
+        //   现在按「全部关光＝这一发不发」处理（自建卡还在时照常抽）。
+        if (!all.length) return false;
+        text = all[Math.floor(Math.random() * all.length)];
+      }
+      if (!avoidText || text !== avoidText) break;
     }
-    if (!text) return;
+    if (!text) return false;
     const type = locTypeOf(text);
     const ts = Date.now();
     const oldCur = loadCur();
-    if (store.get('loc-chat') !== '0' && window.chatAddIn) window.chatAddIn(text); // 设置「换位发到聊天」关：只记时间线＋弹提醒，不发进聊天
+    // 设置「换位发到聊天」关：只记时间线＋弹提醒，不发进聊天。
+    // #1436：这一发带限流豁免位——作者口径＝「我开了【换位发到聊天】，它就该落」。此前它和 TA 的
+    //   普通消息一起被「TA 消息限流」计数，额度满时 rateBlocksIn 静默 return null＝顶部气泡照弹
+    //   「TA 换了位置」、时间线照记，唯独聊天一条不加（实测：rl-en=1/rl-max=1 时 chatTotal 4→4）。
+    if (store.get('loc-chat') !== '0' && window.chatAddIn) window.chatAddIn(text, { rateAllow: true });
     saveCur({ text: text, type: type, ts: ts, auto: true });
     const hist = loadHist();
     hist.unshift({ text: text, type: type, ts: ts, auto: true });
     saveHist(hist);
     playLocFx(text, type);
+    // #1436：换位落地必须重画面板。上面两条手动路（发位置卡／组合卡）一直是「saveHist →
+    //   renderLocPanel → refreshSense」，唯独自动这一条只写库不重画＝面板开着时用户只看得到顶部
+    //   那枚轻提示，「此刻的位置」与「位置时间线」停在上一张——实测 histLen 2→3 而屏上行数恒 1，
+    //   叫一次重画行数立刻=3、「共 3 条」。作者报的「也没记录在位置时间线里」就是这一发。
+    locViewDate = dayStr(new Date());
+    renderLocPanel(); // #1436 换位落地必重画（旧写法＝只写库不重画，面板开着时「位置时间线」停在上一张＝用户看到「没记录」）
+    if (window.refreshSense) window.refreshSense();
 
     if (oldCur && oldCur.text !== text) showLocChangeBubble(text);
+    return true;
   }
+  // #1436：方位感知【感知一下】那一路的入口（避开上一张，其余与定时器那条完全同一条路）
+  window.locShiftNow = function () {
+    const c = loadCur();
+    return emitLocChange(c && c.text ? c.text : null);
+  };
   function scheduleLocAuto() {
     clearTimeout(locAutoTimer);
     if (store.get('loc-auto') === '0') { locAutoTimer = setTimeout(scheduleLocAuto, 60000); return; }
@@ -2059,6 +2091,9 @@ if (ckRefresh) {
     return { direct: ['无法判断'], rangef: ['无法判断'], power: ['若有若无'], touch: ['好像碰到了你的手'] }[k];
   }
   function isUndirected(d) { return d === '无法判断' || d === '身边'; }
+  // #1436：设置「主动感知即刻换位」——开＝【感知一下】这一发不受 15～45 分钟那条漂移时间闸管，
+  // 且先催 TA 换一张位置卡（见 perceive 与 p2-features 上面那段 emitLocChange）。默认关。
+  function shiftNow() { return store.get('loc-sense-shift') === '1'; }
   // 重掷方向：92% 落 8 方向，8% 无法判断/身边（身边是低概率惊喜）
   function rollDir() {
     const words = senseWords('direct');
@@ -2122,7 +2157,9 @@ if (ckRefresh) {
         s.nextDirAt = now + (15 + Math.floor(Math.random() * 31)) * 60000; // 15~45 分钟
         dirty = true;
       }
-    } else if (!s.dir || (s.nextDirAt && now >= s.nextDirAt)) {
+    } else if (!s.dir || (s.nextDirAt && now >= s.nextDirAt) || (force && shiftNow())) {
+      // #1436：`force`（＝点了【感知一下】）且开着「主动感知即刻换位」时，不等 15～45 分钟那一发
+      //   漂移闸到点就重掷方向——作者主诉「点感知一下一直是同一个方位」的另一半根因在这一行。
       s.dir = rollDir();
       s.nextDirAt = now + (15 + Math.floor(Math.random() * 31)) * 60000; // 15~45 分钟
       dirty = true;
@@ -2208,6 +2245,10 @@ if (ckRefresh) {
     if (now < perceiveCdUntil) return;
     perceiveCdUntil = now + 4000;
     if (btn) { btn.classList.add('busy'); btn.disabled = true; }
+    // #1436：开着「主动感知即刻换位」＝这一发先催 TA 当场换一张位置卡（走寻踪那条 emitLocChange，
+    // 只绕开「每 2～6 小时才轮到一次」这道时间闸，字卡库的停用闸／两枚换位开关照常生效），
+    // 随后 getSense 读的就是这张新卡——「此刻的位置」与方位感知同一条，不会一处新的一处老的。
+    if (shiftNow() && window.locShiftNow) window.locShiftNow();
     const s = getSense(true);
     const touched = maybeTouch(s);
     const result = document.getElementById('fw-result');

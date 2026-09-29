@@ -1618,8 +1618,9 @@ html += '<div class="set-group glass" style="margin:14px 2px 0">'
 + '<div class="gs-row"><span>TA 自动换位</span><label class="toggle"><input type="checkbox" id="loc-auto-tg"' + (store.get('loc-auto') === '0' ? '' : ' checked') + '><span class="tk"></span></label></div>'
 + '<div class="gs-row"><span>换位提醒弹窗</span><label class="toggle"><input type="checkbox" id="loc-bubble-tg"' + (store.get('loc-bubble') === '0' ? '' : ' checked') + '><span class="tk"></span></label></div>'
 + '<div class="gs-row"><span>换位发到聊天</span><label class="toggle"><input type="checkbox" id="loc-chat-tg"' + (store.get('loc-chat') === '0' ? '' : ' checked') + '><span class="tk"></span></label></div>'
++ '<div class="gs-row"><span>主动感知即刻换位</span><label class="toggle"><input type="checkbox" id="loc-shift-tg"' + (store.get('loc-sense-shift') === '1' ? ' checked' : '') + '><span class="tk"></span></label></div>'
 + '</div>'
-+ '<div class="gs-sub" style="padding:0 2px 10px">TA 自动换位：开启后每 2～6 小时随机换一次位置（关掉后到点也不换；「问 TA 一声」不受影响）。换位内容 70% 是陪伴卡（在你身边／一直没走远等），30% 从字卡库启用的位置卡里随机；每次换位都会记进「位置时间线」，换位内容与上一次不同时才算「换了位置」才弹提醒。<br>换位提醒弹窗：TA 自动换位置时顶部弹的黑色轻提示。<br>换位发到聊天：关掉后 TA 自动换位只记进「位置时间线」，不再发进聊天记录。</div>';
++ '<div class="gs-sub" style="padding:0 2px 10px">TA 自动换位：开启后每 2～6 小时随机换一次位置（关掉后到点也不换；「问 TA 一声」不受影响）。换位内容 70% 是陪伴卡（在你身边／一直没走远等），30% 从字卡库启用的位置卡里随机；每次换位都会记进「位置时间线」，换位内容与上一次不同时才算「换了位置」才弹提醒。<br>换位提醒弹窗：TA 自动换位置时顶部弹的黑色轻提示。<br>换位发到聊天：关掉后 TA 自动换位只记进「位置时间线」，不再发进聊天记录。<br>主动感知即刻换位（默认关）：打开后点上方「方位感知」里的【感知一下】＝先让 TA 当场换一次位置、再按新位置报方位，不用等那发 2～6 小时；它不受「TA 自动换位」总开关与夜间静默管（那两枚管的是 TA 自己到点来打扰），发进聊天与弹提醒仍照上面两枚开关。</div>';
 html += '<button class="loc-ask-btn" id="loc-ask-btn">问 TA 一声「你在哪？」</button>';
 body.innerHTML = html;
 const askBtn = document.getElementById('loc-ask-btn');
@@ -1634,6 +1635,7 @@ if (key === 'loc-auto' && tg.checked) scheduleLocAuto();
 bindLocTg('loc-auto-tg', 'loc-auto');
 bindLocTg('loc-bubble-tg', 'loc-bubble');
 bindLocTg('loc-chat-tg', 'loc-chat');
+bindLocTg('loc-shift-tg', 'loc-sense-shift');
 const prevBtn = document.getElementById('loc-day-prev');
 if (prevBtn) prevBtn.addEventListener('click', () => { if (dayIdx < days.length - 1) { locViewDate = days[dayIdx + 1]; renderLocPanel(); } });
 const nextBtn = document.getElementById('loc-day-next');
@@ -1679,28 +1681,42 @@ function doLocAuto() {
 if (window.nightModeActive && window.nightModeActive()) return;
 if (document.hidden || Date.now() < locWakeAt || !window.__mochiDataReady) return;
 if (store.get('loc-auto') === '0') return; // 设置「TA 自动换位」关：到点也不发（拦设置后仍残留的当次定时器）
+emitLocChange(null);
+}
+function emitLocChange(avoidText) {
 const companion = ['在你身边', '一直没走远', '隔着世界在你身边', '隐约在你身旁', '在你看不到的地方']
 .filter(function (t) { return !(window.locLibTextOff && window.locLibTextOff(t)); });
 let text;
+for (let retry = 0, tries = avoidText ? 3 : 1; retry < tries; retry++) {
 if (companion.length && Math.random() < 0.7) {
 text = companion[Math.floor(Math.random() * companion.length)];
 } else {
 const all = (window.locLibAllEnabled ? window.locLibAllEnabled() : []).slice();
-if (!all.length) return;
+if (!all.length) return false;
 text = all[Math.floor(Math.random() * all.length)];
 }
-if (!text) return;
+if (!avoidText || text !== avoidText) break;
+}
+if (!text) return false;
 const type = locTypeOf(text);
 const ts = Date.now();
 const oldCur = loadCur();
-if (store.get('loc-chat') !== '0' && window.chatAddIn) window.chatAddIn(text); // 设置「换位发到聊天」关：只记时间线＋弹提醒，不发进聊天
+if (store.get('loc-chat') !== '0' && window.chatAddIn) window.chatAddIn(text, { rateAllow: true });
 saveCur({ text: text, type: type, ts: ts, auto: true });
 const hist = loadHist();
 hist.unshift({ text: text, type: type, ts: ts, auto: true });
 saveHist(hist);
 playLocFx(text, type);
+locViewDate = dayStr(new Date());
+renderLocPanel(); // #1436 换位落地必重画（旧写法＝只写库不重画，面板开着时「位置时间线」停在上一张＝用户看到「没记录」）
+if (window.refreshSense) window.refreshSense();
 if (oldCur && oldCur.text !== text) showLocChangeBubble(text);
+return true;
 }
+window.locShiftNow = function () {
+const c = loadCur();
+return emitLocChange(c && c.text ? c.text : null);
+};
 function scheduleLocAuto() {
 clearTimeout(locAutoTimer);
 if (store.get('loc-auto') === '0') { locAutoTimer = setTimeout(scheduleLocAuto, 60000); return; }
@@ -1755,6 +1771,7 @@ if (Array.isArray(w) && w.length) return w;
 return { direct: ['无法判断'], rangef: ['无法判断'], power: ['若有若无'], touch: ['好像碰到了你的手'] }[k];
 }
 function isUndirected(d) { return d === '无法判断' || d === '身边'; }
+function shiftNow() { return store.get('loc-sense-shift') === '1'; }
 function rollDir() {
 const words = senseWords('direct');
 const dir8 = DIRS.map(d => d.k).filter(k => words.indexOf(k) >= 0);
@@ -1812,7 +1829,7 @@ s.dir = fixedDir;
 s.nextDirAt = now + (15 + Math.floor(Math.random() * 31)) * 60000; // 15~45 分钟
 dirty = true;
 }
-} else if (!s.dir || (s.nextDirAt && now >= s.nextDirAt)) {
+} else if (!s.dir || (s.nextDirAt && now >= s.nextDirAt) || (force && shiftNow())) {
 s.dir = rollDir();
 s.nextDirAt = now + (15 + Math.floor(Math.random() * 31)) * 60000; // 15~45 分钟
 dirty = true;
@@ -1894,6 +1911,7 @@ const now = Date.now();
 if (now < perceiveCdUntil) return;
 perceiveCdUntil = now + 4000;
 if (btn) { btn.classList.add('busy'); btn.disabled = true; }
+if (shiftNow() && window.locShiftNow) window.locShiftNow();
 const s = getSense(true);
 const touched = maybeTouch(s);
 const result = document.getElementById('fw-result');

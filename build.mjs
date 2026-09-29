@@ -5984,6 +5984,13 @@ const FIX_SENTINELS = [
   { name: '#1356d 欠账只认「上一场留下的那一条」（删＝本场刚发、还在飞的那一发被误判成欠，回复变双份）', file: 'js/chat.js', needle: 'last.ts >= CHAT_SESSION_START' },
   { name: '#1356e 期限从「TA 最长会打多久」读、不从机型读（改回写死机型/UA 分支＝跨机型复发；且历史尾巴被一律补投）', file: 'js/chat.js', needle: 'if (age > chatTypingHorizonMs()) return;' },
   { name: '#1356f 权威落定那一刻回头看 msgs 自己（删＝补投整条腿没了，「正在输入中」再也不亮、回复永远不来）', file: 'js/chat.js', needle: 'try { chatReplyDebtCheck(myPrefix); } catch (e) {}' },
+  /* ==== 2026-09-29 #1436（作者两条现场直派：①「开着【换位发到聊天】却只有弹窗——没发到聊天、也没记进位置时间线」②「新增方位感知里可手动打开【主动感知位置时，联系人换位不受时间内才换位的限制】」。无头复现量具在纯 HEAD 产物上分别量到「histLen 2→3 而屏上 .loc-tl-item 恒 1 行」与「rl-en=1/rl-max=1 时 chatTotal 4→4、气泡照弹」。判据一律零机型／零 UA 分支：只看 per-cid 键与代码自有的时间闸 ==== */
+  { name: '#1436a 换位那一发进聊天带限流豁免位（删＝「TA 消息限流」满时 rateBlocksIn 静默 return null：气泡照弹、时间线照记、聊天一条不加＝作者报的「只有弹窗」）', file: 'js/p2-features.js', needle: 'window.chatAddIn(text, { rateAllow: true })' },
+  { name: '#1436b 换位落地必重画位置面板（删＝只写库不重画，面板开着时「此刻的位置」与「位置时间线」停在上一张＝作者报的「没记进时间线」；两条手动发卡路一直是这个口径，唯独自动那条漏了）', file: 'js/p2-features.js', needle: 'renderLocPanel(); // #1436' },
+  { name: '#1436c 主动感知越漂移闸的方向重掷（删＝点【感知一下】仍被 15~45 分钟 nextDirAt 短路，回到「一直是同一个方位」）', file: 'js/p2-features.js', needle: '(force && shiftNow())' },
+  { name: '#1436d 感知一下先催一次换位再取读数（删＝新开关只剩改方向、TA 的位置与时间线不动，作者点选的「真换一次位」落空）', file: 'js/p2-features.js', needle: 'if (shiftNow() && window.locShiftNow) window.locShiftNow();' },
+  { name: '#1436e 换位那一发抽出可复用出口并避开上一张（删＝方位感知没有路走这条机制，或每次撞回同一张卡＝点了不动）', file: 'js/p2-features.js', needle: 'window.locShiftNow = function ()' },
+  { name: '#1436f 第四枚开关落进换位设置组并绑 per-cid 键（删＝设置里没有它，用户只能永远等那一发 2~6 小时）', file: 'js/p2-features.js', needle: "bindLocTg('loc-shift-tg', 'loc-sense-shift')" },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

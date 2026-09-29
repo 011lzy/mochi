@@ -54,9 +54,12 @@ ok('S5 TA的心情：组闸叠在自己的 isCardOff 出口（选组处同源）
 ok('S6 寻踪：整类停用叠在 isCkCardOff，且 genCheckin 三空兜底重新过闸',
   p2Code.includes("isCkCardOff(k, x) { return store.get('ck-off-' + k + ':' + x) === '1' ||") &&
   p2Code.includes("place = places.filter(p => !isCkCardOff('place', p.t));"));
+// #1436 随动：换位那一发从 doLocAuto 抽成了 emitLocChange(avoidText)（给方位感知【感知一下】复用），
+// 「词源关空＝这一发不发」那一行整句搬了过去并返回 false（调用方据此知道没发），判据一字未改。
 ok('S7 位置卡：组闸叠在 isOff ＋ 硬编码陪伴句按分类反查 ＋ 词源关空不再硬塞「在你身边」',
   locCode.includes("isOff(cat, text) { return store.get('loc-off-' + cat + ':' + text) === '1' ||") &&
-  locCode.includes('window.locLibTextOff') && p2Code.includes('if (!all.length) return;'));
+  locCode.includes('window.locLibTextOff') && p2Code.includes('if (!all.length) return false;') &&
+  !p2Code.includes("all.push('在你身边')"));
 ok('S8 TA 六类：类闸＋内置兜底只补「库里没预设数据」＋六页都挂整类停用条',
   askCode.includes('function presetCatOpen(ns, q) {') &&
   askCode.includes('const presetInStore = d.questions.some(q => q.isPreset === true && ready(q));') &&
