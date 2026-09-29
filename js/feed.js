@@ -675,16 +675,19 @@ return fitSeg(all); // 普通网址（无附图前缀）按文本保留
 return '<img class="feed-inline-img" src="' + attrEsc(src) + '" alt="表情">';
 });
 }
-function makePicker(arr) {
+function makePicker(arr, noWrap) {
 const a = arr.slice();
 let i = a.length;
+let dealt = false; // 首发的 i=a.length 只是「还没洗过牌」的起点，不算抽过一张（i 的初值即旧语义）
 return function () {
 if (i >= a.length) {
+if (noWrap && dealt) return undefined;
 for (let j = a.length - 1; j > 0; j--) {
 const k = Math.floor(Math.random() * (j + 1));
 const t = a[j]; a[j] = a[k]; a[k] = t;
 }
 i = 0;
+dealt = true;
 }
 return a[i++];
 };
@@ -699,25 +702,28 @@ const o = opts || {};
 const pool = cardPool(cid);
 const fb = uniqArr(TA_COMMENT_POOL.concat(TA_REPLY_POOL));
 const pick = {
-image: makePicker(uniqArr(pool.image)),
-sticker: makePicker(uniqArr(pool.sticker)),
-si: makePicker(uniqArr(pool.sticker.concat(pool.image))),
-emoji: makePicker(uniqArr(pool.emoji)),
-kaomoji: makePicker(uniqArr(pool.kaomoji)),
-text: makePicker(uniqArr(pool.text)),
-fb: makePicker(fb)
+image: makePicker(uniqArr(pool.image), true),
+sticker: makePicker(uniqArr(pool.sticker), true),
+si: makePicker(uniqArr(pool.sticker.concat(pool.image)), true),
+emoji: makePicker(uniqArr(pool.emoji), true),
+kaomoji: makePicker(uniqArr(pool.kaomoji), true),
+text: makePicker(uniqArr(pool.text), true),
+fb: makePicker(fb, true)
 };
-const n = minN + Math.floor(Math.random() * Math.max(1, maxN - minN + 1));
+const want = minN + Math.floor(Math.random() * Math.max(1, maxN - minN + 1));
+const room = uniqArr(pool.image.concat(pool.sticker, pool.emoji, pool.kaomoji, pool.text, fb)).length;
+const n = Math.max(1, Math.min(want, room));
 const parts = [];
 for (let i = 0; i < n; i++) {
 const r = Math.random() * 100;
 let pushed = false;
-if (o.imP > 0 && pool.image.length && r < o.imP) { parts.push(pick.image()); pushed = true; }
-if (!pushed && o.stP > 0 && pool.sticker.length && r < o.stP) { parts.push(pick.sticker()); pushed = true; }
-if (!pushed && o.imgP > 0 && (pool.sticker.length || pool.image.length) && r < o.imgP) { parts.push(pick.si()); pushed = true; }
-if (!pushed && o.emoP > 0 && pool.emoji.length && r < o.emoP) { parts.push(pick.emoji()); pushed = true; }
-if (!pushed && o.kaoP > 0 && pool.kaomoji.length && r < o.kaoP) { parts.push(pick.kaomoji()); pushed = true; }
-if (!pushed) parts.push(pool.text.length ? pick.text() : pick.fb());
+const take = (f) => { const v = f(); if (v === undefined) return false; parts.push(v); return true; };
+if (o.imP > 0 && pool.image.length && r < o.imP && take(pick.image)) pushed = true;
+if (!pushed && o.stP > 0 && pool.sticker.length && r < o.stP && take(pick.sticker)) pushed = true;
+if (!pushed && o.imgP > 0 && (pool.sticker.length || pool.image.length) && r < o.imgP && take(pick.si)) pushed = true;
+if (!pushed && o.emoP > 0 && pool.emoji.length && r < o.emoP && take(pick.emoji)) pushed = true;
+if (!pushed && o.kaoP > 0 && pool.kaomoji.length && r < o.kaoP && take(pick.kaomoji)) pushed = true;
+if (!pushed && !(take(pick.text) || take(pick.fb))) break;
 }
 const rcf = window.replyCfgFor ? window.replyCfgFor(cid) : null;
 return (window.pyJoinCards && rcf) ? window.pyJoinCards(parts, rcf, rcf['fd-punct-en'] === 1) : parts.join(' ');
@@ -726,23 +732,26 @@ function genPostContent(cfg, cid) {
 const pool = cardPool(cid);
 const fb = uniqArr(TA_COMMENT_POOL.concat(TA_REPLY_POOL));
 const pick = {
-image: makePicker(uniqArr(pool.image)),
-sticker: makePicker(uniqArr(pool.sticker)),
-emoji: makePicker(uniqArr(pool.emoji)),
-kaomoji: makePicker(uniqArr(pool.kaomoji)),
-text: makePicker(uniqArr(pool.text)),
-fb: makePicker(fb)
+image: makePicker(uniqArr(pool.image), true),
+sticker: makePicker(uniqArr(pool.sticker), true),
+emoji: makePicker(uniqArr(pool.emoji), true),
+kaomoji: makePicker(uniqArr(pool.kaomoji), true),
+text: makePicker(uniqArr(pool.text), true),
+fb: makePicker(fb, true)
 };
-const n = cfg.minCardsPost + Math.floor(Math.random() * Math.max(1, cfg.maxCardsPost - cfg.minCardsPost + 1));
+const want = cfg.minCardsPost + Math.floor(Math.random() * Math.max(1, cfg.maxCardsPost - cfg.minCardsPost + 1));
+const room = uniqArr(pool.image.concat(pool.sticker, pool.emoji, pool.kaomoji, pool.text, fb)).length;
+const n = Math.max(1, Math.min(want, room));
 const textParts = [];
 const imgs = [];
 for (let i = 0; i < n; i++) {
 let pushed = false;
-if (cfg.postImage > 0 && pool.image.length && Math.random() * 100 < cfg.postImage) { imgs.push(pick.image()); pushed = true; }
-if (!pushed && cfg.postSticker > 0 && pool.sticker.length && Math.random() * 100 < cfg.postSticker) { imgs.push(pick.sticker()); pushed = true; }
-if (!pushed && cfg.postEmoji > 0 && pool.emoji.length && Math.random() * 100 < cfg.postEmoji) { textParts.push(pick.emoji()); pushed = true; }
-if (!pushed && cfg.postKaomoji > 0 && pool.kaomoji.length && Math.random() * 100 < cfg.postKaomoji) { textParts.push(pick.kaomoji()); pushed = true; }
-if (!pushed) textParts.push(pool.text.length ? pick.text() : pick.fb());
+const take = (f, to) => { const v = f(); if (v === undefined) return false; to.push(v); return true; };
+if (cfg.postImage > 0 && pool.image.length && Math.random() * 100 < cfg.postImage && take(pick.image, imgs)) pushed = true;
+if (!pushed && cfg.postSticker > 0 && pool.sticker.length && Math.random() * 100 < cfg.postSticker && take(pick.sticker, imgs)) pushed = true;
+if (!pushed && cfg.postEmoji > 0 && pool.emoji.length && Math.random() * 100 < cfg.postEmoji && take(pick.emoji, textParts)) pushed = true;
+if (!pushed && cfg.postKaomoji > 0 && pool.kaomoji.length && Math.random() * 100 < cfg.postKaomoji && take(pick.kaomoji, textParts)) pushed = true;
+if (!pushed && !(take(pick.text, textParts) || take(pick.fb, textParts))) break;
 }
 const rcf = window.replyCfgFor ? window.replyCfgFor(cid) : null;
 const body = (window.pyJoinCards && rcf) ? window.pyJoinCards(textParts, rcf, rcf['fd-punct-en'] === 1) : textParts.join(' ');
@@ -2988,6 +2997,12 @@ window.feedPoolHas = function (cid, s) {
 try {
 const p = cardPool(cid);
 return { text: p.text.indexOf(s) >= 0, kaomoji: p.kaomoji.indexOf(s) >= 0, emoji: p.emoji.indexOf(s) >= 0 };
+} catch (e) { return null; }
+};
+window.feedGenProbe = function (cid) {
+try {
+const g = genPostContent(feedCfgFor(cid), cid);
+return { content: String(g.content || ''), imgN: (g.imgs || []).length };
 } catch (e) { return null; }
 };
 window.__cardSearchFns = window.__cardSearchFns || [];

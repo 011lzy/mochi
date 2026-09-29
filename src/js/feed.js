@@ -980,16 +980,29 @@
   }
   // 无重复抽取器：同一轮生成内不重复抽同一张卡（池子抽完一轮后重新洗牌再继续），
   // 修复小字卡池下同一条动态/评论连续重复同一张卡（如「爱你爱你爱你…」）
-  function makePicker(arr) {
+  // FIX 2026-09-28 #1356 荣耀畅玩40Plus(RKY-AN00)／夸克 10.18.6 实报「朋友圈还老是只发一个反复的文字
+  //   比如：1 1 1 1 1 1 1 或 1 2 1 2 1 2」＋「不要覆盖式修补、其他设备型号也有出现」：
+  //   makePicker 那句「池子抽完一轮后重新洗牌再继续」在池子只剩 1~2 张时是**空头承诺**——重洗回来的
+  //   还是同一张，于是「一轮不重复」变成「一轮全是重复」。诊断实锤这台机的文字桶只剩 1 张
+  //   （回复字卡池：池text=1 / kaomoji=493 / emoji=108 / 自定义字卡=515——515 张里 514 张是媒体/颜文字/
+  //   令牌形态被 #948 那四道守卫剔出文字池，#319 又把系统预设默认整体锁上），而生成器照「每条拼
+  //   minCardsPost~maxCardsPost（默认 4~15）张」的设定硬抽 ⇒ 同一张卡原样重复 4~15 遍＝用户所见。
+  //   判据零机型／零 UA：只取「这一轮还剩没有抽过的新卡」一个事实——noWrap 档抽干即返回 undefined，
+  //   调用方据此换桶或收笔，不再回头把同一张卡再发一遍。池子够深时（绝大多数设备）逐字行为不变。
+  function makePicker(arr, noWrap) {
     const a = arr.slice();
     let i = a.length;
+    let dealt = false; // 首发的 i=a.length 只是「还没洗过牌」的起点，不算抽过一张（i 的初值即旧语义）
     return function () {
       if (i >= a.length) {
+        // 已经发过一轮，再要就是回头重复同一张卡 ⇒ 交调用方决定换桶还是收笔
+        if (noWrap && dealt) return undefined;
         for (let j = a.length - 1; j > 0; j--) {
           const k = Math.floor(Math.random() * (j + 1));
           const t = a[j]; a[j] = a[k]; a[k] = t;
         }
         i = 0;
+        dealt = true;
       }
       return a[i++];
     };
@@ -1009,25 +1022,32 @@
     const pool = cardPool(cid);
     const fb = uniqArr(TA_COMMENT_POOL.concat(TA_REPLY_POOL));
     const pick = {
-      image: makePicker(uniqArr(pool.image)),
-      sticker: makePicker(uniqArr(pool.sticker)),
-      si: makePicker(uniqArr(pool.sticker.concat(pool.image))),
-      emoji: makePicker(uniqArr(pool.emoji)),
-      kaomoji: makePicker(uniqArr(pool.kaomoji)),
-      text: makePicker(uniqArr(pool.text)),
-      fb: makePicker(fb)
+      image: makePicker(uniqArr(pool.image), true),
+      sticker: makePicker(uniqArr(pool.sticker), true),
+      si: makePicker(uniqArr(pool.sticker.concat(pool.image)), true),
+      emoji: makePicker(uniqArr(pool.emoji), true),
+      kaomoji: makePicker(uniqArr(pool.kaomoji), true),
+      text: makePicker(uniqArr(pool.text), true),
+      fb: makePicker(fb, true)
     };
-    const n = minN + Math.floor(Math.random() * Math.max(1, maxN - minN + 1));
+    // #1356：一轮要几张，取「设定要几张」与「这一轮一共有几张不重复的可给」的较小者——
+    //   池子只剩 1~2 张时不再把同一张卡原样铺满一条动态（＝用户所见「1 1 1 1」「1 2 1 2」）。
+    const want = minN + Math.floor(Math.random() * Math.max(1, maxN - minN + 1));
+    const room = uniqArr(pool.image.concat(pool.sticker, pool.emoji, pool.kaomoji, pool.text, fb)).length;
+    const n = Math.max(1, Math.min(want, room));
     const parts = [];
     for (let i = 0; i < n; i++) {
       const r = Math.random() * 100;
       let pushed = false;
-      if (o.imP > 0 && pool.image.length && r < o.imP) { parts.push(pick.image()); pushed = true; }
-      if (!pushed && o.stP > 0 && pool.sticker.length && r < o.stP) { parts.push(pick.sticker()); pushed = true; }
-      if (!pushed && o.imgP > 0 && (pool.sticker.length || pool.image.length) && r < o.imgP) { parts.push(pick.si()); pushed = true; }
-      if (!pushed && o.emoP > 0 && pool.emoji.length && r < o.emoP) { parts.push(pick.emoji()); pushed = true; }
-      if (!pushed && o.kaoP > 0 && pool.kaomoji.length && r < o.kaoP) { parts.push(pick.kaomoji()); pushed = true; }
-      if (!pushed) parts.push(pool.text.length ? pick.text() : pick.fb());
+      const take = (f) => { const v = f(); if (v === undefined) return false; parts.push(v); return true; };
+      if (o.imP > 0 && pool.image.length && r < o.imP && take(pick.image)) pushed = true;
+      if (!pushed && o.stP > 0 && pool.sticker.length && r < o.stP && take(pick.sticker)) pushed = true;
+      if (!pushed && o.imgP > 0 && (pool.sticker.length || pool.image.length) && r < o.imgP && take(pick.si)) pushed = true;
+      if (!pushed && o.emoP > 0 && pool.emoji.length && r < o.emoP && take(pick.emoji)) pushed = true;
+      if (!pushed && o.kaoP > 0 && pool.kaomoji.length && r < o.kaoP && take(pick.kaomoji)) pushed = true;
+      // 文字桶抽干后落到内置对话兜底池（与旧写法同一兜底语义：池里没有可读文字才用它），
+      // 两条腿都抽干＝这一轮真的没有新卡了，收笔（宁少拼一张，不把同一张卡重复两遍）
+      if (!pushed && !(take(pick.text) || take(pick.fb))) break;
     }
     // #1198 评论/回复里每两条字卡中间走「拼接符号」池（回复设置 → 朋友圈「拼接随机标点」，默认关
     // ＝仍用空格＝老样子）；符号池与聊天共用同一套（含内置「换行」），按【动态所属桌面】读设置。
@@ -1042,23 +1062,27 @@
     const pool = cardPool(cid);
     const fb = uniqArr(TA_COMMENT_POOL.concat(TA_REPLY_POOL));
     const pick = {
-      image: makePicker(uniqArr(pool.image)),
-      sticker: makePicker(uniqArr(pool.sticker)),
-      emoji: makePicker(uniqArr(pool.emoji)),
-      kaomoji: makePicker(uniqArr(pool.kaomoji)),
-      text: makePicker(uniqArr(pool.text)),
-      fb: makePicker(fb)
+      image: makePicker(uniqArr(pool.image), true),
+      sticker: makePicker(uniqArr(pool.sticker), true),
+      emoji: makePicker(uniqArr(pool.emoji), true),
+      kaomoji: makePicker(uniqArr(pool.kaomoji), true),
+      text: makePicker(uniqArr(pool.text), true),
+      fb: makePicker(fb, true)
     };
-    const n = cfg.minCardsPost + Math.floor(Math.random() * Math.max(1, cfg.maxCardsPost - cfg.minCardsPost + 1));
+    // #1356：同 genMixedCards——要拼的张数不超过这一轮真正拿得出的不重复张数
+    const want = cfg.minCardsPost + Math.floor(Math.random() * Math.max(1, cfg.maxCardsPost - cfg.minCardsPost + 1));
+    const room = uniqArr(pool.image.concat(pool.sticker, pool.emoji, pool.kaomoji, pool.text, fb)).length;
+    const n = Math.max(1, Math.min(want, room));
     const textParts = [];
     const imgs = [];
     for (let i = 0; i < n; i++) {
       let pushed = false;
-      if (cfg.postImage > 0 && pool.image.length && Math.random() * 100 < cfg.postImage) { imgs.push(pick.image()); pushed = true; }
-      if (!pushed && cfg.postSticker > 0 && pool.sticker.length && Math.random() * 100 < cfg.postSticker) { imgs.push(pick.sticker()); pushed = true; }
-      if (!pushed && cfg.postEmoji > 0 && pool.emoji.length && Math.random() * 100 < cfg.postEmoji) { textParts.push(pick.emoji()); pushed = true; }
-      if (!pushed && cfg.postKaomoji > 0 && pool.kaomoji.length && Math.random() * 100 < cfg.postKaomoji) { textParts.push(pick.kaomoji()); pushed = true; }
-      if (!pushed) textParts.push(pool.text.length ? pick.text() : pick.fb());
+      const take = (f, to) => { const v = f(); if (v === undefined) return false; to.push(v); return true; };
+      if (cfg.postImage > 0 && pool.image.length && Math.random() * 100 < cfg.postImage && take(pick.image, imgs)) pushed = true;
+      if (!pushed && cfg.postSticker > 0 && pool.sticker.length && Math.random() * 100 < cfg.postSticker && take(pick.sticker, imgs)) pushed = true;
+      if (!pushed && cfg.postEmoji > 0 && pool.emoji.length && Math.random() * 100 < cfg.postEmoji && take(pick.emoji, textParts)) pushed = true;
+      if (!pushed && cfg.postKaomoji > 0 && pool.kaomoji.length && Math.random() * 100 < cfg.postKaomoji && take(pick.kaomoji, textParts)) pushed = true;
+      if (!pushed && !(take(pick.text, textParts) || take(pick.fb, textParts))) break;
     }
     // #1198 与评论/回复同一口径：TA 发动态的文字卡中间走「拼接符号」池（自家开关默认关＝原样空格）
     const rcf = window.replyCfgFor ? window.replyCfgFor(cid) : null;
@@ -3841,6 +3865,14 @@ if (comInput) comInput.addEventListener('keydown', (e) => { if (e.key === 'Enter
     try {
       const p = cardPool(cid);
       return { text: p.text.indexOf(s) >= 0, kaomoji: p.kaomoji.indexOf(s) >= 0, emoji: p.emoji.indexOf(s) >= 0 };
+    } catch (e) { return null; }
+  };
+  // FIX 2026-09-28 #1356：只读探针——按「TA 真发一条动态」的同一条管线现生成一次内容并回读，
+  //   供回归测试量「同一条动态里有没有把同一张卡原样重复」；不写库、不改调度状态。
+  window.feedGenProbe = function (cid) {
+    try {
+      const g = genPostContent(feedCfgFor(cid), cid);
+      return { content: String(g.content || ''), imgN: (g.imgs || []).length };
     } catch (e) { return null; }
   };
   // v3.26.x(#122)：注册朋友圈内置互动回应池跨分类搜索（字卡库列表页搜索同源可查，不再搜不到）
