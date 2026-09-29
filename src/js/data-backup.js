@@ -2083,7 +2083,7 @@
     if (file) { chatAllImportRead(file); return; }
     // FIX 2026-09-18 #755：统一走 window.mochiFilePick（原实现 detached＋无 label＋accept 迟到）
     window.mochiFilePick({
-      id: 'mochi-chatall-import-pick', accept: '.json,application/json',
+      id: 'mochi-chatall-import-pick', accept: window.mochiDataPickAccept, // #1410：并集里补上 text/plain 与 octet-stream，窄串那两型灰显一并挡掉
       onFiles: (files) => {
         const f = files && files[0];
         if (!f) { toast('没有取到文件，请再选一次'); return; }
@@ -2289,7 +2289,7 @@
         // ⚠ 本段曾被 4b052ae（#975 内存削峰）重写本文件时整块抹掉（当时哨兵 #1014a~h 保的是 bg-keep
         // 同名批次，未罩住这里）——再动这段请先读 tools/verify-1014-import-pick-native.mjs S7。
         pickOk: {
-          entry: 'row-import', accept: '',
+          entry: 'row-import', accept: window.mochiDataPickAccept,
           skipWhen: (m) => m === 'cancel',
           onFiles: (files, mode) => {
             const f = files && files[0];
@@ -2304,7 +2304,8 @@
         staticText: '完整备份：按备份文件恢复全部数据（会覆盖本机现有数据，含设置 / 字卡 / 朋友圈 / 音乐等）。\n' +
           '仅聊天记录：只恢复备份里的聊天记录——全部桌面联系人（含默认桌面）与群聊，' +
           '消息里引用到的图片/语音一并恢复；设置、字卡、朋友圈、音乐一律不动。\n' +
-          '两种都能读「导出数据」产生的备份文件；仅聊天记录还会识别单桌导出的聊天文件。'
+          '两种都能读「导出数据」产生的备份文件；仅聊天记录还会识别单桌导出的聊天文件。\n' +
+          '选文件时若弹出来的是相册，请在选择器里切到「文件／存储空间」再选——备份是 .json 文件。'
       });
     });
   }
@@ -2315,10 +2316,15 @@
     // 合成点击，改 position:fixed 移出屏幕而非 display:none 最稳）；
     // 不设 accept 过滤——部分国产 ROM 文件选择器对 accept 过滤有兼容 bug，
     // 选错文件会在导入时被校验提示「不是 mochi 导出的数据文件」
-    // FIX 2026-09-18 #755：改走统一入口（常驻挂文档 + label 原生激活兜底）；accept 仍刻意留空
-    //（上面的 ROM 兼容理由不变），另从「点按即 new 再 remove」改为常驻复用。
+    // FIX 2026-09-18 #755：改走统一入口（常驻挂文档 + label 原生激活兜底）。
+    // FIX 2026-09-29 #1410：accept 由「刻意留空」改成 window.mochiDataPickAccept 那份并集。上面
+    // 那条旧理由只挡住「灰显选不到」这一型，却放出另一型——空 accept＝不给任何类型线索，手机
+    // 浏览器/WebView 收到无线索的请求就按自家默认弹相册，用户根本走不到文件管理。并集里既没有
+    // 图片类型、也没有通配，两型同时挡掉（逐条说明见 js/device.js 那段）。选错文件的兜底口径不
+    // 变：仍由读取后的内容校验报「不是 mochi 导出的数据文件」。另从「点按即 new 再 remove」改为
+    // 常驻复用（#755 原意不变）。
     window.mochiFilePick({
-      id: 'mochi-backup-import-pick', accept: '',
+      id: 'mochi-backup-import-pick', accept: window.mochiDataPickAccept, // #1410
       onFiles: (files) => {
         const f = files && files[0];
         if (!f) { toast('没有取到文件，请再选一次'); return; }

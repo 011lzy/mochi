@@ -4325,6 +4325,30 @@ window.mochiImportLog = function (what) {
 //   cfg.onFiles(files, mode)
 //   cfg.entry        取证用的入口名
 // 零机型分支：所有内核同一条原生路径，无 UA/机型判断。撤层＝弹窗关闭/换届时移除（绝不残留）。
+// ===== 数据文件（json 备份）的 accept 单一来源（FIX 2026-09-29 #1410）=====
+// 需求（作者直派「为什么有的手机浏览器，点击【导入数据】只弹出手机的相册，没有弹出手机的文件
+// 管理」，并明说「这个问题其他设备型号也有出现」「不要覆盖修改导致不同型号设备浏览器的 bug 反复
+// 出现」）。
+// 根因（零机型／零 UA 分支，判据只有一条我们自己量得出的事实＝递给选择器的类型线索是什么）：
+// 这些入口此前把 accept 刻意留空（v3.9.x／v3.23.x 为躲「部分安卓 ROM 按 .json 过滤把备份文件
+// 灰显掉」那一次回退）。而空 accept 在那批内核里读起来不是「什么文件都要」，是「不给任何类型
+// 线索」——手机浏览器与内嵌 WebView 收到无线索的上传请求时按自家默认走，这一族默认正是相册
+// （图片选择器），于是躺在「文件管理」里的那个 .json 备份连候选页都到不了＝作者所见「只弹相册、
+// 没有文件管理」。
+// 本批不再在两个极端之间来回甩（空＝弹相册 与 只写 .json＝灰显选不到，后者历史上已经回退过
+// 一次），改成一份「非图片、又宽到没有东西会被灰显」的并集，四条各挡一型：
+//   .json                     只认扩展名的壳（不少安卓文件管理器按扩展名过滤）；
+//   application/json          按 MIME 过滤的（MediaStore 给 .json 猜的就是这个），同时这一条把整
+//                             个请求从「图片类」里摘出去——相册那批 intent filter 不再命中这一发；
+//   text/plain                把 json 当纯文本存的那批壳，与 iOS 的 public.plain-text；
+//   application/octet-stream  转存／改名后丢掉类型的未知二进制，iOS 侧对应 public.data（所有
+//                             文件都 conforms 到它＝这条在场就不会有任何东西被灰显掉）。
+// 串里没有任何 image 或 video 类型，也不是空串与全通配，所以不会被判成「挑照片」；文件格式仍由
+// 读取后的内容校验兜底（选错文件照旧报「不是 mochi 导出的数据文件」）——accept 只负责把候选页
+// 送到对的那一页。
+// 单一来源：各数据导入入口一律读这一个值，不再逐入口手抄（本族 #677→#755→#920→#991→#1014 的
+// 教训＝手抄必漏，每漏一处就是下一张「换个型号又坏了」的报障）。
+window.mochiDataPickAccept = '.json,application/json,text/plain,application/octet-stream';
 window.mochiModalPickOk = function (cfg) {
   var o = cfg || {};
   var okBtn = o.okBtn;
@@ -4865,7 +4889,7 @@ window.mochiFilePickLearnDoor = function (input) {
       if ((tgt.id || _anchor) && tgt.isConnected) {
         var d = pickDoorLoad();
         var k = String(tgt.id || ('fp:' + _anchor.root + '>' + (_anchor.idx || []).join('/'))).slice(0, 80);
-        var want = { owner: String(input.id).slice(0, 40), accept: String(input.accept).slice(0, 40), multiple: !!input.multiple, t: Date.now() };
+        var want = { owner: String(input.id).slice(0, 40), accept: String(input.accept).slice(0, 64), multiple: !!input.multiple, t: Date.now() }; // #1410：数据文件的 accept 并集 58 字符，按 40 截会把末条 MIME 截成半截（台账那份与宿主那份永不相等＝这一格被误判成「两种状态切」而永久剔门）
         if (!tgt.id) { want.a = _anchor; if (face) want.f = pickDoorAnchor(face); }
         var old = d[k];
         if (old && old.bad) { /* 已被判过「口径不一致」＝永久裁决，不再自动铺 */ }

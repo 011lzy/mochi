@@ -2751,7 +2751,7 @@
           // 选「粘贴文本导入」时不弹选择器（skipWhen）——那条路本来就是给「选择器打不开」的
           // 机型留的活路，撤掉默认动作后交回确定按钮原处理器，行为与以前逐字节相同。
           pickOk: {
-            entry: 'cc-import-data', accept: '',
+            entry: 'cc-import-data', accept: window.mochiDataPickAccept, // #1410：留空＝不给类型线索，那批内核按自家默认弹相册（作者直派）；改读单一来源的 json 并集
             skipWhen: (m) => m === 'paste',
             onFiles: (files, mode) => {
               const f = files && files[0];
@@ -2771,10 +2771,10 @@
       }
     });
     function pickImportFile(mode) {
-      // v3.23.x：accept 放开为全文件——vivo 自带/雨见等安卓浏览器对 accept=".json" 过滤
-      // 可能灰显/隐藏备份文件（同 v3.16.x 语音分类 accept 过滤的教训），格式由读取后的
-      // 内容校验兜底，选错文件会有明确提示
-      pickFiles('', false, (files) => {
+      // v3.23.x：accept 放开——vivo 自带/雨见等安卓浏览器对 accept=".json" 过滤（#1410 续：放开
+      // 到「不给任何线索」这一型，那批内核会直接弹相册、用户到不了文件管理；现改成读单一来源
+      // 的 json 并集＝既非图片、又宽到不灰显，两型同时挡。格式仍由读取后的内容校验兜底
+      pickFiles(window.mochiDataPickAccept, false, (files) => {
         const f = files && files[0];
         if (!f) return;
         importFromFile(f, mode);
@@ -3404,7 +3404,7 @@
         noInput: true,
         // FIX 2026-09-22 #1014：确定＝真·可点 input 层（同「导入字卡数据」）
         pickOk: {
-          entry: 'li-cc-full-import', accept: '',
+          entry: 'li-cc-full-import', accept: window.mochiDataPickAccept, // #1410：同上
           onFiles: (files, mode) => {
             const f = files && files[0];
             if (!f) { toast('没有取到文件，请再选一次'); return; }
@@ -3420,9 +3420,9 @@
       });
     });
     function ccFullPickFile(mode) {
-      // accept 放开为全文件（同字卡库导入 v3.23.x 口径：部分安卓壳对 .json 过滤灰显），
-      // 格式由读取后的内容校验兜底
-      pickFiles('', false, (files) => ccFullImportFile(files && files[0], mode));
+      // accept＝单一来源的 json 并集（#1410，同字卡库「导入数据」那一处：既不空到让内核按自家
+      // 默认弹相册，也不窄到把备份文件灰显掉），格式仍由读取后的内容校验兜底
+      pickFiles(window.mochiDataPickAccept, false, (files) => ccFullImportFile(files && files[0], mode));
     }
     // FIX 2026-09-22 #1014：文件到手后的完整导入管线——「程序化激活」与「弹窗确定＝真·可点
     // input 层」两条路汇入这一份实现（同一入口只有一条管线，解析/自救/计数一字未改）。

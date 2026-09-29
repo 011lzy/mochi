@@ -2163,7 +2163,7 @@ pickImportFile(mode);
 }, {
 noInput: true,
 pickOk: {
-entry: 'cc-import-data', accept: '',
+entry: 'cc-import-data', accept: window.mochiDataPickAccept, // #1410：留空＝不给类型线索，那批内核按自家默认弹相册（作者直派）；改读单一来源的 json 并集
 skipWhen: (m) => m === 'paste',
 onFiles: (files, mode) => {
 const f = files && files[0];
@@ -2183,7 +2183,7 @@ pill: 'merge'
 }
 });
 function pickImportFile(mode) {
-pickFiles('', false, (files) => {
+pickFiles(window.mochiDataPickAccept, false, (files) => {
 const f = files && files[0];
 if (!f) return;
 importFromFile(f, mode);
@@ -2720,7 +2720,7 @@ if (!window.openModal) return;
 window.openModal('导入自定义字卡', '', (mode) => { ccFullPickFile(mode); }, {
 noInput: true,
 pickOk: {
-entry: 'li-cc-full-import', accept: '',
+entry: 'li-cc-full-import', accept: window.mochiDataPickAccept, // #1410：同上
 onFiles: (files, mode) => {
 const f = files && files[0];
 if (!f) { toast('没有取到文件，请再选一次'); return; }
@@ -2736,7 +2736,7 @@ pill: 'merge'
 });
 });
 function ccFullPickFile(mode) {
-pickFiles('', false, (files) => ccFullImportFile(files && files[0], mode));
+pickFiles(window.mochiDataPickAccept, false, (files) => ccFullImportFile(files && files[0], mode));
 }
 function ccFullImportFile(f, mode) {
 if (!f) return;

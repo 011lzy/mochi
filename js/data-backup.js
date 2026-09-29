@@ -1498,7 +1498,7 @@ try { let n = 0; for (let i = 0; i < arr.length; i++) { const m = arr[i]; if (m 
 window.runChatAllImport = function (file) {
 if (file) { chatAllImportRead(file); return; }
 window.mochiFilePick({
-id: 'mochi-chatall-import-pick', accept: '.json,application/json',
+id: 'mochi-chatall-import-pick', accept: window.mochiDataPickAccept, // #1410：并集里补上 text/plain 与 octet-stream，窄串那两型灰显一并挡掉
 onFiles: (files) => {
 const f = files && files[0];
 if (!f) { toast('没有取到文件，请再选一次'); return; }
@@ -1664,7 +1664,7 @@ pickImportFile();
 }, {
 noInput: true, okText: '开始导入', pill: 'full', lock: true,
 pickOk: {
-entry: 'row-import', accept: '',
+entry: 'row-import', accept: window.mochiDataPickAccept,
 skipWhen: (m) => m === 'cancel',
 onFiles: (files, mode) => {
 const f = files && files[0];
@@ -1679,13 +1679,14 @@ pills: [{ label: '完整备份（全部数据）', value: 'full' },
 staticText: '完整备份：按备份文件恢复全部数据（会覆盖本机现有数据，含设置 / 字卡 / 朋友圈 / 音乐等）。\n' +
 '仅聊天记录：只恢复备份里的聊天记录——全部桌面联系人（含默认桌面）与群聊，' +
 '消息里引用到的图片/语音一并恢复；设置、字卡、朋友圈、音乐一律不动。\n' +
-'两种都能读「导出数据」产生的备份文件；仅聊天记录还会识别单桌导出的聊天文件。'
+'两种都能读「导出数据」产生的备份文件；仅聊天记录还会识别单桌导出的聊天文件。\n' +
+'选文件时若弹出来的是相册，请在选择器里切到「文件／存储空间」再选——备份是 .json 文件。'
 });
 });
 }
 function pickImportFile() {
 window.mochiFilePick({
-id: 'mochi-backup-import-pick', accept: '',
+id: 'mochi-backup-import-pick', accept: window.mochiDataPickAccept, // #1410
 onFiles: (files) => {
 const f = files && files[0];
 if (!f) { toast('没有取到文件，请再选一次'); return; }

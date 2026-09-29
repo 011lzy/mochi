@@ -10700,9 +10700,9 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
       <!-- #570：第三行开屏新版检测（ver-check.js 渲染）：检测中 / ✓已是最新 / ⇩有新版本可点更新 -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1790660946302">
+      <div class="splash-ver" id="splash-ver" data-build-ts="1790661960694">
         <span class="sv-app">Mochi 字卡传讯 <b>v8.53</b></span>
-        <span class="sv-deploy">部署于 2026-09-29 13:49<span id="splash-ver-live"></span></span>
+        <span class="sv-deploy">部署于 2026-09-29 14:06<span id="splash-ver-live"></span></span>
         <span class="sv-check" id="splash-ver-check" hidden></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
@@ -20895,6 +20895,7 @@ if (arr.length > 8) arr.splice(0, arr.length - 8);
 localStorage.setItem(window.mochiImportLogKey(), JSON.stringify(arr));
 } catch (e) {}
 };
+window.mochiDataPickAccept = '.json,application/json,text/plain,application/octet-stream';
 window.mochiModalPickOk = function (cfg) {
 var o = cfg || {};
 var okBtn = o.okBtn;
@@ -21263,7 +21264,7 @@ var _anchor = tgt.id ? null : pickDoorAnchor(tgt);
 if ((tgt.id || _anchor) && tgt.isConnected) {
 var d = pickDoorLoad();
 var k = String(tgt.id || ('fp:' + _anchor.root + '>' + (_anchor.idx || []).join('/'))).slice(0, 80);
-var want = { owner: String(input.id).slice(0, 40), accept: String(input.accept).slice(0, 40), multiple: !!input.multiple, t: Date.now() };
+var want = { owner: String(input.id).slice(0, 40), accept: String(input.accept).slice(0, 64), multiple: !!input.multiple, t: Date.now() }; // #1410：数据文件的 accept 并集 58 字符，按 40 截会把末条 MIME 截成半截（台账那份与宿主那份永不相等＝这一格被误判成「两种状态切」而永久剔门）
 if (!tgt.id) { want.a = _anchor; if (face) want.f = pickDoorAnchor(face); }
 var old = d[k];
 if (old && old.bad) { /* 已被判过「口径不一致」＝永久裁决，不再自动铺 */ }
@@ -22579,4 +22580,4 @@ window.__mochiBootRetry = function () { try { location.reload(); } catch (e) {} 
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mum9akxq -->
+<!-- __MOCHI_EOF__ mum9wbna -->
