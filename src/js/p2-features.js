@@ -545,11 +545,15 @@ function ckList(k, def) {
 //   就是三个「分组」）——genCheckin 与页面列表都走这个判据，无需逐处加分支；逐张开关存值一字不动。
 function isCkCardOff(k, x) { return store.get('ck-off-' + k + ':' + x) === '1' || !!(window.presetGroup && window.presetGroup.isOff('cck', k)); }
 function setCkCardOff(k, x, off) { store.set('ck-off-' + k + ':' + x, off ? '1' : '0'); }
-// v3.27.x #823：寻踪总开关（per-cid 键 checkin-en，从未写过＝默认开启）。关闭＝全静：
-// 不自动生成日常、不往聊天推任何寻踪消息、不落新记录，桌面【寻踪】图标／聊天「更多功能」
-// 寻踪／点 TA 头像的寻踪半框三个入口一并收起；已有日常与寻踪记录原样保留，重新开启即恢复。
+// v3.27.x #823：寻踪总开关（per-cid 键 checkin-en，从未写过＝默认开启）。关闭＝日常侧全静：
+// 不自动生成日常、不往聊天推任何寻踪消息、不落新记录，聊天「更多功能」寻踪／点 TA 头像的寻踪
+// 半框两个入口一并收起；已有日常与寻踪记录原样保留，重新开启即恢复。
 // 与「寻踪日常发送到聊天」概率（dcf-checkin）是两层东西：概率调 0% 只停聊天推送，
-// 寻踪页与记录照旧生成；本开关是连生成带入口一起停用。
+// 寻踪页与记录照旧生成；本开关是连生成带记录一起停用。
+// #1403 口径改版（用户直派）：桌面【寻踪】图标**不再**随总开关收起、寻踪页**照常可进**——
+// 位置面板（「TA在身边 · 位置感知」）的唯一入口就住在这页里（#875），把图标一起收掉＝连带关掉
+// 一个独立功能。关闭态改成进页可见「已禁用：联系人无法再触发更新日常」，停的是生成/推送/记录，
+// 不是入口本身。
 const CK_EN_KEY = 'checkin-en';
 function ckEn() {
   try {
@@ -560,7 +564,10 @@ function ckEn() {
 window.checkinEnabled = ckEn;
 // personalize.js 的 applyHiddenIcons 会把「不在隐藏名单里的图标」display 复位成 ''，
 // 它按这个口径判定寻踪图标是否该收起（否则用户从装修里恢复图标/切桌面就把入口放回来了）。
-window.checkinDeskOff = function () { return !ckEn(); };
+// #1403：总开关不再收起桌面图标——寻踪页里住着「TA在身边 · 位置感知」（#875：位置面板唯一入口
+// 就在这页与聊天半框），收图标等于连带关掉一个独立功能。口径保留、恒判「不收」，
+// applyHiddenIcons 那条并集于是只剩装修里手动隐藏的名单生效。
+window.checkinDeskOff = function () { return false; };
 // #855：「使用系统预设」开启＝系统预设＋我的添加合并抽取（预设在前、按原文去重，同名自定义
 // 不重复计概率）。原写法预设只在自定义库为空时兜底，用户加过一张自定义字卡后整库地点/动作/
 // 话术预设全部退场＝各设备必现、与机型无关。单卡开关（ck-off-*）按原文记键，合并后照常生效。
@@ -608,22 +615,45 @@ function genCheckin() {
   if (msg.length) out.msg = msg[Math.floor(Math.random() * msg.length)].t;
   return out;
 }
+// #1403：寻踪记录的折叠口径＝「当天直显、更早按月折叠」，实现交回站内唯一那把尺子 window.mochiHistFold
+// （定义在 idb.js，接 #1053 帮我决定记录那套 .dc-h-* 皮）。旧写法是整条历史平铺进一张卡（日常每
+// 1~8 小时生成一条＝一天最多十几条，几周后这一卡比整页还长＝作者报的「记录很长」）。
+// 这里只负责把一条记录画成什么样，不裁条目、不分页——作者明确要求「不要封顶，我都要保存历史记录」。
+function ckHistRow(x, i) {
+  const parts = [x.t, x.place, x.action].filter(Boolean);
+  return '<div class="ck-location"><div class="ck-value" style="font-size:13px">' + window.mochiHistDel('i' + i, parts.join(' · ')) + parts.join(' · ') + '</div><div class="ck-label">' + (x.msg || '') + '</div></div>';
+}
 function renderCheckinHistory() {
   const histEl = document.getElementById('ck-history');
     if (!histEl) return;
     try {
       let h = [];
       try { h = JSON.parse(store.get('checkin-history') || '[]'); } catch (e) { h = []; }
-      // 过滤无有效内容的记录（不渲染 "-- · -- · --" 占位），只显示实际存在的字段
-      const valid = (Array.isArray(h) ? h : []).filter(x => x && (x.place || x.action));
-      histEl.innerHTML = valid.length
-        ? valid.slice().reverse().map(x => {
-            const parts = [x.t, x.place, x.action].filter(Boolean);
-            return '<div class="ck-location"><div class="ck-value" style="font-size:13px">' + parts.join(' · ') + '</div><div class="ck-label">' + (x.msg || '') + '</div></div>';
-          }).join('')
-        : '<div class="div-result-empty">暂无寻踪记录</div>';
+      // 过滤无有效内容的记录（不渲染 "-- · -- · --" 占位），只显示实际存在的字段；
+      // 下标按**原始数组**取（key＝'i'+n），删完立刻重画，键在两次渲染之间不需要稳定
+      const valid = (Array.isArray(h) ? h : []).map((x, i) => ({ x, i })).filter(o => o.x && (o.x.place || o.x.action));
+      histEl.innerHTML = window.mochiHistFold(valid.map(o => ({ ts: Number(o.x.ts) || 0, html: ckHistRow(o.x, o.i) })), {
+        empty: '<div class="div-result-empty">暂无寻踪记录</div>',
+        todayEmpty: '<div class="dc-h-day-empty">今天暂无寻踪记录</div>'
+      });
     } catch (e) {}
   }
+  // #1403：作者「用户又不一定要保存那么多记录」——折叠之外还要能按条删。只删选中那一条，
+  // 不做整表清空、也不靠封顶裁条；写回与新增同一条路（store.set ＋ idbSet 双写当前桌面键）
+  function delCheckinHistory(key) {
+    let h = [];
+    try { h = JSON.parse(store.get('checkin-history') || '[]'); } catch (e) { return; }
+    const i = parseInt(String(key).replace(/^i/, ''), 10);
+    if (!(i >= 0) || !(i < h.length)) return;
+    h.splice(i, 1);
+    try {
+      store.set('checkin-history', JSON.stringify(h));
+      if (window.idbSet) window.idbSet(window.activePrefix() + ':checkin-history', JSON.stringify(h));
+    } catch (e) {}
+    renderCheckinHistory();
+    if (typeof window.toast === 'function') window.toast('已删除这条寻踪记录');
+  }
+  window.mochiHistDelBind(document.getElementById('ck-history'), { onDel: delCheckinHistory, title: '删除这条寻踪记录？' });
   // 初始化：从 IndexedDB 恢复全部寻踪记录
   (function () {
     if (window.idbGet) {
@@ -643,18 +673,34 @@ function renderCheckinHistory() {
   const checkinApp = document.querySelector('.app[data-app="checkin"]');
   const checkinPage = document.getElementById('page-checkin');
   // ---- #823 总开关：入口显隐收口 + 两处开关 UI（设置→工具 / 字卡库→寻踪日常字卡页）----
-  // 桌面图标走 display 收起（与 personalize.js applyHiddenIcons 同一条轴：那个函数会把
-  // 「不在隐藏名单里」的图标 display 复位成 ''，故它内部按 window.checkinDeskOff() 一并判定；
-  // 否则用户切桌面／装修里恢复图标／恢复隐藏图标弹窗一跑，入口就自己回来了）。
+  // 桌面图标此前也走这条轴（总开关关闭即与装修手动隐藏同轴收起）；#1403 起图标不再跟随收起，
+  // 本函数只复位装修名单的结果，personalize.js 的 applyHiddenIcons 仍按 window.checkinDeskOff()
+  // 那条口径合并（现恒判不收＝名单外图标照常显示）。
   function applyCkDeskIcon() {
     try {
       if (!checkinApp) return;
-      // 与装修里「隐藏图标」名单取并集：只认总开关会在关闭再开启后，把用户原本手动隐藏的
-      // 寻踪图标顺手放回桌面（hidden-icons 存的是 dataset.app 值 'checkin'）
+      // 装修里「隐藏图标」名单（hidden-icons 存的是 dataset.app 值 'checkin'）——#1403 起这是
+      // 桌面图标唯一的收起理由，总开关不再参与（原因见 window.checkinDeskOff 那段）
       let man = false;
       try { man = (JSON.parse(store.get('hidden-icons') || '[]')).indexOf('checkin') >= 0; } catch (e) {}
-      checkinApp.style.display = (ckEn() && !man) ? '' : 'none';
+      checkinApp.style.display = man ? 'none' : '';
     } catch (e) {}
+  }
+  // #1403：关闭态在寻踪页顶挂一条说明，让「下面的日常为什么不再变」在页面里就地交代
+  //（旧写法是整页打不开＋一句 toast，而页里住着位置感知——toast 一闪即过，用户只看到进不去）。
+  function ckDisabledBanner() {
+    const card = document.getElementById('ck-card');
+    if (!card) return;
+    let el = document.getElementById('ck-off-tip');
+    if (!ckEn()) {
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'ck-off-tip';
+        el.setAttribute('style', 'margin:0 0 10px;padding:8px 10px;border-radius:10px;font-size:12.5px;line-height:1.55;border:1px solid rgba(128,128,128,.34);opacity:.82');
+        card.insertBefore(el, card.firstChild);
+      }
+      el.textContent = '已禁用：联系人无法再触发更新日常。下面是关闭前的最后一次日常；「TA在身边 · 位置感知」不受影响，照常可用。重新开启：设置 → 工具 → 寻踪（TA 的日常）。';
+    } else if (el) el.remove();
   }
   function syncCkSwitchUI() {
     const on = ckEn();
@@ -663,11 +709,12 @@ function renderCheckinHistory() {
     const b = document.getElementById('ck-fe-en');
     if (b && b.checked !== on) b.checked = on;
     const sub = document.getElementById('sf-checkin-sub');
-    if (sub) sub.textContent = on ? 'TA 的日常随机刷新，桌面/聊天里都能寻踪' : '已关闭：入口已收起、不再自动更新（已有记录保留，重新开启即恢复）';
+    if (sub) sub.textContent = on ? 'TA 的日常随机刷新，桌面/聊天里都能寻踪' : '已禁用：联系人无法再触发更新日常（桌面【寻踪】仍可进入，页内「TA在身边 · 位置感知」照常用）';
+    ckDisabledBanner();
   }
   function ckToast(on) {
     if (typeof window.toast !== 'function') return;
-    window.toast(on ? '寻踪已开启：桌面与聊天入口恢复、日常继续更新' : '寻踪已关闭：入口全部收起、不再自动更新，已有记录保留');
+    window.toast(on ? '寻踪已开启：日常继续更新、聊天入口恢复' : '已禁用：联系人无法再触发更新日常（桌面【寻踪】仍可进入，「TA在身边 · 位置感知」照常用）');
   }
   window.setCheckinEnabled = function (on) {
     try { store.set(CK_EN_KEY, on ? '1' : '0'); } catch (e) {}
@@ -708,7 +755,7 @@ function renderCheckinHistory() {
     grp.setAttribute('style', 'margin:10px 12px 0');
     grp.innerHTML =
       '<div class="gs-row"><span>启用寻踪（TA 的日常）</span><label class="toggle"><input type="checkbox" id="ck-fe-en"><span class="tk"></span></label></div>' +
-      '<div class="gs-sub">关闭后桌面【寻踪】图标、聊天「更多功能」里的寻踪、点 TA 头像的寻踪半框一并收起，日常也不再自动更新与推送（下面那个「发送到聊天」概率与已有寻踪记录都不受影响，重新开启即恢复）。设置 → 工具 里有同一个开关。</div>';
+      '<div class="gs-sub">关闭后日常不再自动更新、不再推送到聊天、不再写新记录，聊天「更多功能」里的寻踪与点 TA 头像的寻踪半框一并收起。桌面【寻踪】图标仍在（点进去看得到「已禁用」说明，页里的「TA在身边 · 位置感知」是独立功能、照常可用）。下面那个「发送到聊天」概率与已有寻踪记录都不受影响，重新开启即恢复。设置 → 工具 里有同一个开关。</div>';
     box.parentNode.insertBefore(grp, box);
     bindCkSwitch(document.getElementById('ck-fe-en'));
   })();
@@ -894,17 +941,17 @@ function renderCheckinHistory() {
   // 全屏打开寻踪页：渲染当前日常（或生成一条）+ 记录；供桌面/聊天「更多功能」共用
   window.openCheckinPage = function () {
     if (!checkinPage) return;
-    if (!ckEn()) { // #823c 关闭后寻踪页不再打开（桌面图标/更多功能入口已收起，剩功能大全这类程序化跳转）
-      if (typeof window.toast === 'function') window.toast('寻踪已关闭：设置 → 工具 → 寻踪 可重新开启');
-      return;
-    }
+    // #823c 旧口径＝关闭后整页打不开＋一句 toast。#1403 改掉：位置面板（「TA在身边 · 位置感知」）
+    // 唯一入口就在这页里，关掉页面＝连带关掉一个独立功能。停生成侧的闸门仍在 doCheckin（#823a），
+    // 页面照进，页顶写明「已禁用」（ckDisabledBanner）。
     document.querySelectorAll('.page').forEach(p => p.hidden = true);
     checkinPage.hidden = false;
-    // 显示当前日常；从未生成过则立即生成一条
+    // 显示当前日常；从未生成过则立即生成一条（关闭态不生成，免得空转被读成「点了没反应」）
     let cur = null;
     try { cur = JSON.parse(store.get('checkin-current') || 'null'); } catch (e) {}
     if (cur && cur.place) renderCheckinUI(cur);
-    else doCheckin();
+    else if (ckEn()) doCheckin();
+    ckDisabledBanner();
     renderCheckinHistory();
   };
   if (checkinApp && checkinPage) {
@@ -939,6 +986,9 @@ if (ckRefresh) {
     const now = Date.now();
     if (now - ckLastRefresh < 5000) { toast('刷新太频繁，稍后再试'); return; }
     ckLastRefresh = now;
+    // #1403：关闭态下这颗按钮原本会空转（doCheckin 首行闸门直接 return＝点了什么反应都没有＝
+    // 站内最常见那一型「静默失败」）。页面现在可进，故就地给一句能执行的说明。
+    if (!ckEn()) { toast('寻踪已禁用：设置 → 工具 → 寻踪 重新开启后才能刷新日常'); return; }
     doCheckin();
   });
 }

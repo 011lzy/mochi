@@ -503,15 +503,15 @@ h += '<div class="narc-item solved">' + inner + '<div class="ni-meta"><span clas
 return h;
 }
 function changesHTML(arc) {
-const hist = arc.history.slice().sort((a, b) => b.time - a.time);
-if (!hist.length) {
+const idx = arc.history.map(function (ev, i) { return { ev: ev, i: i }; });
+if (!idx.length) {
 return '<div class="narc-empty">还没有理解上的变化。<br>当有一天你发现自己——「原来TA不是我以为的那样」——它会出现在这里。</div>';
 }
-let h = '';
-hist.forEach(ev => {
-h += '<div class="narc-hist"><span class="nh-dot"></span><div class="nh-wrap"><div class="nh-date">' + mdstr(ev.time) + '</div><div class="nh-text">' + String(ev.text || '').replace(/〈([^〈]*)〉/g, '<em>「$1」</em>') + '</div></div></div>';
+return window.mochiHistFold(idx.map(function (o) {
+return { ts: Number(o.ev.time) || 0, html: '<div class="narc-hist"><span class="nh-dot"></span><div class="nh-wrap"><div class="nh-date">' + mdstr(o.ev.time) + '</div><div class="nh-text">' + String(o.ev.text || '').replace(/〈([^〈]*)〉/g, '<em>「$1」</em>') + '</div>' + opBtn('del-hist', '删除', ' data-id="' + o.i + '"', 1) + '</div></div>' };
+}), {
+todayEmpty: '<div class="dc-h-day-empty">今天没有新的理解变化</div>'
 });
-return h;
 }
 function posHTML(arc) { return fieldRowsHTML(arc.pos, POS_FIELDS, 'pos'); }
 function thingsHTML(arc) {
@@ -579,6 +579,7 @@ if (tab.shared === 'timeline') {
 h += sectHead('我们的时间线', '第一次、共同经历、特别的日子，都在这里连成一条线。', '<button class="narc-add" data-op="add-record">＋ 写一条相处</button>');
 const arr = timelineItems(arc);
 if (!arr.length) return h + '<div class="narc-empty">还没有共同记录。<br>第一次见面、第一次聊天、第一次被TA主动找……都值得记下来。</div>';
+const items = [];
 arr.forEach(x => {
 let inner = '<div class="ni-top">';
 if (x.kind === 'record') {
@@ -592,9 +593,9 @@ let ops = '';
 if (x.kind === 'bond' || x.kind === 'record' || x.kind === 'moment') {
 ops = '<span class="nk-ops">' + opBtn('edit-entry', '编辑', ' data-kind="' + x.kind + '" data-id="' + x.id + '"') + opBtn('del-entry', '删除', ' data-kind="' + x.kind + '" data-id="' + x.id + '"', 1) + '</span>';
 }
-h += itemShell(inner, '<span class="ni-date">' + esc(x.date) + '</span>' + ops);
+items.push({ ts: Number(x.t) || 0, html: itemShell(inner, '<span class="ni-date">' + esc(x.date) + '</span>' + ops) });
 });
-return h;
+return h + window.mochiHistFold(items, { todayEmpty: '<div class="dc-h-day-empty">今天还没有新的共同记录</div>' });
 }
 const catLabel = (tabsOf('shared', arc).find(t => t[0] === tab.shared) || [])[1] || BOND_CATS[tab.shared] || '';
 const isBuiltinCat = !!BOND_CATS[tab.shared];
@@ -1152,6 +1153,20 @@ else arc.records = arc.records.filter(x => x.id !== id);
 saveArc(cur, arc); toast('已删除'); render();
 }, { noInput: true, pill: 'del', pills: [{ label: '取消', value: 'no' }, { label: '删除', value: 'del' }] });
 }
+function delHist(i) {
+if (!window.openModal) return;
+const arc = ensureArc(cur);
+const ev = arc.history[i];
+if (!ev) return;
+window.openModal('删除这条理解变化？', '', function (v) {
+if (v !== 'del') return;
+const a = ensureArc(cur);
+const j = a.history.findIndex(function (x) { return x && x.time === ev.time && String(x.text || '') === String(ev.text || ''); });
+if (j < 0) { toast('这条已经变了，没有删掉任何内容'); return; }
+a.history.splice(j, 1);
+saveArc(cur, a); toast('已删除'); render();
+}, { noInput: true, staticText: String(ev.text || '').slice(0, 40), pill: 'del', pills: [{ label: '取消', value: 'no' }, { label: '删除', value: 'del' }] });
+}
 function toggleMoment(recId) {
 const arc = ensureArc(cur); const rec = arc.records.find(x => x.id === recId); if (!rec) return;
 if (rec.momentId) {
@@ -1271,6 +1286,7 @@ case 'add-bond': addBond(el.getAttribute('data-cat')); break;
 case 'add-record': addRecord(); break;
 case 'edit-entry': editEntry(kind, id); break;
 case 'del-entry': delEntry(kind, id); break;
+case 'del-hist': delHist(Number(id)); break; // #1403：理解变化日志按条删
 case 'toggle-moment': if (kind === 'record') toggleMoment(id); break;
 case 'add-dream': addDream(); break;
 case 'edit-dream': editDream(id); break;

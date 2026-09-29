@@ -96,6 +96,7 @@ out[k] = n;
 try { out['py-punct-custom'] = String(ls.get('reply-py-punct-custom') || '[]'); } catch (e) { out['py-punct-custom'] = '[]'; }
 try { out['as-badge-custom'] = String(ls.get('reply-as-badge-custom') || '[]'); } catch (e) { out['as-badge-custom'] = '[]'; }
 try { out['mjf-punct-pool'] = String(ls.get('reply-mjf-punct-pool') || ''); } catch (e) { out['mjf-punct-pool'] = ''; }
+try { out['mjf-punct-set'] = String(ls.get('reply-mjf-punct-set') || ''); } catch (e) { out['mjf-punct-set'] = ''; }
 return out;
 }
 window.replyCfg = getCfg;
@@ -112,6 +113,7 @@ out[k] = n;
 try { out['py-punct-custom'] = String((s || ls).get('reply-py-punct-custom') || '[]'); } catch (e) { out['py-punct-custom'] = '[]'; }
 try { out['as-badge-custom'] = String((s || ls).get('reply-as-badge-custom') || '[]'); } catch (e) { out['as-badge-custom'] = '[]'; }
 try { out['mjf-punct-pool'] = String((s || ls).get('reply-mjf-punct-pool') || ''); } catch (e) { out['mjf-punct-pool'] = ''; }
+try { out['mjf-punct-set'] = String((s || ls).get('reply-mjf-punct-set') || ''); } catch (e) { out['mjf-punct-set'] = ''; }
 return out;
 };
 window.groupChatCfg = function () {
@@ -788,36 +790,144 @@ else show('梦角自由造句已关闭');
 });
 }
 (function () {
-const POOL_KEY = 'reply-mjf-punct-pool';
-const el = document.getElementById('mjf-punct-pool');
-if (!el) return;
-function poolToast(msg) {
+const SET_KEY = 'reply-mjf-punct-set';
+const LEGACY_KEY = 'reply-mjf-punct-pool';
+const POOL = [['sp', ' ', '空格'], ['dou', '，', '，'], ['per', '。', '。'], ['ex', '！', '！'], ['q', '？', '？'], ['el', '......', '......'], ['dash', '——', '——'], ['nl', '\n', '换行'], ['tilde', '~', '~'], ['ell', '……', '……']];
+const VAL2P = {}; POOL.forEach(p => { VAL2P[p[1]] = p[0]; });
+const labelOf = s => { const p = POOL.find(x => x[1] === s); return p ? p[2] : s; };
+const DEF_LIT = ['。', '~', '！', '……'];
+const box = document.getElementById('mjf-punct-pool');
+if (!box) return;
+function mjfpToast(msg, ms) {
 const d = ccToastEnsure();
-if (d) { d.textContent = msg; d.className = 'cc-toast'; void d.offsetWidth; d.className = 'cc-toast show'; clearTimeout(d._timer); d._timer = setTimeout(() => { d.className = 'cc-toast'; }, 2000); }
+if (d) { d.textContent = msg; d.className = 'cc-toast'; void d.offsetWidth; d.className = 'cc-toast show'; clearTimeout(d._timer); d._timer = setTimeout(() => { d.className = 'cc-toast'; }, ms || 1800); }
 }
-function poolSync() {
-try { el.value = String(ls.get(POOL_KEY) || ''); } catch (e) {}
-try { el.setAttribute('value', el.value); } catch (e) {}
+const valid = it => !!(it && typeof it.s === 'string' && it.s && it.s.length <= 6);
+function parseLegacy(raw) {
+const s = String(raw == null ? '' : raw).trim();
+if (!s) return null;
+let arr = s.split(/[\s|]+/).filter(Boolean);
+if (arr.length < 2) arr = Array.from(s.replace(/[\s|]+/g, ''));
+arr = arr.filter(x => x.length <= 6).slice(0, 20);
+return arr.length ? arr : null;
 }
-function poolCommit() {
-let v = '';
-try { v = String(el.value == null ? '' : el.value); } catch (e) { v = ''; }
-v = v.replace(/[\r\n]+/g, ' ').trim().slice(0, 60);
-try { ls.set(POOL_KEY, v); } catch (e) {}
-try { el.value = v; el.setAttribute('value', v); } catch (e) {}
-if (v === '') poolToast('句尾标点已改为默认（。 ~ ！ ……）');
-else poolToast('句尾标点已保存：' + v);
+function derive() {
+let lit = null;
+try { lit = parseLegacy(ls.get(LEGACY_KEY) || ''); } catch (e) {}
+if (!lit) lit = DEF_LIT;
+const set = {}; lit.forEach(x => { set[x] = 1; });
+const list = POOL.map(p => ({ s: p[1], on: set[p[1]] ? 1 : 0 }));
+Object.keys(set).forEach(v => { if (VAL2P[v] == null) list.push({ s: v, on: 1 }); });
+return list;
 }
-poolSync();
-el.addEventListener('change', poolCommit);
-el.addEventListener('blur', poolCommit);
+function mjfpGet() {
+let arr = null;
+try { arr = JSON.parse(ls.get(SET_KEY) || ''); } catch (e) {}
+if (Array.isArray(arr)) {
+arr = arr.filter(valid);
+if (arr.length) return arr;
+}
+return derive();
+}
+function mjfpSet(list) { try { ls.set(SET_KEY, JSON.stringify(list)); } catch (e) {} }
+const isCust = it => VAL2P[it.s] == null;
+const custCount = list => list.filter(isCust).length;
+function otherSel(list, skipIdx) {
+let n = 0;
+list.forEach((it, i) => { if (i !== skipIdx && it.on === 1) n++; });
+return n;
+}
+function mjfpDis() {
+return getCfg()['mjf-punct'] !== 1;
+}
+function renderCust(list, dis) {
+box.querySelectorAll('.ppy-chip[data-i]').forEach(el => el.remove());
+const add = document.getElementById('mjfp-add');
+list.forEach((it, i) => {
+if (!isCust(it)) return;
+const el = document.createElement('span');
+el.className = 'tag ppy-chip ppy-chip-c' + (it.on === 1 ? ' sel' : '') + (dis ? ' dis' : '');
+el.dataset.i = String(i);
+el.textContent = it.s;
+const x = document.createElement('i');
+x.className = 'ppy-x';
+x.textContent = '×';
+el.appendChild(x);
+if (add && add.parentNode === box) box.insertBefore(el, add); else box.appendChild(el);
+});
+}
+function sync() {
+const list = mjfpGet();
+const dis = mjfpDis();
+box.querySelectorAll('.ppy-chip[data-p]').forEach(ch => {
+const v = (POOL.find(p => p[0] === ch.dataset.p) || [])[1];
+if (v == null) return;
+const it = list.find(x => x.s === v);
+ch.classList.toggle('sel', !!(it && it.on === 1));
+ch.classList.toggle('dis', dis);
+});
+const add = document.getElementById('mjfp-add');
+if (add) add.classList.toggle('dis', dis);
 const row = document.getElementById('mjf-punct-pool-row');
-const sw = document.getElementById('mjf-punct');
-if (row && sw) {
-const syncDis = () => { row.style.opacity = sw.checked ? '' : '.45'; };
-syncDis();
-sw.addEventListener('change', () => setTimeout(syncDis, 30));
+if (row) row.style.opacity = dis ? '.45' : '';
+renderCust(list, dis);
 }
+function addFlow() {
+const cur = mjfpGet();
+if (custCount(cur) >= 8) { mjfpToast('自定义句尾标点最多添加 8 个（可删掉不要的再加）', 2400); return; }
+if (!window.openModal) return;
+window.openModal('添加句尾标点', '', function (v) {
+const s = String(v == null ? '' : v).replace(/[\r\n]+/g, ' ').trim();
+if (!s) { mjfpToast('没有输入标点', 2000); return; }
+if (s.length > 6) { mjfpToast('标点最长 6 个字符', 2000); return; }
+const list = mjfpGet();
+if (custCount(list) >= 8) { mjfpToast('自定义句尾标点最多添加 8 个（可删掉不要的再加）', 2400); return; }
+if (list.some(it => it.s === s)) {
+mjfpToast(isCust(list.find(it => it.s === s)) ? '该自定义标点已存在' : '这是系统自带标点，点亮对应 chip 即可', 2200);
+return;
+}
+list.push({ s: s, on: 1 });
+mjfpSet(list);
+sync();
+toastSaved('添加句尾标点 ' + s, true);
+}, { maxlength: 6, placeholder: '输入标点，如 ～ / ❗ / !!!' });
+}
+box.addEventListener('click', (ev) => {
+if (ev.target.closest('#mjfp-add')) { addFlow(); return; }
+const ch = ev.target.closest('.ppy-chip');
+if (!ch) return;
+const list = mjfpGet();
+let idx = -1;
+if (ch.dataset.i != null) idx = Number(ch.dataset.i);
+else {
+const v = (POOL.find(p => p[0] === ch.dataset.p) || [])[1];
+if (v != null) idx = list.findIndex(x => x.s === v);
+}
+const it = list[idx];
+if (!it) return;
+const del = !!ev.target.closest('.ppy-x');
+if (it.on === 1 && otherSel(list, idx) === 0) {
+mjfpToast('句尾标点至少保留一枚（想一枚都不补请关上方「句尾标点」开关）', 2400);
+return;
+}
+if (del) {
+list.splice(idx, 1);
+mjfpSet(list);
+sync();
+mjfpToast('已删除句尾标点 ' + it.s);
+return;
+}
+it.on = it.on === 1 ? 0 : 1;
+mjfpSet(list);
+sync();
+toastSaved('句尾标点 ' + labelOf(it.s), it.on === 1);
+});
+sync();
+const swPunct = document.getElementById('mjf-punct');
+if (swPunct) swPunct.addEventListener('change', () => setTimeout(sync, 30));
+['contact-switched', 'mochi-restore-done', 'mochi-wrj-heal'].forEach(evN => {
+document.addEventListener(evN, () => { try { sync(); } catch (e) {} });
+});
 })();
 (function () {
 const DCP_ROWS = [

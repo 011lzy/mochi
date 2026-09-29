@@ -3818,11 +3818,99 @@ window.openTCPanel = openTCPanel;
       let d = null;
       try { d = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch (e) { return; }
       const arr = Array.isArray(d) ? d : (d && Array.isArray(d.history) ? d.history : null);
-      if (arr) out.push.apply(out, arr);
+      if (!arr) return;
+      // #1403：浅拷贝并挂上来源桌面 __cid——「按条删」要知道这一条来自哪个桌面（删除只在那一个
+      // 桌面里摘掉那一条）。刻意不改下面的排序与返回形态：#101／#625a-d／#625h 六支针钉的就是
+      // 「五个分类统一走本函数跨桌面汇总」这条链，动它＝把那些修复的锚一起拔掉。
+      arr.forEach(function (x) { if (x) out.push(Object.assign({}, x, { __cid: cid })); });
     });
     out.sort(function (a, b) { return (Number(b && b.ts) || 0) - (Number(a && a.ts) || 0); });
     return out;
   }
+  // #1403：按条删除的落笔处。写回口径照 clearDeskHistories（#625 同一条轴）：裸数组档写数组本身，
+  // 对象档只换 history——题库/设置/分组/二级密码那些同档字段一律不动。
+  function delDeskHistoryEntry(cid, key, ts) {
+    const raw = deskRaw(cid, key);
+    if (!raw) return false;
+    let d = null;
+    try { d = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch (e) { return false; }
+    const arr = Array.isArray(d) ? d : (d && Array.isArray(d.history) ? d.history : null);
+    if (!arr) return false;
+    const i = arr.findIndex(function (x) { return x && (Number(x.ts) || 0) === ts; });
+    if (i < 0) return false;
+    arr.splice(i, 1);
+    if (Array.isArray(d)) { deskWrite(cid, key, JSON.stringify(arr)); }
+    else { d.history = arr; deskWrite(cid, key, JSON.stringify(d)); }
+    return true;
+  }
+  // 五档共用一条渲染链：行内容各自给（rowFn，保持各档原有字段与形态），折叠与「删除」交站内唯一
+  // 那两把件（idb.js 的 mochiHistFold／mochiHistDel＋Bind）＝当天直显、更早按月折、每条一删，
+  // 不裁条目、也不替用户动那个已有的「清空全部桌面」大动作
+  function askListRender(el, h, key, name, rowFn) {
+    if (!el) return;
+    el.innerHTML = window.mochiHistFold(h.map(function (x) {
+      const label = String(x.q || x.roast || x.my || '').slice(0, 30);
+      return { ts: Number(x.ts) || 0, html: '<div class="tc-listitem">' + rowFn(x) + window.mochiHistDel((x.__cid || '') + '|' + (Number(x.ts) || 0), label) + '</div>' };
+    }), {
+      empty: '<div class="ta-empty">暂无' + name + '记录</div>',
+      todayEmpty: '<div class="dc-h-day-empty">今天暂无' + name + '记录</div>'
+    });
+    window.mochiHistDelBind(el, {
+      title: '删除这条' + name + '记录？',
+      onDel: function (k) {
+        const p = String(k).split('|');
+        if (delDeskHistoryEntry(p[0], key, Number(p[1]))) {
+          window.renderAskRecords();
+          if (typeof window.toast === 'function') window.toast('已删除这条' + name + '记录');
+        }
+      }
+    });
+  }
+  window.renderAskRecords = function () {
+    // TA的询问
+    const askEl = document.getElementById('ar-ask');
+    if (askEl) {
+      const h = allDeskHistories('ta-ask');
+      askListRender(askEl, h, 'ta-ask', '询问', function (x) {
+        return '<div class="tc-li-q">问：' + escG(x.q) + '</div>' + (x.status === 'pending' ? '<div class="tc-li-pending">待回答</div>' : '<div class="tc-li-line">你：' + escG(x.a) + '</div>' + (x.reply ? '<div class="tc-li-line">' + (window.taFit ? window.taFit('TA：') : 'TA：') + taReplyShow(x.reply) + '</div>' : '')) + '<div class="tc-li-time">' + fmtDT(x.ts) + '</div>';
+      });
+    }
+    // TA的小问题
+    const chEl = document.getElementById('ar-choose');
+    if (chEl) {
+      const h = allDeskHistories(KEY2);
+      askListRender(chEl, h, KEY2, '小问题', function (x) {
+        return '<div class="tc-li-q">' + escG(x.q) + '</div><div class="tc-li-line">你的选择：' + escG(x.my) + '</div><div class="tc-li-line">' + (window.taFit ? window.taFit('TA：') : 'TA：') + taReplyShow(x.reply) + '</div><div class="tc-li-match">' + escG(x.match) + '</div><div class="tc-li-time">' + fmtDT(x.ts) + '</div>';
+      });
+    }
+    // TA的好奇
+    const cuEl = document.getElementById('ar-curious');
+    if (cuEl) {
+      const h = allDeskHistories(KEY3);
+      askListRender(cuEl, h, KEY3, '好奇', function (x) {
+        return '<div class="tc-li-q">' + escG(x.q) + '</div><div class="tc-li-line">你：' + escG(x.my) + '</div><div class="tc-li-line">' + (window.taFit ? window.taFit('TA：') : 'TA：') + taReplyShow(x.reply) + '</div><div class="tc-li-time">' + fmtDT(x.ts) + '</div>';
+      });
+    }
+    // TA的吐槽
+    const roEl = document.getElementById('ar-roast');
+    if (roEl) {
+      const h = allDeskHistories(KEY4);
+      askListRender(roEl, h, KEY4, '吐槽', function (x) {
+        return '<div class="tc-li-q">' + escG(x.roast) + '</div><div class="tc-li-line">你：' + escG(x.my) + '</div><div class="tc-li-line">' + (window.taFit ? window.taFit('TA：') : 'TA：') + taReplyShow(x.reply) + '</div><div class="tc-li-time">' + fmtDT(x.ts) + '</div>';
+      });
+    }
+    // 邀请 / 问问 TA（我的提问 + 联系人答案）
+    const inEl = document.getElementById('ar-invite');
+    if (inEl) {
+      const h = allDeskHistories('invite-ask-history');
+      askListRender(inEl, h, 'invite-ask-history', '邀请/问问', function (x) {
+        return '<div class="tc-li-q">' +
+          (x.type === 'invite' ? '邀请：' : '问：') + String(x.q || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '</div>' +
+          '<div class="tc-li-line">' + (window.taFit ? window.taFit('TA：') : 'TA：') + escG(window.taFit ? window.taFit(window.askCardReplyClean ? window.askCardReplyClean(x.a || '') : (x.a || '')) : (window.askCardReplyClean ? window.askCardReplyClean(x.a || '') : (x.a || ''))) + '</div>' +
+          '<div class="tc-li-time">' + fmtDT(x.ts) + '</div>';
+      });
+    }
+  };
   // 清空各桌面记录：读改写保留题库/设置/分组，只清 history（或裸数组本身）
   function clearDeskHistories(key) {
     deskCids().forEach(function (cid) {
@@ -3843,51 +3931,6 @@ window.openTCPanel = openTCPanel;
       if (pg && !pg.hidden && window.renderAskRecords) window.renderAskRecords();
     } catch (e) {}
   }
-  window.renderAskRecords = function () {
-    // TA的询问
-    const askEl = document.getElementById('ar-ask');
-    if (askEl) {
-      const h = allDeskHistories('ta-ask');
-      askEl.innerHTML = h.length
-        ? h.map(x => '<div class="tc-listitem"><div class="tc-li-q">问：' + escG(x.q) + '</div>' + (x.status === 'pending' ? '<div class="tc-li-pending">待回答</div>' : '<div class="tc-li-line">你：' + escG(x.a) + '</div>' + (x.reply ? '<div class="tc-li-line">' + (window.taFit ? window.taFit('TA：') : 'TA：') + taReplyShow(x.reply) + '</div>' : '')) + '<div class="tc-li-time">' + fmtDT(x.ts) + '</div></div>').join('')
-        : '<div class="ta-empty">暂无询问记录</div>';
-    }
-    // TA的小问题
-    const chEl = document.getElementById('ar-choose');
-    if (chEl) {
-      const h = allDeskHistories(KEY2);
-      chEl.innerHTML = h.length
-        ? h.map(x => '<div class="tc-listitem"><div class="tc-li-q">' + escG(x.q) + '</div><div class="tc-li-line">你的选择：' + escG(x.my) + '</div><div class="tc-li-line">' + (window.taFit ? window.taFit('TA：') : 'TA：') + taReplyShow(x.reply) + '</div><div class="tc-li-match">' + escG(x.match) + '</div><div class="tc-li-time">' + fmtDT(x.ts) + '</div></div>').join('')
-        : '<div class="ta-empty">暂无小问题记录</div>';
-    }
-    // TA的好奇
-    const cuEl = document.getElementById('ar-curious');
-    if (cuEl) {
-      const h = allDeskHistories(KEY3);
-      cuEl.innerHTML = h.length
-        ? h.map(x => '<div class="tc-listitem"><div class="tc-li-q">' + escG(x.q) + '</div><div class="tc-li-line">你：' + escG(x.my) + '</div><div class="tc-li-line">' + (window.taFit ? window.taFit('TA：') : 'TA：') + taReplyShow(x.reply) + '</div><div class="tc-li-time">' + fmtDT(x.ts) + '</div></div>').join('')
-        : '<div class="ta-empty">暂无好奇记录</div>';
-    }
-    // TA的吐槽
-    const roEl = document.getElementById('ar-roast');
-    if (roEl) {
-      const h = allDeskHistories(KEY4);
-      roEl.innerHTML = h.length
-        ? h.map(x => '<div class="tc-listitem"><div class="tc-li-q">' + escG(x.roast) + '</div><div class="tc-li-line">你：' + escG(x.my) + '</div><div class="tc-li-line">' + (window.taFit ? window.taFit('TA：') : 'TA：') + taReplyShow(x.reply) + '</div><div class="tc-li-time">' + fmtDT(x.ts) + '</div></div>').join('')
-        : '<div class="ta-empty">暂无吐槽记录</div>';
-    }
-    // 邀请 / 问问 TA（我的提问 + 联系人答案）
-    const inEl = document.getElementById('ar-invite');
-    if (inEl) {
-      const h = allDeskHistories('invite-ask-history');
-      inEl.innerHTML = h.length
-        ? h.map(x => '<div class="tc-listitem"><div class="tc-li-q">' +
-            (x.type === 'invite' ? '邀请：' : '问：') + String(x.q || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '</div>' +
-            '<div class="tc-li-line">' + (window.taFit ? window.taFit('TA：') : 'TA：') + escG(window.taFit ? window.taFit(window.askCardReplyClean ? window.askCardReplyClean(x.a || '') : (x.a || '')) : (window.askCardReplyClean ? window.askCardReplyClean(x.a || '') : (x.a || ''))) + '</div>' +
-            '<div class="tc-li-time">' + fmtDT(x.ts) + '</div></div>').join('')
-        : '<div class="ta-empty">暂无邀请/问问记录</div>';
-    }
-  };
   // 清空按钮（#625：列表已是全桌面汇总，清空必须同口径清全桌面，
   // 否则清完别桌记录立刻又出现在列表里＝「清了个寂寞」）
   const clearBind = (id, key, label) => {

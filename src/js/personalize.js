@@ -4949,9 +4949,14 @@ try {
     // 变灰 + 替代指引。key 取该行开关 input 的 id。
     const RULES = [
       { input: 'bg-notify', off: function () {
-        if (isIOS()) return { text: '本机是 iPhone / iPad：网页拿不到系统通知（添加到主屏幕也不保证），请改用应用内横幅「桌面消息弹窗」。', go: '#desk-msg-en', goText: '去开启' };
-        if (!hasNotify()) return { text: '本机浏览器没有通知能力（小米 / vivo / OPPO 等自带浏览器、UC、夸克常见如此）：请改用 Chrome / Edge 打开本站，安卓或电脑都行。' };
-        return null;
+        // FIX 2026-09-29 #1391：判据顺序倒回来——先问本机有没有 Notification 对象，再按平台挑指路。
+        //   原写法把 isIOS() 排在 hasNotify() 前面，等于任何 iPhone 一律标「本机用不了」，连主屏幕
+        //   应用形态里 API 在场、权限 granted、通知确实走过 sw 通道的那台也被盖掉（iPhone 16 Plus／
+        //   iOS 18.7 报障单【保活现场】那两行就是本机自证）。#986d 当年钉的正是「门槛是通知能力、
+        //   不是手机系统」——针还绿着、语义被插在它前面的一行机型分支顶掉了，这条针换写法重锚。
+        if (hasNotify()) return null; // 能力在场＝本机可用，不加任何标记（iPhone 从桌面图标打开走的这一支）
+        if (isIOS()) return { text: '本机是 iPhone / iPad 的 Safari 标签页：没有网页通知能力。到 Safari「添加到主屏幕」，之后从桌面图标打开本站再回来开这个开关；期间可先用应用内横幅「桌面消息弹窗」。', go: '#desk-msg-en', goText: '去开启' };
+        return { text: '本机浏览器没有通知能力（小米 / vivo / OPPO 等自带浏览器、UC、夸克常见如此）：请改用 Chrome / Edge 打开本站，安卓或电脑都行。' };
       } },
       { input: 'safe-top-force', off: function () {
         if (isIosStandalone()) return null; // 本机就是它要修的形态

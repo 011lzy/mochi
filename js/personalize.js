@@ -3986,9 +3986,9 @@ return navigator.standalone === true ||
 };
 const RULES = [
 { input: 'bg-notify', off: function () {
-if (isIOS()) return { text: '本机是 iPhone / iPad：网页拿不到系统通知（添加到主屏幕也不保证），请改用应用内横幅「桌面消息弹窗」。', go: '#desk-msg-en', goText: '去开启' };
-if (!hasNotify()) return { text: '本机浏览器没有通知能力（小米 / vivo / OPPO 等自带浏览器、UC、夸克常见如此）：请改用 Chrome / Edge 打开本站，安卓或电脑都行。' };
-return null;
+if (hasNotify()) return null; // 能力在场＝本机可用，不加任何标记（iPhone 从桌面图标打开走的这一支）
+if (isIOS()) return { text: '本机是 iPhone / iPad 的 Safari 标签页：没有网页通知能力。到 Safari「添加到主屏幕」，之后从桌面图标打开本站再回来开这个开关；期间可先用应用内横幅「桌面消息弹窗」。', go: '#desk-msg-en', goText: '去开启' };
+return { text: '本机浏览器没有通知能力（小米 / vivo / OPPO 等自带浏览器、UC、夸克常见如此）：请改用 Chrome / Edge 打开本站，安卓或电脑都行。' };
 } },
 { input: 'safe-top-force', off: function () {
 if (isIosStandalone()) return null; // 本机就是它要修的形态

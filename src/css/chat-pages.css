@@ -2410,6 +2410,18 @@
 .mail-tag.new { color:#fff; background:var(--ink); border-color:var(--ink); }
 .mail-item-desc { font-size:12px; color:var(--muted); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .mail-item-time { font-size:10px; color:var(--muted); flex-shrink:0; }
+/* #1402 信箱按时间分组：分组小标题＋按月折叠条（观感沿用统计页 stats-fold 那一档：只吃主题变量，暗色自动跟随） */
+.mail-sec-label { font-size:11px; font-weight:600; color:var(--muted); margin:2px 0 8px; }
+.mail-fold { margin-bottom:10px; }
+.mail-fold-head { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:11px 12px; background:var(--static-bg); border-radius:10px; cursor:pointer; }
+.mail-fold-head:active { opacity:.55; }
+.mail-fold-title { font-size:13px; font-weight:600; color:var(--ink); }
+.mail-fold-right { display:flex; align-items:center; gap:6px; flex-shrink:0; }
+.mail-fold-count { font-size:10px; color:var(--muted); background:var(--card-bg); padding:2px 8px; border-radius:99px; }
+.mail-fold-caret { font-size:11px; color:var(--muted); transition:transform .18s; }
+.mail-fold.open .mail-fold-caret { transform:rotate(180deg); }
+.mail-fold:not(.open) > .mail-fold-body { display:none; }
+.mail-fold-body { padding-top:10px; }
 
 /* 信纸（简约卡片，非米色信封） */
 .mail-paper {

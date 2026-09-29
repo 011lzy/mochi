@@ -354,7 +354,13 @@
     var ovulationDay = cl - luteal();
     if (baseStart) {
       if (inPeriod) nextStart = addDays(curRec.start, cl);
-      else { var s = baseStart; while (s <= today) s = addDays(s, cl); nextStart = s; }
+      // FIX #1407①：这里原来是 `s <= today`＝把「正好等于今天」的那一格也跳掉，nextStart 因此
+      //   永远 ≥ 明天。连带两个后果：① 提醒设置里那颗「当天」按钮（advanceDays 含 0）对应
+      //   checkNotify 的 d===0 那一发永不可达（checkCare 只能注一句「0=当天不可达故滤掉」在下游
+      //   绕开它）；② 预测日当天状态卡写「经期已推迟 1 天」，而日历同一格涂的是 predict（预测
+      //   经期）＝同一页两把尺差一天（无头实测：末次 28 天前·周期 28 天→dayPhase=predict 而
+      //   title=「经期已推迟 1 天」、通知 0 条）。改成只越过「已经过去的」那一格，今天该来就报今天。
+      else { var s = baseStart; while (s < today) s = addDays(s, cl); nextStart = s; }
     }
     var stats = cycleStats();
     var sigmaTxt = (stats.n >= 3 && stats.std >= 0.5) ? '（±' + Math.round(stats.std) + ' 天）' : '';
@@ -367,12 +373,19 @@
     if (!baseStart) return { phase: 'unknown', inPeriod: false, nextStart: null, dayOfCycle: 0, ovulationDay: ovulationDay, cycleLen: cl, title: '暂无记录', sub: '点下方按钮标记本次经期开始', sigma: '' };
     if (baseStart > today) return { phase: 'safe', inPeriod: false, nextStart: baseStart, dayOfCycle: 0, ovulationDay: ovulationDay, cycleLen: cl, title: '距下次经期约 ' + diffDays(today, baseStart) + ' 天' + sigmaTxt, sub: '已预记录未来经期开始', sigma: sigmaTxt };
     var dayOfCycle = diffDays(baseStart, today) + 1;
-    if (dayOfCycle > cl) return { phase: 'safe', inPeriod: false, nextStart: nextStart, dayOfCycle: dayOfCycle, ovulationDay: ovulationDay, cycleLen: cl, title: '经期已推迟 ' + (dayOfCycle - cl) + ' 天', sub: '点下方按钮标记本次经期开始', sigma: sigmaTxt };
+    // FIX #1407①（与上面同一条）：推迟天数从「预测日次日」起算＝dayOfCycle - cl - 1，旧版把预测日
+    //   当天报成「已推迟 1 天」。5/10 两个阈值本身不动，只是不再比实际多算一天。delayed 这个旗标
+    //   给提醒那两处用：连着隔了一整个周期没记时 nextStart 会正好落回今天，不加这道闸就会一边屏上
+    //   写「经期已推迟 28 天」、一边弹出「今天预计是经期开始日」。判据只看日期差，零机型／零 UA 分支。
+    if (dayOfCycle > cl + 1) return { phase: 'safe', delayed: true, inPeriod: false, nextStart: nextStart, dayOfCycle: dayOfCycle, ovulationDay: ovulationDay, cycleLen: cl, title: '经期已推迟 ' + (dayOfCycle - cl - 1) + ' 天', sub: '点下方按钮标记本次经期开始', sigma: sigmaTxt };
     if (dayOfCycle >= ovulationDay - 5 && dayOfCycle <= ovulationDay + 1) {
       var toOv = ovulationDay - dayOfCycle;
       return { phase: 'fertile', inPeriod: false, nextStart: nextStart, dayOfCycle: dayOfCycle, ovulationDay: ovulationDay, cycleLen: cl, title: '排卵期 · 第 ' + dayOfCycle + ' 天', sub: toOv > 0 ? '距排卵约 ' + toOv + ' 天' : (toOv === 0 ? '今天约为排卵日' : '排卵约 ' + (-toOv) + ' 天前'), sigma: sigmaTxt };
     }
-    return { phase: 'safe', inPeriod: false, nextStart: nextStart, dayOfCycle: dayOfCycle, ovulationDay: ovulationDay, cycleLen: cl, title: nextStart ? '距下次经期约 ' + diffDays(today, nextStart) + ' 天' + sigmaTxt : '周期第 ' + dayOfCycle + ' 天', sub: '周期第 ' + dayOfCycle + ' 天', sigma: sigmaTxt };
+    // #1407①：预测日当天（diffDays=0）不再走「距下次经期约 0 天」这种读不通的说法，
+    //   与 checkNotify 里 adv===0 那句文案同词＝屏上那一行与弹出来的通知是一件事。
+    var dNext = nextStart ? diffDays(today, nextStart) : -1;
+    return { phase: 'safe', inPeriod: false, nextStart: nextStart, dayOfCycle: dayOfCycle, ovulationDay: ovulationDay, cycleLen: cl, title: dNext === 0 ? '今天预计是经期开始日' + sigmaTxt : (nextStart ? '距下次经期约 ' + dNext + ' 天' + sigmaTxt : '周期第 ' + dayOfCycle + ' 天'), sub: '周期第 ' + dayOfCycle + ' 天', sigma: sigmaTxt };
   }
 
   // ---- 给定日期阶段（日历着色）----
@@ -562,7 +575,8 @@
       var progress = st.cycleLen && st.dayOfCycle ? Math.min(1, st.dayOfCycle / st.cycleLen) : 0;
       var bigNum, bigSub;
       if (st.inPeriod) { bigNum = st.dayOfCycle; bigSub = '经期第' + st.dayOfCycle + '天'; }
-      else if (daysToNext !== null && daysToNext >= 0) { bigNum = daysToNext; bigSub = '天后'; }
+      // #1407①：预测日当天那一格是 0 天，环上写「0 天后」读不通（与状态卡「今天预计是经期开始日」打架）
+      else if (daysToNext !== null && daysToNext >= 0) { bigNum = daysToNext === 0 ? '今日' : daysToNext; bigSub = daysToNext === 0 ? '预计开始' : '天后'; }
       else { bigNum = '—'; bigSub = ''; }
       var circ = 2 * Math.PI * 26;
       var dash = circ * progress;
@@ -650,7 +664,10 @@
       else if (bar && bar.parentNode) bar.parentNode.insertBefore(nextLine, bar.nextSibling);
     }
     var toNext = st.nextStart ? diffDays(todayStr(), st.nextStart) : 0;
-    if (!st.nextStart || toNext < 1) { nextLine.hidden = true; }
+    // #1407①：这里判的是 `toNext < 1`＝预测日当天（0 天）这行整条藏掉，而日历那一格仍涂着
+    //   predict、状态卡写着「今天预计是经期开始日」＝同页三处读数两说。改成只在真的没有
+    //   预测日（或已过）时藏。
+    if (!st.nextStart || toNext < 0) { nextLine.hidden = true; }
     else {
       nextLine.hidden = false;
       nextLine.textContent = '下次经期预计 ' + mdLabel(st.nextStart) + ' ~ ' + mdLabel(addDays(st.nextStart, cfg.periodLen - 1)) + (st.sigma || '');
@@ -1228,33 +1245,63 @@
   function checkNotify() {
     if (!notifyCfg.enabled) return;
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    // FIX #1407②：此前本模块一个 setInterval 都没有（对照 memo-app 4 分钟一掷＋5 分钟到点检查、
+    //   p2-features 8 分钟 tick），而 notifyCfg.hour 全仓只有「写入」与「渲染」、没有任何读方——
+    //   「提醒时间（小时 0-23）」是纯摆设。无头实测：hour 从 0 扫到 23、钟点钉在凌晨 3 点，通知
+    //   恒 1 条（0:1 1:1 … 23:1），设几点都一样。现在＝到设定小时才发，且没到点直接 return、
+    //   不写 fired（当天名额不吞，同 #559 深夜静默那条纪律）。深夜 23:00–06:00 一律静默；设定落在
+    //   这一段的按 06:00 起算，并且这句话同时写进弹层，不再静默改写用户设定。判据只读墙钟。
+    var nowH = new Date().getHours();
+    if (nowH >= 23 || nowH < 6) return;
+    var dueH = Math.max(6, Math.min(22, typeof notifyCfg.hour === 'number' ? notifyCfg.hour : 9));
+    if (nowH < dueH) return;
     var st = status();
     var today = todayStr();
+    var tier = predictTier();
     notifyCfg.fired = notifyCfg.fired || {};
     var fired = false;
-    if (st.nextStart && !st.inPeriod) {
+    // FIX #1407⑧：通知与聊天此前各记各的当天名额（`_adv{n}`/`_inperiod`/`_delay` 与 `_care_{ctx}`），
+    //   同一个语境同一天会收到两条同义的话（实测推迟 13 天那天：通知弹「经期已推迟 13 天…」＋聊天发
+    //   「距上次经期已经 41 天…」）。现在两边共用一枚键 `_said_{ctx}`＝谁先落地谁占、后来者不重复；
+    //   ctx 名与聊天侧逐字对齐（inPeriod／adv{d}／delay／delayDeep／delayIrregular），渠道优先级靠
+    //   调用顺序（关心那发先跑、提醒补位，见文件末尾那两发启动定时器与进页处）。
+    function said(c) { return !!notifyCfg.fired[today + '_said_' + c]; }
+    function markSaid(c) { notifyCfg.fired[today + '_said_' + c] = 1; }
+    // #1407①：`!st.delayed` 这道闸是新边界带来的——连着隔了一整个周期没记时 nextStart 会正好落回
+    //   今天（d=0），不加它就会一边屏上写「经期已推迟 28 天」、一边弹出「今天预计是经期开始日」。
+    if (st.nextStart && !st.inPeriod && !st.delayed && advHit(diffDays(today, st.nextStart), tier, true)) {
       var d = diffDays(today, st.nextStart);
-      notifyCfg.advanceDays.forEach(function (adv) {
-        if (d === adv && !notifyCfg.fired[today + '_adv' + adv]) {
-          var txt = adv === 0 ? '今天预计是经期开始日' : '距下次经期约 ' + adv + ' 天';
-          notifyAssist('经期提醒', txt + ' · 注意保暖、备好用品');
-          notifyCfg.fired[today + '_adv' + adv] = 1;
-          fired = true;
-        }
-      });
+      if (!said('adv' + d)) {
+        var txt = d === 0 ? '今天预计是经期开始日' : '距下次经期约 ' + d + ' 天';
+        notifyAssist('经期提醒', txt + ' · 注意保暖、备好用品');
+        markSaid('adv' + d);
+        fired = true;
+      }
     }
     // 经期中每天提醒
-    if (st.inPeriod && !notifyCfg.fired[today + '_inperiod']) {
+    if (st.inPeriod && !said('inPeriod')) {
       notifyAssist('经期提醒', '经期第 ' + st.dayOfCycle + ' 天 · 注意保暖休息');
-      notifyCfg.fired[today + '_inperiod'] = 1;
+      markSaid('inPeriod');
       fired = true;
     }
     if (st.phase === 'safe' && /推迟/.test(st.title)) {
       var m = st.title.match(/推迟 (\d+) 天/);
       var delayDays = m ? parseInt(m[1], 10) : 0;
-      if (delayDays >= 5 && !notifyCfg.fired[today + '_delay']) {
-        notifyAssist('经期延迟提醒', '经期已延迟 ' + delayDays + ' 天，如持续异常建议关注');
-        notifyCfg.fired[today + '_delay'] = 1;
+      // #1407③：推迟这一发按规律档分口径（此前通知侧完全不看 predictTier，把 #559 判过的「太扯淡」
+      //   那句话照旧发给只记过 1 次的人）。与聊天侧同源：不规律档不说「推迟 N 天」，改「距上次经期
+      //   已经 M 天」的间隔口吻、门槛 ≥10，标题也不再挂「延迟」二字（标题同样是屏上的话）；
+      //   规律档 ≥5 发、满 10 升「去看看医生」（同聊天侧关注档那道坎）。
+      var dTitle = '经期延迟提醒', dTxt = '', dCtx = '';
+      if (tier === 'free') {
+        if (delayDays >= 10) { dTitle = '经期提醒'; dCtx = 'delayIrregular'; dTxt = '距上次经期已经 ' + st.dayOfCycle + ' 天，周期一向随性，长时间没来建议关注一下身体'; }
+      } else if (delayDays >= 10) {
+        dCtx = 'delayDeep'; dTxt = '经期已推迟 ' + delayDays + ' 天，你一向规律，这种情况别拖着，建议去看看医生';
+      } else if (delayDays >= 5) {
+        dCtx = 'delay'; dTxt = '经期已推迟 ' + delayDays + ' 天，如持续异常建议关注';
+      }
+      if (dTxt && !said(dCtx)) {
+        notifyAssist(dTitle, dTxt);
+        markSaid(dCtx);
         fired = true;
       }
     }
@@ -1322,6 +1369,18 @@
     if (s.n >= 3 && s.cv < 0.2) return 'rule';
     return 'free';
   }
+  // FIX #1407③：预警日命中判定收成一把尺（通知与聊天同调用，此前两边各抄了一份同样的规矩）。
+  //   #559 给不规律档的规矩＝「只认最接近的一次，别按不可信预测连发多天」。当时那句注释写着
+  //   「0=当天不可达故滤掉」——不可达的根因在 status() 的 `while (s <= today)`（#1407① 已修），
+  //   不是这一档不该存在。修完之后 withToday 这个参数才露出真用途：语料侧【经前预警】六个分组
+  //   全是「还有 {d} 天」口吻，{d}=0 会念成「还有 0 天左右」＝读不通，所以聊天那一发仍不认当天
+  //   （要当天那一发的是「提醒」，它有现成的那句「今天预计是经期开始日」）；哪天要补一条
+  //   「就是今天」口吻的字卡分组，把这个参数改成 true 即可，别的不用动。
+  function advHit(d, tier, withToday) {
+    var advs = (notifyCfg.advanceDays || []).filter(function (x) { return x >= 0 && (withToday === false ? x >= 1 : true); }).sort(function (a, b) { return a - b; });
+    if (!advs.length || advs.indexOf(d) < 0) return false;
+    return tier === 'free' ? d === advs[0] : true;
+  }
   function checkCare() {
     if (!notifyCfg.careEnabled) return;
     if (!window.chatAddIn) return;
@@ -1336,15 +1395,11 @@
     var tier = predictTier();
     var shouldCare = false, ctx = '', kind = '';
     if (st.inPeriod) { shouldCare = true; ctx = 'inPeriod'; kind = 'in'; }
-    else if (st.nextStart) {
+    else if (st.nextStart && !st.delayed) {
+      // #1407③：命中判定改走 advHit（与通知同一把尺；withToday=false 的理由见那条注释）。
+      //   原实现是这里手抄一份「free 只认最小值」、通知里再抄一份，两份已经开始打架。
       var d = diffDays(today, st.nextStart);
-      // free 档只认最接近的一次预警日（提前天数最小值，0=当天不可达故滤掉）
-      var advOk = true;
-      if (tier === 'free') {
-        var advs = notifyCfg.advanceDays.filter(function (x) { return x >= 1; });
-        advOk = advs.length ? d === Math.min.apply(null, advs) : false;
-      }
-      if (advOk && notifyCfg.advanceDays.indexOf(d) >= 0) { shouldCare = true; ctx = 'adv' + d; kind = 'adv'; }
+      if (advHit(d, tier, false)) { shouldCare = true; ctx = 'adv' + d; kind = 'adv'; }
     }
     var delayDays = 0;
     if (st.phase === 'safe' && /推迟/.test(st.title)) {
@@ -1355,7 +1410,9 @@
     }
     if (!shouldCare) return;
     notifyCfg.fired = notifyCfg.fired || {};
-    var careKey = today + '_care_' + ctx;
+    // #1407⑧：当天同语境的名额与通知共用一枚键（原来是 `_care_{ctx}`，通知另有 `_adv/_inperiod/_delay`
+    //   三枚，两条路各记各的＝推迟那天既弹通知又发一条同义的关心语）。谁先落地谁占，后来者不发。
+    var careKey = today + '_said_' + ctx;
     if (notifyCfg.fired[careKey]) return;
     var baseProb = 75;
     if (st.inPeriod) {
@@ -1671,12 +1728,16 @@
 
   // #1056：经期提醒的权限指引（与后台通知 nbPermWarnText 同一口径）。权限与「设置 → 系统 →
   //   后台通知」共用同一份（按域名记），任一边被拒两边都发不出；granted 时返回空串。
+  // FIX #1407⑥：原话「这期间提醒只会在打开应用时以站内形式出现」是假的——checkNotify 的权限闸
+  //   （`Notification.permission !== 'granted'` 那一行）直接 return，站内并没有任何「提醒」兜底形态，
+  //   屏上能出现的只有页内读数（状态卡／倒计时／桌面卡那句「今天预计是经期开始日」）与另一路的
+  //   「梦角关心」（它不走通知权限，但受自己的开关 × 字卡库概率 × 当日概率三道闸）。改口径＝说实话并指路。
   function periodPermHint() {
     try {
       if (!('Notification' in window)) {
         return (window.mochiDevice || {}).isIOS
-          ? '⚠ 本机此刻没有网页通知能力（iPhone / iPad 要在 Safari「添加到主屏幕」后从桌面图标打开本站才有；Safari 标签页里没有）：这期间提醒只会在打开应用时以站内形式出现'
-          : '⚠ 本机浏览器没有通知能力（小米 / vivo / OPPO 自带、UC、夸克常见如此）：请改用 Chrome / Edge 打开本站';
+          ? '⚠ 本机此刻没有网页通知能力（iPhone / iPad 要在 Safari「添加到主屏幕」后从桌面图标打开本站才有；Safari 标签页里没有）：这期间「提醒」这一弹发不出去，到日子那天屏上只有页内读数（经期页状态卡与桌面小组件会写「今天预计是经期开始日」）；聊天里 TA 那句「梦角关心」是另一路、不需要通知权限，但另受关心开关与字卡库概率管'
+          : '⚠ 本机浏览器没有通知能力（小米 / vivo / OPPO 自带、UC、夸克常见如此）：请改用 Chrome / Edge 打开本站；不换内核的话这一弹同样发不出去，到日子那天只剩页内读数（经期页状态卡与桌面小组件那句「今天预计是经期开始日」）';
       }
       var p = Notification.permission;
       if (p === 'denied') return '⚠ 浏览器已把本站通知记成「屏蔽」（授权框反复弹出后 Chrome 会自动挡，多半不是你点了拒绝）：地址栏左侧图标 → 网站设置 → 通知 → 允许；列表里没有本站，就在通知设置的「允许」里手动添加本站网址（此权限与设置→系统→「后台通知」共用，允许后两边一起恢复）';
@@ -1716,8 +1777,13 @@
         '<div class="dp-section"><div class="dp-label">启用提醒</div><button class="dp-toggle' + (notifyCfg.enabled ? ' on' : '') + '">' + (notifyCfg.enabled ? '已开启' : '已关闭') + '</button></div>' +
         '<div class="dp-section"><div class="dp-label">梦角关心（经期自动发关心语）</div><div class="dp-care-ctrl"><button class="dp-toggle care-toggle' + (notifyCfg.careEnabled ? ' on' : '') + '">' + (notifyCfg.careEnabled ? '已开启' : '已关闭') + '</button><button class="dp-care-mgr period-btn">管理关心语</button></div></div>' +
         '<div class="dp-section"><div class="dp-label">提醒提前天数</div><div class="dp-sym-grid">' + advHtml + '</div></div>' +
-        '<div class="dp-section"><div class="dp-label">提醒时间（小时 0-23）</div><input class="dp-hour" type="number" min="0" max="23" value="' + (notifyCfg.hour || 9) + '"/></div>' +
-        '<div class="dp-tip">提醒在打开应用时检查并推送；后台通知需浏览器支持。</div>' +
+        // #1407②：这一格现在真的管事了，回填就不能写 `notifyCfg.hour || 9`——那位把小时设成 0 的人
+        //   存的是 0、重开弹层却看见 9（0 与 9 经钳位后都落 06:00，行为一样、屏上说的不一样＝又是静默改写）。
+        '<div class="dp-section"><div class="dp-label">提醒时间（到这个点后我才发，0-23）</div><input class="dp-hour" type="number" min="0" max="23" value="' + (typeof notifyCfg.hour === 'number' ? notifyCfg.hour : 9) + '"/></div>' +
+        // #1407②：这句话此前写「提醒在打开应用时检查并推送」——那是 hour 没被任何地方读时的实话；
+        //   现在到点检查真的接上了（4 分钟那把钟换成了 5 分钟到点检查），同时两件代价必须明说：
+        //   浏览器不允许本站在应用没开着时弹后台通知；深夜 23:00–06:00 静默，设定落在这段的按 06:00 起算。
+        '<div class="dp-tip">到设定的小时后、应用开着时推送（应用没打开时浏览器不会替本站弹后台通知）；深夜 23:00–06:00 静默，设在这一段的小时按 06:00 起算。同一件事一天只会说一句：TA 那句关心先发，没开口时这条提醒才补上。</div>' +
         '<div class="dp-actions"><button class="dp-save period-btn primary">保存</button></div>' +
       '</div>';
     appendPop(pop);
@@ -1775,8 +1841,8 @@
       // #1056：保存时权限不到位就地指路（不再只报「已保存」而提醒实际发不出）
       var _svh = periodPermHint();
       toast(_svh || '已保存');
-      checkNotify();
       checkCare();
+      checkNotify();
     });
   }
   function closeNotifyPop() {
@@ -1796,8 +1862,8 @@
       cfg = loadCfg(); recs = loadRecs(); daily = loadDaily(); notifyCfg = loadNotify();
       viewM = -1;
       render();
-      checkNotify();
       checkCare();
+      checkNotify();
     });
   }
   var back = document.getElementById('period-back');
@@ -1918,8 +1984,9 @@
       subEl.textContent = '注意保暖休息';
     } else if (st.nextStart) {
       var d = diffDays(todayStr(), st.nextStart);
-      labelEl.textContent = '距下次经期';
-      daysEl.textContent = d + ' 天';
+      // #1407①：预测日当天 d=0，桌面卡原先会写「距下次经期 / 0 天」＝读不通；这一格改口「今日」。
+      labelEl.textContent = d === 0 ? '经期预计' : '距下次经期';
+      daysEl.textContent = d === 0 ? '今日' : d + ' 天';
       subEl.textContent = '预计 ' + mdLabel(st.nextStart) + ' 开始';
     } else {
       labelEl.textContent = '经期';
@@ -1948,10 +2015,41 @@
   })();
 
   // 启动后稍延迟检查通知（经期预测/延迟预警）+ 梦角关心触发
-  setTimeout(checkNotify, 3000);
-  setTimeout(checkCare, 5000);
+  // #1407⑧：顺序换了——关心先发、提醒补位（两条路同一天共享一枚名额，谁先落地谁占）。让 TA 那句话
+  //   先站在屏上，是这一路更该有的样子；提醒只在「这句今天还没人说过」时才弹。
+  setTimeout(checkCare, 3000);
+  setTimeout(checkNotify, 5000);
+  // FIX #1407②：上面那两发是本模块唯一的检查时机（加上进页/保存那几处），一个 setInterval 都没有
+  //   ＝「提醒时间（小时）」永远等不到「到点」那一刻（对照 memo-app 的 memoSysDueCheck 每 5 分钟、
+  //   p2-features 的 waterChimeTick 每 8 分钟）。补一个到点检查的钟：判定只看墙钟 getHours 与设定
+  //   小时比大小，不数 tick 次数——通话那批（#1394）实测过隐藏页定时器被内核节流到约 1 次/分钟、
+  //   安卓 5 分钟后整页冻结，靠「数满 N 拍」必迟到；数不满也没关系，回前台再补跑一发。
+  window.periodNotifyCheckNow = checkNotify; // 手动/回归验证触发口（同 memoRemindTickNow 惯例）
+  setInterval(function () { try { checkCare(); checkNotify(); } catch (e) {} }, 300000);
+  // #1407⑧：两发一起补跑、关心在前（共享当天名额的规则见 checkNotify 里那条注释；只跑提醒那一发
+  //   会让「回前台」这一刻把名额占掉，TA 当天那句话反而没了）。
+  document.addEventListener('mochi-fg-resume', function () { try { checkCare(); checkNotify(); } catch (e) {} });
+  // FIX #1407⑦：IDB 回填晚于模块初始化时，内存里那份 cfg/recs/daily/notifyCfg 一直停在默认值——
+  //   此前唯一会重载它们的是 migrateToGlobal 末尾那一句，而那函数在 `period-migrated` 已置位时
+  //   （＝绝大多数老用户）第一行就 return 了。后果：LS 被清/导入备份这类设备上，开机那发 checkNotify
+  //   拿的是 enabled=false、桌面卡写「暂无记录」，非得用户亲手进一次经期页（那里才重载）＝当天该发的
+  //   提醒整轮丢失，正是 AGENTS.md「回填完成前读到的键可能为空，涉及恢复时监听该事件或做好重试」那条。
+  //   现在「重载＋补跑」独立成一处，回填落地跑一次；事件早于本文件已派发过（__mochiDataReady）也补跑
+  //   一次，两条路同一把尺，不再靠迁移函数顺带。补跑前不 render（页没打开），桌面卡与两发检查照常。
+  function reloadAfterRestore() {
+    // 三段各自兜住：重读与两发检查是这条修复的本体，不能因为「页面重画/桌面卡」在某个环境下抛一次
+    // 就被同一个 try 整块吞掉（无头桩里没有 document.createElement 时就是这样）。
+    try { cfg = loadCfg(); recs = loadRecs(); daily = loadDaily(); notifyCfg = loadNotify(); } catch (e) {}
+    // #1407⑧：关心先发、提醒补位（两边共享当天同语境那一枚名额）。
+    try { checkCare(); checkNotify(); } catch (e) {}
+    try { if (!page.hidden) render(); renderDeskWidget(); } catch (e) {}
+  }
+  document.addEventListener('mochi-restore-done', function () { setTimeout(reloadAfterRestore, 200); });
+  if (window.__mochiDataReady) setTimeout(reloadAfterRestore, 200);
   setTimeout(renderDeskWidget, 2500);
   setTimeout(renderDeskWidget, 6000);
   document.addEventListener('contact-switched', function () { setTimeout(renderDeskWidget, 200); });
-  document.addEventListener('mochi-restore-done', function () { setTimeout(renderDeskWidget, 200); });
+  // #1407⑦：这里原来还有一只 mochi-restore-done 监听、只调 renderDeskWidget——但桌面卡读的是内存里
+  //   那份 recs，回填晚于初始化时它照样画「暂无记录」（＝补了个空刷新，看着像修过）。上面那只新监听
+  //   走的是「先重读存储再重画」，已覆盖这一发，不再留两只。
 })();

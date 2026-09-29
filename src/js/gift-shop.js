@@ -1977,10 +1977,29 @@
     });
     const show = (boxTab === 'in' ? inList : boxTab === 'out' ? outList : selfList).slice().sort(function (a, b) { return b.tm - a.tm; });
     const el = document.getElementById('giftbox-list'); if (!el) return;
-    el.innerHTML = show.map(function (it) {
+    // #1403：按条删除（作者「用户又不一定要保存那么多记录。这种无限变长的记录还需要有单独的删除功能」）。
+    // 只删选中的这一件、走既有 boxSave 写回路并 invalidate 那张 #985 的回复记忆表。连带效果如实记一笔：
+    // 聊天里那张礼物卡的「领取态/回复」以柜记录为单一事实源（#985），删掉柜里这件＝卡上的回复失去来源——
+    // 这本来就是「删这一条」的语义，所以确认框里必须回显「删的是哪一件」（件名由 mochiHistDel 带过去）。
+    window.mochiHistDelBind(el, {
+      title: '删除这件心意？',
+      onDel: function (id) {
+        const left = boxLoad().filter(function (x) { return String(x.id) !== String(id); });
+        boxSave(left);
+        boxMetaInvalidate();
+        renderBox();
+        if (typeof window.toast === 'function') window.toast('已从心意柜删除这一件');
+      }
+    });
+    // #1403：作者「无限变长的记录还需要有单独的删除功能」＋「每天只显示当天的，其他按月折叠」。
+    // 折叠走站内唯一那把尺子 window.mochiHistFold（idb.js，口径接 #1053），按条删除复用现成的
+    // boxSave 写回路（xyStore.set 内含 LS＋idbSet 双写）——只删选中的这一件，不做整柜清空、
+    // 也不靠封顶裁条；卡片自己的「点开详情」监听由删除件在捕获阶段拦下，点删除不会顺手弹详情。
+    const rows = show.map(function (it) { return { ts: Number(it.tm) || 0, html: (function () {
       const from = it.side === 'in' ? esc(partnerName()) + ' 送我' : it.side === 'self' ? esc(partnerName()) + ' 自己买的' : '我 送 ' + esc(partnerName());
       return '<div class="giftbox-card" data-id="' + esc(it.id) + '">' +
         '<div class="giftbox-card-top">' +
+          window.mochiHistDel(it.id, it.name) +
           '<div class="giftbox-emoji">' + giftMedia(it, 'giftbox-emoji-img') + '</div>' +
         '</div>' +
         '<div class="giftbox-card-body">' +
@@ -1994,7 +2013,11 @@
           '<div class="giftbox-meta">' + esc(from) + ' · ' + esc(fmtTime(it.tm)) + '</div>' +
         '</div>' +
       '</div>';
-    }).join('') || '<div class="gift-empty">' + (boxTab === 'in' ? (esc(partnerName()) + ' 还没送你礼物<br>' + (window.taFit ? window.taFit('他偶尔会主动从市集挑一份给你，耐心等等') : '他偶尔会主动从市集挑一份给你，耐心等等')) : boxTab === 'self' ? (esc(partnerName()) + ' 还没给自己买过礼物<br>TA 偶尔会按概率给自己挑一件，收进自己的心意柜') : ('你还没送出礼物<br>去心意市集挑一份送给 ' + esc(partnerName()) + ' 吧')) + '</div>';
+    })() }; });
+    el.innerHTML = window.mochiHistFold(rows, {
+      empty: '<div class="gift-empty">' + (boxTab === 'in' ? (esc(partnerName()) + ' 还没送你礼物<br>' + (window.taFit ? window.taFit('他偶尔会主动从市集挑一份给你，耐心等等') : '他偶尔会主动从市集挑一份给你，耐心等等')) : boxTab === 'self' ? (esc(partnerName()) + ' 还没给自己买过礼物<br>TA 偶尔会按概率给自己挑一件，收进自己的心意柜') : ('你还没送出礼物<br>去心意市集挑一份送给 ' + esc(partnerName()) + ' 吧')) + '</div>',
+      todayEmpty: '<div class="dc-h-day-empty">今天没有新的心意</div>'
+    });
     el.querySelectorAll('.giftbox-card').forEach(function (c) {
       c.addEventListener('click', function () {
         const it = list.find(function (x) { return x.id === c.dataset.id; });

@@ -496,7 +496,7 @@ return v === null ? true : v === '1';
 } catch (e) { return true; }
 }
 window.checkinEnabled = ckEn;
-window.checkinDeskOff = function () { return !ckEn(); };
+window.checkinDeskOff = function () { return false; };
 function ckMergeDef(custom, def) {
 const seen = {};
 return def.map(function (t) { return { t: t }; }).concat(custom).filter(function (x) {
@@ -531,21 +531,37 @@ if (action.length) out.action = action[Math.floor(Math.random() * action.length)
 if (msg.length) out.msg = msg[Math.floor(Math.random() * msg.length)].t;
 return out;
 }
+function ckHistRow(x, i) {
+const parts = [x.t, x.place, x.action].filter(Boolean);
+return '<div class="ck-location"><div class="ck-value" style="font-size:13px">' + window.mochiHistDel('i' + i, parts.join(' · ')) + parts.join(' · ') + '</div><div class="ck-label">' + (x.msg || '') + '</div></div>';
+}
 function renderCheckinHistory() {
 const histEl = document.getElementById('ck-history');
 if (!histEl) return;
 try {
 let h = [];
 try { h = JSON.parse(store.get('checkin-history') || '[]'); } catch (e) { h = []; }
-const valid = (Array.isArray(h) ? h : []).filter(x => x && (x.place || x.action));
-histEl.innerHTML = valid.length
-? valid.slice().reverse().map(x => {
-const parts = [x.t, x.place, x.action].filter(Boolean);
-return '<div class="ck-location"><div class="ck-value" style="font-size:13px">' + parts.join(' · ') + '</div><div class="ck-label">' + (x.msg || '') + '</div></div>';
-}).join('')
-: '<div class="div-result-empty">暂无寻踪记录</div>';
+const valid = (Array.isArray(h) ? h : []).map((x, i) => ({ x, i })).filter(o => o.x && (o.x.place || o.x.action));
+histEl.innerHTML = window.mochiHistFold(valid.map(o => ({ ts: Number(o.x.ts) || 0, html: ckHistRow(o.x, o.i) })), {
+empty: '<div class="div-result-empty">暂无寻踪记录</div>',
+todayEmpty: '<div class="dc-h-day-empty">今天暂无寻踪记录</div>'
+});
 } catch (e) {}
 }
+function delCheckinHistory(key) {
+let h = [];
+try { h = JSON.parse(store.get('checkin-history') || '[]'); } catch (e) { return; }
+const i = parseInt(String(key).replace(/^i/, ''), 10);
+if (!(i >= 0) || !(i < h.length)) return;
+h.splice(i, 1);
+try {
+store.set('checkin-history', JSON.stringify(h));
+if (window.idbSet) window.idbSet(window.activePrefix() + ':checkin-history', JSON.stringify(h));
+} catch (e) {}
+renderCheckinHistory();
+if (typeof window.toast === 'function') window.toast('已删除这条寻踪记录');
+}
+window.mochiHistDelBind(document.getElementById('ck-history'), { onDel: delCheckinHistory, title: '删除这条寻踪记录？' });
 (function () {
 if (window.idbGet) {
 const myPrefix = window.activePrefix();
@@ -568,8 +584,22 @@ try {
 if (!checkinApp) return;
 let man = false;
 try { man = (JSON.parse(store.get('hidden-icons') || '[]')).indexOf('checkin') >= 0; } catch (e) {}
-checkinApp.style.display = (ckEn() && !man) ? '' : 'none';
+checkinApp.style.display = man ? 'none' : '';
 } catch (e) {}
+}
+function ckDisabledBanner() {
+const card = document.getElementById('ck-card');
+if (!card) return;
+let el = document.getElementById('ck-off-tip');
+if (!ckEn()) {
+if (!el) {
+el = document.createElement('div');
+el.id = 'ck-off-tip';
+el.setAttribute('style', 'margin:0 0 10px;padding:8px 10px;border-radius:10px;font-size:12.5px;line-height:1.55;border:1px solid rgba(128,128,128,.34);opacity:.82');
+card.insertBefore(el, card.firstChild);
+}
+el.textContent = '已禁用：联系人无法再触发更新日常。下面是关闭前的最后一次日常；「TA在身边 · 位置感知」不受影响，照常可用。重新开启：设置 → 工具 → 寻踪（TA 的日常）。';
+} else if (el) el.remove();
 }
 function syncCkSwitchUI() {
 const on = ckEn();
@@ -578,11 +608,12 @@ if (a && a.checked !== on) a.checked = on;
 const b = document.getElementById('ck-fe-en');
 if (b && b.checked !== on) b.checked = on;
 const sub = document.getElementById('sf-checkin-sub');
-if (sub) sub.textContent = on ? 'TA 的日常随机刷新，桌面/聊天里都能寻踪' : '已关闭：入口已收起、不再自动更新（已有记录保留，重新开启即恢复）';
+if (sub) sub.textContent = on ? 'TA 的日常随机刷新，桌面/聊天里都能寻踪' : '已禁用：联系人无法再触发更新日常（桌面【寻踪】仍可进入，页内「TA在身边 · 位置感知」照常用）';
+ckDisabledBanner();
 }
 function ckToast(on) {
 if (typeof window.toast !== 'function') return;
-window.toast(on ? '寻踪已开启：桌面与聊天入口恢复、日常继续更新' : '寻踪已关闭：入口全部收起、不再自动更新，已有记录保留');
+window.toast(on ? '寻踪已开启：日常继续更新、聊天入口恢复' : '已禁用：联系人无法再触发更新日常（桌面【寻踪】仍可进入，「TA在身边 · 位置感知」照常用）');
 }
 window.setCheckinEnabled = function (on) {
 try { store.set(CK_EN_KEY, on ? '1' : '0'); } catch (e) {}
@@ -619,7 +650,7 @@ grp.className = 'set-group glass';
 grp.setAttribute('style', 'margin:10px 12px 0');
 grp.innerHTML =
 '<div class="gs-row"><span>启用寻踪（TA 的日常）</span><label class="toggle"><input type="checkbox" id="ck-fe-en"><span class="tk"></span></label></div>' +
-'<div class="gs-sub">关闭后桌面【寻踪】图标、聊天「更多功能」里的寻踪、点 TA 头像的寻踪半框一并收起，日常也不再自动更新与推送（下面那个「发送到聊天」概率与已有寻踪记录都不受影响，重新开启即恢复）。设置 → 工具 里有同一个开关。</div>';
+'<div class="gs-sub">关闭后日常不再自动更新、不再推送到聊天、不再写新记录，聊天「更多功能」里的寻踪与点 TA 头像的寻踪半框一并收起。桌面【寻踪】图标仍在（点进去看得到「已禁用」说明，页里的「TA在身边 · 位置感知」是独立功能、照常可用）。下面那个「发送到聊天」概率与已有寻踪记录都不受影响，重新开启即恢复。设置 → 工具 里有同一个开关。</div>';
 box.parentNode.insertBefore(grp, box);
 bindCkSwitch(document.getElementById('ck-fe-en'));
 })();
@@ -760,16 +791,13 @@ document.addEventListener('mochi-restore-done', bootCheckin);
 setTimeout(bootCheckin, 3000);
 window.openCheckinPage = function () {
 if (!checkinPage) return;
-if (!ckEn()) { // #823c 关闭后寻踪页不再打开（桌面图标/更多功能入口已收起，剩功能大全这类程序化跳转）
-if (typeof window.toast === 'function') window.toast('寻踪已关闭：设置 → 工具 → 寻踪 可重新开启');
-return;
-}
 document.querySelectorAll('.page').forEach(p => p.hidden = true);
 checkinPage.hidden = false;
 let cur = null;
 try { cur = JSON.parse(store.get('checkin-current') || 'null'); } catch (e) {}
 if (cur && cur.place) renderCheckinUI(cur);
-else doCheckin();
+else if (ckEn()) doCheckin();
+ckDisabledBanner();
 renderCheckinHistory();
 };
 if (checkinApp && checkinPage) {
@@ -801,6 +829,7 @@ ckRefresh.addEventListener('click', () => {
 const now = Date.now();
 if (now - ckLastRefresh < 5000) { toast('刷新太频繁，稍后再试'); return; }
 ckLastRefresh = now;
+if (!ckEn()) { toast('寻踪已禁用：设置 → 工具 → 寻踪 重新开启后才能刷新日常'); return; }
 doCheckin();
 });
 }

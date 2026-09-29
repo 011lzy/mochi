@@ -1658,10 +1658,21 @@ t.textContent = bt === 'in' ? (partnerName() + ' 送我的') : bt === 'out' ? ('
 });
 const show = (boxTab === 'in' ? inList : boxTab === 'out' ? outList : selfList).slice().sort(function (a, b) { return b.tm - a.tm; });
 const el = document.getElementById('giftbox-list'); if (!el) return;
-el.innerHTML = show.map(function (it) {
+window.mochiHistDelBind(el, {
+title: '删除这件心意？',
+onDel: function (id) {
+const left = boxLoad().filter(function (x) { return String(x.id) !== String(id); });
+boxSave(left);
+boxMetaInvalidate();
+renderBox();
+if (typeof window.toast === 'function') window.toast('已从心意柜删除这一件');
+}
+});
+const rows = show.map(function (it) { return { ts: Number(it.tm) || 0, html: (function () {
 const from = it.side === 'in' ? esc(partnerName()) + ' 送我' : it.side === 'self' ? esc(partnerName()) + ' 自己买的' : '我 送 ' + esc(partnerName());
 return '<div class="giftbox-card" data-id="' + esc(it.id) + '">' +
 '<div class="giftbox-card-top">' +
+window.mochiHistDel(it.id, it.name) +
 '<div class="giftbox-emoji">' + giftMedia(it, 'giftbox-emoji-img') + '</div>' +
 '</div>' +
 '<div class="giftbox-card-body">' +
@@ -1673,7 +1684,11 @@ return '<div class="giftbox-card" data-id="' + esc(it.id) + '">' +
 '<div class="giftbox-meta">' + esc(from) + ' · ' + esc(fmtTime(it.tm)) + '</div>' +
 '</div>' +
 '</div>';
-}).join('') || '<div class="gift-empty">' + (boxTab === 'in' ? (esc(partnerName()) + ' 还没送你礼物<br>' + (window.taFit ? window.taFit('他偶尔会主动从市集挑一份给你，耐心等等') : '他偶尔会主动从市集挑一份给你，耐心等等')) : boxTab === 'self' ? (esc(partnerName()) + ' 还没给自己买过礼物<br>TA 偶尔会按概率给自己挑一件，收进自己的心意柜') : ('你还没送出礼物<br>去心意市集挑一份送给 ' + esc(partnerName()) + ' 吧')) + '</div>';
+})() }; });
+el.innerHTML = window.mochiHistFold(rows, {
+empty: '<div class="gift-empty">' + (boxTab === 'in' ? (esc(partnerName()) + ' 还没送你礼物<br>' + (window.taFit ? window.taFit('他偶尔会主动从市集挑一份给你，耐心等等') : '他偶尔会主动从市集挑一份给你，耐心等等')) : boxTab === 'self' ? (esc(partnerName()) + ' 还没给自己买过礼物<br>TA 偶尔会按概率给自己挑一件，收进自己的心意柜') : ('你还没送出礼物<br>去心意市集挑一份送给 ' + esc(partnerName()) + ' 吧')) + '</div>',
+todayEmpty: '<div class="dc-h-day-empty">今天没有新的心意</div>'
+});
 el.querySelectorAll('.giftbox-card').forEach(function (c) {
 c.addEventListener('click', function () {
 const it = list.find(function (x) { return x.id === c.dataset.id; });

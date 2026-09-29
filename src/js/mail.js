@@ -304,12 +304,15 @@
     writeSnap(list, cid);
   }
 
+  // #1402 信箱「未读」的唯一口径：徽标数与列表顶部常驻区必须同进同退（常驻区条数 === 徽标数），
+  // 否则折叠之后红点亮着、列表里却找不到那封信。
+  function mailIsUnread(l) { return l.type === 'received' && !l.read && !l.myReply; }
   // v3.5.99：桌面「信箱」图标未读角标——有新来信（未读）时显示数字，进入信箱或打开信件后清除
   function updateBadge() {
     const badge = document.getElementById('mail-badge');
     if (!badge && !window.setDeskBadge) return;
     try {
-      const unread = load().filter(l => l.type === 'received' && !l.read && !l.myReply).length;
+      const unread = load().filter(mailIsUnread).length;
       if (window.setDeskBadge) { window.setDeskBadge('mail', unread); return; }
       if (!badge) return;
       if (unread > 0) {
@@ -681,7 +684,65 @@ window.showDeskPopup({ name: '信箱', text: mailPlainDesc('给你回了一封�
       '<div class="mail-item-desc">' + shortDesc(l.content, dir === 'in') + '</div></div>' +
       '<div class="mail-item-time">' + fmtDT(l.tm) + '</div></div>';
   }
-  // 渲染列表
+  // ===== #1402 信箱按时间分组（作者直派「信太多写得很杂」）=====
+  //   打开信箱只平铺「本周」的信，更早的按月份折成一条可点的组标题；未读来信不参与折叠、常驻最前。
+  //   判据只有两个事实：墙钟日期（本周一 00:00 起＝自然周，不是滚动 7 天）和信件自身的 tm/read 字段，
+  //   零机型／零 UA 分支。
+  //   「未读常驻」是硬约束：折叠组是 display:none，未读若进了折叠组＝红点亮着而列表里找不到那封信，
+  //   所以常驻条数与 updateBadge 共用 mailIsUnread 同一把尺（两边读数必然一致）。
+  //   寄出的信没有「未读」概念（read 只在对来信置位、徽标也只数 received），那一侧只做「本周＋按月折叠」，
+  //   不为此新造持久字段。
+  //   折叠态收在模块级 map：信箱页每次 render 都重设 innerHTML，挂在 DOM 上的开合态活不过一次渲染
+  //   （同 #993 统计页 stats-fold 的处理，站内既有惯例）。
+  const mailFoldOpen = {};
+  function weekStartTs(now) {
+    const d = new Date(now);
+    const dow = (d.getDay() + 6) % 7; // 周一＝0（getDay 的「周日 0」归到上一周末尾）
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - dow);
+    return d.getTime();
+  }
+  function monthKeyOf(ts) {
+    const d = new Date(ts);
+    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2);
+  }
+  function monthLabelOf(key) {
+    const p = key.split('-');
+    return p[0] + ' 年 ' + Number(p[1]) + ' 月';
+  }
+  function mailFoldHtml(dir, key, rows, name) {
+    const foldKey = dir + '|' + key; // 收到/寄出各自独立折叠，同一个月不能互相顶掉开合态
+    const open = !!mailFoldOpen[foldKey];
+    return '<div class="mail-fold' + (open ? ' open' : '') + '" data-mail-fold="' + foldKey + '">' +
+      '<div class="mail-fold-head" role="button" tabindex="0" aria-expanded="' + (open ? 'true' : 'false') + '">' +
+      '<span class="mail-fold-title">' + monthLabelOf(key) + '</span>' +
+      '<span class="mail-fold-right"><span class="mail-fold-count">' + rows.length + ' 封</span>' +
+      '<span class="mail-fold-caret">▾</span></span></div>' +
+      '<div class="mail-fold-body">' + rows.map(l => mailItemHtml(l, dir, name)).join('') + '</div></div>';
+  }
+  function mailGroupedHtml(list, dir, name) {
+    const wkStart = weekStartTs(Date.now());
+    const pin = [], week = [], months = {}, keys = [];
+    list.forEach(l => {
+      const tm = l.tm || 0;
+      // 一封信只落一个桶：未读先抽走，剩下的才谈本周／更早
+      if (dir === 'in' && mailIsUnread(l)) { pin.push(l); return; }
+      if (tm >= wkStart) { week.push(l); return; }
+      const k = monthKeyOf(tm);
+      if (!months[k]) { months[k] = []; keys.push(k); }
+      months[k].push(l);
+    });
+    let html = '';
+    if (pin.length) html += '<div class="mail-sec-label">未读</div>' + pin.map(l => mailItemHtml(l, dir, name)).join('');
+    if (week.length) {
+      // 底下真有折叠组时才需要「本周」这条小标题来划界；整箱都是本周的信就不加，避免多一层噪声
+      if (keys.length) html += '<div class="mail-sec-label">本周</div>';
+      html += week.map(l => mailItemHtml(l, dir, name)).join('');
+    }
+    keys.sort((a, b) => (a < b ? 1 : -1)); // 最近的月份在前
+    keys.forEach(k => { html += mailFoldHtml(dir, k, months[k], name); });
+    return html;
+  }
   function render() {
     // v3.27.x 性能：信箱页不可见 ⇒ 跳过。后台落地路径（60s 来信/回信 tick、启动 idb
     // 回调、保险丝）都会各调一次 render，原实现在用户停在桌面时也重建两份完整列表
@@ -696,7 +757,7 @@ window.showDeskPopup({ name: '信箱', text: mailPlainDesc('给你回了一封�
     // 收到的信：TA 来信 + 已回信
     const inList = list.filter(l => l.type === 'received');
     if (inEl) {
-      const inHtml = inList.map(l => mailItemHtml(l, 'in', name)).join('');
+      const inHtml = mailGroupedHtml(inList, 'in', name);
       inEl.innerHTML = inHtml || (mailEmptyIsLie() && window.mochiLoadingHtml
         ? window.mochiLoadingHtml('收到的信')
         : '<div class="ta-empty">' + (window.taFit ? window.taFit('还没有收到信，等等 TA 吧') : '还没有收到信，等等 TA 吧') + '</div>');
@@ -707,7 +768,7 @@ window.showDeskPopup({ name: '信箱', text: mailPlainDesc('给你回了一封�
     // 寄出的信
     const outList = list.filter(l => l.type === 'sent');
     if (outEl) {
-      const outHtml = outList.map(l => mailItemHtml(l, 'out', name)).join('');
+      const outHtml = mailGroupedHtml(outList, 'out', name);
       outEl.innerHTML = outHtml || (mailEmptyIsLie() && window.mochiLoadingHtml
         ? window.mochiLoadingHtml('寄出的信')
         : '<div class="ta-empty">还没有寄出任何信，提笔写一封吧</div>');
@@ -720,14 +781,40 @@ window.showDeskPopup({ name: '信箱', text: mailPlainDesc('给你回了一封�
   // 重挂 click，开销随信件数线性增长；点击按 dataset id 现查信件（load 有解析缓存），
   // openLetter 内部本就会重取最新完整数据，行为不变
   function mailListItemClick(e) {
-    const it = e.target && e.target.closest ? e.target.closest('.mail-item') : null;
+    const t = e.target && e.target.closest ? e.target : null;
+    if (!t) return;
+    // #1402：点月份组的标题条只开合这一组（标题条里没有 .mail-item，展开后点里面的信仍走 openLetter，
+    // 不会被这次点击顺手收回去）
+    const foldHead = t.closest('.mail-fold-head');
+    if (foldHead) { mailFoldToggle(foldHead.parentNode); return; }
+    const it = t.closest('.mail-item');
     if (!it) return;
     const l = load().find(x => x.id === it.dataset.id);
     if (l) openLetter(l);
   }
+  // #1402：开合态写回模块级 map 并同步 aria-expanded（render 重设 innerHTML 时按这张表还原现场）
+  function mailFoldToggle(sec) {
+    if (!sec || !sec.getAttribute) return;
+    const key = sec.getAttribute('data-mail-fold');
+    if (!key) return;
+    const head = sec.querySelector('.mail-fold-head');
+    const open = !mailFoldOpen[key];
+    mailFoldOpen[key] = open;
+    sec.classList.toggle('open', open);
+    if (head) head.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
   ['mail-in-list', 'mail-out-list'].forEach((lid) => {
     const el = document.getElementById(lid);
     if (el) el.addEventListener('click', mailListItemClick);
+    if (!el) return;
+    // 键盘可达（与统计页 stats-fold 同一套）：焦点在标题条上时 Enter/空格同样开合
+    el.addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+      const head = e.target && e.target.closest ? e.target.closest('.mail-fold-head') : null;
+      if (!head) return;
+      e.preventDefault();
+      mailFoldToggle(head.parentNode);
+    });
   });
   // 存储时保留媒体标记前缀（sticker:/image:）——渲染时靠前缀区分表情包小图/图片大图
   // v3.6.x：旧实现提交时剥掉前缀，renderBody 匹配不到 sticker: 导致表情包按大图显示；

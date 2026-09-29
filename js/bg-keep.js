@@ -1084,7 +1084,7 @@ const fail = function (why) { if (failCb) failCb(why); };
 if (!('Notification' in window)) {
 const _isIOS = !!(window.mochiDevice || {}).isIOS;
 say(_isIOS
-? 'iPhone / iPad 的网页拿不到系统通知\n（添加到主屏幕也不保证）请用「桌面消息弹窗」'
+? 'iPhone / iPad 在 Safari 标签页里没有系统通知能力\n请到 Safari「添加到主屏幕」，之后从桌面图标打开本站再开这个开关；期间可先用「桌面消息弹窗」'
 : '当前浏览器不支持系统通知\n请改用 Chrome/Edge 打开本站（安卓或电脑都行）');
 fail('unsupported');
 return;
@@ -1177,7 +1177,7 @@ function nbPermWarnText() {
 const p = nbPermState();
 if (p === 'unsupported') {
 return (window.mochiDevice || {}).isIOS
-? '⚠ 本机拿不到系统通知（iPhone / iPad 平台限制，添加到主屏幕也不保证）：请用「桌面消息弹窗」的应用内横幅'
+? '⚠ 本机没有网页通知能力（iPhone / iPad 的能力只在「Safari → 添加到主屏幕」后的独立应用形态里，Safari 标签页里没有）：装过去再回来开这个开关；期间请靠「桌面消息弹窗」的应用内横幅'
 : '⚠ 本机浏览器没有通知能力（小米 / vivo / OPPO 自带浏览器、UC、夸克、Via 常见如此）：请改用 Chrome / Edge 打开本站';
 }
 if (!notifyEnabled) return '';
@@ -1583,8 +1583,8 @@ pushLine('原因：' + location.protocol + '//' + location.host + ' 不是安全
 pushLine('解决：用 https:// 部署访问（GitHub Pages 即是 HTTPS）');
 } else if (kaIsIOS()) {
 pushLine('✗ 当前浏览器不支持 Notification API');
-pushLine('原因：iPhone / iPad 的网页拿不到系统通知（添加到主屏幕也不保证）');
-pushLine('解决：改用 设置 → 系统 →「桌面消息弹窗」的应用内横幅');
+pushLine('原因：iPhone / iPad 的网页通知能力只在「Safari → 添加到主屏幕」后的独立应用形态里提供，Safari 标签页里没有');
+pushLine('解决：到 Safari 分享菜单「添加到主屏幕」，之后从桌面图标打开本站再开这个开关；期间可先用 设置 → 系统 →「桌面消息弹窗」的应用内横幅');
 } else {
 pushLine('✗ 当前浏览器不支持 Notification API');
 pushLine('原因：本机浏览器没有通知能力（小米 / vivo / OPPO 等自带浏览器、UC、夸克、Via 常见如此）');

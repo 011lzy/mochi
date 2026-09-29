@@ -275,6 +275,10 @@
     // FIX 2026-09-21 #953 同口径：造句句尾标点池原串附带（dream-free.js endPunctPool 解析；
     // 空＝用内置默认池。故意不进 DEFAULTS：数字兜底会把标点串 Number() 成 NaN）
     try { out['mjf-punct-pool'] = String(ls.get('reply-mjf-punct-pool') || ''); } catch (e) { out['mjf-punct-pool'] = ''; }
+    // FIX 2026-09-29 #1396 同口径：造句「可用标点」chips 池整串附带（reply-mjf-punct-set＝JSON
+    // [{s,on}]；非数值键故不进 DEFAULTS，理由同上面 #712 那段）。空＝dream-free.js 端仍走上面
+    // 那条 #953 旧链（＝存量设备出句分布一字不变）
+    try { out['mjf-punct-set'] = String(ls.get('reply-mjf-punct-set') || ''); } catch (e) { out['mjf-punct-set'] = ''; }
     return out;
   }
   window.replyCfg = getCfg;
@@ -297,6 +301,8 @@
     try { out['as-badge-custom'] = String((s || ls).get('reply-as-badge-custom') || '[]'); } catch (e) { out['as-badge-custom'] = '[]'; }
     // FIX 2026-09-21 #953 同 getCfg：造句句尾标点池原串（按目标联系人桌面读，跨桌面回复同样认自己桌面的池）
     try { out['mjf-punct-pool'] = String((s || ls).get('reply-mjf-punct-pool') || ''); } catch (e) { out['mjf-punct-pool'] = ''; }
+    // FIX 2026-09-29 #1396 同 getCfg：造句可用标点 chips 池整串（按目标联系人桌面读，跨桌面回复同样认自己桌面的池）
+    try { out['mjf-punct-set'] = String((s || ls).get('reply-mjf-punct-set') || ''); } catch (e) { out['mjf-punct-set'] = ''; }
     return out;
   };
   // v3.9.x：群聊页/群聊回复逻辑读取群聊回复设置（含默认值）
@@ -1114,44 +1120,170 @@
       else show('梦角自由造句已关闭');
     });
   }
-  // ===== FIX 2026-09-21 #953：造句句尾标点池输入框 =====
-  // 用户直派「梦角自由造句使用标点符号也可以修改或关闭」——开关 mjf-punct 走上方通用键表
-  // （0＝完全不补标点），池内容由本框改：存 reply-mjf-punct-pool 原串（非数值键，同 #712
-  // 自定义拼接符号口径；空＝用 dream-free.js 内置默认池）。分隔符用空格或 |，单个池项也
-  // 可多字符（如 ……）；没写分隔符时按字符拆（「。！？」＝三个候选）。失焦/回车即存即提示。
+  // ===== FIX 2026-09-21 #953 → 2026-09-29 #1396：造句「可用标点」改成 #650/#712 同款 chips 池 =====
+  // 用户直派「梦角自由造句的可用标点（空格分隔）与多字卡回复那套拼接符号不一样＝设计不完整」。
+  // 原形态＝一个 132px 文本框（空格/| 分隔、整串截到 60 字符），病灶四条：看不见有哪些候选（默认池
+  // 只躺在 dream-free.js 里）、永远选不到「空格/换行」（按空白切分＋保存时把换行替成空格）、没有去重
+  // 与校验（留空还会静默回落默认池）、句号靠「在默认池里写三遍」加权＝用户既看不到也改不动。
+  // 现在与「拼接符号」同一交互、同一套候选：内置十枚（空格/，/。/！/？/...... /——/换行，另加两枚
+  // 句尾专用的 ~ 与 ……）只能开关不能删；点「＋」加自定义（≤6 字符、≤8 个、与内置及已有去重），
+  // 自定义点本体开关、点「×」删除；至少保留一枚（一枚都不补由上方「句尾标点」开关表达）；
+  // 本项 mjf-punct 关闭＝整行与 chips 一并置灰（仍可点，方便提前配好，沿用 #953 原口径；总开关
+  // mjf-en 关闭时**不**灰——同组的概率/语料/权重/手法都不灰，别在这一行制造组内唯一例外）。
+  // 存储：reply-mjf-punct-set = JSON [{s,on}]（整池，内置也在内）。非数值键故不进 DEFAULTS——理由同
+  // #712 那段：上面循环的数字兜底会把 JSON 串 Number() 成 NaN，saveAllContactsDo 按 DEFAULTS 全键
+  // String() 同步也会写坏。消费在 dream-free.js endPunctPool（该键为空时它仍走 #953 旧链）。
+  // 存量零变化：本键没写过＝用户从没点过 chip ⇒ 出句分布与今天一字不差（旧 reply-mjf-punct-pool 原串
+  // 非空用旧串，否则用内置默认池）；界面此时显示的是按下述 parseLegacy/DEF_LIT 推导出的点亮态，用户
+  // 点一下才落盘，且落盘的是他此刻看到的整套（旧串配好的池不会被清空，只是句号不再偏多）。
   (function () {
-    const POOL_KEY = 'reply-mjf-punct-pool';
-    const el = document.getElementById('mjf-punct-pool');
-    if (!el) return;
-    function poolToast(msg) {
+    const SET_KEY = 'reply-mjf-punct-set';
+    const LEGACY_KEY = 'reply-mjf-punct-pool';
+    // [data-p, 真值, chip 文案]——文案与 #650 那套对齐（空格/换行的真值同样是 ' ' 与 '\n'）
+    const POOL = [['sp', ' ', '空格'], ['dou', '，', '，'], ['per', '。', '。'], ['ex', '！', '！'], ['q', '？', '？'], ['el', '......', '......'], ['dash', '——', '——'], ['nl', '\n', '换行'], ['tilde', '~', '~'], ['ell', '……', '……']];
+    const VAL2P = {}; POOL.forEach(p => { VAL2P[p[1]] = p[0]; });
+    const labelOf = s => { const p = POOL.find(x => x[1] === s); return p ? p[2] : s; };
+    // 从没点过 chip 时的点亮态＝dream-free.js END_PUNCT_DEFAULT 的去重集（只作显示，不复制它的权重）
+    const DEF_LIT = ['。', '~', '！', '……'];
+    const box = document.getElementById('mjf-punct-pool');
+    if (!box) return;
+    function mjfpToast(msg, ms) {
       const d = ccToastEnsure();
-      if (d) { d.textContent = msg; d.className = 'cc-toast'; void d.offsetWidth; d.className = 'cc-toast show'; clearTimeout(d._timer); d._timer = setTimeout(() => { d.className = 'cc-toast'; }, 2000); }
+      if (d) { d.textContent = msg; d.className = 'cc-toast'; void d.offsetWidth; d.className = 'cc-toast show'; clearTimeout(d._timer); d._timer = setTimeout(() => { d.className = 'cc-toast'; }, ms || 1800); }
     }
-    function poolSync() {
-      try { el.value = String(ls.get(POOL_KEY) || ''); } catch (e) {}
-      // 手机端 mobile-adapt 会把 input 转成 contenteditable ce-box，属性也要跟着写（同 stepper 口径）
-      try { el.setAttribute('value', el.value); } catch (e) {}
+    const valid = it => !!(it && typeof it.s === 'string' && it.s && it.s.length <= 6);
+    // 旧串解析口径与 dream-free.js endPunctPool 逐字对齐（空格/| 分隔；无分隔则按字符拆）
+    function parseLegacy(raw) {
+      const s = String(raw == null ? '' : raw).trim();
+      if (!s) return null;
+      let arr = s.split(/[\s|]+/).filter(Boolean);
+      if (arr.length < 2) arr = Array.from(s.replace(/[\s|]+/g, ''));
+      arr = arr.filter(x => x.length <= 6).slice(0, 20);
+      return arr.length ? arr : null;
     }
-    function poolCommit() {
-      let v = '';
-      try { v = String(el.value == null ? '' : el.value); } catch (e) { v = ''; }
-      v = v.replace(/[\r\n]+/g, ' ').trim().slice(0, 60);
-      try { ls.set(POOL_KEY, v); } catch (e) {}
-      try { el.value = v; el.setAttribute('value', v); } catch (e) {}
-      if (v === '') poolToast('句尾标点已改为默认（。 ~ ！ ……）');
-      else poolToast('句尾标点已保存：' + v);
+    // 未落盘时的显示态：旧串（或内置默认池）→ 内置十枚的开关态 ＋ 旧串里那几枚非内置的作自定义项
+    function derive() {
+      let lit = null;
+      try { lit = parseLegacy(ls.get(LEGACY_KEY) || ''); } catch (e) {}
+      if (!lit) lit = DEF_LIT;
+      const set = {}; lit.forEach(x => { set[x] = 1; });
+      const list = POOL.map(p => ({ s: p[1], on: set[p[1]] ? 1 : 0 }));
+      Object.keys(set).forEach(v => { if (VAL2P[v] == null) list.push({ s: v, on: 1 }); });
+      return list;
     }
-    poolSync();
-    el.addEventListener('change', poolCommit);
-    el.addEventListener('blur', poolCommit);
-    // 总开关关闭时整行置灰（仍可编辑，方便先把池配好）
-    const row = document.getElementById('mjf-punct-pool-row');
-    const sw = document.getElementById('mjf-punct');
-    if (row && sw) {
-      const syncDis = () => { row.style.opacity = sw.checked ? '' : '.45'; };
-      syncDis();
-      sw.addEventListener('change', () => setTimeout(syncDis, 30));
+    function mjfpGet() {
+      let arr = null;
+      try { arr = JSON.parse(ls.get(SET_KEY) || ''); } catch (e) {}
+      if (Array.isArray(arr)) {
+        arr = arr.filter(valid);
+        if (arr.length) return arr;
+      }
+      return derive();
     }
+    function mjfpSet(list) { try { ls.set(SET_KEY, JSON.stringify(list)); } catch (e) {} }
+    const isCust = it => VAL2P[it.s] == null;
+    const custCount = list => list.filter(isCust).length;
+    // 「至少保留一枚」：内置＋自定义合计（口径同 #712）
+    function otherSel(list, skipIdx) {
+      let n = 0;
+      list.forEach((it, i) => { if (i !== skipIdx && it.on === 1) n++; });
+      return n;
+    }
+    function mjfpDis() {
+      // 只认本项开关：同组「触发概率／语料／权重／手法／混合模式」都不随总开关 mjf-en 变灰，
+      // 这一行也不灰（跨组上游才置灰是 #956 给「拼接随机标点」定的口径，别拿它当同组先例）
+      return getCfg()['mjf-punct'] !== 1;
+    }
+    // 自定义 chips 重渲（插在「＋」前；data-i＝在该池数组里的下标，静态内置走 data-p 不冲突）
+    function renderCust(list, dis) {
+      box.querySelectorAll('.ppy-chip[data-i]').forEach(el => el.remove());
+      const add = document.getElementById('mjfp-add');
+      list.forEach((it, i) => {
+        if (!isCust(it)) return;
+        const el = document.createElement('span');
+        el.className = 'tag ppy-chip ppy-chip-c' + (it.on === 1 ? ' sel' : '') + (dis ? ' dis' : '');
+        el.dataset.i = String(i);
+        el.textContent = it.s;
+        const x = document.createElement('i');
+        x.className = 'ppy-x';
+        x.textContent = '×';
+        el.appendChild(x);
+        if (add && add.parentNode === box) box.insertBefore(el, add); else box.appendChild(el);
+      });
+    }
+    function sync() {
+      const list = mjfpGet();
+      const dis = mjfpDis();
+      box.querySelectorAll('.ppy-chip[data-p]').forEach(ch => {
+        const v = (POOL.find(p => p[0] === ch.dataset.p) || [])[1];
+        if (v == null) return;
+        const it = list.find(x => x.s === v);
+        ch.classList.toggle('sel', !!(it && it.on === 1));
+        ch.classList.toggle('dis', dis);
+      });
+      const add = document.getElementById('mjfp-add');
+      if (add) add.classList.toggle('dis', dis);
+      const row = document.getElementById('mjf-punct-pool-row');
+      if (row) row.style.opacity = dis ? '.45' : '';
+      renderCust(list, dis);
+    }
+    function addFlow() {
+      const cur = mjfpGet();
+      if (custCount(cur) >= 8) { mjfpToast('自定义句尾标点最多添加 8 个（可删掉不要的再加）', 2400); return; }
+      if (!window.openModal) return;
+      window.openModal('添加句尾标点', '', function (v) {
+        const s = String(v == null ? '' : v).replace(/[\r\n]+/g, ' ').trim();
+        if (!s) { mjfpToast('没有输入标点', 2000); return; }
+        if (s.length > 6) { mjfpToast('标点最长 6 个字符', 2000); return; }
+        const list = mjfpGet();
+        if (custCount(list) >= 8) { mjfpToast('自定义句尾标点最多添加 8 个（可删掉不要的再加）', 2400); return; }
+        if (list.some(it => it.s === s)) {
+          mjfpToast(isCust(list.find(it => it.s === s)) ? '该自定义标点已存在' : '这是系统自带标点，点亮对应 chip 即可', 2200);
+          return;
+        }
+        list.push({ s: s, on: 1 });
+        mjfpSet(list);
+        sync();
+        toastSaved('添加句尾标点 ' + s, true);
+      }, { maxlength: 6, placeholder: '输入标点，如 ～ / ❗ / !!!' });
+    }
+    box.addEventListener('click', (ev) => {
+      if (ev.target.closest('#mjfp-add')) { addFlow(); return; }
+      const ch = ev.target.closest('.ppy-chip');
+      if (!ch) return;
+      const list = mjfpGet();
+      let idx = -1;
+      if (ch.dataset.i != null) idx = Number(ch.dataset.i);
+      else {
+        const v = (POOL.find(p => p[0] === ch.dataset.p) || [])[1];
+        if (v != null) idx = list.findIndex(x => x.s === v);
+      }
+      const it = list[idx];
+      if (!it) return;
+      const del = !!ev.target.closest('.ppy-x');
+      if (it.on === 1 && otherSel(list, idx) === 0) {
+        mjfpToast('句尾标点至少保留一枚（想一枚都不补请关上方「句尾标点」开关）', 2400);
+        return;
+      }
+      if (del) {
+        list.splice(idx, 1);
+        mjfpSet(list);
+        sync();
+        mjfpToast('已删除句尾标点 ' + it.s);
+        return;
+      }
+      it.on = it.on === 1 ? 0 : 1;
+      mjfpSet(list);
+      sync();
+      toastSaved('句尾标点 ' + labelOf(it.s), it.on === 1);
+    });
+    sync();
+    const swPunct = document.getElementById('mjf-punct');
+    if (swPunct) swPunct.addEventListener('change', () => setTimeout(sync, 30));
+    // 切桌面 / 备份回填 / 写日志修正后重读（标点池 per-cid，与 #712 同口径）
+    ['contact-switched', 'mochi-restore-done', 'mochi-wrj-heal'].forEach(evN => {
+      document.addEventListener(evN, () => { try { sync(); } catch (e) {} });
+    });
   })();
   // ===== #518：系统预设字卡·聊天触发概率总览（总档 + 分类档） =====
   // 分类档全部复用既有键（不新开键）：pre=存储前缀；blob=整包 JSON（prob 在 settings.prob）的四类互动卡。

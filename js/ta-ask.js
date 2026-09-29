@@ -3327,11 +3327,86 @@ if (!raw) return;
 let d = null;
 try { d = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch (e) { return; }
 const arr = Array.isArray(d) ? d : (d && Array.isArray(d.history) ? d.history : null);
-if (arr) out.push.apply(out, arr);
+if (!arr) return;
+arr.forEach(function (x) { if (x) out.push(Object.assign({}, x, { __cid: cid })); });
 });
 out.sort(function (a, b) { return (Number(b && b.ts) || 0) - (Number(a && a.ts) || 0); });
 return out;
 }
+function delDeskHistoryEntry(cid, key, ts) {
+const raw = deskRaw(cid, key);
+if (!raw) return false;
+let d = null;
+try { d = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch (e) { return false; }
+const arr = Array.isArray(d) ? d : (d && Array.isArray(d.history) ? d.history : null);
+if (!arr) return false;
+const i = arr.findIndex(function (x) { return x && (Number(x.ts) || 0) === ts; });
+if (i < 0) return false;
+arr.splice(i, 1);
+if (Array.isArray(d)) { deskWrite(cid, key, JSON.stringify(arr)); }
+else { d.history = arr; deskWrite(cid, key, JSON.stringify(d)); }
+return true;
+}
+function askListRender(el, h, key, name, rowFn) {
+if (!el) return;
+el.innerHTML = window.mochiHistFold(h.map(function (x) {
+const label = String(x.q || x.roast || x.my || '').slice(0, 30);
+return { ts: Number(x.ts) || 0, html: '<div class="tc-listitem">' + rowFn(x) + window.mochiHistDel((x.__cid || '') + '|' + (Number(x.ts) || 0), label) + '</div>' };
+}), {
+empty: '<div class="ta-empty">暂无' + name + '记录</div>',
+todayEmpty: '<div class="dc-h-day-empty">今天暂无' + name + '记录</div>'
+});
+window.mochiHistDelBind(el, {
+title: '删除这条' + name + '记录？',
+onDel: function (k) {
+const p = String(k).split('|');
+if (delDeskHistoryEntry(p[0], key, Number(p[1]))) {
+window.renderAskRecords();
+if (typeof window.toast === 'function') window.toast('已删除这条' + name + '记录');
+}
+}
+});
+}
+window.renderAskRecords = function () {
+const askEl = document.getElementById('ar-ask');
+if (askEl) {
+const h = allDeskHistories('ta-ask');
+askListRender(askEl, h, 'ta-ask', '询问', function (x) {
+return '<div class="tc-li-q">问：' + escG(x.q) + '</div>' + (x.status === 'pending' ? '<div class="tc-li-pending">待回答</div>' : '<div class="tc-li-line">你：' + escG(x.a) + '</div>' + (x.reply ? '<div class="tc-li-line">' + (window.taFit ? window.taFit('TA：') : 'TA：') + taReplyShow(x.reply) + '</div>' : '')) + '<div class="tc-li-time">' + fmtDT(x.ts) + '</div>';
+});
+}
+const chEl = document.getElementById('ar-choose');
+if (chEl) {
+const h = allDeskHistories(KEY2);
+askListRender(chEl, h, KEY2, '小问题', function (x) {
+return '<div class="tc-li-q">' + escG(x.q) + '</div><div class="tc-li-line">你的选择：' + escG(x.my) + '</div><div class="tc-li-line">' + (window.taFit ? window.taFit('TA：') : 'TA：') + taReplyShow(x.reply) + '</div><div class="tc-li-match">' + escG(x.match) + '</div><div class="tc-li-time">' + fmtDT(x.ts) + '</div>';
+});
+}
+const cuEl = document.getElementById('ar-curious');
+if (cuEl) {
+const h = allDeskHistories(KEY3);
+askListRender(cuEl, h, KEY3, '好奇', function (x) {
+return '<div class="tc-li-q">' + escG(x.q) + '</div><div class="tc-li-line">你：' + escG(x.my) + '</div><div class="tc-li-line">' + (window.taFit ? window.taFit('TA：') : 'TA：') + taReplyShow(x.reply) + '</div><div class="tc-li-time">' + fmtDT(x.ts) + '</div>';
+});
+}
+const roEl = document.getElementById('ar-roast');
+if (roEl) {
+const h = allDeskHistories(KEY4);
+askListRender(roEl, h, KEY4, '吐槽', function (x) {
+return '<div class="tc-li-q">' + escG(x.roast) + '</div><div class="tc-li-line">你：' + escG(x.my) + '</div><div class="tc-li-line">' + (window.taFit ? window.taFit('TA：') : 'TA：') + taReplyShow(x.reply) + '</div><div class="tc-li-time">' + fmtDT(x.ts) + '</div>';
+});
+}
+const inEl = document.getElementById('ar-invite');
+if (inEl) {
+const h = allDeskHistories('invite-ask-history');
+askListRender(inEl, h, 'invite-ask-history', '邀请/问问', function (x) {
+return '<div class="tc-li-q">' +
+(x.type === 'invite' ? '邀请：' : '问：') + String(x.q || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '</div>' +
+'<div class="tc-li-line">' + (window.taFit ? window.taFit('TA：') : 'TA：') + escG(window.taFit ? window.taFit(window.askCardReplyClean ? window.askCardReplyClean(x.a || '') : (x.a || '')) : (window.askCardReplyClean ? window.askCardReplyClean(x.a || '') : (x.a || ''))) + '</div>' +
+'<div class="tc-li-time">' + fmtDT(x.ts) + '</div>';
+});
+}
+};
 function clearDeskHistories(key) {
 deskCids().forEach(function (cid) {
 const raw = deskRaw(cid, key);
@@ -3350,46 +3425,6 @@ const pg = document.getElementById('page-interact');
 if (pg && !pg.hidden && window.renderAskRecords) window.renderAskRecords();
 } catch (e) {}
 }
-window.renderAskRecords = function () {
-const askEl = document.getElementById('ar-ask');
-if (askEl) {
-const h = allDeskHistories('ta-ask');
-askEl.innerHTML = h.length
-? h.map(x => '<div class="tc-listitem"><div class="tc-li-q">问：' + escG(x.q) + '</div>' + (x.status === 'pending' ? '<div class="tc-li-pending">待回答</div>' : '<div class="tc-li-line">你：' + escG(x.a) + '</div>' + (x.reply ? '<div class="tc-li-line">' + (window.taFit ? window.taFit('TA：') : 'TA：') + taReplyShow(x.reply) + '</div>' : '')) + '<div class="tc-li-time">' + fmtDT(x.ts) + '</div></div>').join('')
-: '<div class="ta-empty">暂无询问记录</div>';
-}
-const chEl = document.getElementById('ar-choose');
-if (chEl) {
-const h = allDeskHistories(KEY2);
-chEl.innerHTML = h.length
-? h.map(x => '<div class="tc-listitem"><div class="tc-li-q">' + escG(x.q) + '</div><div class="tc-li-line">你的选择：' + escG(x.my) + '</div><div class="tc-li-line">' + (window.taFit ? window.taFit('TA：') : 'TA：') + taReplyShow(x.reply) + '</div><div class="tc-li-match">' + escG(x.match) + '</div><div class="tc-li-time">' + fmtDT(x.ts) + '</div></div>').join('')
-: '<div class="ta-empty">暂无小问题记录</div>';
-}
-const cuEl = document.getElementById('ar-curious');
-if (cuEl) {
-const h = allDeskHistories(KEY3);
-cuEl.innerHTML = h.length
-? h.map(x => '<div class="tc-listitem"><div class="tc-li-q">' + escG(x.q) + '</div><div class="tc-li-line">你：' + escG(x.my) + '</div><div class="tc-li-line">' + (window.taFit ? window.taFit('TA：') : 'TA：') + taReplyShow(x.reply) + '</div><div class="tc-li-time">' + fmtDT(x.ts) + '</div></div>').join('')
-: '<div class="ta-empty">暂无好奇记录</div>';
-}
-const roEl = document.getElementById('ar-roast');
-if (roEl) {
-const h = allDeskHistories(KEY4);
-roEl.innerHTML = h.length
-? h.map(x => '<div class="tc-listitem"><div class="tc-li-q">' + escG(x.roast) + '</div><div class="tc-li-line">你：' + escG(x.my) + '</div><div class="tc-li-line">' + (window.taFit ? window.taFit('TA：') : 'TA：') + taReplyShow(x.reply) + '</div><div class="tc-li-time">' + fmtDT(x.ts) + '</div></div>').join('')
-: '<div class="ta-empty">暂无吐槽记录</div>';
-}
-const inEl = document.getElementById('ar-invite');
-if (inEl) {
-const h = allDeskHistories('invite-ask-history');
-inEl.innerHTML = h.length
-? h.map(x => '<div class="tc-listitem"><div class="tc-li-q">' +
-(x.type === 'invite' ? '邀请：' : '问：') + String(x.q || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '</div>' +
-'<div class="tc-li-line">' + (window.taFit ? window.taFit('TA：') : 'TA：') + escG(window.taFit ? window.taFit(window.askCardReplyClean ? window.askCardReplyClean(x.a || '') : (x.a || '')) : (window.askCardReplyClean ? window.askCardReplyClean(x.a || '') : (x.a || ''))) + '</div>' +
-'<div class="tc-li-time">' + fmtDT(x.ts) + '</div></div>').join('')
-: '<div class="ta-empty">暂无邀请/问问记录</div>';
-}
-};
 const clearBind = (id, key, label) => {
 const btn = document.getElementById(id);
 if (!btn) return;

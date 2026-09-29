@@ -69,17 +69,33 @@
     const name = dispName();
     const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     const list = catchesLoad();
-    el.innerHTML = list.length
-      ? list.map(x =>
+    // #1403：这一栏 v3.15.x 起「保留全部历史、不设上限」（作者当时的要求），所以既不能现在偷偷加封顶，
+    // 也不能让它一直平铺到底——交站内唯一那把尺子（当天直显＋更早按月折），并给每条一枚「删除」。
+    // 写回仍走既有 catchesSave，不另开一条写法。
+    el.innerHTML = window.mochiHistFold(list.map((x, n) => ({ ts: Number(x.ts) || 0, html:
           '<div class="tc-listitem"><div class="tc-li-top"><span class="tc-li-q">' +
           (x.type === 'ta'
             ? '<svg class="st-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>' + name + ' 抓到我摸鱼'
             : '<svg class="st-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>' + '抓到 ' + name + ' 摸鱼') +
-          '</span><span class="tc-li-time">' + fmtDT(x.ts) + '</span></div>' +
+          '</span><span class="tc-li-time">' + fmtDT(x.ts) + '</span>' + window.mochiHistDel('i' + n, (x.type === 'ta' ? name + ' 抓到我摸鱼' : '抓到 ' + name + ' 摸鱼')) + '</div>' +
           (x.text ? '<div class="tc-li-line">' + (window.taFit ? window.taFit(esc(x.text)) : esc(x.text)) + '</div>' : '') +
           '</div>'
-        ).join('')
-      : recEmpty('<div class="ta-empty">暂无摸鱼抓包记录（桌面浮字可点击抓包 TA；点太快会被 TA 反向抓包）</div>');
+    })), {
+      empty: recEmpty('<div class="ta-empty">暂无摸鱼抓包记录（桌面浮字可点击抓包 TA；点太快会被 TA 反向抓包）</div>'),
+      todayEmpty: '<div class="dc-h-day-empty">今天没有被抓包</div>'
+    });
+    window.mochiHistDelBind(el, {
+      title: '删除这条抓包记录？',
+      onDel: function (k) {
+        const arr = catchesLoad();
+        const i = parseInt(String(k).replace(/^i/, ''), 10);
+        if (!(i >= 0) || !(i < arr.length)) return;
+        arr.splice(i, 1);
+        catchesSave(arr);
+        render();
+        if (typeof window.toast === 'function') window.toast('已删除这条抓包记录');
+      }
+    });
   }
   // ---- 心意币流水（v3.16.x：赚钱 / 申请记录，分列我和当前联系人） ----
   // 数据由 gift-shop.js 的 giftCoinLedgerLoad 提供（按联系人桌面前缀隔离）；记录结构 { ts, myFen, taFen, src }
@@ -208,7 +224,16 @@
     }
     if (!rows.length) { el.innerHTML = recEmpty('<div class="ta-empty">暂无联系人的关心记录（TA 会主动查岗、提醒你喝水吃饭、关心经期、陪你专注）</div>'); return; }
     rows.sort((a, b) => (b.ts || 0) - (a.ts || 0));
-    el.innerHTML = rows.map(r => '<div class="tc-listitem"><div class="tc-li-top"><span class="tc-li-q">' + r.icon + ' ' + r.main + '</span><span class="tc-li-time">' + r.sub + '</span></div></div>').join('');
+    // #1403：这两栏（关心／红包）只做「当天直显＋更早按月折叠」，**刻意不给按条删除**——
+    // 它们是**现算出来的汇总视图**：关心＝records-care 里的桌面查岗 ＋ 聊天记录里带 mood/询问标记的
+    // 消息（含跨桌面），红包＝聊天记录里 special==='redpacket' 的那几条。条目身份就是聊天原文本身，
+    // 在这一页删一条＝替用户改动聊天历史；而站内删消息只在聊天里做、且有「只允许删对方发来的」那一族
+    // 限制（chat.js 的 del 分支），从汇总页绕过它＝造出第二份真相与「删了又回来」的新竞态。
+    // 所以这一栏的职责是「看全」，要清就回那条消息所在的地方清；能按条删的都是本站自己的数组
+    // （寻踪记录、摸鱼/打工值、心意柜、提问记录五档）。
+    el.innerHTML = window.mochiHistFold(rows.map(r => ({ ts: Number(r.ts) || 0, html: '<div class="tc-listitem"><div class="tc-li-top"><span class="tc-li-q">' + r.icon + ' ' + r.main + '</span><span class="tc-li-time">' + r.sub + '</span></div></div>' })), {
+      todayEmpty: '<div class="dc-h-day-empty">今天暂无关心记录</div>'
+    });
   }
   // ---- 心意币红包记录（v3.16.x：双向——我发 + 联系人发；红包即心意币，读当前桌面聊天记录） ----
   function renderRpPanel() {
@@ -222,15 +247,17 @@
     const list = (msgs || []).filter(m => m && m.special === 'redpacket');
     if (!list.length) { el.innerHTML = recEmpty('<div class="ta-empty">暂无红包记录（红包也是心意币，快去发一个试试）</div>'); return; }
     const stMap = { pending: '待领取', received: '已领取', expired: '已过期·退回', returned: '已退回' };
-    el.innerHTML = list.slice().reverse().map(m => {
+    // #1403：与上面「关心记录」同判据——这一栏是从聊天记录里 filter 出来的汇总，条目＝消息本身，
+    // 所以只做「当天直显＋更早按月折叠」，不给按条删除（删一条＝动聊天原文，那条路在聊天页）
+    el.innerHTML = window.mochiHistFold(list.slice().reverse().map(m => {
       const out = m.side === 'out';
       const st = stMap[m.rpStatus || 'pending'] || '';
       const amt = Number(m.rpAmount || 0).toFixed(2);
       const sub = (out ? myName + ' 发给 ' + name : name + ' 发给 ' + myName) + ' · ' + (st || '待领取') +
         (m.rpWish ? ' · 「' + esc(m.rpWish) + '」' : '');
-      return '<div class="tc-listitem"><div class="tc-li-top"><span class="tc-li-q">' + (out ? '🧧 我发红包 ¥' + amt : '🧧 ' + esc(name) + ' 发红包 ¥' + amt) + '</span><span class="tc-li-time">' + fmtDT(m.rpTs || m.ts) + '</span></div>' +
-        '<div class="tc-li-line">' + sub + '</div></div>';
-    }).join('');
+      return { ts: Number(m.rpTs || m.ts) || 0, html: '<div class="tc-listitem"><div class="tc-li-top"><span class="tc-li-q">' + (out ? '🧧 我发红包 ¥' + amt : '🧧 ' + esc(name) + ' 发红包 ¥' + amt) + '</span><span class="tc-li-time">' + fmtDT(m.rpTs || m.ts) + '</span></div>' +
+        '<div class="tc-li-line">' + sub + '</div></div>' };
+    }), { todayEmpty: '<div class="dc-h-day-empty">今天没有红包往来</div>' });
   }
   // ---- 占卜记录（v3.26.x：占卜页抽牌时选了对象 → 存入该联系人桌面的 records-divine） ----
   // 记录结构 { ts, mode, count, question, cards, summary, target }，写入方在 divination.js
@@ -265,6 +292,40 @@
   }
   // ---- 渲染主页记录 ----
   function histList(key) { try { return JSON.parse(store.get(key) || '[]'); } catch (e) { return []; } }
+  // #1403（作者「无限变长的记录还需要有单独的删除功能」＋「每天只显示当天的，其他按月份折叠」）：
+  // 每日摸鱼值／打工值这两栏是**本站自己的数组**（fish-day-add / work-day-add，条目身份＝date），
+  // 所以能按条删。口径两条：① 只删这一天的**明细行**，绝不动顶部累计（fish-total*/work-total* 是
+  // 独立累加键，删一天明细把总额改掉＝用户的钱被凭空抹）；② 也不动当天在跑的 day-fish-* 计数键。
+  // 写回走与 personalize 写入侧同一条 store.set（xyStore 内含 LS＋IDB 双写），读侧现读现算，无需缓存失效。
+  function dayKeyTs(s) {
+    const p = String(s || '').split('-').map(Number);
+    return (p.length === 3 && p[0] && p[1] && p[2]) ? new Date(p[0], p[1] - 1, p[2]).getTime() : 0;
+  }
+  function delDayHist(key, date) {
+    let list = [];
+    try { list = JSON.parse(store.get(key) || '[]'); } catch (e) { return false; }
+    if (!Array.isArray(list)) return false;
+    const left = list.filter(function (x) { return x && x.date !== date; });
+    if (left.length === list.length) return false;
+    store.set(key, JSON.stringify(left));
+    return true;
+  }
+  // 摸鱼/打工同款两栏共用：headHtml＝顶部累计/连击那几行（留在折叠块之上），行内容给 rowFn，
+  // 删除按 date 摘那一条，重画交回各自 render
+  function dayValList(el, list, key, name, rowFn, afterDel, headHtml) {
+    el.innerHTML = (headHtml || '') + window.mochiHistFold(list.map(function (x) {
+      return { ts: dayKeyTs(x.date), html: '<div class="tc-listitem">' + rowFn(x) + window.mochiHistDel(x.date, x.date + ' 的' + name) + '</div>' };
+    }), {
+      empty: recEmpty('<div class="ta-empty">暂无' + name + '记录</div>'),
+      todayEmpty: '<div class="dc-h-day-empty">今天暂无' + name + '</div>'
+    });
+    window.mochiHistDelBind(el, {
+      title: '删除这一天的' + name + '记录？',
+      onDel: function (date) {
+        if (delDayHist(key, date)) { afterDel(); if (typeof window.toast === 'function') window.toast('已删除 ' + date + ' 的' + name + '记录（累计不变）'); }
+      }
+    });
+  }
   // v3.9.x：联系人今日情话 / 我的备忘 / 我的心情记录已迁移到日历页按天查看，主页不再保留
   let htab = 'av';
   // 每日摸鱼值记录
@@ -286,11 +347,12 @@
     const comboHtml = (cb && (cb.today > 0 || cb.best > 0))
       ? '<div class="fish-combo-line">今日最高连击 ×' + (cb.today || 0) + ' · 历史最高 ×' + (cb.best || 0) + '</div>'
       : '';
-    el.innerHTML = totalHtml + comboHtml + (h.length
-      ? h.map(x => '<div class="tc-listitem"><div class="tc-li-top"><span class="tc-li-q">' + x.date + '</span></div>' +
-          '<div class="tc-li-line">' + myName + ' 当天摸鱼：+' + (x.mine || 0) + '</div>' +
-          '<div class="tc-li-line">' + name + ' 当天摸鱼：+' + (x.ta || 0) + '</div></div>').join('')
-      : recEmpty('<div class="ta-empty">暂无摸鱼值记录</div>'));
+    // #1403：顶部累计/连击留在上面，每日明细交 dayValList（当天直显＋更早按月折＋按条删）
+    dayValList(el, h, 'fish-day-add', '摸鱼值', function (x) {
+      return '<div class="tc-li-top"><span class="tc-li-q">' + x.date + '</span></div>' +
+        '<div class="tc-li-line">' + myName + ' 当天摸鱼：+' + (x.mine || 0) + '</div>' +
+        '<div class="tc-li-line">' + name + ' 当天摸鱼：+' + (x.ta || 0) + '</div>';
+    }, window.renderFishHistory, totalHtml + comboHtml);
   };
   // 每日打工值记录（v3.5.65：与每日摸鱼值同款——顶部累计 + 每日新增）
   window.renderWorkHistory = function () {
@@ -305,11 +367,12 @@
         '<span class="ft-item"><b>' + myName + '</b> 累计 ' + (tot.mine || 0) + '</span>' +
         '<span class="ft-item"><b>' + name + '</b> 累计 ' + (tot.ta || 0) + '</span>' +
       '</div>';
-    el.innerHTML = totalHtml + (h.length
-      ? h.map(x => '<div class="tc-listitem"><div class="tc-li-top"><span class="tc-li-q">' + x.date + '</span></div>' +
-          '<div class="tc-li-line">' + myName + ' 当天打工：+' + (x.mine || 0) + '</div>' +
-          '<div class="tc-li-line">' + name + ' 当天打工：+' + (x.ta || 0) + '</div></div>').join('')
-      : recEmpty('<div class="ta-empty">暂无打工值记录</div>'));
+    // #1403：与摸鱼值同款（累计在上、明细当天直显＋更早按月折＋按条删，累计键不动）
+    dayValList(el, h, 'work-day-add', '打工值', function (x) {
+      return '<div class="tc-li-top"><span class="tc-li-q">' + x.date + '</span></div>' +
+        '<div class="tc-li-line">' + myName + ' 当天打工：+' + (x.mine || 0) + '</div>' +
+        '<div class="tc-li-line">' + name + ' 当天打工：+' + (x.ta || 0) + '</div>';
+    }, window.renderWorkHistory, totalHtml);
   };
   function render() {
     // 只渲染当前 tab 面板（避免隐藏面板无谓渲染）

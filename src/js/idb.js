@@ -1067,6 +1067,92 @@
   window.mochiLoadingHtml = function (what) {
     return '<div class="mochi-data-loading">' + (what || '内容') + '还在读取，稍候会自动刷新</div>';
   };
+  // #1403（2026-09-29）：历史列表「当天直显、更早按月份折叠」的唯一实现。作者口径两句都要守：
+  // 「不要封顶，我都要保存历史记录」＝**只改显示形状、一条数据都不裁**（不是分页也不是 slice）；
+  // 「每天只显示当天的，其他记录都月份按折叠起来」＝今天平铺，更早的按「2026年8月」这样的月块默认折起。
+  // 口径接 #1053（帮我决定记录），只把「更早」再切成月；样式皮直接复用 chat-pages.css 里 #1053 那组
+  // 全局 .dc-h-* 类（-more/-sum/-cnt/-day/-day-label/-day-empty）⇒ 零新增 CSS、与决定记录/寻踪记录同款；
+  // 折叠用原生 <details>⇒ 零 JS 展开状态要维护，也不会出现「名字在、逻辑变」那种自绘开关。
+  // items: [{ts:Number, html:String}] 顺序任意（内部按新在前排）；没有 ts 的条目**不猜日期**，
+  // 统一落进末尾那个月块（label「更早」），保证「折叠 ≠ 丢条目」。
+  window.mochiHistFold = function (items, opts) {
+    const o = opts || {};
+    const list = (Array.isArray(items) ? items : []).filter(x => x && typeof x.html === 'string');
+    if (!list.length) return o.empty || '';
+    const dayKey = (t) => { const d = new Date(t); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); };
+    const today = dayKey(Date.now());
+    const todayItems = [], months = {}, monthKeys = [];
+    list.slice().sort((a, b) => (b.ts || 0) - (a.ts || 0)).forEach(x => {
+      const dk = x.ts ? dayKey(x.ts) : '';
+      if (dk === today) { todayItems.push(x); return; }
+      const d = x.ts ? new Date(x.ts) : null;
+      const mk = d ? d.getFullYear() + '-' + (d.getMonth() + 1) : 'none';
+      if (!months[mk]) { months[mk] = { label: d ? d.getFullYear() + '年' + (d.getMonth() + 1) + '月' : '更早', rank: d ? d.getFullYear() * 12 + d.getMonth() : -1, days: {}, dayKeys: [] }; monthKeys.push(mk); }
+      const m = months[mk], key = dk || 'none';
+      if (!m.days[key]) { m.days[key] = { label: d ? mochiHistDayLabel(d) : '更早', items: [] }; m.dayKeys.push(key); }
+      m.days[key].items.push(x);
+    });
+    monthKeys.sort((a, b) => months[b].rank - months[a].rank);
+    let html = todayItems.length ? todayItems.map(x => x.html).join('') : (o.todayEmpty || '');
+    return html + monthKeys.map(mk => {
+      const m = months[mk];
+      const cnt = m.dayKeys.reduce((n, k) => n + m.days[k].items.length, 0);
+      return '<details class="dc-h-more"><summary class="dc-h-more-sum">' + m.label + '<span class="dc-h-more-cnt">' + cnt + ' 条</span></summary><div class="dc-h-more-body">' +
+        m.dayKeys.map(dk => '<div class="dc-h-day"><div class="dc-h-day-label">' + m.days[dk].label + '</div>' + m.days[dk].items.map(x => x.html).join('') + '</div>').join('') +
+        '</div></details>';
+    }).join('');
+  };
+  // 月块里的日标题：昨天／前天单独点名（当天不在这儿，它是平铺那一屏），其余 M月D日、跨年补年份
+  function mochiHistDayLabel(d) {
+    const now = new Date(), t = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const one = 864e5, d0 = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const diff = Math.round((t - d0) / one);
+    if (diff === 1) return '昨天';
+    if (diff === 2) return '前天';
+    const md = (d.getMonth() + 1) + '月' + d.getDate() + '日';
+    return d.getFullYear() === now.getFullYear() ? md : d.getFullYear() + '年' + md;
+  }
+  // #1403（同日追加，作者「用户又不一定要保存那么多记录。这种无限变长的记录还需要有单独的删除功能」）：
+  // 折叠只解决「看着长」，这一对解决「存得多」。三条口径：
+  // ① **只删「这一条」**——绝不做整表清空，也绝不靠封顶裁条（作者前一句要求「都要保存」），
+  //   所以每条行内出一枚「删除」，键由调用方给（站内多数列表没有 id，用数组下标 'i'+n 就够稳：
+  //   列表是追加序、删完立刻重画）。
+  // ② 删除前一律走 `window.openModal`（站内唯一弹窗方案，禁 confirm()；形态抄 accounting.js:557
+  //   的 `{noInput:true, staticText:…}`）并把「删的是哪一条」回显进去——用户要的「单独删」必须看得见
+  //   自己删掉的是哪条，不然一次误点就是静默丢数据。
+  // ③ 数据还在回填时**不许删**：那时有本地快照≠库里那份（#1330/#1359 一族），一次 splice 写回
+  //   可能把没读回来的条目一起抹掉——照 accounting 的 `writable()` 口径先挡下并给一句可执行提示。
+  // 按钮用行内样式：color:inherit ⇒ 明暗两套主题自动跟，零新增 CSS。
+  window.mochiHistDel = function (key, label) {
+    const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    return '<button type="button" class="hist-del" data-hist-del="' + esc(key) + '" data-hist-label="' + esc(label) + '"' +
+      ' style="float:right;margin:0 0 2px 8px;border:0;background:none;color:inherit;opacity:.42;font-size:11px;font-weight:400;padding:2px 2px;cursor:pointer">删除</button>';
+  };
+  // 容器上挂一次委托（重画列表不需要重挂；各页重复调用也只有一个监听）
+  window.mochiHistDelBind = function (el, opts) {
+    const o = opts || {};
+    if (!el || el.__mochiHistDelBound || typeof o.onDel !== 'function') return;
+    el.__mochiHistDelBound = 1;
+    // capture 阶段拦下：心意柜这类列表里，整行自己挂了「点开详情」的监听（冒泡阶段它先跑，
+    // 在容器上 stopPropagation 已经晚了＝删一条会顺手把详情弹出来）
+    el.addEventListener('click', function (e) {
+      const btn = e.target && e.target.closest ? e.target.closest('.hist-del') : null;
+      if (!btn || !el.contains(btn)) return;
+      e.preventDefault(); e.stopPropagation();
+      const key = btn.getAttribute('data-hist-del') || '';
+      const label = btn.getAttribute('data-hist-label') || '';
+      // ③ 回填未完＝此刻的本地数组可能不是库里那份，删一条会连带抹掉没读回来的
+      if (typeof window.mochiDataPending === 'function' && window.mochiDataPending()) {
+        try { if (typeof window.toast === 'function') window.toast('记录还在读取，稍等一下再删'); } catch (er) {}
+        return;
+      }
+      if (typeof window.openModal !== 'function') { try { o.onDel(key); } catch (er) {} return; }
+      window.openModal(o.title || '删除这条记录？', '', function (v) {
+        if (v === 'ok') { try { o.onDel(key); } catch (er) {} }
+      }, { noInput: true, staticText: label ? ('「' + label + '」') : (o.what || '这一条') });
+    }, true); // 捕获阶段：心意柜这类「整行本身可点开详情」的列表，必须抢在行自己的 click 之前拦下，
+              // 否则一次点「删除」＝同时开了详情面板（冒泡阶段在子元素之后，拦不住）
+  };
   // 真就绪后补渲一次。刻意不判页面可见性（区别于既有多处 if (!page.hidden) 闸门）——回填完成时
   // 用户不在这页，那种闸门会让该模块永久停留在加载态；隐藏页写几行文本零成本，可见页面的重渲
   // 自有各自的现读入口兜底（如 mail 的 render 开头按 hidden 早退）。

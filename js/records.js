@@ -52,17 +52,30 @@ if (!el) return;
 const name = dispName();
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 const list = catchesLoad();
-el.innerHTML = list.length
-? list.map(x =>
+el.innerHTML = window.mochiHistFold(list.map((x, n) => ({ ts: Number(x.ts) || 0, html:
 '<div class="tc-listitem"><div class="tc-li-top"><span class="tc-li-q">' +
 (x.type === 'ta'
 ? '<svg class="st-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>' + name + ' 抓到我摸鱼'
 : '<svg class="st-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>' + '抓到 ' + name + ' 摸鱼') +
-'</span><span class="tc-li-time">' + fmtDT(x.ts) + '</span></div>' +
+'</span><span class="tc-li-time">' + fmtDT(x.ts) + '</span>' + window.mochiHistDel('i' + n, (x.type === 'ta' ? name + ' 抓到我摸鱼' : '抓到 ' + name + ' 摸鱼')) + '</div>' +
 (x.text ? '<div class="tc-li-line">' + (window.taFit ? window.taFit(esc(x.text)) : esc(x.text)) + '</div>' : '') +
 '</div>'
-).join('')
-: recEmpty('<div class="ta-empty">暂无摸鱼抓包记录（桌面浮字可点击抓包 TA；点太快会被 TA 反向抓包）</div>');
+})), {
+empty: recEmpty('<div class="ta-empty">暂无摸鱼抓包记录（桌面浮字可点击抓包 TA；点太快会被 TA 反向抓包）</div>'),
+todayEmpty: '<div class="dc-h-day-empty">今天没有被抓包</div>'
+});
+window.mochiHistDelBind(el, {
+title: '删除这条抓包记录？',
+onDel: function (k) {
+const arr = catchesLoad();
+const i = parseInt(String(k).replace(/^i/, ''), 10);
+if (!(i >= 0) || !(i < arr.length)) return;
+arr.splice(i, 1);
+catchesSave(arr);
+render();
+if (typeof window.toast === 'function') window.toast('已删除这条抓包记录');
+}
+});
 }
 function renderCoinPanel(kind) {
 const el = document.getElementById(kind === 'ask' ? 'home-coinask' : 'home-coinearn');
@@ -165,7 +178,9 @@ rows.push({ icon: KIND_ICON.deskcheck, main: '桌面查岗 · ' + esc(cname) + '
 }
 if (!rows.length) { el.innerHTML = recEmpty('<div class="ta-empty">暂无联系人的关心记录（TA 会主动查岗、提醒你喝水吃饭、关心经期、陪你专注）</div>'); return; }
 rows.sort((a, b) => (b.ts || 0) - (a.ts || 0));
-el.innerHTML = rows.map(r => '<div class="tc-listitem"><div class="tc-li-top"><span class="tc-li-q">' + r.icon + ' ' + r.main + '</span><span class="tc-li-time">' + r.sub + '</span></div></div>').join('');
+el.innerHTML = window.mochiHistFold(rows.map(r => ({ ts: Number(r.ts) || 0, html: '<div class="tc-listitem"><div class="tc-li-top"><span class="tc-li-q">' + r.icon + ' ' + r.main + '</span><span class="tc-li-time">' + r.sub + '</span></div></div>' })), {
+todayEmpty: '<div class="dc-h-day-empty">今天暂无关心记录</div>'
+});
 }
 function renderRpPanel() {
 const el = document.getElementById('home-coinrp');
@@ -178,15 +193,15 @@ try { msgs = (window.getChatMsgs ? window.getChatMsgs() : JSON.parse(store.get('
 const list = (msgs || []).filter(m => m && m.special === 'redpacket');
 if (!list.length) { el.innerHTML = recEmpty('<div class="ta-empty">暂无红包记录（红包也是心意币，快去发一个试试）</div>'); return; }
 const stMap = { pending: '待领取', received: '已领取', expired: '已过期·退回', returned: '已退回' };
-el.innerHTML = list.slice().reverse().map(m => {
+el.innerHTML = window.mochiHistFold(list.slice().reverse().map(m => {
 const out = m.side === 'out';
 const st = stMap[m.rpStatus || 'pending'] || '';
 const amt = Number(m.rpAmount || 0).toFixed(2);
 const sub = (out ? myName + ' 发给 ' + name : name + ' 发给 ' + myName) + ' · ' + (st || '待领取') +
 (m.rpWish ? ' · 「' + esc(m.rpWish) + '」' : '');
-return '<div class="tc-listitem"><div class="tc-li-top"><span class="tc-li-q">' + (out ? '🧧 我发红包 ¥' + amt : '🧧 ' + esc(name) + ' 发红包 ¥' + amt) + '</span><span class="tc-li-time">' + fmtDT(m.rpTs || m.ts) + '</span></div>' +
-'<div class="tc-li-line">' + sub + '</div></div>';
-}).join('');
+return { ts: Number(m.rpTs || m.ts) || 0, html: '<div class="tc-listitem"><div class="tc-li-top"><span class="tc-li-q">' + (out ? '🧧 我发红包 ¥' + amt : '🧧 ' + esc(name) + ' 发红包 ¥' + amt) + '</span><span class="tc-li-time">' + fmtDT(m.rpTs || m.ts) + '</span></div>' +
+'<div class="tc-li-line">' + sub + '</div></div>' };
+}), { todayEmpty: '<div class="dc-h-day-empty">今天没有红包往来</div>' });
 }
 function renderDivinePanel() {
 const el = document.getElementById('home-divine');
@@ -217,6 +232,33 @@ try { window.divineRenderResult(h.cards, h.mode, h.question || '', h.summary || 
 }));
 }
 function histList(key) { try { return JSON.parse(store.get(key) || '[]'); } catch (e) { return []; } }
+function dayKeyTs(s) {
+const p = String(s || '').split('-').map(Number);
+return (p.length === 3 && p[0] && p[1] && p[2]) ? new Date(p[0], p[1] - 1, p[2]).getTime() : 0;
+}
+function delDayHist(key, date) {
+let list = [];
+try { list = JSON.parse(store.get(key) || '[]'); } catch (e) { return false; }
+if (!Array.isArray(list)) return false;
+const left = list.filter(function (x) { return x && x.date !== date; });
+if (left.length === list.length) return false;
+store.set(key, JSON.stringify(left));
+return true;
+}
+function dayValList(el, list, key, name, rowFn, afterDel, headHtml) {
+el.innerHTML = (headHtml || '') + window.mochiHistFold(list.map(function (x) {
+return { ts: dayKeyTs(x.date), html: '<div class="tc-listitem">' + rowFn(x) + window.mochiHistDel(x.date, x.date + ' 的' + name) + '</div>' };
+}), {
+empty: recEmpty('<div class="ta-empty">暂无' + name + '记录</div>'),
+todayEmpty: '<div class="dc-h-day-empty">今天暂无' + name + '</div>'
+});
+window.mochiHistDelBind(el, {
+title: '删除这一天的' + name + '记录？',
+onDel: function (date) {
+if (delDayHist(key, date)) { afterDel(); if (typeof window.toast === 'function') window.toast('已删除 ' + date + ' 的' + name + '记录（累计不变）'); }
+}
+});
+}
 let htab = 'av';
 window.renderFishHistory = function () {
 const el = document.getElementById('home-fish');
@@ -234,11 +276,11 @@ const cb = (window.getFishComboBest && window.getFishComboBest()) || { today: 0,
 const comboHtml = (cb && (cb.today > 0 || cb.best > 0))
 ? '<div class="fish-combo-line">今日最高连击 ×' + (cb.today || 0) + ' · 历史最高 ×' + (cb.best || 0) + '</div>'
 : '';
-el.innerHTML = totalHtml + comboHtml + (h.length
-? h.map(x => '<div class="tc-listitem"><div class="tc-li-top"><span class="tc-li-q">' + x.date + '</span></div>' +
+dayValList(el, h, 'fish-day-add', '摸鱼值', function (x) {
+return '<div class="tc-li-top"><span class="tc-li-q">' + x.date + '</span></div>' +
 '<div class="tc-li-line">' + myName + ' 当天摸鱼：+' + (x.mine || 0) + '</div>' +
-'<div class="tc-li-line">' + name + ' 当天摸鱼：+' + (x.ta || 0) + '</div></div>').join('')
-: recEmpty('<div class="ta-empty">暂无摸鱼值记录</div>'));
+'<div class="tc-li-line">' + name + ' 当天摸鱼：+' + (x.ta || 0) + '</div>';
+}, window.renderFishHistory, totalHtml + comboHtml);
 };
 window.renderWorkHistory = function () {
 const el = document.getElementById('home-work');
@@ -252,11 +294,11 @@ const totalHtml =
 '<span class="ft-item"><b>' + myName + '</b> 累计 ' + (tot.mine || 0) + '</span>' +
 '<span class="ft-item"><b>' + name + '</b> 累计 ' + (tot.ta || 0) + '</span>' +
 '</div>';
-el.innerHTML = totalHtml + (h.length
-? h.map(x => '<div class="tc-listitem"><div class="tc-li-top"><span class="tc-li-q">' + x.date + '</span></div>' +
+dayValList(el, h, 'work-day-add', '打工值', function (x) {
+return '<div class="tc-li-top"><span class="tc-li-q">' + x.date + '</span></div>' +
 '<div class="tc-li-line">' + myName + ' 当天打工：+' + (x.mine || 0) + '</div>' +
-'<div class="tc-li-line">' + name + ' 当天打工：+' + (x.ta || 0) + '</div></div>').join('')
-: recEmpty('<div class="ta-empty">暂无打工值记录</div>'));
+'<div class="tc-li-line">' + name + ' 当天打工：+' + (x.ta || 0) + '</div>';
+}, window.renderWorkHistory, totalHtml);
 };
 function render() {
 const showOnly = htab;

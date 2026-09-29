@@ -488,7 +488,7 @@ if (k === SNAPSHOT_KEY) continue; // v3.7.0：副本键不进导出文件（防�
 if (k === IMPORT_LOG_KEY) continue; // #1272：LS 侧跳过导入回执键（本机取证不进备份文件）
 if (cfg.skip(k)) continue; // #275 范围外键（文字模式的媒体池等）同样不进小键段，防 strip 剥成空串入库
 const v = localStorage.getItem(k);
-if (byteLen(v) > LS_SMALL_LIMIT) lsBig[k] = v; // 大键：留待 IndexedDB 权威读取
+if (byteLen(v) > LS_SMALL_LIMIT || MEDIA_POOL_KEY_RE.test(k)) lsBig[k] = v; // 大键：留待 IndexedDB 权威读取
 else { small[k] = v; cover.see(k, v); }
 }
 } catch (e) {}
@@ -518,6 +518,10 @@ idbKeys = listed;
 function routeValue(k, v, own) {
 cover.see(k, v);
 if (isAuthorityKey(k)) { try { delete small[k]; } catch (e) {} } // 有损 LS 快照不得混进备份
+if (MEDIA_POOL_KEY_RE.test(k)) {
+try { delete small[k]; } catch (eSmall) {} // LS 侧若有旧副本（上一次错路由的遗留）一律让位给权威值
+return { k: k, v: v, own: own };
+}
 if (!overSmallLimit(v, LS_SMALL_LIMIT)) { small[k] = v; return null; }
 return { k: k, v: v, own: own };
 }
@@ -1159,6 +1163,14 @@ if (typeof v !== 'string' || v.indexOf('data:') !== 0) { try { delete obj[k]; } 
 }
 scrubMediaPool(data.idb);
 scrubMediaPool(data.ls);
+const lsPoolKeys = Object.keys((data && data.ls) || {}).filter(k => MEDIA_POOL_KEY_RE.test(k));
+if (lsPoolKeys.length) {
+if (!data.idb || typeof data.idb !== 'object') { try { data.idb = {}; } catch (eI) {} }
+lsPoolKeys.forEach(k => {
+try { data.idb[k] = data.ls[k]; delete data.ls[k]; } catch (eM) {}
+});
+impLog('pool:from-ls=' + lsPoolKeys.length); // 非零才记：这一发是「用户手里那份文件是旧形状」的取证信号
+}
 let backup = null;
 try {
 backup = {};

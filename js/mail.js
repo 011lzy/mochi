@@ -200,11 +200,12 @@ return;
 csFor(cid).set(KEY, JSON.stringify(list));
 writeSnap(list, cid);
 }
+function mailIsUnread(l) { return l.type === 'received' && !l.read && !l.myReply; }
 function updateBadge() {
 const badge = document.getElementById('mail-badge');
 if (!badge && !window.setDeskBadge) return;
 try {
-const unread = load().filter(l => l.type === 'received' && !l.read && !l.myReply).length;
+const unread = load().filter(mailIsUnread).length;
 if (window.setDeskBadge) { window.setDeskBadge('mail', unread); return; }
 if (!badge) return;
 if (unread > 0) {
@@ -478,6 +479,53 @@ return '<div class="mail-item" data-id="' + escHtml(l.id) + '">' +
 '<div class="mail-item-desc">' + shortDesc(l.content, dir === 'in') + '</div></div>' +
 '<div class="mail-item-time">' + fmtDT(l.tm) + '</div></div>';
 }
+const mailFoldOpen = {};
+function weekStartTs(now) {
+const d = new Date(now);
+const dow = (d.getDay() + 6) % 7; // 周一＝0（getDay 的「周日 0」归到上一周末尾）
+d.setHours(0, 0, 0, 0);
+d.setDate(d.getDate() - dow);
+return d.getTime();
+}
+function monthKeyOf(ts) {
+const d = new Date(ts);
+return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2);
+}
+function monthLabelOf(key) {
+const p = key.split('-');
+return p[0] + ' 年 ' + Number(p[1]) + ' 月';
+}
+function mailFoldHtml(dir, key, rows, name) {
+const foldKey = dir + '|' + key; // 收到/寄出各自独立折叠，同一个月不能互相顶掉开合态
+const open = !!mailFoldOpen[foldKey];
+return '<div class="mail-fold' + (open ? ' open' : '') + '" data-mail-fold="' + foldKey + '">' +
+'<div class="mail-fold-head" role="button" tabindex="0" aria-expanded="' + (open ? 'true' : 'false') + '">' +
+'<span class="mail-fold-title">' + monthLabelOf(key) + '</span>' +
+'<span class="mail-fold-right"><span class="mail-fold-count">' + rows.length + ' 封</span>' +
+'<span class="mail-fold-caret">▾</span></span></div>' +
+'<div class="mail-fold-body">' + rows.map(l => mailItemHtml(l, dir, name)).join('') + '</div></div>';
+}
+function mailGroupedHtml(list, dir, name) {
+const wkStart = weekStartTs(Date.now());
+const pin = [], week = [], months = {}, keys = [];
+list.forEach(l => {
+const tm = l.tm || 0;
+if (dir === 'in' && mailIsUnread(l)) { pin.push(l); return; }
+if (tm >= wkStart) { week.push(l); return; }
+const k = monthKeyOf(tm);
+if (!months[k]) { months[k] = []; keys.push(k); }
+months[k].push(l);
+});
+let html = '';
+if (pin.length) html += '<div class="mail-sec-label">未读</div>' + pin.map(l => mailItemHtml(l, dir, name)).join('');
+if (week.length) {
+if (keys.length) html += '<div class="mail-sec-label">本周</div>';
+html += week.map(l => mailItemHtml(l, dir, name)).join('');
+}
+keys.sort((a, b) => (a < b ? 1 : -1)); // 最近的月份在前
+keys.forEach(k => { html += mailFoldHtml(dir, k, months[k], name); });
+return html;
+}
 function render() {
 const mpEl = document.getElementById('page-mail');
 if (mpEl && mpEl.hidden) return;
@@ -487,7 +535,7 @@ const inEl = document.getElementById('mail-in-list');
 const outEl = document.getElementById('mail-out-list');
 const inList = list.filter(l => l.type === 'received');
 if (inEl) {
-const inHtml = inList.map(l => mailItemHtml(l, 'in', name)).join('');
+const inHtml = mailGroupedHtml(inList, 'in', name);
 inEl.innerHTML = inHtml || (mailEmptyIsLie() && window.mochiLoadingHtml
 ? window.mochiLoadingHtml('收到的信')
 : '<div class="ta-empty">' + (window.taFit ? window.taFit('还没有收到信，等等 TA 吧') : '还没有收到信，等等 TA 吧') + '</div>');
@@ -495,7 +543,7 @@ if (inList.length && inEl.querySelectorAll('.mail-item').length < inList.length)
 }
 const outList = list.filter(l => l.type === 'sent');
 if (outEl) {
-const outHtml = outList.map(l => mailItemHtml(l, 'out', name)).join('');
+const outHtml = mailGroupedHtml(outList, 'out', name);
 outEl.innerHTML = outHtml || (mailEmptyIsLie() && window.mochiLoadingHtml
 ? window.mochiLoadingHtml('寄出的信')
 : '<div class="ta-empty">还没有寄出任何信，提笔写一封吧</div>');
@@ -504,14 +552,36 @@ if (outList.length && outEl.querySelectorAll('.mail-item').length < outList.leng
 }
 if (window.mochiOnDataReady) window.mochiOnDataReady(function () { try { render(); } catch (e) {} });
 function mailListItemClick(e) {
-const it = e.target && e.target.closest ? e.target.closest('.mail-item') : null;
+const t = e.target && e.target.closest ? e.target : null;
+if (!t) return;
+const foldHead = t.closest('.mail-fold-head');
+if (foldHead) { mailFoldToggle(foldHead.parentNode); return; }
+const it = t.closest('.mail-item');
 if (!it) return;
 const l = load().find(x => x.id === it.dataset.id);
 if (l) openLetter(l);
 }
+function mailFoldToggle(sec) {
+if (!sec || !sec.getAttribute) return;
+const key = sec.getAttribute('data-mail-fold');
+if (!key) return;
+const head = sec.querySelector('.mail-fold-head');
+const open = !mailFoldOpen[key];
+mailFoldOpen[key] = open;
+sec.classList.toggle('open', open);
+if (head) head.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
 ['mail-in-list', 'mail-out-list'].forEach((lid) => {
 const el = document.getElementById(lid);
 if (el) el.addEventListener('click', mailListItemClick);
+if (!el) return;
+el.addEventListener('keydown', function (e) {
+if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+const head = e.target && e.target.closest ? e.target.closest('.mail-fold-head') : null;
+if (!head) return;
+e.preventDefault();
+mailFoldToggle(head.parentNode);
+});
 });
 function sendLetter() {
 const input = document.getElementById('mail-input');

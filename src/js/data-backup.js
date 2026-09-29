@@ -660,7 +660,8 @@
         if (k === IMPORT_LOG_KEY) continue; // #1272：LS 侧跳过导入回执键（本机取证不进备份文件）
         if (cfg.skip(k)) continue; // #275 范围外键（文字模式的媒体池等）同样不进小键段，防 strip 剥成空串入库
         const v = localStorage.getItem(k);
-        if (byteLen(v) > LS_SMALL_LIMIT) lsBig[k] = v; // 大键：留待 IndexedDB 权威读取
+        // FIX 2026-09-29 #1390：媒体池键不按体积走小键段，一律交给下面的 IDB 权威读（体积判据同下 routeValue 那一处）
+        if (byteLen(v) > LS_SMALL_LIMIT || MEDIA_POOL_KEY_RE.test(k)) lsBig[k] = v; // 大键：留待 IndexedDB 权威读取
         else { small[k] = v; cover.see(k, v); }
       }
     } catch (e) {}
@@ -705,6 +706,26 @@
     function routeValue(k, v, own) {
       cover.see(k, v);
       if (isAuthorityKey(k)) { try { delete small[k]; } catch (e) {} } // 有损 LS 快照不得混进备份
+      // FIX 2026-09-29 #1390（小米 REDMI Note 15 Pro／自带浏览器实报「导入数据备份后之前朋友圈发的表情包
+      // 都没了，导入的数据丢失朋友圈动态数据和图片」；同案第 4 次，前三个是 #1359 小米MIX 4、#1363
+      // OPPO Find X9、#1371 iPhone 14 Plus）——根因不在机型也不在体积，在**落点**：媒体池按 #142 的归属
+      // 是 IndexedDB 独有（media-pool.js 只用 idbGet/idbGetMany 取池、全文零 localStorage 读路，而
+      // idb.js 的启动回填 idbRestore 又显式跳过 media: 键「不回填——几百个图片键回填进 memoryCache/LS
+      // 等于把去重省下的内存加倍吃回去」）。旧路由只问「这一格多大」（≤20KB 进备份 ls 段、否则进 idb 段），
+      // 于是**小池条目**（表情包/贴纸/小图正是这一族，用户点名的就是「表情包」）被记进 ls 段，导入侧
+      // 照着 ls 段把值写回 localStorage＝写进一个没有任何人读的地方。更狠的是第二跳：data.ls 里出现这个键
+      // 会让下面 #118/#1359 的 retain 清单把它判成「备份已带、无需保留」，而 idbReplaceAll 是单事务
+      // clear＋批量 put——**本机那份还能正常显示的池条目被 clear 掉，换回来的是一份读不到的 LS 副本**
+      // ＝用户所见「导入之后原本的图没了」，且引用它的 @@m: 令牌还在（feed-posts/chat-msgs 原样带令牌），
+      // 于是渲染侧只能报「图片缺失」，池核对也跟着计 missing。零机型／零 UA 分支：每台设备导入完整备份
+      // 都走同一条路，只是小池条目占比高的用户先中招（同案那张单里 DOM 数着 126 张 img、池只有 54 条）。
+      // 改法＝把「体积」那一维让给「归属」这一维：池键一律走流式 idb 段，与同文件 importChatAllGo 早已
+      // 写对的口径一致（那句注释原文：「媒体池：静默写 IDB（@@m: 令牌解码），不写 LS（media-pool.js 只认
+      // IDB）」）——一条不变量此前被「仅聊天记录」那条通路守着、被「完整备份」这条通路破着。
+      if (MEDIA_POOL_KEY_RE.test(k)) {
+        try { delete small[k]; } catch (eSmall) {} // LS 侧若有旧副本（上一次错路由的遗留）一律让位给权威值
+        return { k: k, v: v, own: own };
+      }
       if (!overSmallLimit(v, LS_SMALL_LIMIT)) { small[k] = v; return null; }
       return { k: k, v: v, own: own };
     }
@@ -1598,6 +1619,23 @@
     }
     scrubMediaPool(data.idb);
     scrubMediaPool(data.ls);
+
+    // FIX 2026-09-29 #1390（续）：把落在 ls 段里的池键**搬进 idb 段**再走导入——而不是在原子事务之外补写。
+    // 为什么必须搬而不是补：① data.ls 含这把键会让下面 #118/#1359 的 retain 清单把它判成「备份已带、
+    // 无需保留」，于是 idbReplaceAll 那发单事务 clear 先把本机还能显示的活条目删掉；② 若只在事务之后的
+    // 非原子 idbFalls 链里补一次 idbSet，那一发返回 false 时图就真没了，收尾只剩一句「N 项未能存入
+    // IndexedDB」＝把数据丢在一句提示里。搬进 idb 段之后它进的是 pairs＝和其余大键同一发原子事务，
+    // 要么整包落成、要么原样不动（#814/#3.6.x 那条语义），失败路径复用的还是既有那一支。
+    // 只问「这一格是不是池键」这一个代码事实，零机型／零 UA 分支；顺序排在 scrubMediaPool 之后＝
+    // 旧「只备份文字」件里的空串池条目先被丢掉，再不会有脏值被搬进权威段。
+    const lsPoolKeys = Object.keys((data && data.ls) || {}).filter(k => MEDIA_POOL_KEY_RE.test(k));
+    if (lsPoolKeys.length) {
+      if (!data.idb || typeof data.idb !== 'object') { try { data.idb = {}; } catch (eI) {} }
+      lsPoolKeys.forEach(k => {
+        try { data.idb[k] = data.ls[k]; delete data.ls[k]; } catch (eM) {}
+      });
+      impLog('pool:from-ls=' + lsPoolKeys.length); // 非零才记：这一发是「用户手里那份文件是旧形状」的取证信号
+    }
 
     // ---- 1. 备份当前 localStorage 的 xy-home-v2 键（导入失败可回滚） ----
     let backup = null;

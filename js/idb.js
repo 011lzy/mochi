@@ -685,6 +685,67 @@ window.mochiLoadingText = function () { return '正在读取…'; };
 window.mochiLoadingHtml = function (what) {
 return '<div class="mochi-data-loading">' + (what || '内容') + '还在读取，稍候会自动刷新</div>';
 };
+window.mochiHistFold = function (items, opts) {
+const o = opts || {};
+const list = (Array.isArray(items) ? items : []).filter(x => x && typeof x.html === 'string');
+if (!list.length) return o.empty || '';
+const dayKey = (t) => { const d = new Date(t); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); };
+const today = dayKey(Date.now());
+const todayItems = [], months = {}, monthKeys = [];
+list.slice().sort((a, b) => (b.ts || 0) - (a.ts || 0)).forEach(x => {
+const dk = x.ts ? dayKey(x.ts) : '';
+if (dk === today) { todayItems.push(x); return; }
+const d = x.ts ? new Date(x.ts) : null;
+const mk = d ? d.getFullYear() + '-' + (d.getMonth() + 1) : 'none';
+if (!months[mk]) { months[mk] = { label: d ? d.getFullYear() + '年' + (d.getMonth() + 1) + '月' : '更早', rank: d ? d.getFullYear() * 12 + d.getMonth() : -1, days: {}, dayKeys: [] }; monthKeys.push(mk); }
+const m = months[mk], key = dk || 'none';
+if (!m.days[key]) { m.days[key] = { label: d ? mochiHistDayLabel(d) : '更早', items: [] }; m.dayKeys.push(key); }
+m.days[key].items.push(x);
+});
+monthKeys.sort((a, b) => months[b].rank - months[a].rank);
+let html = todayItems.length ? todayItems.map(x => x.html).join('') : (o.todayEmpty || '');
+return html + monthKeys.map(mk => {
+const m = months[mk];
+const cnt = m.dayKeys.reduce((n, k) => n + m.days[k].items.length, 0);
+return '<details class="dc-h-more"><summary class="dc-h-more-sum">' + m.label + '<span class="dc-h-more-cnt">' + cnt + ' 条</span></summary><div class="dc-h-more-body">' +
+m.dayKeys.map(dk => '<div class="dc-h-day"><div class="dc-h-day-label">' + m.days[dk].label + '</div>' + m.days[dk].items.map(x => x.html).join('') + '</div>').join('') +
+'</div></details>';
+}).join('');
+};
+function mochiHistDayLabel(d) {
+const now = new Date(), t = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+const one = 864e5, d0 = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const diff = Math.round((t - d0) / one);
+if (diff === 1) return '昨天';
+if (diff === 2) return '前天';
+const md = (d.getMonth() + 1) + '月' + d.getDate() + '日';
+return d.getFullYear() === now.getFullYear() ? md : d.getFullYear() + '年' + md;
+}
+window.mochiHistDel = function (key, label) {
+const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+return '<button type="button" class="hist-del" data-hist-del="' + esc(key) + '" data-hist-label="' + esc(label) + '"' +
+' style="float:right;margin:0 0 2px 8px;border:0;background:none;color:inherit;opacity:.42;font-size:11px;font-weight:400;padding:2px 2px;cursor:pointer">删除</button>';
+};
+window.mochiHistDelBind = function (el, opts) {
+const o = opts || {};
+if (!el || el.__mochiHistDelBound || typeof o.onDel !== 'function') return;
+el.__mochiHistDelBound = 1;
+el.addEventListener('click', function (e) {
+const btn = e.target && e.target.closest ? e.target.closest('.hist-del') : null;
+if (!btn || !el.contains(btn)) return;
+e.preventDefault(); e.stopPropagation();
+const key = btn.getAttribute('data-hist-del') || '';
+const label = btn.getAttribute('data-hist-label') || '';
+if (typeof window.mochiDataPending === 'function' && window.mochiDataPending()) {
+try { if (typeof window.toast === 'function') window.toast('记录还在读取，稍等一下再删'); } catch (er) {}
+return;
+}
+if (typeof window.openModal !== 'function') { try { o.onDel(key); } catch (er) {} return; }
+window.openModal(o.title || '删除这条记录？', '', function (v) {
+if (v === 'ok') { try { o.onDel(key); } catch (er) {} }
+}, { noInput: true, staticText: label ? ('「' + label + '」') : (o.what || '这一条') });
+}, true); // 捕获阶段：心意柜这类「整行本身可点开详情」的列表，必须抢在行自己的 click 之前拦下，
+};
 window.mochiOnDataReady = function (fn) {
 if (window.mochiDataState() === 'ready') {
 try { setTimeout(function () { try { fn(); } catch (e) {} }, 0); } catch (e) {}

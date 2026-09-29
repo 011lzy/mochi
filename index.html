@@ -5156,6 +5156,17 @@ padding:0 6px; border-radius:6px; margin-left:4px;
 .mail-tag.new { color:#fff; background:var(--ink); border-color:var(--ink); }
 .mail-item-desc { font-size:12px; color:var(--muted); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .mail-item-time { font-size:10px; color:var(--muted); flex-shrink:0; }
+.mail-sec-label { font-size:11px; font-weight:600; color:var(--muted); margin:2px 0 8px; }
+.mail-fold { margin-bottom:10px; }
+.mail-fold-head { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:11px 12px; background:var(--static-bg); border-radius:10px; cursor:pointer; }
+.mail-fold-head:active { opacity:.55; }
+.mail-fold-title { font-size:13px; font-weight:600; color:var(--ink); }
+.mail-fold-right { display:flex; align-items:center; gap:6px; flex-shrink:0; }
+.mail-fold-count { font-size:10px; color:var(--muted); background:var(--card-bg); padding:2px 8px; border-radius:99px; }
+.mail-fold-caret { font-size:11px; color:var(--muted); transition:transform .18s; }
+.mail-fold.open .mail-fold-caret { transform:rotate(180deg); }
+.mail-fold:not(.open) > .mail-fold-body { display:none; }
+.mail-fold-body { padding-top:10px; }
 .mail-paper {
 background:#fff; border:1px solid rgba(0,0,0,.1); border-radius:12px;
 overflow:hidden; margin-bottom:12px;
@@ -10717,9 +10728,9 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
       <!-- #570：第三行开屏新版检测（ver-check.js 渲染）：检测中 / ✓已是最新 / ⇩有新版本可点更新 -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1790664304201">
+      <div class="splash-ver" id="splash-ver" data-build-ts="1790664671465">
         <span class="sv-app">Mochi 字卡传讯 <b>v8.54</b></span>
-        <span class="sv-deploy">部署于 2026-09-29 14:45<span id="splash-ver-live"></span></span>
+        <span class="sv-deploy">部署于 2026-09-29 14:51<span id="splash-ver-live"></span></span>
         <span class="sv-check" id="splash-ver-check" hidden></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
@@ -12145,7 +12156,7 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
         <div class="gs-row"><span>后台通知</span><label class="toggle"><input type="checkbox" id="bg-notify"><span class="tk"></span></label><button class="bg-notify-test" id="bg-notify-test">测试</button></div>
         <!-- v3.26.x：后台弹窗使用说明——要点直接铺在行下（用户直派「后台弹窗要有使用说明、详细说清楚」），
              完整步骤见本行「功能说明」胶囊（settings-help.js #bg-notify）与 使用说明 → 第 10 节 -->
-        <div class="gs-sub" id="bg-notify-sub"><b>后台弹窗＝页面切到后台（锁屏 / 切到别的应用）时，TA 发消息用系统通知弹横幅。</b>必备：① 安卓或电脑上的 Chrome / Edge（Chromium 内核）且 https 打开——小米 / vivo / OPPO 自带浏览器、UC、夸克这些没有通知能力，开不起来；② 允许通知权限（地址栏左侧图标 → 网站设置 → 通知）；③ 本开关（会自动开启「后台保活」——后台不产生消息就无从弹起）；④ 系统设置里给浏览器允许通知、且不限制其后台运行/省电（小米 / 红米还要开「在屏幕上方显示 / 悬浮通知」）。<b>iPhone / iPad 的网页拿不到系统通知（添加到主屏幕也不保证），本开关在 iPhone / iPad 上无效</b>，请用「桌面消息弹窗」的应用内横幅。点本行「功能说明」看完整步骤与「收不到」的排查，点右侧「测试」＝后台弹窗自测：第一段当场体检（开关/权限/保活/后台服务）并真发一条；成功后再点「现在测（切后台）」按 Home 切后台，第二段会由页面在后台再发一条、回来给结论。<b>⚠ 后台弹窗跟着保活一起：保活被截断/页面被丢弃＝后台弹窗一起停摆</b>（别的 App 刷视频、听歌占用音频；挂后台太久被系统冻结——见上方红字）；失效后彻底关闭网页重新打开，再把两个开关重新打开。</div>
+        <div class="gs-sub" id="bg-notify-sub"><b>后台弹窗＝页面切到后台（锁屏 / 切到别的应用）时，TA 发消息用系统通知弹横幅。</b>必备：① 本机得有网页通知能力——安卓或电脑上的 Chrome / Edge（Chromium 内核）且 https 打开，或 iPhone / iPad 用 Safari「添加到主屏幕」后从桌面图标打开本站（标签页形态没有这个能力）；小米 / vivo / OPPO 自带浏览器、UC、夸克这些没有通知能力，开不起来；② 允许通知权限（地址栏左侧图标 → 网站设置 → 通知）；③ 本开关（会自动开启「后台保活」——后台不产生消息就无从弹起）；④ 系统设置里给浏览器允许通知、且不限制其后台运行/省电（小米 / 红米还要开「在屏幕上方显示 / 悬浮通知」）。<b>iPhone / iPad：Safari 标签页里没有网页通知能力，要到 Safari「添加到主屏幕」后从桌面图标打开本站，这个开关才开得了</b>——那边能授权、能弹系统通知；但 iOS 不给网页推送服务端，应用被系统收回后不保证弹，所以「后台保活」要一起开着，并可用「桌面消息弹窗」的应用内横幅兜底。点本行「功能说明」看完整步骤与「收不到」的排查，点右侧「测试」＝后台弹窗自测：第一段当场体检（开关/权限/保活/后台服务）并真发一条；成功后再点「现在测（切后台）」按 Home 切后台，第二段会由页面在后台再发一条、回来给结论。<b>⚠ 后台弹窗跟着保活一起：保活被截断/页面被丢弃＝后台弹窗一起停摆</b>（别的 App 刷视频、听歌占用音频；挂后台太久被系统冻结——见上方红字）；失效后彻底关闭网页重新打开，再把两个开关重新打开。</div>
         <!-- #1059：通知逐条弹（关闭内容去重）——用户直派「联系人发来的多条消息我都要看到弹窗」。
              默认关闭＝保持去重（同内容/近期弹过只弹一条）；打开后每条消息都单独弹系统通知。 -->
         <div class="gs-row"><span>通知逐条弹（关闭去重）</span><label class="toggle"><input type="checkbox" id="bg-notify-nodedup"><span class="tk"></span></label></div>
@@ -13123,17 +13134,17 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
             <div class="lg-body">
           <div class="lic-li">桌面【寻踪】包含：TA 的日常、TA 在哪里、TA 在做什么、TA 想对你说——为【TA 的日常】字卡库内容随机刷新，可自由添加字卡</div>
           <div class="lic-li">联系人更新日常时，聊天消息里会发送一条【联系人昵称 更新了一条日常】，且有概率触发联系人提醒你寻踪的消息</div>
-          <div class="lic-li">不想用寻踪可以整体关闭：<b>设置 → 工具 → 寻踪（TA 的日常）</b>，或字卡库【TA 的日常】页顶部的同名开关。关闭后桌面【寻踪】图标、聊天「更多功能」里的寻踪、点 TA 头像弹出的寻踪半框全部收起，日常不再自动更新、不再推消息、也不写新记录；已有的日常与寻踪记录原样保留，重新开启即恢复（按联系人桌面分别保存）</div>
+          <div class="lic-li">不想用寻踪可以整体关闭：<b>设置 → 工具 → 寻踪（TA 的日常）</b>，或字卡库【TA 的日常】页顶部的同名开关。关闭后该行显示<b>已禁用：联系人无法再触发更新日常</b>，日常不再自动更新、不再推消息、也不写新记录，聊天「更多功能」里的寻踪与点 TA 头像弹出的寻踪半框收起。<b>桌面【寻踪】图标不收起</b>——点进去页面照常打开、页顶写明这条已禁用，页里的「TA在身边 · 位置感知」是独立功能、不受影响（位置面板的入口就住在这页里）；已有的日常与寻踪记录原样保留（记录默认只展开当天，更早的收在「更早记录」里点开可看），重新开启即恢复（按联系人桌面分别保存）</div>
           <div class="lic-li">「TA 在身边」位置感知：模糊感知 TA 的方位与距离，文案来自字卡库「TA在身边位置卡」——含系统预设（方位 / 距离 / 状态 / 感知 / 彩蛋分类，总开关 + 单卡开关）与自定义位置卡（可分组 / 批量添加），组合发送与彩蛋冷却（彩蛋「在你心里」每位联系人一周只能用一次）</div>
           <div class="lic-li">位置卡发出后屏幕上有一个光点，<b>光点落在哪儿＝TA 在哪儿</b>：方位卡（在你左边 / 右边 / 身后 / 前面）落在画面对应方向；距离卡、状态卡跟着<b>最近一张方位卡</b>的方位走——「再近一点」朝屏幕中心靠近、「再远一点」朝屏幕边缘退开（上一张是「在你右边」时挨着屏幕右侧属正常）；组合发送按其中的方位卡落点。方位感知的方向也会与最近的位置卡对齐</div>
             </div>
           </details>
 
           <details class="lic-grp">
-            <summary><span class="lg-num">10</span><span class="lg-name">音乐</span><span class="lg-count">11</span></summary>
+            <summary><span class="lg-num">10</span><span class="lg-name">音乐</span><span class="lg-count">12</span></summary>
             <div class="lg-body">
           <div class="lic-li">音乐功能可本地上传音乐，也可链接上传网易云免费歌曲</div>
-          <div class="lic-li"><b>音乐导入只有 3 种来源</b>：① 本机音频文件（上传音乐，mp3 / m4a / aac / ogg / wav / flac）；② 网易云歌曲数字 ID / 完整链接 / 分享短链 / 歌单链接（链接添加、批量导入）；③ 音频文件直链（点开就是音频本身、以 .mp3 等结尾的 URL）。<br><b>QQ音乐、酷狗、酷我、咪咕、B站、YouTube、Spotify、Apple Music 等其他 App 的「分享」链接不能导入</b>——这种链接打开是网页、不是音频文件，导进来也放不出声；要用这些歌，得先把音频文件存到手机里，再用「上传音乐」添加。<br><b>⚠ 上传音乐只认不加密的标准音频</b>：音乐 App 里下载 / 缓存的歌曲文件大多带了加密，即使扩展名是 .mp3 / .flac / .m4a 也放不出声；放不出来的转成 mp3（兼容性最好）再上传。</div>
+          <div class="lic-li"><b>音乐导入只有 3 种来源</b>：① 本机音频文件（上传音乐，mp3 / m4a / aac / ogg / wav / flac）；② 网易云歌曲数字 ID / 完整链接 / 分享短链 / 歌单链接（链接添加、批量导入）；③ 音频文件直链（点开就是音频本身、以 .mp3 等结尾的 URL）。<br><b>QQ音乐、酷狗、酷我、咪咕、B站、YouTube、Spotify、Apple Music 等其他 App 的「分享」链接不能导入</b>——这种链接打开是网页、不是音频文件，导进来也放不出声；要用这些歌，得先把音频文件存到手机里，再用「上传音乐」添加。<br><b>⚠ 上传音乐只认不加密的标准音频</b>：音乐 App 里下载 / 缓存的歌曲文件大多带了加密，即使扩展名是 .mp3 / .flac / .m4a 也放不出声；放不出来的转成 mp3（兼容性最好）再上传。<br><b style="color:var(--danger-ink,#a32d2d)">⚠ 直接导入网易云歌单链接即可</b></div>
           <div class="lic-li">桌面组件与【音乐】功能同步显示播放状态</div>
           <div class="lic-li">联系人可主动更换音乐播放模式（循环播放 / 顺序播放 / 随机播放）</div>
           <div class="lic-li">我的收藏、批量管理、悬浮小框可拖动</div>
@@ -13141,6 +13152,7 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
           <div class="lic-li">听歌记录分「TA 邀请听歌 / 我的听歌」两个页签</div>
           <div class="lic-li">自定义歌曲封面（上传图片压缩）、批量导入歌曲</div>
           <div class="lic-li">TA 想和你一起听歌：聊天弹窗邀请（一起听 / 稍后），接受即开始播放并记入记录</div>
+          <div class="lic-li"><b>你也可以主动邀请 TA 听歌</b>：那首歌按「⋯」→「邀请 TA 一起听」，TA 会<b>同意</b>（当场一起播）／<b>拒绝</b>（说待会儿再听）／<b>申请换一首</b>（TA 紧接着用它自己的邀请弹窗换一首邀你，你点「一起听」才播）；同一排还有<b>「让 TA 邀我听这首」</b>＝立刻请 TA 开口邀你听这一首，不走概率、不等冷却</div>
           <div class="lic-li">歌曲播完 TA 可能接动作：切下一首 / 随机挑一首 / 更换播放模式（概率可调）；还会按概率把你在听的歌收进「TA的收藏」</div>
           <div class="lic-li">播放队列：歌曲上「⋯」选「下一首播放」加入待播队列（可清空 / 移出 / 长按拖动调整播放顺序），播完当前按队列依次播放；TA 也会按概率「预订下一首」把歌排进队列并发系统消息（概率可调）</div>
             </div>
@@ -13540,7 +13552,7 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
               <div class="lic-li"><b>数据突然没了 / 回到初始？</b>多半是浏览器清理了本机存储。到 设置 → 通用 → 导入数据 恢复之前导出的备份。</div>
               <div class="lic-li"><b>更新版本会丢数据吗？</b>不会。数据保存在本机，刷新 / 更新 / 关掉重开都不影响；只有清除浏览器数据、卸载、换机或系统回收存储才会丢（记得定期备份）。</div>
               <div class="lic-li"><b>没有声音 / 铃声不响？</b>iOS 需先点一下页面才能出声（自动播放限制）；再确认 设置 → 聊天 → 音效设置 里已上传并开启。</div>
-              <div class="lic-li"><b>上传的音乐播不了？</b>通过网易云链接上传的 VIP / 付费歌曲无法播放（仅免费歌曲可播），歌单导入会自动移除这类歌曲；外链失效或有防盗链也会播放失败；网易云「分享短链」解析受解析服务影响，失败时先用浏览器打开那条链接、把地址栏里 music.163.com/song?id=数字 的完整链接或数字粘贴导入。<b>本机上传的文件放不了</b>则多半是加密格式或无损 m4a（ALAC 编码）——音乐 App 里下载 / 缓存的歌曲文件大多带加密，即使扩展名是 .mp3 / .flac / .m4a 也解不开，转成 mp3 再上传即可。</div>
+              <div class="lic-li"><b>上传的音乐播不了？</b>通过网易云链接上传的 VIP / 付费歌曲无法播放（仅免费歌曲可播），歌单导入会自动移除这类歌曲；外链失效或有防盗链也会播放失败；网易云「分享短链」解析受解析服务影响，失败时先用浏览器打开那条链接、把地址栏里 music.163.com/song?id=数字 的完整链接或数字粘贴导入。<b>本机上传的文件放不了</b>则多半是加密格式或无损 m4a（ALAC 编码）——音乐 App 里下载 / 缓存的歌曲文件大多带加密，即使扩展名是 .mp3 / .flac / .m4a 也解不开，转成 mp3 再上传即可。<br><b style="color:var(--danger-ink,#a32d2d)">⚠ 直接导入网易云歌单链接即可</b></div>
               <div class="lic-li"><b>QQ音乐 / 酷狗 / B站等其他 App 的歌能导入吗？</b>不能。音乐只支持三种来源：本机音频文件（上传音乐）、网易云歌曲 ID / 链接 / 歌单、音频文件直链。其他 App 的「分享」链接打开是网页而不是音频文件，导进来也放不出声；想在这里听，得先把音频文件存到手机里再用「上传音乐」添加。</div>
               <div class="lic-li"><b>图片传不上去 / 变模糊？</b>超大图片上传时会被自动压缩，过大的会被拒绝（防止解码拖崩 iOS 页面），请换小一点的图。</div>
               <div class="lic-li"><b>收不到通知 / 后台弹窗？</b>需允许系统通知权限并开启「后台保活」；「离线消息提醒」仅安卓 / 电脑上的 Chrome、Edge 且添加到桌面后可用。逐条对照（含 iPhone 为什么不行、开着却收不到的三种原因）见第 10 节「后台弹窗 · 怎么用（安卓 / 电脑）」。</div>
@@ -13570,7 +13582,7 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
           <details class="lic-grp">
             <summary><span class="lg-num">9</span><span class="lg-name">权限与隐私</span><span class="lg-count">5</span></summary>
             <div class="lg-body">
-              <div class="lic-li"><b>通知权限</b>：要收到「后台弹窗」，需允许系统通知（浏览器地址栏的网站设置 + 手机系统设置里给浏览器开通知）；「离线消息提醒」仅安卓 / 电脑上的 Chrome、Edge 且添加到桌面后支持。开箱步骤与「收不到」的排查见第 10 节；iPhone / iPad 拿不到系统通知，请用「桌面消息弹窗」。</div>
+              <div class="lic-li"><b>通知权限</b>：要收到「后台弹窗」，需允许系统通知（浏览器地址栏的网站设置 + 手机系统设置里给浏览器开通知）；「离线消息提醒」仅安卓 / 电脑上的 Chrome、Edge 且添加到桌面后支持。开箱步骤与「收不到」的排查见第 10 节；iPhone / iPad 的 Safari 标签页里没有网页通知能力，要「添加到主屏幕」后从桌面图标打开本站才用得了这个开关，期间请靠「桌面消息弹窗」。</div>
               <div class="lic-li"><b>麦克风权限</b>：发语音需要允许麦克风；被拒绝后到浏览器 / 系统设置里重新允许。</div>
               <div class="lic-li"><b>耗电</b>：开启「后台保活」会让页面在后台持续运行，比较耗电；不需要时到 设置 → 系统 关闭。</div>
               <div class="lic-li"><b>隐私</b>：本站无后端、数据全部保存在本机、不上传服务器；但系统通知/锁屏上可能显示消息内容，介意可在系统里关闭本应用通知。</div>
@@ -13594,7 +13606,7 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
               <div class="lic-li"><b>前提 5 · 别限制后台</b>：系统省电 / 后台管理里不要把该浏览器设成「限制后台运行」，否则页面会被系统杀掉，保活与通知都会断。建议设为「<b>无限制 / 允许后台活动</b>」；再在<b>最近任务</b>里把本站<b>锁定</b>、<b>别横向划掉</b>；有「自启动 / 后台活动」开关的一并允许。<b>注意</b>：Edge「睡眠标签页」/ Chrome「内存节省程序」只管<b>浏览器标签页</b>，<b>已加到桌面的本站是独立应用，改那两处没有用</b>（详见第 11 节）。</div>
               <div class="lic-li"><b>挂久了会截断/失效，怎么恢复</b>：① 别的 App <b>刷视频、听歌</b>会占用手机音频通道，把保活音频截停＝保活失效（回本页自动恢复）；② 挂后台太久，系统省电/内存策略会把页面<b>冻结甚至丢弃重载</b>（Edge「睡眠标签页」/Chrome「内存节省程序」约 30 分钟；手机内存紧张时更快——本页越重，几分钟也可能被丢）。这两种情况后台弹窗都跟着停摆（手机/浏览器限制，不是网站坏了）。<b>恢复：彻底关闭网页重新打开，再把「后台保活」「后台通知」开关重新打开</b>。想推迟失效：平时从<b>浏览器标签页</b>打开本站的，可在浏览器设置里把本站加入「永不睡眠 / 始终保持活动」名单；<b>已经加到手机桌面的本站是独立应用，那两处管不到它</b>——要去 <b>系统设置 → 应用 → 本浏览器 → 省电</b>里选「无限制 / 允许后台活动」，并在最近任务里把本站锁定（详见第 11 节）。</div>
               <div class="lic-li"><b>怎么确认通了</b>：点「后台通知」行右边的<b>「测试」</b>。它会先体检（通知权限 / 后台保活 / HTTPS /「主动发送」是否开着 / 本次后台通知的去重统计 / 联系人头像是否存在），再真发一条测试通知；卡在哪一环会直接写在结果里。</div>
-              <div class="lic-li"><b>收不到 ① iPhone / iPad</b>：iOS 的网页方式基本拿不到系统通知，<b>本开关在 iPhone 上无效</b>（不是网站坏了）。iPhone 请靠 <b>设置 → 系统 →「桌面消息弹窗」</b>：不在聊天页时新消息弹应用内横幅，切回应用时还会提示「你不在的时候收到 N 条新消息」。</div>
+              <div class="lic-li"><b>收不到 ① iPhone / iPad</b>：<b>Safari 标签页里没有网页通知能力</b>，所以这个开关在浏览器里开不起来（不是网站坏了）。要 <b>Safari 分享菜单 →「添加到主屏幕」</b>，之后从桌面图标打开本站——那边能授权、能弹系统通知（本机读「通知=已允许」就是这个形态）。装在 iPhone 上也仍要靠「后台保活」把页面撑住：iOS 不给网页推送服务端，应用被系统收回后不保证弹。兜底：<b>设置 → 系统 →「桌面消息弹窗」</b>，不在聊天页时新消息弹应用内横幅，切回应用时还会提示「你不在的时候收到 N 条新消息」。</div>
               <div class="lic-li"><b>收不到 ② 后台本来就没消息</b>：TA 的聊天消息是按 <b>回复设置 → 主动发送</b> 的「间隔 + 概率」随机产生的。关掉「主动发送」、概率调成 0、或开着「免打扰」，后台就没有东西可弹（这与通知权限无关）。</div>
               <div class="lic-li"><b>收不到 ③ 被去重闸门拦了</b>：刚切到后台的 <b>15 秒内</b>不发通知（多半是你刚看完的消息在补触发）；内容上也会去重——与最近 5 分钟聊过、最近 2 分钟弹过、或你刚在前台看过的同一条内容不再重复弹。TA 的字卡池重复率高，同一句被吞掉属正常，不是坏了。</div>
               <div class="lic-li"><b>和「离线消息提醒」的区别</b>：两者完全独立、互不影响。后台弹窗＝<b>页面还在后台运行时</b> TA 发消息弹通知（本开关 + 后台保活 + 通知权限）；离线消息提醒＝<b>页面全部关掉后</b>浏览器隔几小时唤醒一次、随机抽一条想念文案弹通知（仅安卓 / 电脑上的 Chrome、Edge 且添加到主屏幕）。哪个不开都不影响另一个。</div>
@@ -13927,9 +13939,15 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
             <div class="gs-row"><span>造句手法（0语气词/1撤回/2换字卡）</span><div class="stepper" data-k="mjf-style" data-min="0" data-max="2" data-step="1"><button class="stp-min">−</button><input class="stp-val" id="mjf-style-val" readonly><button class="stp-max">+</button></div></div>
             <!-- #414 混合模式：开启后每次造句三种手法随机掷一个，mjf-style 固定选择失效 -->
             <div class="gs-row"><span>混合模式（三手法随机）</span><label class="toggle"><input type="checkbox" id="mjf-mix"><span class="tk"></span></label></div>
-            <!-- FIX 2026-09-21 #953：造句句尾标点开关＋可改标点池（用户直派「使用标点符号也可以修改或关闭」） -->
+            <!-- FIX 2026-09-21 #953：造句句尾标点开关＋可改标点池（用户直派「使用标点符号也可以修改或关闭」）
+                 FIX 2026-09-29 #1396 用户直派「梦角自由造句的可用标点那一栏（旧形态＝一个用空格来分隔的文本框）
+                 与多字卡回复那套拼接符号不一样＝设计不完整」：文本框换成与 #650/#712 同款药丸 chips
+                 （复用 .ppy-chips/.ppy-chip 一族样式，零新增 CSS）。候选按 data-p 记（真值在
+                 reply-settings.js #1396 段的 POOL 表里），内置含「空格／换行」凑齐拼接符号那一套，另留句尾
+                 专用的「~」「……」；点本体开关、自定义点「×」删除、点「＋」添加；池容器沿用 #953 那个 id，
+                 哨兵不必换锚 -->
             <div class="gs-row"><span>句尾标点</span><label class="toggle"><input type="checkbox" id="mjf-punct"><span class="tk"></span></label></div>
-            <div class="gs-row" id="mjf-punct-pool-row"><span>可用标点（空格分隔）</span><input type="text" class="tc-input" id="mjf-punct-pool" style="width:132px;text-align:right" placeholder="。 ~ ！ ……"></div>
+            <div class="gs-row" id="mjf-punct-pool-row"><span>可用标点</span><div class="ppy-chips" id="mjf-punct-pool"><span class="tag ppy-chip" data-p="sp">空格</span><span class="tag ppy-chip" data-p="dou">，</span><span class="tag ppy-chip" data-p="per">。</span><span class="tag ppy-chip" data-p="ex">！</span><span class="tag ppy-chip" data-p="q">？</span><span class="tag ppy-chip" data-p="el">......</span><span class="tag ppy-chip" data-p="dash">——</span><span class="tag ppy-chip" data-p="nl">换行</span><span class="tag ppy-chip" data-p="tilde">~</span><span class="tag ppy-chip" data-p="ell">……</span><span class="tag ppy-chip" id="mjfp-add" title="添加自定义句尾标点" style="border-style:dashed">＋</span></div></div>
             <!-- #364 存库概率 / #622 单联系人也生效：0=全专属、100=全公用、其余按概率分流 -->
             <div class="gs-row"><span>存公用库概率（0=全专属/100=全公用）</span><div class="stepper" data-k="mjf-pub" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="mjf-pub-val" readonly><button class="stp-max">+</button></div></div>
             <div class="gs-sub"><b>是什么</b>：梦角（联系人）说话时按「触发概率」随机掷一次，命中就把一句语料<b>截字重造句</b>后当作 TA 的回复发出来（气泡下带「梦角自由造句」小标签）；命中时若同一条回复也掷中了词典拼字，拼字优先、本次造句让位（同一回复不叠加两种玩法）。概率 0＝不触发。<br>
@@ -13945,7 +13963,7 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
 · 1 撤回式：像撤回消息一样把后半句撤回，留下的前缀就是新句子 →「今天也要好好爱自己」；<br>
 · 2 换字卡内容式：截掉一个词、从上面的语料里挑一个词补上 →「今天也要好好看日落」。<br>
 「混合模式」（#414，#513 起默认开）：开启后每次造句先在 0/1/2 三种手法里随机掷一个再出招，三种模式交替出现，上方「造句手法」的固定选择暂不生效；关闭即恢复单一手法（默认撤回式）。<br>
-<b>句尾标点</b>（#953）：造出的句子默认按「可用标点」里的候选随机补一个句尾标点（默认 。 / ~ / ！ / ……，句号权重最高）；某个句子本身结尾已经有标点就不重复补。「可用标点」框里用空格分隔多个候选（也可写 | 分隔），单个候选可以多字（如 <code>……</code>）；留空＝用默认池。把「句尾标点」开关关掉＝不补任何标点，出句保持原样（如撤回式截断后的裸句）。<br>
+<b>句尾标点</b>（#953；池的形态 #1396 起与上方「拼接符号」同款）：造出的句子按「可用标点」里<b>点亮</b>的候选随机补一个句尾标点；某个句子本身结尾已经有标点就不重复补。<b>可用标点</b>＝一排药丸，点一下取消、再点一下点亮，至少保留一枚（一枚都不想要请关上方「句尾标点」开关）；系统自带的只能开关、不能删，点「＋」可添加自己的标点（最长 6 个字符、最多 8 个，自定义标点点本体开关、点「×」删除）。<b>候选与聊天上方那套「拼接符号」是同一套</b>：空格 / ， / 。 / ！ / ？ / <code>......</code> / —— / 换行（句尾位置抽到「空格」＝末尾留一格，看起来就是不补；抽到「换行」＝末尾另起一行），另外多两枚句尾常用的 <code>~</code> 与 <code>……</code>。<b>没点过 chip 时</b>沿用老默认池（。 / <code>~</code> / ！ / <code>……</code>，其中句号出现得最多）；<b>一旦点过任意一枚</b>就改按你点亮的那些<b>等概率</b>抽（句号不再偏多）。把「句尾标点」开关关掉＝不补任何标点，出句保持原样（如撤回式截断后的裸句）。<br>
 <b>造出来的句子去哪了</b>：自动存进 字卡库→可自定义字卡→梦角自由造句（可查看/删除）。存哪个库由上方「存公用库概率」决定：0＝全进专属字卡、100＝全进公用字卡、其余按概率分流（默认 80＝80% 公用 / 20% 专属）；单联系人也照此生效（想全留本桌面就把概率设 0）。这些句子只作为 TA 的回复展示，不会再被拿去当语料（避免自我循环）。</div>
           </div>
           </div>
@@ -20600,7 +20618,7 @@ const FUNC_ITEMS = [
 { n: '收藏', app: 'note', page: 'page-fav', open: true },
 { n: '统计', app: 'stats', page: 'page-stats', open: true },
 { n: '提问记录', app: 'interact', page: 'page-interact', open: true },
-{ n: '寻踪打卡', app: 'checkin', page: 'page-checkin', open: true, gated: '寻踪总开关已关闭：设置 → 工具 → 寻踪 可重新开启' },   // #1279 图标开的是寻踪页 page-checkin（不是字卡库题库页），gated 只写代码里真存在的那道门
+{ n: '寻踪打卡', app: 'checkin', page: 'page-checkin', open: true },   // #1279 图标开的是寻踪页 page-checkin（不是字卡库题库页）。#1403 起删掉 gated 那句：总开关不再拦这一页（关掉后页面照开、页顶写明「已禁用」），留着它＝真出故障时诊断会拿「总开关已关闭」当借口，正是 #1279 要治的那一型凭空原因
 { n: '占卜', app: 'divination', page: 'page-divine', open: true },
 { n: '花园', app: 'garden', page: 'page-garden', open: true },
 { n: '此间', app: 'cjian', page: 'page-cjian', open: true },
@@ -22597,4 +22615,4 @@ window.__mochiBootRetry = function () { try { location.reload(); } catch (e) {} 
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mumbajwp -->
+<!-- __MOCHI_EOF__ mumbifah -->

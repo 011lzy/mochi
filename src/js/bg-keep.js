@@ -1612,12 +1612,17 @@
       // v3.7.x：按平台区分文案——安卓阉割 WebView（OPPO 自带/Via 等）也无 Notification API，
       //   原文案硬编码"iPhone"对安卓用户很困惑。
       // FIX 2026-09-21 #978：iOS 那支原文案暗示「装到主屏幕后由系统接管」，与同一功能另外两处
-      //   口径矛盾（行下说明「本开关在 iPhone 上无效」、#924c「不保证弹出」）——iOS WebKit 的
-      //   网页通知只认推送服务通道，装到主屏幕也不保证。统一为「改用桌面消息弹窗」。
+      //   口径矛盾（行下说明那句「在 iPhone 上无效」、#924c「不保证弹出」），当时统一收成「改用桌面消息弹窗」。
+      // FIX 2026-09-29 #1391：把 #978/#986k 那半句说错的改回来——「装到主屏幕也不保证」被本机实测读数推翻：
+      //   iPhone 16 Plus（iOS 18.7）主屏幕应用形态的诊断单写着 通知=开/granted ＋ 最近通知通道=sw，而这两行
+      //   分别出自本文件 :879 的探针（`'Notification' in window ? Notification.permission : 'unsupported'`）
+      //   与 device.js 读 bgNotifyLastChannel()——即 API 在场、权限已授、通知确实经 reg.showNotification() 交出去过。
+      //   所以准确口径是：能力只在「Safari → 添加到主屏幕」后的独立应用形态里提供，Safari 标签页里没有；
+      //   装过去就能开能授权能弹，剩下的不确定性是 iOS 收回进程（那半句由 #924e 那条 toast 说，不说两遍）。
       // v3.16.x：设备判定统一读 device.js（mochiDevice）
       const _isIOS = !!(window.mochiDevice || {}).isIOS;
       say(_isIOS
-        ? 'iPhone / iPad 的网页拿不到系统通知\n（添加到主屏幕也不保证）请用「桌面消息弹窗」'
+        ? 'iPhone / iPad 在 Safari 标签页里没有系统通知能力\n请到 Safari「添加到主屏幕」，之后从桌面图标打开本站再开这个开关；期间可先用「桌面消息弹窗」'
         : '当前浏览器不支持系统通知\n请改用 Chrome/Edge 打开本站（安卓或电脑都行）');
       fail('unsupported');
       return;
@@ -1742,6 +1747,10 @@
   //   ②权限不到位时开关保持开＋行下标红如实说明缺哪一步，权限一到位**自动生效**（不再点第二次）；
   //   ③真的没有通知能力的设备（无 Notification API / iPhone）仍按平台限制如实告知并回弹开关
   //   （那里没有「等一会儿就好」可言，见 #975/#978 口径）。
+  //   ⚠ #1391 修正上面第③句的括注：回弹判据从头到尾是 'unsupported'＝本机没有 Notification 对象，
+  //     跟是不是 iPhone 无关。iPhone 16 Plus（iOS 18.7）主屏幕应用形态实测 Notification 在场且 granted，
+  //     所以「iPhone」不进第③句那一档——它只是**在 Safari 标签页里**没有这个对象；装到主屏幕就有了，
+  //     这条闸该走的分支是「权限到位自动生效」，不是回弹。别让下一位照着括注再去加机型分支。
   function nbNoticeOnce(key, msg) {
     try { if (kaNoticeCool(key, 60 * 1000)) return; kaNoticeStamp(key); } catch (e) {}
     toast(msg, 7000);
@@ -1751,7 +1760,7 @@
     if (p === 'unsupported') {
       // 能力限制与开关无关，一直显示（这类设备点多少次都不会好）
       return (window.mochiDevice || {}).isIOS
-        ? '⚠ 本机拿不到系统通知（iPhone / iPad 平台限制，添加到主屏幕也不保证）：请用「桌面消息弹窗」的应用内横幅'
+        ? '⚠ 本机没有网页通知能力（iPhone / iPad 的能力只在「Safari → 添加到主屏幕」后的独立应用形态里，Safari 标签页里没有）：装过去再回来开这个开关；期间请靠「桌面消息弹窗」的应用内横幅'
         : '⚠ 本机浏览器没有通知能力（小米 / vivo / OPPO 自带浏览器、UC、夸克、Via 常见如此）：请改用 Chrome / Edge 打开本站';
     }
     if (!notifyEnabled) return '';
@@ -2251,8 +2260,8 @@
           pushLine('解决：用 https:// 部署访问（GitHub Pages 即是 HTTPS）');
         } else if (kaIsIOS()) {
           pushLine('✗ 当前浏览器不支持 Notification API');
-          pushLine('原因：iPhone / iPad 的网页拿不到系统通知（添加到主屏幕也不保证）');
-          pushLine('解决：改用 设置 → 系统 →「桌面消息弹窗」的应用内横幅');
+          pushLine('原因：iPhone / iPad 的网页通知能力只在「Safari → 添加到主屏幕」后的独立应用形态里提供，Safari 标签页里没有');
+          pushLine('解决：到 Safari 分享菜单「添加到主屏幕」，之后从桌面图标打开本站再开这个开关；期间可先用 设置 → 系统 →「桌面消息弹窗」的应用内横幅');
         } else {
           pushLine('✗ 当前浏览器不支持 Notification API');
           pushLine('原因：本机浏览器没有通知能力（小米 / vivo / OPPO 等自带浏览器、UC、夸克、Via 常见如此）');

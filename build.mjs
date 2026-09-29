@@ -3815,9 +3815,9 @@ const FIX_SENTINELS = [
   // ==== 2026-09-19 #823 用户直派「寻踪功能缺少禁用，关闭这个功能」：原先只有「寻踪日常发送到聊天」概率（dcf-checkin 调 0% 只停推送、寻踪页与记录照旧生成），没有总闸。新增 per-cid 键 checkin-en（从未写过＝默认开启，老用户零迁移），关闭＝全静：日常不生成、不推聊天、不落记录、不重置计时，桌面【寻踪】图标／聊天「更多」面板寻踪／点 TA 头像的寻踪半框三入口一并收起，已有记录保留、重开即恢复（不补发）。行为断言 tools/verify-checkin-disable.mjs（本批绿 11/11、纯 HEAD 红 1/11）====
   { name: '#823a doCheckin 总闸（唯一收口点：自动轮询/手动刷新/半框/寻踪页全经它；删＝关闭后日常照旧生成并推聊天，「缺少禁用」复发）', file: 'js/p2-features.js', needle: 'if (!ckEn()) return; // #823a' },
   { name: '#823b 点 TA 头像不再弹寻踪半框（toggleCkPanel 同源经 openCkPanel；删＝入口收起后半框仍能从聊天顶部点开）', file: 'js/p2-features.js', needle: 'if (!ckEn()) return; // #823b' },
-  { name: '#823c 寻踪页不再打开＋可恢复指引 toast（功能大全等程序化跳转兜底；删＝隐藏图标被程序点击直开空页且用户不知为何）', file: 'js/p2-features.js', needle: 'if (!ckEn()) { // #823c' },
+  { name: '#823c 寻踪页不再打开＋可恢复指引 toast（功能大全等程序化跳转兜底；删＝隐藏图标被程序点击直开空页且用户不知为何）', file: 'js/p2-features.js', needle: 'else if (ckEn()) doCheckin();' },
   { name: '#823d 开关核心键名（改键＝所有已关闭桌面静默回到默认开启；per-cid 命名空间由 activeStore 提供）', file: 'js/p2-features.js', needle: "const CK_EN_KEY = 'checkin-en';" },
-  { name: '#823e 桌面图标收起口径对外暴露（personalize 的 applyHiddenIcons 复位逻辑靠它认总开关；删＝切桌面/恢复隐藏图标后入口自己回来）', file: 'js/p2-features.js', needle: 'window.checkinDeskOff = function () { return !ckEn(); };' },
+  { name: '#823e 桌面图标收起口径对外暴露（personalize 的 applyHiddenIcons 复位逻辑靠它认总开关；删＝切桌面/恢复隐藏图标后入口自己回来）', file: 'js/p2-features.js', needle: 'window.checkinDeskOff = function () { return false; };' },
   { name: '#823f 更多面板每次重算 hidden 时收起寻踪（收口必须在此行；写到别处会被 applyMoreCat 覆盖）', file: 'js/chat.js', needle: "it.id === 'more-ck' && window.checkinEnabled" },
   { name: '#823g 桌面图标与装修手动隐藏名单取并集（只认总开关会把用户在装修里手动隐藏的寻踪在关闭再开启后顺手放回桌面）', file: 'js/personalize.js', needle: "if (hidden.indexOf(key) >= 0 || (ckOff && key === 'checkin')) app.style.display = 'none';" },
   // ==== 2026-09-19 #842 表情面板【颜文字】【emoji】补「⏱最近使用」（用户直派：表情包有、这两类没有）。#636 的两类文字分类此前被 recChipShow 里的 emojiCat 判定硬挡成 sticker 专属，点击也不记录。本批＝点击记录＋按分类各存一份全局根键（emoji-recent-kaomoji / emoji-recent-emoji，身份＝文字原文、解析回查 TA 专属/公用/我的三池）＋chip 三分类通用＋停在最近分组时不被自动回落改选。行为断言 tools/verify-emoji-recent.mjs T 组 ====
@@ -4577,12 +4577,12 @@ const FIX_SENTINELS = [
   { name: '#986a 静态平台胶囊不得回流（删＝桌面 Chromium 用户又被「仅安卓」劝退、iPhone 浏览器形态用户又被叫去开空开关）', file: 'template.html', needle: 'class="plat-tag" data-plat="android">仅安卓', absent: true },
   { name: '#986b iOS 侧静态胶囊同样不得回流（真实门槛是独立应用形态，不是 iPhone）', file: 'template.html', needle: 'class="plat-tag" data-plat="ios">仅 iPhone', absent: true },
   { name: '#986c 静态平台胶囊样式整体退役（回来＝有人把按手机系统标平台又加回来了）', file: 'css/setting.css', needle: '.gs-row .plat-tag', absent: true },
-  { name: '#986d 本机能力标记：后台通知的门槛是「Chromium + 通知能力」不是「安卓」（删＝退回按手机系统标）', file: 'js/personalize.js', needle: 'if (!hasNotify()) return {' },
+  { name: '#986d 本机能力标记：后台通知的门槛是「Chromium + 通知能力」不是「安卓」（删＝退回按手机系统标）', file: 'js/personalize.js', needle: 'if (hasNotify()) return null;' },
   { name: '#986e 顶部避让修正的门槛＝独立应用形态（删＝iPhone 浏览器形态又被叫去开一个空开关）', file: 'js/personalize.js', needle: 'if (isIosStandalone()) return null;' },
   { name: '#986f 替代指引插在该行紧后面（退回插在整段说明之后＝六百字说明把「去开启」压在底下看不见）', file: 'js/personalize.js', needle: 'insertBefore(hint, row.nextSibling);' },
   { name: '#986g 测试按钮三分支：非安全上下文才说 HTTPS，iPhone / 安卓壳说本机没有通知能力（删＝又被误诊成 https）', file: 'js/bg-keep.js', needle: 'if (!window.isSecureContext) {' },
   { name: '#986h 离线提醒状态行不再对 iPhone 说「只能靠系统通知」（与同段「iPhone 拿不到通知」矛盾）', file: 'js/bg-keep.js', needle: 'iPhone / iPad 拿不到' },
-  { name: '#986k 通知授权失败文案不再暗示「装到主屏幕就能拿到」（iOS WebKit 只认推送服务通道）', file: 'js/bg-keep.js', needle: '添加到主屏幕也不保证）请用「桌面消息弹窗」' },
+  { name: '#986k 通知授权失败文案不再暗示「装到主屏幕就能拿到」（iOS WebKit 只认推送服务通道）', file: 'js/bg-keep.js', needle: 'iPhone / iPad 在 Safari 标签页里没有系统通知能力' },
   { name: '#986i 顶部避让修正胶囊口径＝独立应用形态（删＝又写成「iOS 专用 / 仅影响 iOS」）', file: 'js/settings-help.js', needle: '独立应用（添加到主屏幕）形态专用修正' },
   { name: '#986j 离线消息提醒口径＝Chromium 内核（安卓 / 电脑），不是「仅安卓」', file: 'template.html', needle: '仅安卓 / 电脑上的 Chrome、Edge 且添加到桌面后可用' },
   { name: '#967a 进度条并入权威未达标记（删＝armReadyFuse 的 15s 保险丝一跳就收进度条，而屏上一条消息都没有＝空屏无提示）', file: 'js/chat.js', needle: 'chatRebuilding || chatAuthPending' },
@@ -5835,6 +5835,62 @@ const FIX_SENTINELS = [
   { name: '#1406f 长文折叠判据只看剥配图后的正文（超 120 字或超 6 行才收；改成量 DOM＝渲染期二次布局）', file: 'js/feed.js', needle: "if (str.length > FEED_CLAMP_CHARS) return true;" },
   { name: '#1406g 渲染签名并入「当前哪一页」（缺它＝两页各自都空时被 sig 早退当同一帧，切换后屏上留着旧内容）', file: 'js/feed.js', needle: "const parts = [window.activePrefix(), window.mochiDataPending ? (window.mochiDataPending() ? 'L' : 'F') : 'F', shown, name, memId, rangeKey, posts.length];" },
   { name: '#1406h 空的那一页要说清是「哪一页空」并指得出路（谎称「还没有动态」＝用户以为动态丢了）', file: 'js/feed.js', needle: "esc(bucket.label) + '还没有动态" },
+  /* ==== 以下 42 条自工作树合入（在途批次；HEAD 原本没有这些名字，needle 已逐条按 src／产物现值核过） ==== */
+  // ==== 2026-09-29 #1400（作者直派：「缺少我点击某首音乐邀请联系人一起听，联系人可以同意或拒绝，或申请换一首歌」＋「还缺少我点击按钮让联系马上触发邀请我听某首歌的按钮」）====
+  //   站内此前只有 TA→我 那一半（maybeMusicRequest 按概率弹 openMusicInvitePanel）；本批补我→TA 这一半
+  //   （三档回应＝同意 60／拒绝 25／申请换一首 15，换那一跳复用同一个邀请面板、不另建弹窗）。
+  //   删任一处＝那一半又回到「只能等 TA 按概率开口」，或退成「点了只有一句台词、不会真的起播」（聊天里那张通用邀请字卡就是这毛病）。
+  { name: '#1400a 管理音乐那排挂「邀请 TA 一起听」（删＝我这一侧的邀请又零入口）', file: 'js/music-player.js', needle: '<button class="cc-tool" id="sm-e-ta-ask">邀请 TA 一起听</button>' },
+  { name: '#1400b 同一排挂「让 TA 邀我听这首」（删＝想立刻请 TA 邀这一首只剩 音乐设置→诊断邀请→强制触发，而那颗是随机挑歌、不是用户点的这首）', file: 'js/music-player.js', needle: '<button class="cc-tool" id="sm-e-ta-inv">让 TA 邀我听这首</button>' },
+  { name: '#1400c 强制邀请那颗的接线（#994 教训：渲染与接线成对，只画按钮不挂处理器＝点了没反应的静默死亡）', file: 'js/music-player.js', needle: "if (taInv) taInv.addEventListener('click', () => { forceTaInviteFor(id); });" },
+  { name: '#1400d 我方邀请三档掷骰的同意档走 accept 真起播（改成只发台词＝又回到聊天邀请字卡那种「答应了却没播」）', file: 'js/music-player.js', needle: "if (roll < 0.6) { accept(say('音乐邀请TA·同意'" },
+  { name: '#1400e 拒绝档在聊天里留一句痕（删＝这次邀请的结果只有气泡，回看不知 TA 答没答应）', file: 'js/music-player.js', needle: "taMusicSys(name + ' 这次没答应，说待会儿再听《' + trackName + '》');" },
+  { name: '#1400f 申请换一首那一跳复用唯一邀请面板（换成新建一层弹窗或改成直接抢播＝与 TA→我 那条「你点一起听才播」的口径分叉）', file: 'js/music-player.js', needle: 'if (!openMusicInvitePanel(pick.id, !!currentId)) {' },
+  { name: '#1400g 我方邀请的在飞闸（TA 的回应延迟 1.5~4s 落地，没这道闸连点就把三条回应叠成一串）', file: 'js/music-player.js', needle: "if (myInvitePending) { toast('刚才那条还在等 TA 回，先看这一条'); return; }" },
+  { name: '#1400h 切桌面时交还我方在飞闸（残留＝新桌面的正常邀请被旧桌面那条还没落地的邀请挡掉，看着像按钮坏了）', file: 'js/music-player.js', needle: 'reqData = null;\nmyInvitePending = false;' },
+  { name: '#1400i 音乐设置那句「一起听歌」说明指到两颗新按钮（不指路＝功能在做而用户找不到，只能报「没有这个设计」）', file: 'js/music-player.js', needle: '想现在就要（或换你主动邀 TA）' },
+  { name: '#1400j 功能介绍第 10 节补「你也可以主动邀请 TA 听歌」条', file: 'template.html', needle: '你也可以主动邀请 TA 听歌' },
+  { name: '#1400k 第 10 节计数随新条同步 11→12（漂移＝按章标题上的条数找不到条，#980b/#997h 同款）', file: 'template.html', needle: '音乐</span><span class="lg-count">12</span>' },
+  { name: '#1400l 待确认邀请只在面板真在屏上时才算数（tc 层共用：被别的面板顶掉后 reqData 还是真的，拿它锁门＝这两个入口从此永久拒绝）', file: 'js/music-player.js', needle: "return !!(reqData && m && !m.hidden && document.getElementById('sm-req-yes'));" },
+  /* ==== 2026-09-29 #1403 作者直派三件事：①「关闭寻踪时不需要隐藏我的按钮图标，因为这个功能里还有一个【TA在身边 · 位置感知】需要点击进去才能看到页面」②「寻踪记录没有自动折叠起来导致记录很长，改为默认只显示当天、其他自动折叠，并检查其他历史记录有没有这种问题」③「关闭时功能里需文字显示已禁用 联系人无法再触发更新日常，并检查关闭寻踪功能有没有出现错误」。#823 当年把「停用生成」和「收起入口」捆成一件事，于是关一个功能连带把住在同一页里的另一个独立功能（位置面板唯一入口就在寻踪页/半框，见 #875）一起藏了——三处入口同时收＝寻踪页再也进不去。本批拆开：闸门只留生成侧（#823a doCheckin、#823b 半框、#823f 更多面板三针一字未动），桌面图标与寻踪页恢复可用，页顶写明「已禁用：联系人无法再触发更新日常」，关闭态那颗「刷新」不再空转（旧写法进 doCheckin 首行 return＝点了没任何反应＝站内最大宗那一型静默失败）。记录折叠复用 #1053（帮我决定记录）那套「当天直显＋更早 details 默认折叠」与它的全局 .dc-h-* 样式皮＝零新增 CSS、两处视觉一致。检查面另见 #1279：功能诊断那句 gated 从此不可达，一并摘掉（留着＝真故障时诊断拿它当借口）。行为断言 tools/verify-checkin-disable.mjs（本批改约后复跑）＋tools/verify-1279-func-diag-checkin-row.mjs B4/B5 换向 ==== */
+  { name: '#1403a 桌面【寻踪】图标唯一的收起理由＝装修手动隐藏名单（改回 (ckEn() && !man)＝关闭寻踪又连带把位置感知的唯一入口藏掉，作者直派那条复发）', file: 'js/p2-features.js', needle: "checkinApp.style.display = man ? 'none' : '';" },
+  { name: '#1403b 关闭态在寻踪页顶挂「已禁用」说明条（删＝页面开着、下面的日常停在上一次却不交代为什么，作者要的「功能里需文字显示已禁用」落空）', file: 'js/p2-features.js', needle: 'card.insertBefore(el, card.firstChild);' },
+  { name: '#1403c 关闭态点「刷新」给一句可执行的说明而不是空转（删回裸 doCheckin＝闸门仍在、不再生成，但用户点了毫无反应＝静默失败）', file: 'js/p2-features.js', needle: "if (!ckEn()) { toast('寻踪已禁用：设置 → 工具 → 寻踪 重新开启后才能刷新日常'); return; }" },
+  { name: '#1403d 寻踪记录交给站内唯一那把折叠尺子（删＝回到整条历史平铺，几周后这一卡比整页还长＝作者报的「记录很长」复发）', file: 'js/p2-features.js', needle: 'histEl.innerHTML = window.mochiHistFold(' },
+  { name: '#1403e 更早的记录默认收在原生 details 里（复用 #1053 的 .dc-h-more 皮；改回平铺＝折叠失效，改成自绘 JS 开关＝又造一套与决定记录不一样的折叠、还要自己维护展开态）', file: 'js/idb.js', needle: "<details class=\"dc-h-more\"><summary class=\"dc-h-more-sum\">' + m.label" },
+  { name: '#1403f 删除型：功能诊断不得再把总开关写成「打开未生效」的原因（关闭后页面照开，这句从此不可达；留着＝真出故障时诊断替故障找一个不存在的借口，正是 #1279 治的那一型）', file: 'js/device.js', needle: '寻踪总开关已关闭：设置 → 工具 → 寻踪 可重新开启', absent: true },
+  { name: '#1403g 「当天直显＋更早按月折叠」的站内唯一实现（各页共用一把尺子＝同一判据同一视觉；删＝九处各自造折叠，必然「有的页折了有的没折」，也正是要防的「名字在、逻辑各写一份」）', file: 'js/idb.js', needle: 'window.mochiHistFold = function (items, opts)' },
+  { name: '#1403h 按条删除件在位（作者追加「用户又不一定要保存那么多记录。这种无限变长的记录还需要有单独的删除功能」＝折叠之外还要真能删；删＝只能看着它变长。注意口径＝只删选中那一条，不做整表清空也不做封顶裁条）', file: 'js/idb.js', needle: 'window.mochiHistDelBind = function (el, opts)' },
+  { name: '#1403i 删除的两道闸：数据还在回填就不许删＋删前 openModal 回显「删的是哪条」（少前者＝拿本地旧快照 splice 把没读回来的条目一起抹掉，#1330/#1359 那一族母型；少后者＝一次误点静默丢一条）', file: 'js/idb.js', needle: "if (typeof window.mochiDataPending === 'function' && window.mochiDataPending()) {" },
+  { name: '#1403j 提问记录五档共用一条渲染＋删除链（删＝回到「整列平铺＋只能清空」，作者追加那条「需要单独的删除功能」落空；也别再各档写一份＝五档行为必然分叉）', file: 'js/ta-ask.js', needle: 'function askListRender(el, h, key, name, rowFn) {' },
+  { name: '#1403k 汇总条目带着来源桌面 __cid（浅拷贝挂上、不改排序与返回形态＝#101/#625a-d/#625h 六支针照旧有效；删掉这行＝按条删除不知道该去哪个桌面摘，要么删错要么删不掉）', file: 'js/ta-ask.js', needle: 'out.push(Object.assign({}, x, { __cid: cid }));' },
+  { name: '#1403l 心意柜按条删除走既有 boxSave＋invalidate 回复表（#985 起卡片回复以柜为单一事实源，漏 invalidate＝删完卡上还挂着旧回复）', file: 'js/gift-shop.js', needle: 'window.mochiHistDelBind(el, {' },
+  { name: '#1403m 每日摸鱼/打工值的删除只摘明细、不动累计键（改回去 filter 时顺手改 fish-total/work-total＝用户「累计」被凭空抹，这是钱和数值的账，不是显示）', file: 'js/records.js', needle: 'function delDayHist(key, date) {' },
+  { name: '#1403n 理解变化按条删：写回前按「time＋text」再认一次，认不到就一条不删（拿确认框里的旧下标直接 splice＝那几秒里 addKnow 又记了一行，会删错条）', file: 'js/memo-arc.js', needle: "if (j < 0) { toast('这条已经变了，没有删掉任何内容'); return; }" },
+  { name: '#1403o 我们的时间线交共用尺子折叠（7 类来源连成一条只增不减的线；删＝回到整列平铺。各来源的编辑/删除仍走本文件 data-op 链，本针只钉折叠这一发）', file: 'js/memo-arc.js', needle: 'return h + window.mochiHistFold(items' },
+  { name: '#1403p 关心记录只做折叠、刻意不给按条删（它是聊天记录现算的汇总视图，删一条＝改动聊天原文、绕过 chat 那条「只允许删对方发来的」的 del 分支＝造出第二份真相；有人「顺手补全」这个删除位时要看到这条判断）', file: 'js/records.js', needle: 'window.mochiHistFold(rows.map' },
+  { name: '#1403q 红包记录同上＝只折叠不删除（条目身份就是那条 redpacket 消息，汇总页不是第二份数据）', file: 'js/records.js', needle: 'window.mochiHistFold(list.slice().reverse().map' },
+  { name: '#1403r 摸鱼抓包记录既不加封顶也不平铺（v3.15.x 作者明确「保留全部历史不设上限」，本批只按月折叠＋按条删；改成 slice 封顶＝把作者当时的要求推翻，改成平铺＝「无限变长」复发）', file: 'js/records.js', needle: 'window.mochiHistFold(list.map((x, n) =>' },
+  /* ==== 2026-09-29 #1391 用户直派「检查 iOS 使用后台通知弹窗是否有异常」（iPhone 16 Plus／iOS 18.7／Safari 26.6，随附 mochi-diag-2026-09-28-16-12-40138095445724639126.docx）。根因不在机型也不在内核：设置页那一行的「本机用不了」判据把平台读数排在能力读数之前——isIOS() 抢在 hasNotify() 前面，于是任何 iPhone 一律变灰并被指去应用内横幅，连报障机自己报出「Notification 在场＋granted＋通知经 sw 通道交出去」的那台也不例外（#986d 当年钉的正是「门槛是通知能力不是手机系统」，针一直绿、语义被插在它前面的一行顶掉＝典型「名字在、逻辑变」）。随带的第二件事＝那句「装到主屏幕也不保证」是事实错误，iOS 上主屏幕应用恰恰是唯一提供该能力的形态，把唯一出路说成没用＝用户直接放弃。判据一律取能力探测／本机读数，零机型分支新增。 ==== */
+  { name: '#1391a 删除型：设置页那行不得再按手机系统判「iPhone 拿不到通知」（回流＝能力在场的主屏幕应用形态又被变灰，本批主诉复发）', file: 'js/personalize.js', needle: '本机是 iPhone / iPad：网页拿不到系统通知', absent: true },
+  { name: '#1391b 删除型：行下说明不得再写「本开关对 iPhone／iPad 无效」（回流＝又说 iPhone 用户这个开关没用）', file: 'index.html', needle: '本开关在 iPhone / iPad 上无效', absent: true },
+  { name: '#1391c 删除型：使用说明「收不到①」那条不得再判 iOS 网页方式基本拿不到（回流＝第 10 节与行下说明两份镜像又互相矛盾）', file: 'index.html', needle: '本开关在 iPhone 上无效', absent: true },
+  { name: '#1391d 删除型：功能说明里那条同口径旧句式不得回流（回来＝本行弹窗与行下说明说两套话）', file: 'js/settings-help.js', needle: '本开关在 iPhone / iPad 上基本无效', absent: true },
+  { name: '#1391e 删除型：「装到主屏幕也不保证」那半句不得回流（被本机 granted＋sw 通道两行读数证伪；注释里也不写这串，免得删除型自撞）', file: 'js/bg-keep.js', needle: '添加到主屏幕也不保证', absent: true },
+  { name: '#1391f 经期提醒的能力说明同批改口径（漏一处＝同一台机器上「后台通知」教人装主屏幕、「经期提醒」仍说平台限制，#1056 那族镜像又欠一条）', file: 'js/period.js', needle: '要在 Safari「添加到主屏幕」后从桌面图标打开本站才有' },
+  // ==== 2026-09-29 #1402 信箱「写信太多，写得很杂」→ 打开只见本周、更早按月折叠（作者直派「需要打开只显示本周写信，
+  //   其他时间的信都按月份折叠起来」）。旧写法把收/寄两份列表各自平铺到底（render 直接 map 全量），攒几个月就是一片
+  //   没有层次的长列。分组只认两个事实：墙钟周界（本周一 00:00，自然周而非滚动 7 天）与信件自身的 tm/read 字段，
+  //   零机型／零 UA 分支。硬约束＝未读绝不进折叠组（折叠组是 display:none，未读被藏起来＝红点亮着而列表里找不到那封
+  //   信），所以常驻区与桌面徽标共用 mailIsUnread 同一把尺，常驻条数恒等于徽标数；寄出的信没有「未读」概念（read 只
+  //   在对来信置位、徽标也只数 received），那一侧只做「本周＋按月折叠」，不为此新造持久字段。折叠态收模块级 map：
+  //   信箱每次 render 重设 innerHTML，挂 DOM 上的开合态活不过一次渲染（沿用 #993 统计页 stats-fold 的站内惯例）。 ====
+  { name: '#1402a 未读判定只有一个写入方（徽标与列表顶部常驻区共用这把尺；各自再写一份＝红点数与看得见的封数分叉）', file: 'js/mail.js', needle: "function mailIsUnread(l) { return l.type === 'received' && !l.read && !l.myReply; }" },
+  { name: '#1402b 未读来信抽进常驻区、不再落进任何月份组（删＝未读被 display:none 的折叠组盖住，用户见红点却找不到信）', file: 'js/mail.js', needle: "if (dir === 'in' && mailIsUnread(l)) { pin.push(l); return; }" },
+  { name: '#1402c 周界＝本周一 00:00 的自然周（改回滚动 7 天或周日为起点＝「本周」每天变长、界线和用户心里对不上）', file: 'js/mail.js', needle: 'const dow = (d.getDay() + 6) % 7;' },
+  { name: '#1402d 本周平铺、更早才按月归组（删掉这道分桶＝回到整箱平铺，「写得很杂」正是本批要治的）', file: 'js/mail.js', needle: 'if (tm >= wkStart) { week.push(l); return; }' },
+  { name: '#1402e 折叠态存模块级 map（只写 DOM class＝一次 60s tick 的 render 把用户刚展开的那个月收回去）', file: 'js/mail.js', needle: 'mailFoldOpen[key] = open;' },
+  { name: '#1402f 折叠条收起时靠这条规则盖住正文（删＝标题条照旧可点但信全露出来，分组形同虚设）', file: 'css/chat-pages.css', needle: '.mail-fold:not(.open) > .mail-fold-body { display:none; }' },
   { name: '#1406i 六行裁剪那条规则（删＝折叠按钮还在、正文照旧整屏铺开＝长信没被收）', file: 'css/chat-pages.css', needle: ".feed-clamp { display:-webkit-box; -webkit-line-clamp:6; -webkit-box-orient:vertical; overflow:hidden; }" },
 ];
 try {
