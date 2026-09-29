@@ -6623,6 +6623,39 @@ window.rescheduleAutoSend = function () { try { scheduleAutoSend(); } catch (e) 
 document.addEventListener('contact-switched', function () {
 try { if (window.replyCfg) scheduleAutoSend(); } catch (e) {}
 });
+let asHiddenAt = 0, asLastTryAt = 0, asCatchupAt = 0, asCatchupTries = 0;
+function asCatchupMinMs(c) {
+if (cfgn(c, 'dnd-en', 0) === 1) return 30 * 60000; // 免打扰档与 scheduleAutoSend 的 30 分钟下限同源
+return Math.min(600, Math.max(1, Number(cfgn(c, 'as-min', 5)) || 5)) * 60000;
+}
+function asForegroundCatchup() {
+try {
+if (document.visibilityState !== 'visible') return;
+const now = Date.now();
+if (now - asCatchupAt < 5000) return; // 一次回场多通道报到只算一次（页面可见性切换／后台保活统一信号）
+if (!window.replyCfg) { if (++asCatchupTries <= 6) setTimeout(asForegroundCatchup, 1500); return; } // 回复设置未就绪不空掷（空配置会拿默认 30% 冒充用户设的概率）；合并戳在闸后再盖＝重试不被 5 秒窗吞掉
+asCatchupAt = now;
+if (!asHiddenAt && document.wasDiscarded !== true) return; // 冷启动起就没离开过＝没有「错过的轮」可补
+const away = asHiddenAt ? now - asHiddenAt : Infinity;
+asHiddenAt = 0;
+const c = cfg();
+if (cfgn(c, 'as-en', 1) !== 1) return;
+const minMs = asCatchupMinMs(c);
+if (away < minMs) return; // 短离场：正常定时器还挂着，不抢
+if (now - asLastTryAt < minMs) return; // 上一轮刚开掷过（含后台节流迟到的旧定时器先跑）＝不双掷
+clearTimeout(autoTimer);
+tryAutoSend();
+scheduleAutoSend();
+try { console.log('[mochi-auto] fg catchup fired, away_ms=%s', away); } catch (e) {}
+} catch (e) {}
+}
+document.addEventListener('visibilitychange', function () {
+if (document.visibilityState === 'hidden') asHiddenAt = Date.now();
+else asForegroundCatchup();
+});
+document.addEventListener('mochi-fg-resume', asForegroundCatchup); // bg-keep 统一信号：覆盖只发 focus/pageshow 的内核与 bfcache 恢复
+if (typeof document.wasDiscarded !== 'undefined' && document.wasDiscarded === true) setTimeout(asForegroundCatchup, 4000); // 被丢弃后重载＝长离场回场（手动刷新不走这里）
+window.__asCatchupProbe = { fire: asForegroundCatchup, state: function () { return { hiddenAt: asHiddenAt, lastTry: asLastTryAt, catchupAt: asCatchupAt }; } }; // 供 verify 脚本/诊断只读探测
 const INVITE_DECLINE = ['下次吧，现在不太想玩~', '等会儿再陪你玩好不好', '先不玩啦，待会儿再说', '现在没状态，下次一定'];
 const CUDDLE_DECLINE = ['下次再贴吧，先记着这笔~', '等会儿补给你，说话算数', '先欠着，攒到晚上一起还~', '今天想先自己待会儿，明天加倍还你'];
 const CUDDLE_REPLIES = ['嗯……蹭到了。暖暖的，很喜欢。', '那我要贴很久哦，不许偷偷跑掉。', '手被握住了，就这样待一会儿。', '感觉到了，你在旁边。很安心。', '贴贴充电中……好，满格了。'];
@@ -6857,6 +6890,7 @@ return true;
 window.tryActiveInvite = tryActiveInvite;
 function tryAutoSend() {
 try {
+asLastTryAt = Date.now(); // #1465 补掷去重锚：任何一轮真实开掷（含后台节流迟到的旧定时器）先盖章，回前台补掷据此让位
 if (window.nightModeActive && window.nightModeActive()) { try { console.log('[mochi-auto] night mode, skip'); } catch(e){} return; }
 const c = cfg();
 const autoCid = window.__activeCid || 'default';

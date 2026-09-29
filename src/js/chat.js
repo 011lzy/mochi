@@ -8861,6 +8861,48 @@ window.rescheduleAutoSend = function () { try { scheduleAutoSend(); } catch (e) 
 document.addEventListener('contact-switched', function () {
 try { if (window.replyCfg) scheduleAutoSend(); } catch (e) {}
 });
+// FIX 2026-09-30 #1465 主动发送「回前台补掷一轮」：整条主动消息链是页面内 setTimeout（scheduleAutoSend），
+// 后台被冻结/丢弃（Edge 睡眠标签页/Chrome 内存节省程序/ROM 省电整页冻结/iOS 挂起）期间错过的轮次永远丢失，
+// 回前台还要重新等满间隔才掷第一签——ta-ask 互动卡/备忘录/经期关心/心意币申请都有回前台补触发通道，
+// 唯独主动发送没有（报障形态＝「概率设了 60%，一天都没触发」，页面死多久就欠多久，机型无关）。
+// 补掷判据（纯时序、零机型/零 UA 分支）：①本页寿命内真见过一次 hidden（冷启动没离开过不补，首轮仍由正常
+// 定时器出；唯一例外＝document.wasDiscarded 回载——页面是被浏览器丢掉后才重载的，回来即视同长离场）；
+// ②离场时长 ≥ 当前口径的最短间隔（含免打扰 30 分钟档）＝期间确实欠了一轮；③距上一轮开掷 ≥ 同阈值
+//（后台节流迟到的旧定时器先跑就让它赢＝双通道天然去重，回场瞬间不双掷）。补掷动作＝清掉过期挂起定时器
+// → tryAutoSend() → scheduleAutoSend() 重排下一轮；夜间模式/开关/概率/字卡池判定全部复用原链路，本处不加新分支。
+let asHiddenAt = 0, asLastTryAt = 0, asCatchupAt = 0, asCatchupTries = 0;
+function asCatchupMinMs(c) {
+if (cfgn(c, 'dnd-en', 0) === 1) return 30 * 60000; // 免打扰档与 scheduleAutoSend 的 30 分钟下限同源
+return Math.min(600, Math.max(1, Number(cfgn(c, 'as-min', 5)) || 5)) * 60000;
+}
+function asForegroundCatchup() {
+try {
+if (document.visibilityState !== 'visible') return;
+const now = Date.now();
+if (now - asCatchupAt < 5000) return; // 一次回场多通道报到只算一次（页面可见性切换／后台保活统一信号）
+if (!window.replyCfg) { if (++asCatchupTries <= 6) setTimeout(asForegroundCatchup, 1500); return; } // 回复设置未就绪不空掷（空配置会拿默认 30% 冒充用户设的概率）；合并戳在闸后再盖＝重试不被 5 秒窗吞掉
+asCatchupAt = now;
+if (!asHiddenAt && document.wasDiscarded !== true) return; // 冷启动起就没离开过＝没有「错过的轮」可补
+const away = asHiddenAt ? now - asHiddenAt : Infinity;
+asHiddenAt = 0;
+const c = cfg();
+if (cfgn(c, 'as-en', 1) !== 1) return;
+const minMs = asCatchupMinMs(c);
+if (away < minMs) return; // 短离场：正常定时器还挂着，不抢
+if (now - asLastTryAt < minMs) return; // 上一轮刚开掷过（含后台节流迟到的旧定时器先跑）＝不双掷
+clearTimeout(autoTimer);
+tryAutoSend();
+scheduleAutoSend();
+try { console.log('[mochi-auto] fg catchup fired, away_ms=%s', away); } catch (e) {}
+} catch (e) {}
+}
+document.addEventListener('visibilitychange', function () {
+if (document.visibilityState === 'hidden') asHiddenAt = Date.now();
+else asForegroundCatchup();
+});
+document.addEventListener('mochi-fg-resume', asForegroundCatchup); // bg-keep 统一信号：覆盖只发 focus/pageshow 的内核与 bfcache 恢复
+if (typeof document.wasDiscarded !== 'undefined' && document.wasDiscarded === true) setTimeout(asForegroundCatchup, 4000); // 被丢弃后重载＝长离场回场（手动刷新不走这里）
+window.__asCatchupProbe = { fire: asForegroundCatchup, state: function () { return { hiddenAt: asHiddenAt, lastTry: asLastTryAt, catchupAt: asCatchupAt }; } }; // 供 verify 脚本/诊断只读探测
 // FIX 2026-09-04 #158 本池是「我」拒绝 TA 邀请后自己发的婉拒话术，逐条必须是拒绝者视角；原第二条「等会儿再陪我玩好不好」是邀请者(TA)口吻（陪我玩=要对方陪），用户误以为该由联系人发送，改为「等会儿再陪你玩好不好」
 // v3.14.x：贴贴邀请（cuddle）——正常情侣贴贴互动（贴/抱/牵手/靠着），没有游戏半框：
 // 同意后轻震动一下（体感反馈），TA 稍后回应一句贴贴的话；婉拒用专属文案
@@ -9150,6 +9192,7 @@ return true;
 window.tryActiveInvite = tryActiveInvite;
 function tryAutoSend() {
 try {
+asLastTryAt = Date.now(); // #1465 补掷去重锚：任何一轮真实开掷（含后台节流迟到的旧定时器）先盖章，回前台补掷据此让位
 // 夜间模式（设置里开启后 22:00–7:00 生效）：联系人不再主动发消息（拍一拍/邀请/查岗同链一并暂停）
 if (window.nightModeActive && window.nightModeActive()) { try { console.log('[mochi-auto] night mode, skip'); } catch(e){} return; }
 const c = cfg();

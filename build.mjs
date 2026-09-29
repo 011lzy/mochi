@@ -6158,6 +6158,12 @@ const FIX_SENTINELS = [
   { name: '#1466l 滑动期临时提层挂类（删＝没开整页背景的桌面翻页半路只画一半复发）', file: 'js/desktop-slider.js', needle: "pages.classList.add('swipe-warm');" },
   { name: '#1466m 回桌面先 sync 再落位（删＝idx 陈旧时 snapToIdx 照陈旧值把 scrollLeft 写回别的页＝「自己弹回去」）', file: 'js/desktop-slider.js', needle: 'sync(); // #1466：先按真实落点校正 idx 再落位' },
   { name: '#1466n 滑动期提层 CSS（删＝.swipe-warm 挂了也没有层，半屏白块复发）', file: 'css/home.css', needle: '.desktop-pages.swipe-warm .page-slide { will-change: transform; }' },
+  /* ==== 2026-09-30 #1465 主动发送「回前台补掷一轮」（作者转报：有用户设 60% 概率一整天没触发、另一台设备正常）====
+     根因＝整条主动消息链是页面内定时器（scheduleAutoSend→tryAutoSend），ta-ask/备忘录/经期关心/心意币申请
+     都有回前台补触发通道，唯独主动发送没有——后台冻结/页面被丢弃期间错过的轮次永远丢失，回前台还要重新
+     等满间隔才掷第一签；页面死多久就欠多久＝「设了概率整天不触发」，机型/浏览器无关。两针钉补掷本体。 */
+  { name: '#1465a 主动发送回前台补掷的去重锚：tryAutoSend 开掷即记时（删＝后台节流迟到的旧定时器先跑后补掷通道失去让位基准，回场瞬间可双掷）', file: 'js/chat.js', needle: 'asLastTryAt = Date.now();' },
+  { name: '#1465b 主动发送回前台补掷闸：真见过 hidden 或页面被丢弃回载才补＋离场≥最短间隔＋上轮开掷≥同阈值（删回无条件＝冷启动也空掷、手动刷新也掷、「短离场不抢」契约丢失）', file: 'js/chat.js', needle: 'if (!asHiddenAt && document.wasDiscarded !== true) return;' },
 
 ];
 try {
