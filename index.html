@@ -10700,9 +10700,9 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
       <!-- #570：第三行开屏新版检测（ver-check.js 渲染）：检测中 / ✓已是最新 / ⇩有新版本可点更新 -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1790658081824">
-        <span class="sv-app">Mochi 字卡传讯 <b>v8.54</b></span>
-        <span class="sv-deploy">部署于 2026-09-29 13:01<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1790660946302">
+        <span class="sv-app">Mochi 字卡传讯 <b>v8.53</b></span>
+        <span class="sv-deploy">部署于 2026-09-29 13:49<span id="splash-ver-live"></span></span>
         <span class="sv-check" id="splash-ver-check" hidden></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
@@ -12183,7 +12183,22 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
           <div class="txt">屏幕适配微调<span class="sub">顶部遮挡 / 底部裁切 / 页面留白 / 字太小？滑杆边拖边看、当场见效，双击滑杆复位；面板顶部「正在调」旁边两枚页签（桌面 / 聊天），反色高亮的那一枚＝你正在调的页面，点另一枚切过去看现场、「收起」变一枚小胶囊（不挡底部导航与输入栏）；滑杆按生效页面分三组（两页通用 / 只影响桌面页 / 只影响聊天正文文字），当前页那组带标记；面板挡画面时按住标题行上下拖即可挪开；桌面长按空白→装修模式「屏幕适配」、聊天设置→美化→屏幕适配微调 各有一个入口；本机永久保存（换设备各自调）</span></div>
           <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></div>
         </div>
-      </div>
+        <!-- v3.26.x #185：顶部避让修正——「系统保留/覆盖」两形态 JS 无法区分（信号相同），
+             不同机型各属其一：开启=声明本机为覆盖形态（恢复 env 顶部避让+全屏高度含 env），
+             修「Mochi 行与系统时间重叠」；默认关=系统保留形态（修「底部白带」）。
+             #978：本项真实门槛是「添加到主屏幕后的独立应用形态」（执行器 forceCover 的
+             standalone 就是 ios-pwa-standalone 类），不是「iPhone」这个平台——iPhone 用
+             Safari 直接打开时开关同样无效，故撤掉静态「仅 iPhone」胶囊，改由 JS 按形态提示。
+             #1408（2026-09-29 作者点名「这个功能放错位置了，应该放在设置的【工具】里」）：本行
+             自 #961 建的「信息诊断」段搬进「工具」段、紧跟「屏幕适配微调」——它与那七轴治的是
+             同一件事（屏幕对不齐自己修），而「信息诊断」里全是只读报告，一个会改渲染落值的开关
+             夹在那里既藏又混类目。行 id／开关 id 一字未动＝settings-help 功能说明胶囊、
+             personalize.js 的形态判定与「去调整」跳转、device.js 的读写与哨兵全部照旧。 -->
+        <div class="set-row">
+          <div class="txt">顶部避让修正<span class="sub">只在「添加到主屏幕」后打开（iPhone / iPad 独立应用形态）才有意义；顶部 Mochi 行与手机时间重叠时建议开启，底部出现白带时关闭（改后自动刷新）。浏览器里直接打开时本开关无效果，安卓请用「屏幕适配微调」</span></div>
+          <label class="toggle"><input type="checkbox" id="safe-top-force"><span class="tk"></span></label>
+        </div>
+      </div><!-- /set-group tools · safe-top-force -->
       <!-- #532 字卡使用状态自检（card-audit.js）——用户点名「放在【工具】靠前的地方」，
            独立成组：一眼看懂自定义/系统预设字卡能不能用、怎么调。
            （#606 后「使用说明」已移入「关于 → 帮助与支持」） -->
@@ -12244,7 +12259,9 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
            与导出/导入同属数据管理，用户要求三件套都在首屏 tag 里看得见；危险操作仍置段尾与只读工具分开。 -->
       </div><!-- /them-sec tools -->
       <!-- v3.26.x #961（重放 #957，2026-09-21 用户直派「把信息诊断相关在设置的 tag 里新开一个分类」）——
-           诊断行与用户主动跑的自测行集中到「信息诊断」独立 tag：「查看存储 / 压缩图片 / 字卡使用状态自检 / 屏幕适配微调」仍留「工具」。
+           诊断行与用户主动跑的自测行集中到「信息诊断」独立 tag：「查看存储 / 压缩图片 / 字卡使用状态自检 / 屏幕适配微调 / 顶部避让修正」仍留「工具」。
+           （#1408，2026-09-29 作者点名「这个功能放错位置了」：顶部避让修正本来随诊断组一起搬了过来，本批搬回「工具」——
+           它是会改渲染落值的开关，不是只读报告，与「屏幕适配微调」同一件事。）
            行 id 一律不变＝settings-help 功能说明胶囊、直达跳转 closest('.them-sec')、build.mjs 哨兵接线不断。 -->
       <div class="them-sec" data-sec="diag">
       <div class="set-group glass">
@@ -12257,16 +12274,8 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
         </div>
         <!-- v3.26.x #175：屏幕适配诊断（与信息诊断分开）——专项定位跨设备屏幕适配问题
              （顶部空白/双倍避让/底部裁切/缩放异常），device.js 采集+自动判定 -->
-        <!-- v3.26.x #185：顶部避让修正——「系统保留/覆盖」两形态 JS 无法区分（信号相同），
-             不同机型各属其一：开启=声明本机为覆盖形态（恢复 env 顶部避让+全屏高度含 env），
-             修「Mochi 行与系统时间重叠」；默认关=系统保留形态（修「底部白带」）。
-             #978：本项真实门槛是「添加到主屏幕后的独立应用形态」（执行器 forceCover 的
-             standalone 就是 ios-pwa-standalone 类），不是「iPhone」这个平台——iPhone 用
-             Safari 直接打开时开关同样无效，故撤掉静态「仅 iPhone」胶囊，改由 JS 按形态提示。 -->
-        <div class="set-row">
-          <div class="txt">顶部避让修正<span class="sub">只在「添加到主屏幕」后打开（iPhone / iPad 独立应用形态）才有意义；顶部 Mochi 行与手机时间重叠时建议开启，底部出现白带时关闭（改后自动刷新）。浏览器里直接打开时本开关无效果，安卓请用「屏幕适配微调」</span></div>
-          <label class="toggle"><input type="checkbox" id="safe-top-force"><span class="tk"></span></label>
-        </div>
+        <!-- v3.26.x #185：顶部避让修正开关（旧版本行在本段）→ #1408 自「信息诊断」搬入
+             「工具」段，紧跟「屏幕适配微调」；此处只留一行指路，免得下一位又来「信息诊断」找它。 -->
         <!-- v3.27.x #764：原「屏幕位置设置」行（#707）已合并升级为工具区首位的「屏幕适配微调」独立组，本组只留诊断两行 -->
         <div class="set-row" id="row-screen-diag">
           <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/><path d="M8 6h8"/></svg></div>
@@ -12396,7 +12405,7 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
         <div class="set-row" id="row-changelog">
           <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 12c0-5.5 3.5-10 10-10 3.7 0 7 2 8.8 5M22 12c0 5.5-3.5 10-10 10-3.7 0-7-2-8.8-5"/></svg></div>
           <div class="txt">版本与更新<span class="sub">当前版本 · 一键更新到最新（更新摘要见开屏公告）</span></div>
-          <div class="val" id="about-ver-val">v8.54</div>
+          <div class="val" id="about-ver-val">v8.53</div>
           <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></div>
         </div>
         <!-- #606 开源与致谢：开源/私有部署说明 + 灵感来源与致谢（内容与功能介绍页同源，做成独立入口） -->
@@ -12481,7 +12490,7 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
         </div>
       </div>
       </div><!-- /them-sec about -->
-      <div class="ver">Mochi 字卡传讯 v8.54</div>
+      <div class="ver">Mochi 字卡传讯 v8.53</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -12875,7 +12884,7 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v8.54</span>
+              <span class="lic-ver">v8.53</span>
             </div>
             <div class="lic-p">原创极简风情侣字卡传讯，不是小手机：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <!-- v3.26.x #648：原版口径澄清——唯一原版使用网站＋其他版本均为开放二传二改产生的二传/二改版 -->
@@ -13632,7 +13641,7 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
               <div class="lic-li"><b>「数据怎么丢了」其实开的是另一个入口</b>：浏览器标签页 与「添加到主屏幕 / 安装」后的独立应用<b>可能各用一套存储</b>（安卓 Edge 尤其如此），两边数据看起来不一样。安装前先「导出数据」、装好后再「导入数据」；两边<b>不要同时打开</b>使用。</div>
               <div class="lic-li"><b>页面变形 / 布局不对</b>：浏览器的「桌面版网站」模式会把设备伪装成电脑（UA、屏幕尺寸、触摸能力全变），识别可能失手。用 设置 → 系统 →「<b>手机布局（强制）</b>」掰回来（或地址栏加 <b>?mobile=1</b> 强开手机布局、<b>?pc=1</b> 强开电脑布局）。</div>
               <div class="lic-li"><b>保活 / 通知被系统悄悄杀掉</b>：系统省电、后台清理、长时间不用都会杀掉后台页面，表现为「以前好好的，现在不弹了」。到<b>系统设置 → 应用 → 该浏览器 → 省电 / 电池策略</b>里选「<b>无限制 / 允许后台活动</b>」，在<b>最近任务</b>里把本站<b>锁定</b>、别横向划掉，然后回本页把开关重新打开一次。<b>关 Edge「睡眠标签页」/ Chrome「内存节省程序」对已加到桌面的本站没有用</b>——那两个只管浏览器标签页（详见第 11 节）。</div>
-              <div class="lic-li"><b>顶部空白 / 底部白带</b>：iOS 安全区（刘海、底部横条）与全屏模拟状态栏的高度在不同机型上会打架。iOS 上出现顶部「Mochi」行与系统时间重叠时，开「<b>顶部避让修正</b>」；底部出现白带则把它关回。</div>
+              <div class="lic-li"><b>顶部空白 / 底部白带</b>：iOS 安全区（刘海、底部横条）与全屏模拟状态栏的高度在不同机型上会打架。iOS 上出现顶部「Mochi」行与系统时间重叠时，开「<b>顶部避让修正</b>」（设置 → 工具，就在「屏幕适配微调」下面）；底部出现白带则把它关回。</div>
             </div>
           </details>
           <details class="lic-grp">
@@ -20039,7 +20048,7 @@ else if (envTop >= 20) mode = '覆盖形态（页面顶到屏幕最顶，系统�
 else if (diff >= 20) mode = '已避让形态（系统已把网页起点放在状态栏下方，页面不应再加顶部 padding）';
 else mode = '无安全区/常规视口';
 add(true, '顶部形态判定：' + mode, 'env=' + envTop + 'px  var(--mochi-safe-top)=' + varTop + 'px  diff(screen−inner)=' + diff + 'px  判定器=' + Fm.form + '/safeTop=' + Fm.safeTop + '/期望底=' + Fm.expBase + (Fm.iosCover ? '/独立覆盖=1' : ''));
-if (Fm.resStand && !Fm.forceCover) add(true, '歧义形态提示：若顶部 Mochi 行与灵动岛/时间重叠或点不动 → 开启上方【顶部避让修正】开关（自动刷新即修）；若底部白带则保持关闭');
+if (Fm.resStand && !Fm.forceCover) add(true, '歧义形态提示：若顶部 Mochi 行与灵动岛/时间重叠或点不动 → 到 设置→工具 开启【顶部避让修正】开关（自动刷新即修）；若底部白带则保持关闭'); // #1408：该开关自「信息诊断」段搬回「工具」段（作者点名放错位置），本句原写「上方」＝报告在诊断段时把人指去同一屏的上一行，搬走后这句会指空
 if (inp.sbTop == null) add(true, '状态栏隐藏（聊天等全屏页），跳过顶位判定');
 if (inp.sbTop != null) {
 const expect = Fm.expTop;
@@ -22570,4 +22579,4 @@ window.__mochiBootRetry = function () { try { location.reload(); } catch (e) {} 
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mum7l6ow -->
+<!-- __MOCHI_EOF__ mum9akxq -->
