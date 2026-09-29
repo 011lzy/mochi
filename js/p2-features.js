@@ -1491,7 +1491,7 @@ if (type === 'egg' && eggUsed()) {
 toast('彩蛋「在你心里」一周只能用一次');
 return;
 }
-if (window.chatAddIn) window.chatAddIn(text);
+if (window.chatAddIn) window.chatAddIn(text, { rateAllow: true });
 saveCur({ text: text, type: type, ts: ts });
 const hist = loadHist();
 hist.unshift({ text: text, type: type, ts: ts });
@@ -1522,7 +1522,7 @@ let pendingDir = null;
 function sendComboCard(dirText, distText) {
 const ts = Date.now();
 const text = dirText + ' ' + distText;
-if (window.chatAddIn) window.chatAddIn(text);
+if (window.chatAddIn) window.chatAddIn(text, { rateAllow: true });
 saveCur({ text: text, type: 'combo', ts: ts });
 const hist = loadHist();
 hist.unshift({ text: text, type: 'combo', ts: ts });
@@ -1619,9 +1619,8 @@ html += '<div class="set-group glass" style="margin:14px 2px 0">'
 + '<div class="gs-row"><span>TA 自动换位</span><label class="toggle"><input type="checkbox" id="loc-auto-tg"' + (store.get('loc-auto') === '0' ? '' : ' checked') + '><span class="tk"></span></label></div>'
 + '<div class="gs-row"><span>换位提醒弹窗</span><label class="toggle"><input type="checkbox" id="loc-bubble-tg"' + (store.get('loc-bubble') === '0' ? '' : ' checked') + '><span class="tk"></span></label></div>'
 + '<div class="gs-row"><span>换位发到聊天</span><label class="toggle"><input type="checkbox" id="loc-chat-tg"' + (store.get('loc-chat') === '0' ? '' : ' checked') + '><span class="tk"></span></label></div>'
-+ '<div class="gs-row"><span>主动感知即刻换位</span><label class="toggle"><input type="checkbox" id="loc-shift-tg"' + (store.get('loc-sense-shift') === '1' ? ' checked' : '') + '><span class="tk"></span></label></div>'
 + '</div>'
-+ '<div class="gs-sub" style="padding:0 2px 10px">TA 自动换位：开启后每 2～6 小时随机换一次位置（关掉后到点也不换；「问 TA 一声」不受影响）。换位内容 70% 是陪伴卡（在你身边／一直没走远等），30% 从字卡库启用的位置卡里随机；每次换位都会记进「位置时间线」，换位内容与上一次不同时才算「换了位置」才弹提醒。<br>换位提醒弹窗：TA 自动换位置时顶部弹的黑色轻提示。<br>换位发到聊天：关掉后 TA 自动换位只记进「位置时间线」，不再发进聊天记录。<br>主动感知即刻换位（默认关）：打开后点上方「方位感知」里的【感知一下】＝先让 TA 当场换一次位置、再按新位置报方位，不用等那发 2～6 小时；它不受「TA 自动换位」总开关与夜间静默管（那两枚管的是 TA 自己到点来打扰），发进聊天与弹提醒仍照上面两枚开关。</div>';
++ '<div class="gs-sub" style="padding:0 2px 10px">TA 自动换位：开启后每 2～6 小时随机换一次位置（关掉后到点也不换；「问 TA 一声」不受影响）。换位内容 70% 是陪伴卡（在你身边／一直没走远等），30% 从字卡库启用的位置卡里随机；每次换位都会记进「位置时间线」，换位内容与上一次不同时才算「换了位置」才弹提醒。<br>换位提醒弹窗：TA 自动换位置时顶部弹的黑色轻提示。<br>换位发到聊天：关掉后 TA 自动换位只记进「位置时间线」，不再发进聊天记录。<br>方位感知的【感知一下】：点了就先让 TA 当场换一次位置、再按新位置报方位，不用等那发 2～6 小时（不用打开任何开关，点了就是换）；它不受「TA 自动换位」总开关与夜间静默管（那两枚管的是 TA 自己到点来打扰），发进聊天与弹提醒仍照上面两枚开关。</div>';
 html += '<button class="loc-ask-btn" id="loc-ask-btn">问 TA 一声「你在哪？」</button>';
 body.innerHTML = html;
 const askBtn = document.getElementById('loc-ask-btn');
@@ -1636,7 +1635,6 @@ if (key === 'loc-auto' && tg.checked) scheduleLocAuto();
 bindLocTg('loc-auto-tg', 'loc-auto');
 bindLocTg('loc-bubble-tg', 'loc-bubble');
 bindLocTg('loc-chat-tg', 'loc-chat');
-bindLocTg('loc-shift-tg', 'loc-sense-shift');
 const prevBtn = document.getElementById('loc-day-prev');
 if (prevBtn) prevBtn.addEventListener('click', () => { if (dayIdx < days.length - 1) { locViewDate = days[dayIdx + 1]; renderLocPanel(); } });
 const nextBtn = document.getElementById('loc-day-next');
@@ -1772,7 +1770,6 @@ if (Array.isArray(w) && w.length) return w;
 return { direct: ['无法判断'], rangef: ['无法判断'], power: ['若有若无'], touch: ['好像碰到了你的手'] }[k];
 }
 function isUndirected(d) { return d === '无法判断' || d === '身边'; }
-function shiftNow() { return store.get('loc-sense-shift') === '1'; }
 function rollDir() {
 const words = senseWords('direct');
 const dir8 = DIRS.map(d => d.k).filter(k => words.indexOf(k) >= 0);
@@ -1830,7 +1827,7 @@ s.dir = fixedDir;
 s.nextDirAt = now + (15 + Math.floor(Math.random() * 31)) * 60000; // 15~45 分钟
 dirty = true;
 }
-} else if (!s.dir || (s.nextDirAt && now >= s.nextDirAt) || (force && shiftNow())) {
+} else if (!s.dir || (s.nextDirAt && now >= s.nextDirAt) || force) {
 s.dir = rollDir();
 s.nextDirAt = now + (15 + Math.floor(Math.random() * 31)) * 60000; // 15~45 分钟
 dirty = true;
@@ -1912,7 +1909,7 @@ const now = Date.now();
 if (now < perceiveCdUntil) return;
 perceiveCdUntil = now + 4000;
 if (btn) { btn.classList.add('busy'); btn.disabled = true; }
-if (shiftNow() && window.locShiftNow) window.locShiftNow();
+if (window.locShiftNow) window.locShiftNow();
 const s = getSense(true);
 const touched = maybeTouch(s);
 const result = document.getElementById('fw-result');

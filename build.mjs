@@ -5997,13 +5997,14 @@ const FIX_SENTINELS = [
   { name: '#1356a 抽取器有「抽干」这一档（旧写法抽完回头重洗＝池子只剩一张时把同一张卡原样铺满一条动态，用户所见「朋友圈只发一个反复的文字 1 1 1 1」；逐类往内容表里补「哪种卡算重复」正是覆盖式修补）', file: 'js/feed.js', needle: 'if (noWrap && dealt) return undefined;' },
   { name: '#1356b 评论/回复这一族：文字桶抽干落到内置对话兜底池，两腿都干＝收笔不再拼（删＝回到「同一张卡重复 N 遍」）', file: 'js/feed.js', needle: '!(take(pick.text) || take(pick.fb))' },
   { name: '#1356c TA 发动态这一族同一条口径（要拼的张数不超过这一轮真拿得出的不重复张数）', file: 'js/feed.js', needle: 'take(pick.text, textParts) || take(pick.fb, textParts)' },
-  /* ==== 2026-09-29 #1436（作者两条现场直派：①「开着【换位发到聊天】却只有弹窗——没发到聊天、也没记进位置时间线」②「新增方位感知里可手动打开【主动感知位置时，联系人换位不受时间内才换位的限制】」。无头复现量具在纯 HEAD 产物上分别量到「histLen 2→3 而屏上 .loc-tl-item 恒 1 行」与「rl-en=1/rl-max=1 时 chatTotal 4→4、气泡照弹」。判据一律零机型／零 UA 分支：只看 per-cid 键与代码自有的时间闸 ==== */
-  { name: '#1436a 换位那一发进聊天带限流豁免位（删＝「TA 消息限流」满时 rateBlocksIn 静默 return null：气泡照弹、时间线照记、聊天一条不加＝作者报的「只有弹窗」）', file: 'js/p2-features.js', needle: 'window.chatAddIn(text, { rateAllow: true })' },
+  /* ==== 2026-09-29 #1436（作者两条现场直派：①「开着【换位发到聊天】却只有弹窗——没发到聊天、也没记进位置时间线」②「新增方位感知里可手动打开【主动感知位置时，联系人换位不受时间内才换位的限制】」。无头复现量具在纯 HEAD 产物上分别量到「histLen 2→3 而屏上 .loc-tl-item 恒 1 行」与「rl-en=1/rl-max=1 时 chatTotal 4→4、气泡照弹」。同日作者复核两直派续批：①「不要受限流管」扩到手动发位置卡（新增 #1436g）②「我是要我自己主动点击【感知一下】才变啊，你是不是乱加设置了」＝按钮即开关，退役「主动感知即刻换位」开关（#1436f 改删除型），#1436a/c/d 同名重锚到无条件形态。判据一律零机型／零 UA 分支 ==== */
+  { name: '#1436a 换位那一发进聊天带限流豁免位（删＝「TA 消息限流」满时 rateBlocksIn 静默 return null：气泡照弹、时间线照记、聊天一条不加＝作者报的「只有弹窗」；续批针收窄到带 loc-chat 闸的那一行，与手动发卡那两条 #1436g 区分）', file: 'js/p2-features.js', needle: "store.get('loc-chat') !== '0' && window.chatAddIn) window.chatAddIn(text, { rateAllow: true })" },
   { name: '#1436b 换位落地必重画位置面板（删＝只写库不重画，面板开着时「此刻的位置」与「位置时间线」停在上一张＝作者报的「没记进时间线」；两条手动发卡路一直是这个口径，唯独自动那条漏了）', file: 'js/p2-features.js', needle: 'renderLocPanel(); // #1436' },
-  { name: '#1436c 主动感知越漂移闸的方向重掷（删＝点【感知一下】仍被 15~45 分钟 nextDirAt 短路，回到「一直是同一个方位」）', file: 'js/p2-features.js', needle: '(force && shiftNow())' },
-  { name: '#1436d 感知一下先催一次换位再取读数（删＝新开关只剩改方向、TA 的位置与时间线不动，作者点选的「真换一次位」落空）', file: 'js/p2-features.js', needle: 'if (shiftNow() && window.locShiftNow) window.locShiftNow();' },
+  { name: '#1436c 主动感知越漂移闸的方向重掷（删＝点【感知一下】仍被 15~45 分钟 nextDirAt 短路，回到「一直是同一个方位」；续批＝force 无条件，不再看任何开关）', file: 'js/p2-features.js', needle: 'now >= s.nextDirAt) || force' },
+  { name: '#1436d 感知一下先催一次换位再取读数（删＝点了只报方位、TA 的位置与时间线不动，作者点选的「真换一次位」落空；续批＝无条件催、不看开关）', file: 'js/p2-features.js', needle: 'if (window.locShiftNow) window.locShiftNow();' },
   { name: '#1436e 换位那一发抽出可复用出口并避开上一张（删＝方位感知没有路走这条机制，或每次撞回同一张卡＝点了不动）', file: 'js/p2-features.js', needle: 'window.locShiftNow = function ()' },
-  { name: '#1436f 第四枚开关落进换位设置组并绑 per-cid 键（删＝设置里没有它，用户只能永远等那一发 2~6 小时）', file: 'js/p2-features.js', needle: "bindLocTg('loc-shift-tg', 'loc-sense-shift')" },
+  { name: '#1436f 感知一下的换位前置开关已退役（回流＝作者否决的「多一枚默认关的开关」回来了，点感知一下又不换了）', file: 'js/p2-features.js', needle: 'loc-shift-tg', absent: true },
+  { name: '#1436g 手动发位置卡/组合卡带限流豁免位（删＝额度满时你手动发或「问 TA 一声」TA 回的位置卡被静默吞＝作者直派「不要受限流管」；两处同型共一针，行为另有 verify-loc-change-setting 钉）', file: 'js/p2-features.js', needle: 'if (window.chatAddIn) window.chatAddIn(text, { rateAllow: true });' },
   /* ==== 2026-09-30 #1461 作者直派：本地音乐上传警示整段标红＋点名 QQ音乐/网易云加密实例（作者口径实例句，防并行改写丢字） ==== */
   { name: '#1461a 上传警示的加密实例句在位（删＝作者点名的 QQ音乐/网易云「有加密、离开本体放不出、须自己转格式破解」提醒丢失，红标回落灰字）', file: 'js/music-player.js', needle: '只能自己转格式破解后才能在别的应用和本地播放' },
   /* ==== 2026-09-29 #1416（作者复报「后台通知说有回信、点进信箱找不到」同批的四条定型＋三条换锚） ==== */

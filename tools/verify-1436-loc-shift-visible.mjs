@@ -7,8 +7,9 @@
 //       · 聊天：把「TA 消息限流」打开（rl-en=1）后 chatTotal 4→4、气泡照弹＝那一发被 rateBlocksIn **静默吞掉**。
 //     修法＝emitLocChange 落地必重画面板＋刷新感知，且发进聊天那一发带 {rateAllow:true}（作者点选「让换位豁免限流」）。
 //  ② 「新增 ta 的方位感知里可手动打开【主动感知位置时，联系人换位不受时间内才换位的限制】——现在点【感知一下】
-//     受『TA 自动换位：每 2～6 小时随机换一次』限制，一直是同一个方位」——作者点选「真换一次位」：
-//     第四枚开关 loc-sense-shift（默认关）开着时，点【感知一下】先催 TA 当场换一张位置卡，再按新位置报方位。
+//     受『TA 自动换位：每 2～6 小时随机换一次』限制，一直是同一个方位」——同日作者复核直派「我是要我自己主动
+//     点击【感知一下】才变啊，你是不是乱加设置了」＝**按钮即开关**：第一版那枚 loc-sense-shift 开关退役，
+//     点【感知一下】无条件先催 TA 当场换一张位置卡、再按新位置报方位；手动发的位置卡也不受限流管（#1436g）。
 //
 // 用法：node tools/verify-1436-loc-shift-visible.mjs                （量当前产物 index.html + js/p2-features.js）
 //       MOCHI_ROOT=<仓外副本> 跑另一版；MOCHI_EXPECT=red 用于纯 HEAD 的对照（旧产物必红）
@@ -128,8 +129,10 @@ const READ = `(function(){
     dayCount: (function(){var e=document.querySelector('#loc-body .loc-day-count');return e?e.textContent:null;})(),
     todayRows: hist.filter(function(h){try{var d=new Date(h.ts);return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())===today;}catch(e){return false;}}).length,
     chatTotal: rl && rl.total, chatLastIn: (function(){var bs=document.querySelectorAll('#chat-body .msg-in .msg-bubble');return bs.length?(bs[bs.length-1].textContent||'').trim():null;})(),
+    inTexts: (function(){var bs=document.querySelectorAll('#chat-body .msg-in .msg-bubble');var a=[];for(var i=Math.max(0,bs.length-5);i<bs.length;i++)a.push((bs[i].textContent||'').trim());return a;})(),
     bubble: bub && bub.classList.contains('loc-bubble-show') ? (bub.textContent||'') : null,
-    shiftTg: (function(){var t=document.getElementById('loc-shift-tg');return t?t.checked:null;})(),
+    switchCount: (function(){var rows=document.querySelectorAll('#loc-body .set-group .gs-row');return rows.length;})(),
+    hasShiftTg: !!document.getElementById('loc-shift-tg'),
     shiftKey: st.get('loc-sense-shift'),
     shiftFn: typeof window.locShiftNow
   };
@@ -236,44 +239,40 @@ check('B1 换位那一发落进聊天（消息总数 +1）', after2.chatTotal ==
 check('B2 聊天里最后一条 TA 消息就是那句新位置', after2.chatLastIn === after2.first, { last: after2.chatLastIn, first: after2.first });
 check('B3 时间线同步重画（不是只有弹窗）', after2.rows === after2.todayRows && after2.rows > before2.rows, { rows: after2.rows, before: before2.rows });
 
-// ================= C 组：主动感知即刻换位（作者②新开关）=================
-// C-关：默认关着——点【感知一下】只写「感知」那一条，TA 的位置一个字都不动
+// ================= C 组：感知一下＝按钮即开关（作者②复核直派）＋手动发卡不受限流（#1436g）=================
 await boot();
 await seed();
 await openPanel();
 const c0 = await evalJs(READ);
-const offTg = await evalJs("(function(){var t=document.getElementById('loc-shift-tg');return t?{found:true,checked:t.checked,key:window.activeStore().get('loc-sense-shift')}:{found:false};})()");
-check('C0 第四枚开关在设置组里且默认关（xyStore 对没写过的键回 null，不是空串）',
-  !!offTg.found && offTg.checked === false && !offTg.key, offTg);
+check('C0 换位设置组里是三枚开关、第一版那枚前置开关已退役（作者否决「乱加设置」）',
+  c0.switchCount === 3 && c0.hasShiftTg === false && !c0.shiftKey && c0.shiftFn === 'function', { switchCount: c0.switchCount, hasShiftTg: c0.hasShiftTg, shiftKey: c0.shiftKey, shiftFn: c0.shiftFn });
 const tapP1 = await tapEl('#fw-perceive');
-await sleep(700);
-const c1 = await evalJs(READ);
-check('C1 关着时点【感知一下】：只加一条感知记录，位置卡与聊天都不动',
-  tapP1 === true && c1.histLen === c0.histLen + 1 && c1.curText === c0.curText, { tap: tapP1, hist: [c0.histLen, c1.histLen], cur: [c0.curText, c1.curText] });
-// C-开：真点开关 → 催一次换位（且不受「TA 自动换位」总开关与夜间静默管）
-await tapEl('#loc-shift-tg + .tk');
-await seed({ 'loc-sense-shift': '1', 'loc-auto': '0' });
-const onState = await evalJs("(function(){var t=document.getElementById('loc-shift-tg');return {checked:t&&t.checked, key:window.activeStore().get('loc-sense-shift'), autoOff:window.activeStore().get('loc-auto')};})()");
-check('C2 真点开关写回 per-cid 键（loc-sense-shift=1），且这一发在「TA 自动换位」关着时也要生效',
-  onState.checked === true && onState.key === '1' && onState.autoOff === '0', onState);
-// 上一发【感知一下】刚设了 4 秒冷却：不睡过它，这一发会被冷却吞掉（那是尺子的锅，不是实现的）
-await sleep(4600);
-const c2b = await evalJs(READ);
-const t1 = await evalJs("Date.now()");
-const tapP2 = await tapEl('#fw-perceive');
 await sleep(900);
-const c2a = await evalJs(READ);
-check('C3 开着时点【感知一下】：先换一张位置卡再报方位（时间线 +2＝一张位置卡＋一条感知）',
-  tapP2 === true && c2a.histLen === c2b.histLen + 2 && c2a.curText !== c2b.curText, { tap: tapP2, hist: [c2b.histLen, c2a.histLen], cur: [c2b.curText, c2a.curText] });
-// 三个读数必须互相咬合：库里的 loc-current ＝ 面板「此刻的位置」那一格 ＝ 聊天里最后一条 TA 消息。
+const c1 = await evalJs(READ);
+check('C1 不开任何开关直接点【感知一下】：先换一张位置卡再记感知（时间线 +2＝一张位置卡＋一条感知，此刻的位置换新）',
+  tapP1 === true && c1.histLen === c0.histLen + 2 && c1.curText !== c0.curText, { tap: tapP1, hist: [c0.histLen, c1.histLen], cur: [c0.curText, c1.curText] });
+// 三个读数必须互相咬合：库里的 loc-current ＝ 面板「此刻的位置」那一格 ＝ 时间线第一行。
 // （不要用「第一条非 sense 记录」去找新那张卡——位置卡自己的 type 也可能是 sense，实测这样误红过）
 check('C4 三个读数同一条：loc-current＝屏上「此刻的位置」＝时间线第一行是刚写的感知',
-  c2a.curText === c2a.nowCard && c2a.row0 === c2a.first, { cur: c2a.curText, nowCard: c2a.nowCard, row0: c2a.row0, first: c2a.first });
-check('C5 聊天里落了那句新位置（限流豁免位在同一发上）', c2a.chatTotal > c2b.chatTotal && c2a.chatLastIn === c2a.curText, { chat: [c2b.chatTotal, c2a.chatTotal], last: c2a.chatLastIn, cur: c2a.curText });
-// C6 4 秒冷却内再点＝一个字都不写（新开关没把冷却顶掉）
+  c1.curText === c1.nowCard && c1.row0 === c1.first, { cur: c1.curText, nowCard: c1.nowCard, row0: c1.row0, first: c1.first });
+check('C5 聊天里落了那句新位置（限流默认关时也应落）', c1.chatTotal > c0.chatTotal && c1.chatLastIn === c1.curText, { chat: [c0.chatTotal, c1.chatTotal], last: c1.chatLastIn, cur: c1.curText });
+// C6 4 秒冷却内再点＝一个字都不写（按钮即开关没把冷却顶掉）
 const tapP3 = await tapEl('#fw-perceive');
 const c6 = await evalJs(READ);
-check('C6 冷却内连点不催第二次（换位与感知都不写）', c6.histLen === c2a.histLen, { tap: tapP3, hist: [c2a.histLen, c6.histLen] });
+check('C6 冷却内连点不催第二次（换位与感知都不写）', c6.histLen === c1.histLen, { tap: tapP3, hist: [c1.histLen, c6.histLen] });
+// C7 限流满额时「问 TA 一声」：TA 回的组合卡照样落聊天（#1436g 手动发位置卡不限流；旧写法＝静默被吞）
+await sleep(4600); // 过掉感知冷却（C7 不点感知，纯保险）
+await seed({ 'reply-rl-en': '1', 'reply-rl-max': '1', 'reply-rl-win': '5' });
+const c7b = await evalJs(READ);
+const rlFull7 = await evalJs("!!(window.chatRateLimitFull&&window.chatRateLimitFull())");
+const askTapped = await tapEl('#loc-ask-btn'); // askWhere 会发「你在哪？」并把面板收回聊天页
+await sleep(5200); // TA 回组合卡在 2~4 秒随机延迟之后
+const c7a = await evalJs(READ);
+// 只有真走 sendComboCard 的那一发才会写 loc-current＋时间线（引擎对「你在哪？」自己的回复不写这把库）⇒
+// 判「cur 被这发更新、且等于新落聊天的某条 in」——旧版（组合卡被限流静默吞）这一条必红。
+const comboLanded7 = c7a.curText !== c7b.curText && (c7a.inTexts || []).indexOf(c7a.curText) >= 0;
+check('C7 限流满额时「问 TA 一声」TA 回的位置卡照落聊天并写进「此刻的位置」（手动发卡带豁免位，作者直派「不要受限流管」）',
+  askTapped === true && rlFull7 === true && c7a.chatTotal > c7b.chatTotal && comboLanded7, { tapped: askTapped, full: rlFull7, chat: [c7b.chatTotal, c7a.chatTotal], cur: [c7b.curText, c7a.curText], inTexts: c7a.inTexts });
 
 // ================= Z 组：零 JS 错误 + 自证未被 SW 接管 =================
 const errs = await evalJs("(function(){return (window.__jsErrors||[]).filter(function(e){return /loc-|p2-features|sense|shift|playLocFx|chatAddIn/i.test(String((e&&e.message)||e));}).length;})()");

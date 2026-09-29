@@ -19,7 +19,7 @@
 //   B9 抽卡次数口径：自动那条（avoidText=null）一次就收（恰好 2 发 Math.random）；主动那条撞回上一张就重抽
 //   B10 词源全关（陪伴句整组停用＋字卡库位置卡全关）＝这一发整条静默，一个字都不写
 //   S1 源码含三开关渲染 id（loc-auto-tg/loc-bubble-tg/loc-chat-tg）＋ change 写回对应键
-//   S2 #1436 第四枚开关在组里（loc-shift-tg → per-cid 键 loc-sense-shift）＋对外出口 window.locShiftNow
+//   S2 #1436 续批＝按钮即开关：前置开关已退役（三标识符归零）＋感知一下无条件催换位＋对外出口 window.locShiftNow
 // 红对照：MOCHI_P2_FILE=<HEAD 版 p2-features.js> MOCHI_EXPECT=red node tools/verify-loc-change-setting.mjs
 //   ——旧代码无三道闸门与设置组，B2/B3/B4/S1 必红；#1436 之后 B6~B10/S2 也在旧代码上必红
 //   （旧 doLocAuto 不重画、不带 rateAllow、没有 emitLocChange 可抠——extractFn 直接抛＝归进 B* 的「执行失败」）。
@@ -213,9 +213,9 @@ try {
   failures.push('S1：' + e.message);
 }
 try {
-  // S2 #1436：第四枚开关（主动感知即刻换位）在组里、绑在 per-cid 键上，且换位那一发有对外出口
-  extractStr('id="loc-shift-tg"');
-  extractStr("bindLocTg('loc-shift-tg', 'loc-sense-shift')");
+  // S2 #1436 续批：开关退役（loc-shift-tg／loc-sense-shift／shiftNow 一处不剩）＋无条件催换位＋出口仍在
+  if (src.indexOf('loc-shift-tg') >= 0 || src.indexOf('loc-sense-shift') >= 0 || src.indexOf('shiftNow') >= 0) throw new Error('前置开关没删干净');
+  extractStr('if (window.locShiftNow) window.locShiftNow();');
   extractStr('window.locShiftNow = function ()');
 } catch (e) {
   failures.push('S2：' + e.message);
@@ -230,5 +230,5 @@ if (EXPECT === 'red') {
   console.error('红对照失败：旧代码竟全绿，断言没咬合'); process.exit(1);
 }
 if (failures.length) { console.error('FAIL ' + failures.length + ' 条：\n- ' + failures.join('\n- ')); process.exit(1); }
-console.log('OK #790 换位提醒三开关 + #1436 豁免限流/落地重画/即刻换位：B1~B10 行为 + S1/S2 锚点 + 语法 全过');
+console.log('OK #790 换位三开关 + #1436 豁免限流/落地重画/按钮即开关：B1~B10 行为 + S1/S2 锚点 + 语法 全过');
 process.exit(0);
