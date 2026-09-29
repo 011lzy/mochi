@@ -5800,6 +5800,9 @@ const FIX_SENTINELS = [
   { name: '#1405c 页内关心语按原文去重（删回＝同一条列两遍＝作者所见「重复很多条」）', file: 'js/period.js', needle: 'if (v && !seen[v]) { seen[v] = 1; out.push(v); }' },
   { name: '#1405d 字卡库说明改口为「与」关系（旧句「两者都关才真的完全关」是说反了的指路）', file: 'js/default-cards.js', needle: '任一成立就一条都不发' },
   { name: '#1405e 使用说明那条镜像同步（漏一处＝两处文案对不上，用户按旧句去两个都关）', file: 'index.html', needle: '任一边关掉就一条都不发' },
+  // ==== 2026-09-29 #1393 收尾（作者点名「修诊断单那行假读数」）：屏幕适配诊断报 --mochi-safe-bottom 时，把一个【自带单位或本就是一条 calc】的自定义属性计算值又接了一次单位——产出的值在产物里根本不存在（那份 iPhone17 Pro 报障上写着 calc(34px + 8px) 再加一个多余后缀，读的第一反应是「CSS 语法坏了」，而真病灶是同一格两个写入方交替落值＝#1393①）。改成照原样报该属性的计算值。e 钉「不再补单位」这条写法在，f 删除型钉「退回盲拼」不得回流（注释里没有 f 那串原文，不会自己命中自己）。 ====
+  { name: '#1393e 诊断报底部安全区那一格照原样落自定义属性的计算值（改回再补一次单位＝报告写出产物里不存在的值，下一份报障又被带偏）', file: 'js/device.js', needle: "return _v || ('(未设/回落 '" },
+  { name: '#1393f 删除型：不得把自带单位/本就是 calc 的那份读数再拼一次单位（回流＝双单位假读数复发）', file: 'js/device.js', needle: "_v ? _v + 'px' :", absent: true },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

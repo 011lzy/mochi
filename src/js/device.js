@@ -3489,8 +3489,12 @@ window.mochiViewportForm = function (sig) {
     // 报告必须自证「哪条判定为何跳过、跳过的量与手调值什么关系」，否则下一份报障又得反推
     //（本次 vivo 报障就是吃了这个亏：phone底=inner∓26 到底是手调还是真故障，无从判断）。
     L.push('本机手调（屏幕位置设置）：' + (sdAdjStr(inp.adj) || '无（七轴全 0，判定器全自动口径）'));
+    // FIX 2026-09-29 #1393e：这一格落的是【自定义属性的计算值】——它自带单位（'0px'）或干脆是一条 calc
+    //   （'calc(34px + 8px)'），原来这里又给它接了一次单位，产出的值在产物里根本不存在（iPhone17 Pro 那份
+    //   报障就写着 calc(34px + 8px)＋一个多余后缀，读的人第一反应是「CSS 语法坏了」，而真病灶是同一格
+    //   两个写入方在交替落值）。自定义属性不是长度值，照原样报才是事实。
     L.push('键盘残留=' + (inp.kb ? ('kbActive=' + !!inp.kb.kbActive + ' 锁=' + !!inp.kb.docLocked + ' 基线 inner/vv=' + inp.kb.fullInner + '/' + inp.kb.fullVv) : 'n/a')
-      + '  --mochi-safe-bottom=' + (function () { try { var _v = getComputedStyle(document.documentElement).getPropertyValue('--mochi-safe-bottom').trim(); return _v ? _v + 'px' : '(未设/回落 ' + inp.envBottom + 'px)'; } catch (e) { return '?'; } })());
+      + '  --mochi-safe-bottom=' + (function () { try { var _v = getComputedStyle(document.documentElement).getPropertyValue('--mochi-safe-bottom').trim(); return _v || ('(未设/回落 ' + inp.envBottom + 'px)'); } catch (e) { return '?'; } })());
     L.push('');
     L.push('== 顶部安全区 ==');
     L.push('env(safe-area-inset-top)=' + inp.envTop + 'px  --mochi-safe-top=' + inp.varTop + 'px  diff(screen−inner)=' + inp.diff + 'px');

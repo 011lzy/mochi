@@ -245,6 +245,17 @@ await sleep(3000);
 const idleW = JSON.parse(await ev('JSON.stringify(window.__w)'));
 check('A6 对照组：稳态 3s 内底部那一格零重写（同值不写＝#969 那份省样式失效的职责还在，夹具也不制造写）', idleW.length === 0, { 写入次数: idleW.length });
 
+// ---------- D 组：屏幕适配诊断那一行报的是不是事实（＝作者点名要修的这一件） ----------
+const dTxt = await ev("(function(){ try { var r=window.__collectScreenDiag && window.__collectScreenDiag(); return r && r.text ? r.text : '(没有 text)'; } catch(e){ return 'throw:'+e.message; } })()");
+const sbLine = String(dTxt).split('\n').filter(function (l) { return l.indexOf('--mochi-safe-bottom=') >= 0; })[0] || '';
+const dVal = (/--mochi-safe-bottom=([^\n]*)/.exec(sbLine) || [])[1] || '';
+check('D1 前提：屏幕适配诊断能现场出报告（window.__collectScreenDiag 在位且带出那一行）',
+  String(dTxt).includes('【屏幕适配诊断】') && !!sbLine, { 那一行: sbLine.slice(0, 96) });
+check('D2 那一行不再报出产物里不存在的值（自定义属性自带单位或本就是一条 calc，照原样写才是事实）',
+  !/pxpx/.test(dVal) && !/\)px/.test(dVal), { 读数: dVal });
+check('D3 对照组：那一行如实带着用户的偏移（8px 在 calc 里；红侧也过＝它只是多带了个假后缀）',
+  /8px/.test(dVal), { 读数: dVal });
+
 // ---------- P 组：落库那一半（＝用户③那句「设置后会没有保存，刷新就恢复默认状态」） ----------
 async function reloadReady(mode, waitMs) {
   await cdp('Page.navigate', { url: baseUrl + '/index.html' + (mode === 'lsdead' ? '?lsdead=1' : '') });

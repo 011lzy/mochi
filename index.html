@@ -10700,9 +10700,9 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
       <!-- #570：第三行开屏新版检测（ver-check.js 渲染）：检测中 / ✓已是最新 / ⇩有新版本可点更新 -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1790653535918">
+      <div class="splash-ver" id="splash-ver" data-build-ts="1790654502227">
         <span class="sv-app">Mochi 字卡传讯 <b>v8.53</b></span>
-        <span class="sv-deploy">部署于 2026-09-29 11:45<span id="splash-ver-live"></span></span>
+        <span class="sv-deploy">部署于 2026-09-29 12:01<span id="splash-ver-live"></span></span>
         <span class="sv-check" id="splash-ver-check" hidden></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
@@ -20244,7 +20244,7 @@ L.push('系统=' + (inp.osLine || '未知') + '（形态判定依赖系统版本
 L.push('env(safe-area-inset-bottom)=' + inp.envBottom + 'px  视口平移=offTop:' + (inp.vvOffTop || 0) + '/offLeft:' + (inp.vvOffLeft || 0));
 L.push('本机手调（屏幕位置设置）：' + (sdAdjStr(inp.adj) || '无（七轴全 0，判定器全自动口径）'));
 L.push('键盘残留=' + (inp.kb ? ('kbActive=' + !!inp.kb.kbActive + ' 锁=' + !!inp.kb.docLocked + ' 基线 inner/vv=' + inp.kb.fullInner + '/' + inp.kb.fullVv) : 'n/a')
-+ '  --mochi-safe-bottom=' + (function () { try { var _v = getComputedStyle(document.documentElement).getPropertyValue('--mochi-safe-bottom').trim(); return _v ? _v + 'px' : '(未设/回落 ' + inp.envBottom + 'px)'; } catch (e) { return '?'; } })());
++ '  --mochi-safe-bottom=' + (function () { try { var _v = getComputedStyle(document.documentElement).getPropertyValue('--mochi-safe-bottom').trim(); return _v || ('(未设/回落 ' + inp.envBottom + 'px)'); } catch (e) { return '?'; } })());
 L.push('');
 L.push('== 顶部安全区 ==');
 L.push('env(safe-area-inset-top)=' + inp.envTop + 'px  --mochi-safe-top=' + inp.varTop + 'px  diff(screen−inner)=' + inp.diff + 'px');
@@ -22568,4 +22568,4 @@ window.__mochiBootRetry = function () { try { location.reload(); } catch (e) {} 
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mum4vr1q -->
+<!-- __MOCHI_EOF__ mum5ggnn -->
