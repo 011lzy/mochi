@@ -89,7 +89,17 @@
     '已经 {d} 天没来了，你的周期向来有自己的想法；超过两个月还没来就去看看医生吧'
   ];
   function loadCareLines() {
-    try { var a = JSON.parse(store.get(KEY_CARE) || 'null'); if (Array.isArray(a)) return a; } catch (e) {}
+    try {
+      var a = JSON.parse(store.get(KEY_CARE) || 'null');
+      if (Array.isArray(a)) {
+        // 页内那份「已有关心语」列表按原文去重后再交出去——清单里同一条出现两遍，用户看到的就是
+        // 「重复很多条」（新增口本身有 indexOf 守卫，历史数据与逐张开关的键名却不认重复）。
+        // 只在读取侧去重，不另存一份：下一次新增/删除会拿这份去重结果写回，自然落干净。
+        var seen = {}, out = [];
+        for (var i = 0; i < a.length; i++) { var v = a[i]; if (v && !seen[v]) { seen[v] = 1; out.push(v); } }
+        return out;
+      }
+    } catch (e) {}
     return PERIOD_CARE_LINES.slice();
   }
   function saveCareLines(a) {
@@ -1674,6 +1684,20 @@
       return '';
     } catch (e) { return ''; }
   }
+  // 「梦角关心发到聊天」这一路其实有两道闸，而其中一道不住在本模块里：这里的开关（careEnabled）
+  // ＋字卡库「其他互动功能字卡」那一族的 dcf-care（「使用其他互动功能字卡」总开关 ×「TA的关心
+  // （经期）」概率，两者是与的关系，合成成一个数由 window.dcfGet('care') 读出）。后者能在本模块
+  // 外把整条乘成 0%，而经期页这个开关照旧显示「已开启」、页内语料照旧列着＝聊天里一条都收不到，
+  // 用户只看到「关心只显示在这个页面里」（静默失败，与 #1056 权限那一族同一形状：闸不在这里，
+  // 但状态必须在这里说清楚）。判据只取代码事实：dcfGet('care') 拿到的就是合成后的那一个数。
+  function careGateHint() {
+    try {
+      if (!notifyCfg.careEnabled) return '';
+      if (!window.dcfGet) return '';
+      if (window.dcfGet('care') > 0) return '';
+      return '⚠ 「梦角关心」这里显示已开启，但现在一条也发不出去：字卡库那边把它乘成了 0%（两道闸是与的关系）。打开方式：字卡库 →「其他互动功能字卡」→ 顶部「使用其他互动功能字卡」总开关（关掉时这一族全部停发），或展开「各功能使用概率调节」把「TA的关心（经期）」调回大于 0%；改完回到这里保存即可。';
+    } catch (e) { return ''; }
+  }
   function openNotifyPop() {
     var existing = document.getElementById('period-notify-pop');
     if (existing) existing.remove();
@@ -1698,8 +1722,13 @@
       '</div>';
     appendPop(pop);
     // #1056：开启中而权限不到位 → 弹层内当场看见缺哪一步（此前整条静默失效无任何提示）
-    var _pph = periodPermHint();
-    if (_pph) pop.querySelector('.dp-tip').textContent = _pph;
+    var _tipEl = pop.querySelector('.dp-tip');
+    var _tipDefault = _tipEl.textContent;
+    function refreshPopTips() {
+      var tips = [periodPermHint(), careGateHint()].filter(function (t) { return t; });
+      _tipEl.textContent = tips.length ? tips.join('\n\n') : _tipDefault;
+    }
+    refreshPopTips();
     document.body.classList.add('scroll-lock');
     pop.querySelector('.dp-mask').addEventListener('click', closeNotifyPop);
     pop.querySelector('.dp-close').addEventListener('click', closeNotifyPop);
@@ -1726,6 +1755,7 @@
       notifyCfg.careEnabled = !notifyCfg.careEnabled;
       careBtn.textContent = notifyCfg.careEnabled ? '已开启' : '已关闭';
       careBtn.classList.toggle('on', notifyCfg.careEnabled);
+      refreshPopTips();
     });
     var careMgr = pop.querySelector('.dp-care-mgr');
     if (careMgr) careMgr.addEventListener('click', openCarePop);

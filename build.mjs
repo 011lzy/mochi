@@ -5789,6 +5789,17 @@ const FIX_SENTINELS = [
   { name: '#1394h 通话设置页写明判定节奏与量级', file: 'template.html', needle: '判定按墙钟走' },
   { name: '#1394i 挂断开关不再自称全站总开关（删＝per-桌面开关被当全站开关，开了仍被挂）', file: 'template.html', needle: '不是全站总开关' },
   { name: '#1394j 删除型：旧的「数满 60 拍」写法不得回流（底本产物命中 1、本批 0）', file: 'js/call.js', needle: 'checkCount >= 60', absent: true },
+  // ===== #1405（2026-09-29 作者复报「经期关心根本没有发送到聊天里，只显示在经期功能页面里」＋「页内关心语重复很多条」）=====
+  //   根因不是发送逻辑坏了：这一路有两道闸，拦人的那道不住在本模块里——经期页的「梦角关心」开关 ×
+  //   字卡库「其他互动功能字卡」族的 dcf-care（总开关 ×「TA的关心（经期）」概率）。后者能在外面把整条
+  //   乘成 0%，而页内开关照旧显示「已开启」、语料照旧列着＝一条都不发也没人说一声（静默失败，与 #1056
+  //   权限那一族同形）。本批只补「当场说清楚」＋语料列表按原文去重；发送判据／同日冷却／概率基数一字未动
+  //   （尺子 F1~F3 两侧皆绿＝没乱加限制）。尺子＝tools/verify-period-care.mjs 的 E/F 两组。
+  { name: '#1405a 被字卡库乘成 0% 时当场指路（删回＝整条静默不发，用户只见「关心只在页面里」）', file: 'js/period.js', needle: "if (window.dcfGet('care') > 0) return '';" },
+  { name: '#1405b 权限提示与闸位提示合流一处、彼此不覆盖（改回单条赋值＝后写的那条会把前一条吞掉）', file: 'js/period.js', needle: 'var tips = [periodPermHint(), careGateHint()].filter(' },
+  { name: '#1405c 页内关心语按原文去重（删回＝同一条列两遍＝作者所见「重复很多条」）', file: 'js/period.js', needle: 'if (v && !seen[v]) { seen[v] = 1; out.push(v); }' },
+  { name: '#1405d 字卡库说明改口为「与」关系（旧句「两者都关才真的完全关」是说反了的指路）', file: 'js/default-cards.js', needle: '任一成立就一条都不发' },
+  { name: '#1405e 使用说明那条镜像同步（漏一处＝两处文案对不上，用户按旧句去两个都关）', file: 'index.html', needle: '任一边关掉就一条都不发' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

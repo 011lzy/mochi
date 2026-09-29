@@ -61,7 +61,14 @@ var PERIOD_DELAY_FREE_FALLBACK = [
 '已经 {d} 天没来了，你的周期向来有自己的想法；超过两个月还没来就去看看医生吧'
 ];
 function loadCareLines() {
-try { var a = JSON.parse(store.get(KEY_CARE) || 'null'); if (Array.isArray(a)) return a; } catch (e) {}
+try {
+var a = JSON.parse(store.get(KEY_CARE) || 'null');
+if (Array.isArray(a)) {
+var seen = {}, out = [];
+for (var i = 0; i < a.length; i++) { var v = a[i]; if (v && !seen[v]) { seen[v] = 1; out.push(v); } }
+return out;
+}
+} catch (e) {}
 return PERIOD_CARE_LINES.slice();
 }
 function saveCareLines(a) {
@@ -1452,6 +1459,14 @@ if (p === 'default') return '⚠ 还没给本站通知权限：地址栏左侧�
 return '';
 } catch (e) { return ''; }
 }
+function careGateHint() {
+try {
+if (!notifyCfg.careEnabled) return '';
+if (!window.dcfGet) return '';
+if (window.dcfGet('care') > 0) return '';
+return '⚠ 「梦角关心」这里显示已开启，但现在一条也发不出去：字卡库那边把它乘成了 0%（两道闸是与的关系）。打开方式：字卡库 →「其他互动功能字卡」→ 顶部「使用其他互动功能字卡」总开关（关掉时这一族全部停发），或展开「各功能使用概率调节」把「TA的关心（经期）」调回大于 0%；改完回到这里保存即可。';
+} catch (e) { return ''; }
+}
 function openNotifyPop() {
 var existing = document.getElementById('period-notify-pop');
 if (existing) existing.remove();
@@ -1475,8 +1490,13 @@ pop.innerHTML =
 '<div class="dp-actions"><button class="dp-save period-btn primary">保存</button></div>' +
 '</div>';
 appendPop(pop);
-var _pph = periodPermHint();
-if (_pph) pop.querySelector('.dp-tip').textContent = _pph;
+var _tipEl = pop.querySelector('.dp-tip');
+var _tipDefault = _tipEl.textContent;
+function refreshPopTips() {
+var tips = [periodPermHint(), careGateHint()].filter(function (t) { return t; });
+_tipEl.textContent = tips.length ? tips.join('\n\n') : _tipDefault;
+}
+refreshPopTips();
 document.body.classList.add('scroll-lock');
 pop.querySelector('.dp-mask').addEventListener('click', closeNotifyPop);
 pop.querySelector('.dp-close').addEventListener('click', closeNotifyPop);
@@ -1498,6 +1518,7 @@ if (careBtn) careBtn.addEventListener('click', function () {
 notifyCfg.careEnabled = !notifyCfg.careEnabled;
 careBtn.textContent = notifyCfg.careEnabled ? '已开启' : '已关闭';
 careBtn.classList.toggle('on', notifyCfg.careEnabled);
+refreshPopTips();
 });
 var careMgr = pop.querySelector('.dp-care-mgr');
 if (careMgr) careMgr.addEventListener('click', openCarePop);
