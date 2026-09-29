@@ -185,14 +185,17 @@ try {
   await C.evalJs("(function(){var a=document.querySelector('.app[data-app=\"chat\"]');if(a)a.click();return true;})()");
   await sleep(3500);
   const b0 = JSON.parse(await C.evalJs(SNAP));
-  A_('B0 前提：400 条进聊天只画尾窗（200 条＝上翻才会走增量补画），且此刻没有在飞', b0.kids === 200 && b0.head >= 199 && b0.tail === 399 && b0.flying === false && b0.dup === 0, b0);
+  // ⚠️ 别拿「恰 200 条」当前提：站内自发消息生成器（摸鱼小结／TA 心情／查岗那一族）会在铺数据到进聊天
+  // 这几秒里自己补投递（本仓尺子的既有 flaky 指纹），读数就会是 201／202。判据取「尾窗已铺满且已贴到
+  // 最新、且没有在飞」这三件本批真正依赖的事实，条数只按窗口上限以下界问。
+  A_('B0 前提：400 条进聊天只画尾窗（≥200 条＝上翻才会走增量补画），屏上尾部已贴最新且此刻没有在飞', b0.kids >= 200 && b0.kids <= 210 && b0.head >= 197 && b0.tail === b0.n - 1 && b0.flying === false && b0.dup === 0, b0);
 
   // 把一条坏记录种在「上翻那一批会画到的区间」里（renderMsg 里 rec.mood.forEach 必抛＝#1313 同款夹具），
   // 且刻意落在尾窗之外——尾窗内它不会被画，重渲不会当场暴露，只有**增量补画**这一条路会撞上它。
   await C.evalJs(`(function(){ var a=window.chatExportMsgs(); a[150]={side:'in',ts:a[150].ts,text:'__BADREC__',mood:'不是数组'}; return window.chatImportMsgs(a)?1:0; })()`);
   await sleep(3500);
   const b1pre = JSON.parse(await C.evalJs(SNAP));
-  A_('B0b 种记录之后屏上照旧（坏记录在尾窗之外，尚未被任何路径画到）', b1pre.kids === 200 && b1pre.flying === false, b1pre);
+  A_('B0b 种记录之后屏上照旧（坏记录在尾窗之外，尚未被任何路径画到）', b1pre.kids >= 200 && b1pre.kids <= 212 && b1pre.flying === false, b1pre);
 
   // 触发增量补画：滚到顶 → loadOlderIncremental() 画 newStart..renderStart（含 150）
   await C.evalJs(`(function(){var b=document.getElementById('chat-body'); b.scrollTop=0; b.dispatchEvent(new Event('scroll')); return 1;})()`);
@@ -220,7 +223,7 @@ try {
   await sleep(4000);
   const b5b = JSON.parse(await C.evalJs(SNAP));
   const nOld = (s) => s.inc.filter((x) => /incr-older-throw/.test(x)).length;
-  A_('B5 不自愈空转（屏上稳定有内容、记账不再增长）', b5b.kids === b5a.kids && nOld(b5b) <= nOld(b5a) + 1 && b5b.kids > 200, { kidsA: b5a.kids, kidsB: b5b.kids, incA: nOld(b5a), incB: nOld(b5b) });
+  A_('B5 不自愈空转（同一坏记录不引发反复整窗重画：屏上内容稳定、记账不涨；条数只容 2 条以内＝站内自发投递）', Math.abs(b5b.kids - b5a.kids) <= 2 && nOld(b5b) <= nOld(b5a) + 1 && b5b.kids > 200, { kidsA: b5a.kids, kidsB: b5b.kids, incA: nOld(b5a), incB: nOld(b5b) });
   A_('B6 没有重复画（data-idx 单调、无同一条两遍）', b5b.dup === 0, { dup: b5b.dup, kids: b5b.kids });
   A_('Z1 全程零未捕获异常（HEAD 红＝那一发 renderMsg 抛到了 window.onerror）', C.errors.length === 0, C.errors.slice(0, 3));
 } catch (e) {
