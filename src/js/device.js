@@ -1802,6 +1802,87 @@
     // 「我方发的语音没有办法播放」报障时「最近错误」里只有几条截断的 data:audio，证不了是同一批空壳；
     // 这一行直接给次数＋最近一条的容器/体积/内核码（拦下与放行都记，成功路径不记）。
     try { if (window.__voiceDiag) L.push('语音载荷体检：' + window.__voiceDiag()); } catch (e3) {}
+    // FIX 2026-09-29 #1454（跨域名：读的是数据层与信箱主键，device.js=AI-B；信箱 mail.js 本轮被 #1416 占用，
+    //   故只从外部读、一行不动那个文件）：信箱「后台通知说有回信／来信，点进去却找不到」的定性取证。
+    //   报障单只留下「通知」与「信箱里没有」两端，中间那段——库里到底有没有那封回信、屏上那份是从哪读来的、
+    //   LS 那一格是不是写不进去的旧账——全都不留痕，于是只能猜（本批就是这么被作者追问回来的）。
+    //   这里只读四件事实、不做任何写入，判据零机型／零 UA 分支：
+    //   ①屏上那份＝业务同一个同步读口（xyStore.get：内存缓存 → localStorage），信箱 load() 走的就是它；
+    //   ②LS 原值＝直接 localStorage.getItem——与①不同才是关键：内存里有、LS 里没有 ⇒ 重开/被回收就没了；
+    //   ③库那份＝直读 IndexedDB 原值，并借 idbGet 的 ambiguous 标记把「这次读不出值（挂起）」与「库里没有」
+    //     分开（正是 #1358 那台机的形状：同步读交不出主键而库里 20 封完好）；
+    //   ④TA 回信计划余量与当日主动来信计数——回信落地不看每日上限（maybeIncomingLetterFor 才看），
+    //     这两项分开报，才能当场排除「是不是设了每天最多几封」。
+    try {
+      const mlIdx = L.length; L.push('信箱：读取中…');
+      jobs.push(new Promise(function (res) {
+        const fin = function (s) { L[mlIdx] = s; res(); };
+        try {
+          if (!window.activeStore || !window.idbGet || !window.activePrefix) { fin('信箱：接口不可用（activeStore/idbGet 缺席）'); return; }
+          const full = window.activePrefix() + ':mail-letters';
+          const parse = function (v) { try { const a = JSON.parse(v); return Array.isArray(a) ? a : []; } catch (e) { return []; } };
+          const stat = function (arr) {
+            const o = { n: 0, in: 0, out: 0, rp: 0, rpLast: 0, unread: 0 };
+            (arr || []).forEach(function (l) {
+              if (!l) return;
+              o.n++;
+              if (l.type === 'received') o.in++; else if (l.type === 'sent') o.out++;
+              if (l.partnerReply) { o.rp++; const t = Number(l.partnerReply.tm) || Number(l.tm) || 0; if (t > o.rpLast) o.rpLast = t; }
+              if (!l.read) o.unread++;
+            });
+            return o;
+          };
+          const when = function (t) { try { return t ? new Date(t).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'; } catch (e) { return '?'; } };
+          const side = function (s) { return s.n + '封（收' + s.in + '·寄' + s.out + '）·带TA回信' + s.rp + '（最近 ' + when(s.rpLast) + '）·未读' + s.unread; };
+          let st = null;
+          try { st = window.activeStore(); } catch (e0) { st = null; }
+          const scrRaw = st ? st.get('mail-letters') : null;
+          let lsRaw = null;
+          try { lsRaw = localStorage.getItem(full); } catch (e1) {}
+          const scr = stat(parse(scrRaw));
+          const ls = (lsRaw === null) ? null : stat(parse(lsRaw));
+          let dirty = '未知';
+          try {
+            const d = JSON.parse(sessionStorage.getItem('xy-home-v2:__ls-dirty') || '[]');
+            dirty = (Array.isArray(d) && d.indexOf(full) >= 0) ? '是（这份 LS 是写失败留下的旧值）' : '否';
+          } catch (e2) {}
+          let dayN = 0, dayMax = 3, pendN = 0, pendDue = 0;
+          try {
+            const mx = Number(st.get('ml-write-daily-max'));
+            if (mx > 0) dayMax = mx;
+            const d = new Date();
+            const day = JSON.parse(st.get('mail-letter-day') || 'null');
+            if (day && day.d === (d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate())) dayN = Number(day.n) || 0;
+            const pend = parse(st.get('mail-reply-pending') || '[]');
+            pendN = pend.length;
+            pend.forEach(function (x) { const t = Number(x && (x.tm || x.due || x.t)); if (t && (!pendDue || t < pendDue)) pendDue = t; });
+          } catch (e3) {}
+          const info = {};
+          Promise.resolve(window.idbGet(full, info)).then(function (v) {
+            try {
+              const dbOk = (typeof v === 'string' && v.length > 2);
+              const db = dbOk ? stat(parse(v)) : null;
+              const out = ['信箱体检（#1454 取证，只读）：屏上' + side(scr) +
+                (scrRaw === null ? '（同步读口交回空）' : '') +
+                ' ｜ LS原值' + (ls ? side(ls) : '无此键') + ' ｜ LS标脏＝' + dirty];
+              if (!db) {
+                out.push('· 库(IDB)直读：' + (info.ambiguous ? '这次读不出值（事务挂起／超时，不等于库里没有）' : '库里没有这一键（或读回空值）') + '——重导一次诊断再看');
+              } else {
+                out.push('· 库(IDB)直读：' + side(db));
+                const sp = Math.max(scr.rp, ls ? ls.rp : 0);
+                if (db.rp > sp) out.push('· 判读：库里多 ' + (db.rp - sp) + ' 封带TA回信 ⇒ 回信【还在库里】，屏上/LS 那份是旧账（可救回）');
+                else if (db.rp === 0 && scr.rp === 0 && (!ls || ls.rp === 0)) out.push('· 判读：三处都没有 TA 回信 ⇒ 库里确实没有（从未落地，或被旧账整包写回覆盖）');
+                else if (db.n > scr.n) out.push('· 判读：库里比屏上多 ' + (db.n - scr.n) + ' 封 ⇒ 屏上是旧账（同步读口没交出新值）');
+                else out.push('· 判读：三处条数/回信数一致（本刻未复现）');
+                if (scr.rp > (ls ? ls.rp : 0)) out.push('· 屏上比 LS 多 ' + (scr.rp - (ls ? ls.rp : 0)) + ' 封带TA回信 ⇒ 新值只在内存，重开／被系统回收后就看不到（LS 写不进去）');
+              }
+              out.push('· TA回信计划 ' + pendN + ' 条' + (pendDue ? '（最近到期 ' + when(pendDue) + '）' : '') + ' · 本日TA主动来信 ' + dayN + '/' + dayMax + '（每日上限只管新来信，与回信无关）');
+              fin(out.join('\n'));
+            } catch (e4) { fin('信箱：统计失败'); }
+          }, function () { fin('信箱：库直读失败（存储繁忙，重导一次）'); });
+        } catch (e5) { fin('信箱：读取异常'); }
+      }));
+    } catch (e4) {}
     // v3.26.x：跨域名（device.js=AI-B）——字卡/回复/收藏 存储明细诊断（chatcard.js 挂 __ccStorageDiag）
     // 报障「该分类 583MB 是否正常」一眼定位大键/LS 残留双倍/旧各桌面 my-emoji-groups 遗留
     try {

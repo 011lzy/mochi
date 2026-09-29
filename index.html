@@ -10742,9 +10742,9 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
       <!-- #570：第三行开屏新版检测（ver-check.js 渲染）：检测中 / ✓已是最新 / ⇩有新版本可点更新 -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1790685504830">
+      <div class="splash-ver" id="splash-ver" data-build-ts="1790687820433">
         <span class="sv-app">Mochi 字卡传讯 <b>v8.55</b></span>
-        <span class="sv-deploy">部署于 2026-09-29 20:38<span id="splash-ver-live"></span></span>
+        <span class="sv-deploy">部署于 2026-09-29 21:17<span id="splash-ver-live"></span></span>
         <span class="sv-check" id="splash-ver-check" hidden></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
@@ -19081,6 +19081,76 @@ if (tops) L.push('最大键：' + tops);
 try { if (window.__replyPoolDiag) L.push('回复字卡池：' + window.__replyPoolDiag()); } catch (e2) {}
 try { if (window.__voiceDiag) L.push('语音载荷体检：' + window.__voiceDiag()); } catch (e3) {}
 try {
+const mlIdx = L.length; L.push('信箱：读取中…');
+jobs.push(new Promise(function (res) {
+const fin = function (s) { L[mlIdx] = s; res(); };
+try {
+if (!window.activeStore || !window.idbGet || !window.activePrefix) { fin('信箱：接口不可用（activeStore/idbGet 缺席）'); return; }
+const full = window.activePrefix() + ':mail-letters';
+const parse = function (v) { try { const a = JSON.parse(v); return Array.isArray(a) ? a : []; } catch (e) { return []; } };
+const stat = function (arr) {
+const o = { n: 0, in: 0, out: 0, rp: 0, rpLast: 0, unread: 0 };
+(arr || []).forEach(function (l) {
+if (!l) return;
+o.n++;
+if (l.type === 'received') o.in++; else if (l.type === 'sent') o.out++;
+if (l.partnerReply) { o.rp++; const t = Number(l.partnerReply.tm) || Number(l.tm) || 0; if (t > o.rpLast) o.rpLast = t; }
+if (!l.read) o.unread++;
+});
+return o;
+};
+const when = function (t) { try { return t ? new Date(t).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'; } catch (e) { return '?'; } };
+const side = function (s) { return s.n + '封（收' + s.in + '·寄' + s.out + '）·带TA回信' + s.rp + '（最近 ' + when(s.rpLast) + '）·未读' + s.unread; };
+let st = null;
+try { st = window.activeStore(); } catch (e0) { st = null; }
+const scrRaw = st ? st.get('mail-letters') : null;
+let lsRaw = null;
+try { lsRaw = localStorage.getItem(full); } catch (e1) {}
+const scr = stat(parse(scrRaw));
+const ls = (lsRaw === null) ? null : stat(parse(lsRaw));
+let dirty = '未知';
+try {
+const d = JSON.parse(sessionStorage.getItem('xy-home-v2:__ls-dirty') || '[]');
+dirty = (Array.isArray(d) && d.indexOf(full) >= 0) ? '是（这份 LS 是写失败留下的旧值）' : '否';
+} catch (e2) {}
+let dayN = 0, dayMax = 3, pendN = 0, pendDue = 0;
+try {
+const mx = Number(st.get('ml-write-daily-max'));
+if (mx > 0) dayMax = mx;
+const d = new Date();
+const day = JSON.parse(st.get('mail-letter-day') || 'null');
+if (day && day.d === (d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate())) dayN = Number(day.n) || 0;
+const pend = parse(st.get('mail-reply-pending') || '[]');
+pendN = pend.length;
+pend.forEach(function (x) { const t = Number(x && (x.tm || x.due || x.t)); if (t && (!pendDue || t < pendDue)) pendDue = t; });
+} catch (e3) {}
+const info = {};
+Promise.resolve(window.idbGet(full, info)).then(function (v) {
+try {
+const dbOk = (typeof v === 'string' && v.length > 2);
+const db = dbOk ? stat(parse(v)) : null;
+const out = ['信箱体检（#1454 取证，只读）：屏上' + side(scr) +
+(scrRaw === null ? '（同步读口交回空）' : '') +
+' ｜ LS原值' + (ls ? side(ls) : '无此键') + ' ｜ LS标脏＝' + dirty];
+if (!db) {
+out.push('· 库(IDB)直读：' + (info.ambiguous ? '这次读不出值（事务挂起／超时，不等于库里没有）' : '库里没有这一键（或读回空值）') + '——重导一次诊断再看');
+} else {
+out.push('· 库(IDB)直读：' + side(db));
+const sp = Math.max(scr.rp, ls ? ls.rp : 0);
+if (db.rp > sp) out.push('· 判读：库里多 ' + (db.rp - sp) + ' 封带TA回信 ⇒ 回信【还在库里】，屏上/LS 那份是旧账（可救回）');
+else if (db.rp === 0 && scr.rp === 0 && (!ls || ls.rp === 0)) out.push('· 判读：三处都没有 TA 回信 ⇒ 库里确实没有（从未落地，或被旧账整包写回覆盖）');
+else if (db.n > scr.n) out.push('· 判读：库里比屏上多 ' + (db.n - scr.n) + ' 封 ⇒ 屏上是旧账（同步读口没交出新值）');
+else out.push('· 判读：三处条数/回信数一致（本刻未复现）');
+if (scr.rp > (ls ? ls.rp : 0)) out.push('· 屏上比 LS 多 ' + (scr.rp - (ls ? ls.rp : 0)) + ' 封带TA回信 ⇒ 新值只在内存，重开／被系统回收后就看不到（LS 写不进去）');
+}
+out.push('· TA回信计划 ' + pendN + ' 条' + (pendDue ? '（最近到期 ' + when(pendDue) + '）' : '') + ' · 本日TA主动来信 ' + dayN + '/' + dayMax + '（每日上限只管新来信，与回信无关）');
+fin(out.join('\n'));
+} catch (e4) { fin('信箱：统计失败'); }
+}, function () { fin('信箱：库直读失败（存储繁忙，重导一次）'); });
+} catch (e5) { fin('信箱：读取异常'); }
+}));
+} catch (e4) {}
+try {
 if (window.__ccStorageDiag) {
 const ccIdx = L.length; L.push('字卡/回复/收藏明细：读取中…');
 jobs.push(window.__ccStorageDiag().then(function (s) { L[ccIdx] = s; }).catch(function () { L[ccIdx] = '字卡/回复/收藏明细：读取失败'; }));
@@ -22643,4 +22713,4 @@ window.__mochiBootRetry = function () { try { location.reload(); } catch (e) {} 
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mumnwyf2 -->
+<!-- __MOCHI_EOF__ mumpal5d -->
