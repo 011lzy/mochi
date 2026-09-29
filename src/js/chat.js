@@ -2209,6 +2209,7 @@ idbRetryCount = 0;
 _lmChainBusy = null; // #952：本桌读库链成功收尾，放行后续 loadMsgs
 try { if (chatTailMerge(myPrefix) > 0) changed = true; } catch (e) {} // #180：权威就绪后回放尾巴日志（上次会话未落盘的最近消息）；FIX #407 回放插入=下标位移，并入 changed 走重渲，防屏上 data-idx 陈旧串条；FIX #766 传入 myPrefix＝日志必须与这份 msgs 同命名空间才回放
 try { chatDeskInboxMerge(myPrefix); } catch (e) {} // #1200：权威落定后回填跨桌面中转箱（分块桌面整包写不进的两端互通，去重合并＋就地重渲）
+try { chatReplyDebtCheck(myPrefix); } catch (e) {} // #1356：上一场「已经应下来、却被回收打断」的那一发回复，这一刻补投（判据＝msgs 自身，零新增存储键）
 // v3.26.x #90：账本基线＝刚读到的库内条数（同值不重复落盘，见 chatLedgerSave 节流）
 try { chatLedgerSave(myPrefix, chatBlkTotal || idbArr.length, chatBlkTotal ? Math.max(msgsBytes(idbArr), chatLedgerBytes[myPrefix] || 0) : msgsBytes(idbArr)); } catch (e) {} // #722 分块格式：账本记全量条数（热片读时 idbArr 只是尾部，全量条数以 idx.total 为准，缩水守卫才不会误判）
 // #722 迁移：旧整包格式的大历史首次读成功后，后台一次性重排成分块格式（此后进聊天只读热片）。
@@ -3046,6 +3047,52 @@ typingDueAt = 0; // #1326：这一发兑现了（或这条链作废了）＝期�
 if (typingWatch) { clearTimeout(typingWatch); typingWatch = 0; }
 typingEl.hidden = true;
 if (chatPinnedBottom) scrollChatBottom(); // FIX 2026-09-11 #334 解钉态不抢滚动权；#514 起这次写只作收尾补平（行隐藏态 scrollTop 已在最大值，正常链路里等于无操作）
+}
+// FIX 2026-09-28 #1356 荣耀畅玩40Plus(RKY-AN00)／夸克 10.18.6 实报「发消息联系人不显示正在输入中了，
+//   就莫名其妙的感觉消息被吞了」＋「不要覆盖修改导致不同型号设备浏览器的 bug 反复出现，这个问题其他
+//   设备型号也有出现」（随附 mochi-diag-2026-09-28-05-36-59… 诊断件）：
+// 根因不在机型，在「这一发回复只活在一枚 setTimeout 里」——scheduleReply 掷完延迟就 showTyping，
+// 投递那一刻靠 setTimeout(fn, delay)；页面被系统回收／用户重开，这一发承诺连同定时器一起没了，
+// 而重开后的那份 msgs 里最后一条仍是【自己发的】，屏幕上既没有「正在输入中」也永远等不来回音
+// ＝用户口径的「消息被吞」。纯产物无头实测（LS 每次写都抛 QuotaExceededError 的这台机结构条件，
+// 回复时间设 8~8s，发出 2s 后重开页面）：重开后 40s 内 taRepliesAfterMine 恒 0、typing 恒 0，
+// 库里最后一条永远是那条 out——这一发不是迟到，是整场不再有人兑现。
+// 该诊断件同时记着：本页被系统回收过 59 次、回复时间=1~540s（用户把「最长」调到 540 秒）＝
+// 等待窗几乎必然跨过一次回收；Chromium/WebKit/各家安卓内核一律会这么杀页面，所以「其他型号也有出现」。
+// 改法（判据零机型／零 UA 分支，只取「这条消息是不是上一场留下的、它后面有没有回音」两个事实）：
+// 权威落定那一刻（与 #180 尾巴日志回放、#1200 中转箱回填同一段）回头看一眼 msgs 自己——
+//   最后一条是自己当刻之前（本场开始以前）发的正文卡、且它之后没有任何 in 侧内容、且这一刻仍在
+//   产品自己定义的「TA 最长会打多久」(#1326 chatTypingHorizonMs) 之内 ⇒ 这就是上一场没落的那一发，
+//   按同一把尺子重新掷一次延迟、先亮「正在输入中」再走同一条 replyOnce 管线补投。
+// 零新增存储键（口径同 #1180「计数源＝msgs 自身…重载/切桌面天然复原」）；每桌面每会话只认一次，
+// 免得把「此刻这一发还在飞的」当成欠的；夜间静默／#1180 限流／无回应档照旧各自拦这一发（补投不是绕过闸门）。
+const CHAT_SESSION_START = Date.now();
+const replyDebtDoneFor = new Set();
+function chatReplyDebtCheck(myPrefix) {
+try {
+if (!myPrefix || replyDebtDoneFor.has(myPrefix)) return;
+replyDebtDoneFor.add(myPrefix); // 一桌一场只认这一次：认的是「上一场没走完的那一发」
+if (!Array.isArray(msgs) || !msgs.length) return;
+const last = msgs[msgs.length - 1];
+if (!last || (last.side || '') !== 'out') return; // 最后一条不是自己发的＝没有欠
+if ((last.special || '') !== '') return; // 已读回执/系统卡不是「向 TA 说了一句话」
+if (!((last.ts || 0) > 0) || last.ts >= CHAT_SESSION_START) return; // 本场刚发的＝那一发还在飞，不归这里管
+const age = Date.now() - last.ts;
+if (age > chatTypingHorizonMs()) return; // 超出产品自己定义的「TA 最长会打多久」＝那是历史，不是欠
+const c = cfg();
+if (hit(c['rn-prob'])) return;
+if (window.nightModeActive && window.nightModeActive()) return;
+if (rateLimitFull()) return;
+const rsMin = Math.max(1, Number(c['rs-min']) || 1);
+const rsMax = Math.max(rsMin, Number(c['rs-max']) || rsMin);
+const wait = Math.max(400, Math.min(chatTypingHorizonMs(), (rsMin + Math.random() * (rsMax - rsMin)) * 1000 - age));
+try { window.__chatReplyDebtFired = (window.__chatReplyDebtFired || 0) + 1; } catch (e0) {}
+showTyping(); // 把上一场没兑现的那句承诺接续上：先让人看到「正在输入」，再等这一发落地
+setTimeout(() => {
+try { hideTyping(); } catch (e1) {}
+try { replyOnce(c, null); } catch (e2) {}
+}, wait);
+} catch (e) {}
 }
 function cfg() { return (window.replyCfg && window.replyCfg()) || {}; }
 function cfgn(c, k, d) { const v = c[k]; return v === undefined ? d : v; }

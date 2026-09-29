@@ -5980,6 +5980,10 @@ const FIX_SENTINELS = [
   { name: '#1419b 输入栏按钮位置重排挂在存储自愈广播上（删＝自定义排列刷新重开恢复原样，而存档里明明已是自定义那一份）', file: 'js/chat.js', needle: "document.addEventListener('mochi-wrj-heal', applyInputBtnOrder);" },
   { name: '#1419c 聊天设置「输入栏按钮位置」行内回显跟随存储自愈（删＝输入栏已按自定义序排好、那一行还写着默认排列）', file: 'js/chat-settings.js', needle: "document.addEventListener('mochi-wrj-heal', () => { inputOrderSync(); if (inputOrderPanelOpen()) renderInputOrderPanel(); });" },
   { name: '#1419d 群聊输入栏继续说按钮改问单聊那把现成的尺（改回读裸键＝「单聊开着、群聊藏着」原地复活，而那枚裸键全站无写入方）', file: 'js/group-chat.js', needle: "window.replyCfg && window.replyCfg()['cs-trigger-bar'] === 1" },
+  /* ==== 2026-09-29 #1356（chat 半边落库）TA 的被动回复只活在一枚 setTimeout 里；页面被系统回收/重开＝那一发承诺连同定时器一起消失，重开后最后一条永远是【自己发的】＝用户口径「消息被吞」（OPPO Find X9/Edge 复报，用户点名其他机型也有，零机型/零 UA 分支）==== */
+  { name: '#1356d 欠账只认「上一场留下的那一条」（删＝本场刚发、还在飞的那一发被误判成欠，回复变双份）', file: 'js/chat.js', needle: 'last.ts >= CHAT_SESSION_START' },
+  { name: '#1356e 期限从「TA 最长会打多久」读、不从机型读（改回写死机型/UA 分支＝跨机型复发；且历史尾巴被一律补投）', file: 'js/chat.js', needle: 'if (age > chatTypingHorizonMs()) return;' },
+  { name: '#1356f 权威落定那一刻回头看 msgs 自己（删＝补投整条腿没了，「正在输入中」再也不亮、回复永远不来）', file: 'js/chat.js', needle: 'try { chatReplyDebtCheck(myPrefix); } catch (e) {}' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

@@ -1601,6 +1601,7 @@ idbRetryCount = 0;
 _lmChainBusy = null; // #952：本桌读库链成功收尾，放行后续 loadMsgs
 try { if (chatTailMerge(myPrefix) > 0) changed = true; } catch (e) {} // #180：权威就绪后回放尾巴日志（上次会话未落盘的最近消息）；FIX #407 回放插入=下标位移，并入 changed 走重渲，防屏上 data-idx 陈旧串条；FIX #766 传入 myPrefix＝日志必须与这份 msgs 同命名空间才回放
 try { chatDeskInboxMerge(myPrefix); } catch (e) {} // #1200：权威落定后回填跨桌面中转箱（分块桌面整包写不进的两端互通，去重合并＋就地重渲）
+try { chatReplyDebtCheck(myPrefix); } catch (e) {} // #1356：上一场「已经应下来、却被回收打断」的那一发回复，这一刻补投（判据＝msgs 自身，零新增存储键）
 try { chatLedgerSave(myPrefix, chatBlkTotal || idbArr.length, chatBlkTotal ? Math.max(msgsBytes(idbArr), chatLedgerBytes[myPrefix] || 0) : msgsBytes(idbArr)); } catch (e) {} // #722 分块格式：账本记全量条数（热片读时 idbArr 只是尾部，全量条数以 idx.total 为准，缩水守卫才不会误判）
 if (!chatBlkIdx && msgsBytes(idbArr) > CHAT_BLK_MIN) {
 setTimeout(function () {
@@ -2175,6 +2176,34 @@ typingDueAt = 0; // #1326：这一发兑现了（或这条链作废了）＝期�
 if (typingWatch) { clearTimeout(typingWatch); typingWatch = 0; }
 typingEl.hidden = true;
 if (chatPinnedBottom) scrollChatBottom(); // FIX 2026-09-11 #334 解钉态不抢滚动权；#514 起这次写只作收尾补平（行隐藏态 scrollTop 已在最大值，正常链路里等于无操作）
+}
+const CHAT_SESSION_START = Date.now();
+const replyDebtDoneFor = new Set();
+function chatReplyDebtCheck(myPrefix) {
+try {
+if (!myPrefix || replyDebtDoneFor.has(myPrefix)) return;
+replyDebtDoneFor.add(myPrefix); // 一桌一场只认这一次：认的是「上一场没走完的那一发」
+if (!Array.isArray(msgs) || !msgs.length) return;
+const last = msgs[msgs.length - 1];
+if (!last || (last.side || '') !== 'out') return; // 最后一条不是自己发的＝没有欠
+if ((last.special || '') !== '') return; // 已读回执/系统卡不是「向 TA 说了一句话」
+if (!((last.ts || 0) > 0) || last.ts >= CHAT_SESSION_START) return; // 本场刚发的＝那一发还在飞，不归这里管
+const age = Date.now() - last.ts;
+if (age > chatTypingHorizonMs()) return; // 超出产品自己定义的「TA 最长会打多久」＝那是历史，不是欠
+const c = cfg();
+if (hit(c['rn-prob'])) return;
+if (window.nightModeActive && window.nightModeActive()) return;
+if (rateLimitFull()) return;
+const rsMin = Math.max(1, Number(c['rs-min']) || 1);
+const rsMax = Math.max(rsMin, Number(c['rs-max']) || rsMin);
+const wait = Math.max(400, Math.min(chatTypingHorizonMs(), (rsMin + Math.random() * (rsMax - rsMin)) * 1000 - age));
+try { window.__chatReplyDebtFired = (window.__chatReplyDebtFired || 0) + 1; } catch (e0) {}
+showTyping(); // 把上一场没兑现的那句承诺接续上：先让人看到「正在输入」，再等这一发落地
+setTimeout(() => {
+try { hideTyping(); } catch (e1) {}
+try { replyOnce(c, null); } catch (e2) {}
+}, wait);
+} catch (e) {}
 }
 function cfg() { return (window.replyCfg && window.replyCfg()) || {}; }
 function cfgn(c, k, d) { const v = c[k]; return v === undefined ? d : v; }
