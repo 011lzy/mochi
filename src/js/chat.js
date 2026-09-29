@@ -8355,11 +8355,23 @@ if (csBtn) {
   csBtn.addEventListener('pointerdown', (e) => { if (e.pointerType === 'mouse') return; csFireContinue(); });
   csBtn.addEventListener('click', () => { csFireContinue(); });
 }
+// FIX 2026-09-29 #1419（一加 12/OPPO Chrome 实报「打开了聊天栏继续说按钮，刷新重开又恢复原样」的第二半）：
+// 判据改问存储键本身，别再经过 window.replyCfg。合并顺序里 reply-settings.js 排在本文件之后，
+// 而站内只有两个重画时机（mochi-restore-done 回填完成、mochi-wrj-heal 小键自愈），这两发都可能落
+// 在它把 window.replyCfg 定义出来之前——那时 cfg() 返回 {}，开关明明开着也被算成「关」，而两发都已
+// 用完、此后再没有重画口＝按钮一直藏着（无头账本实测：整场只有一次 applyContinueSayUI，它读到的 cfg
+// 是 undefined、before/after 都是 none，而同一时刻存档里躺着 '1'）。同排的麦克风/批量发送两枚本来就是
+// 直读 store，故无此病；这里向它们看齐。replyCfg 已就绪时仍走它（保留 NaN 兜底与默认值那套语义）。
+function contSayOn(key) {
+try { if (window.replyCfg) return window.replyCfg()[key] === 1; } catch (e) {}
+try { return Number(store.get('reply-' + key)) === 1; } catch (e) { return false; }
+}
+// 群聊那一排要问同一把尺（它自己那行原来读的是裸键 cs-trigger-bar＝全站没人写的一枚，见 group-chat.js）
+window.mochiContinueBarOn = function () { return contSayOn('cs-trigger-bar'); };
 window.applyContinueSayUI = function () {
 try {
-const c = cfg();
-if (pname) pname.title = c['cs-trigger-name'] === 1 ? '点击让对方继续说' : '';
-if (csBtn) csBtn.style.display = c['cs-trigger-bar'] === 1 ? '' : 'none';
+if (pname) pname.title = contSayOn('cs-trigger-name') ? '点击让对方继续说' : '';
+if (csBtn) csBtn.style.display = contSayOn('cs-trigger-bar') ? '' : 'none';
 document.dispatchEvent(new Event('continue-say-changed')); // 群聊输入栏「继续说」按钮跟随同一开关
 } catch (e) {}
 };

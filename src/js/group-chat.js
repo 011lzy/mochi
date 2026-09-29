@@ -3904,9 +3904,10 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
     // FIX 2026-09-29 #1419（作者点头一并收掉）：原写法读的是命名空间里的裸键 cs-trigger-bar，而**全站没有任何一处写
     // 这枚键**——单聊那枚开关经 reply-settings 的 saveReplyCfg 存成 reply-cs-trigger-bar（同排的 cs-voice-send /
     // cs-batch-send 确实是裸键，只有这一枚不是）。于是上面注释里「单聊开关或群聊开关任一为开即显示」的前半句
-    // 一直是死的：单聊开着继续说、群聊那排却藏着。改问单聊同一把现成的尺 replyCfg()（＝chat.js applyContinueSayUI
-    // 用的那一份），群聊自己那枚 gc-cs-trigger-bar 照常生效；两条都关才藏。零机型／零 UA 分支。
-    if (gcContinueBtn) gcContinueBtn.style.display = ((window.replyCfg && window.replyCfg()['cs-trigger-bar'] === 1) || gcCfg()['gc-cs-trigger-bar'] === 1) ? '' : 'none';
+    // 一直是死的：单聊开着继续说、群聊那排却藏着。改问单聊同一把现成的尺——chat.js 的 window.mochiContinueBarOn
+    // （#1419 第二半：replyCfg 未就绪时它直读存储键，不吃合并顺序）；拿不到该出口时退回直读 reply-cs-trigger-bar。
+    // 群聊自己那枚 gc-cs-trigger-bar 照常生效；两条都关才藏。零机型／零 UA 分支。
+    if (gcContinueBtn) gcContinueBtn.style.display = ((window.mochiContinueBarOn ? window.mochiContinueBarOn() : gcSettingOn('reply-cs-trigger-bar')) || gcCfg()['gc-cs-trigger-bar'] === 1) ? '' : 'none';
     if (gcBatchBtn) gcBatchBtn.style.display = gcSettingOn('cs-batch-send') ? '' : 'none';
   }
   // 「继续说」：和聊天页 continueChat 同语义——强制让成员回复（无 @ 时随机 1-2 个，不按回复概率过滤）

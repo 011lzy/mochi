@@ -6268,11 +6268,15 @@ if (csBtn) {
 csBtn.addEventListener('pointerdown', (e) => { if (e.pointerType === 'mouse') return; csFireContinue(); });
 csBtn.addEventListener('click', () => { csFireContinue(); });
 }
+function contSayOn(key) {
+try { if (window.replyCfg) return window.replyCfg()[key] === 1; } catch (e) {}
+try { return Number(store.get('reply-' + key)) === 1; } catch (e) { return false; }
+}
+window.mochiContinueBarOn = function () { return contSayOn('cs-trigger-bar'); };
 window.applyContinueSayUI = function () {
 try {
-const c = cfg();
-if (pname) pname.title = c['cs-trigger-name'] === 1 ? '点击让对方继续说' : '';
-if (csBtn) csBtn.style.display = c['cs-trigger-bar'] === 1 ? '' : 'none';
+if (pname) pname.title = contSayOn('cs-trigger-name') ? '点击让对方继续说' : '';
+if (csBtn) csBtn.style.display = contSayOn('cs-trigger-bar') ? '' : 'none';
 document.dispatchEvent(new Event('continue-say-changed')); // 群聊输入栏「继续说」按钮跟随同一开关
 } catch (e) {}
 };

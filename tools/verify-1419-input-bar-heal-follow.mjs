@@ -15,24 +15,39 @@
 // 唯独没订这一条 ⇒ 账追平了、屏没追平：用户每改一次、重开一次就回一次原样。
 //
 // 断言：
-//   A 轴（源码锚）：三枚开关型按钮的补算函数同时挂在回填与自愈两条广播上；输入栏重排挂在自愈上；
-//                  聊天设置那行的回显挂在自愈上（且面板开着时重画列表）；零机型／零 UA 分支字面检查。
-//   B 轴（真产物＋两种现场，各造一遍）：
+//   A 轴（源码锚，覆盖两半）：
+//     A1~A5 三枚开关型按钮的补算函数同时挂在回填与自愈两条广播上；输入栏重排挂在自愈上；聊天设置那行的
+//           回显挂在自愈上（且面板开着时重画列表）；自愈广播确为 idb.js 所发；两处落点零机型／零 UA 分支；
+//     A6~A8 群聊那排不再读没人写的裸键 cs-trigger-bar，改问单聊同一把尺（window.mochiContinueBarOn，
+//           拿不到该出口时退回直读 reply-cs-trigger-bar）；全 src 无人写裸键的反向钉；群聊自己那枚
+//           gc-cs-trigger-bar 仍在判据里；
+//     A9~A12 contSayOn＝replyCfg 就绪先问它、未就绪直读存储键；该尺挂上 window 供群聊页共用；显隐与标题
+//           两处判据都走 contSayOn；A12 反向钉＝旧式「先取 cfg 再取值」的 applyContinueSayUI 开头不得回流。
+//   B 轴（真产物＋三种现场，各造一遍）：
 //     B1 进场默认：默认排序值写在令牌上、继续说按钮藏着；
-//     B2 当场改：走真路径（面板 write＋saveReplyCfg）改完，本场立刻生效；
+//     B2（B2a/B2b 前置断言＋B2c 当场读屏）走真路径（面板 write＋saveReplyCfg）改完，本场立刻生效；
 //     B3【甲型＝LS 那一格空着】清掉整块 localStorage 重开：这一排按回填后的存档重排（该发的按钮显隐
 //        两侧都会因负载偶发不跟＝值晚于那一次性重画到货，既有抖动、非本批契约，故降级为 B3n NOTE）；
 //     B4【乙型＝LS 有值但是被回滚的旧值】写旧值落库→写新值落库→把 LS 发回旧值快照→重开；
 //     B5 乙型现场自证：自愈确实落了（heal≥1），store／replyCfg 读到的都是新值（不是假现场）；
-//     B6 乙型判别点：屏上那一排的 flex order 与新序逐字相同、继续说按钮显示出来 ← 红侧唯一该红的一条；
+//     B6 乙型判别点：屏上那一排的 flex order 与新序逐字相同、继续说按钮显示出来 ← 第一半的主判别点；
+//     B6b 群聊那一排同源跟上（收掉死键后：单聊开关开着，群聊输入栏也显示继续说）；
 //     B7 行内回显转「已自定义」（聊天设置那行不许还写着默认排列）；
 //     B8 再重开一次仍保持（自愈已把 LS 改写，丙场该直接对，不需第二次自愈）；
-//     B9 全程零 JS 异常。
+//     B9 全程零 JS 异常；
+//     B10 第二半判别点：同一格同步表达里摘掉 window.replyCfg（＝合并顺序最早那一发所处时刻——reply-settings.js
+//        排在 chat.js 之后，初始化末尾那发先于它执行），光标设 '1' 后调一发 applyContinueSayUI：按存储键判的
+//        （修复侧）显示、经 cfg() 读成 {}（红侧）藏——删掉存储直读回退即回到「藏到下次重开」。
 //
-// RED 判别（纯 HEAD 副本 9034931 实测）：B6 红，读数逐字就是症状——order 停在旧序
+// RED 判别（两半各钉一个纯 HEAD 底本）：
+//   第一半（纯 HEAD 副本 9034931 实测）：B6 红，读数逐字就是症状——order 停在旧序
 //   mic:50,continue:60,more:10,emoji:20,input:30,img:40,batch:70 且 contBtn=hidden，而同一时刻
 //   store 里已是新序、replyCfg 里 bar=1、heal=1。B1~B5、B7~B9 两侧同绿（甲型那条早就由
 //   #660附 的补算兜住，本批一字未动）。
+//   第二半（纯 HEAD 26f604f 实测；此前在 c23096a 底本上首测，两底本间只差 build.mjs 登记表与
+//   music-player 文案，本批触及的三个 src 件两次抽底 blob 逐字节相同）：19/26 有 FAIL，七红恰为
+//   A6／A8／A9／A10／A11／A12／B10；B10 读数 {"before":"hidden","after":"hidden"}——摘掉 replyCfg 后
+//   经 cfg() 只读到 {}，开关开着也藏；修复侧同尺 26/26 全绿、B10 {"before":"hidden","after":"shown"}。
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { readFileSync, statSync, rmSync, readdirSync } from 'node:fs';
@@ -80,13 +95,25 @@ const bareWriters = (() => {
   } catch (e) { return -1; }
   return n;
 })();
-check('A6 群聊那排不再读没人写的裸键，改问单聊同一把尺 replyCfg()',
-  gcSrc.includes("window.replyCfg && window.replyCfg()['cs-trigger-bar'] === 1")
+check('A6 群聊那排不再读没人写的裸键，改问单聊那把尺（第二半：经 window.mochiContinueBarOn，拿不到退回直读 reply- 键）',
+  gcSrc.includes("window.mochiContinueBarOn ? window.mochiContinueBarOn() : gcSettingOn('reply-cs-trigger-bar')")
   && !gcSrc.includes("gcSettingOn('cs-trigger-bar')"));
 check('A7 反向钉：全 src 确实没有任何一处写裸键 cs-trigger-bar（有人写回来了就该重新对表口径）',
   bareWriters === 0, '写入方计数=' + bareWriters + '（要 0；单聊那枚存成 reply-cs-trigger-bar）');
 check('A8 群聊自己那枚开关 gc-cs-trigger-bar 仍在判据里（收死键不许把群聊侧关掉）',
-  /window\.replyCfg && window\.replyCfg\(\)\['cs-trigger-bar'\] === 1\) \|\| gcCfg\(\)\['gc-cs-trigger-bar'\] === 1/.test(gcSrc));
+  /window\.mochiContinueBarOn\(\) : gcSettingOn\('reply-cs-trigger-bar'\)\) \|\| gcCfg\(\)\['gc-cs-trigger-bar'\] === 1/.test(gcSrc));
+// A9~A12＝#1419 第二半（合并顺序安全）：继续说按钮显隐不再经过 cfg()——合并顺序里 reply-settings.js 排在本文件
+// 之后，最早那一发（脚本初始化末尾）读到的是 {}，开关开着也被算成「关」，而两发重画时机都已用完 ⇒ 按钮一直藏着。
+// 改走 contSayOn：replyCfg 就绪先问它（保留 NaN 兜底与默认值语义），未就绪直读存储键。
+check('A9 contSayOn：replyCfg 就绪先问它、未就绪直读存储键（删掉回退＝最早那一发又读成 {}，按钮藏到下次重开）',
+  /function contSayOn\(key\) \{[\s\S]{0,160}if \(window\.replyCfg\) return window\.replyCfg\(\)\[key\] === 1;[\s\S]{0,160}Number\(store\.get\('reply-' \+ key\)\) === 1/.test(chat));
+check('A10 单聊那枚尺挂上 window 供群聊页共用（删＝群聊那条分支退回裸键直读，两侧口径分叉）',
+  chat.includes("window.mochiContinueBarOn = function () { return contSayOn('cs-trigger-bar'); };"));
+check('A11 继续说按钮显隐与标题判据都改走 contSayOn（改回 cfg()[\'cs-trigger-bar\'] 即第二半复发）',
+  chat.includes("if (csBtn) csBtn.style.display = contSayOn('cs-trigger-bar') ? '' : 'none';")
+  && chat.includes("if (pname) pname.title = contSayOn('cs-trigger-name') ? '点击让对方继续说' : '';"));
+check('A12 反向钉：旧式「先取 cfg 再取值」的 applyContinueSayUI 开头不得回流',
+  !/const c = cfg\(\);\nif \(pname\) pname\.title = c\['cs-trigger-name'\]/.test(chat));
 
 // ---------- B 轴：真产物 ----------
 const candidates = [
@@ -301,6 +328,27 @@ try {
   const third = jparse(await evalJs(VISUAL));
   check('B8 再重开一次仍保持（第二场直接按存档画，不必等自愈）',
     !!third && third.order === orderOf(REV) && third.contBtn === 'shown', JSON.stringify(third) + ' 期望 order=' + orderOf(REV));
+
+  // —— 第二半判别点：合并顺序最早那一发（replyCfg 尚未定义）也必须按存储键判显隐 ——
+  // 现场做法＝临时摘掉 window.replyCfg（模拟 reply-settings.js 还没跑到＝初始化末尾那一发所处时刻），
+  // 光标设 '1' 后点一发 applyContinueSayUI：绿侧 contSayOn 退到直读存储 ⇒ 显；红侧 cfg() 读到 {} ⇒ 藏。
+  // 全部在同一格同步表达里完成，读完立刻把 replyCfg 装回，不污染后续场次。
+  const b10 = jparse(await evalJs(`(function(){ try {
+    var b = document.getElementById('chat-continue-btn');
+    if (!b) return JSON.stringify({ err: 'no-btn' });
+    window.activeStore().set('reply-cs-trigger-bar', '0');
+    if (window.applyContinueSayUI) window.applyContinueSayUI();
+    var before = (b.style.display === 'none') ? 'hidden' : 'shown';
+    var saved = window.replyCfg; delete window.replyCfg;
+    window.activeStore().set('reply-cs-trigger-bar', '1');
+    if (window.applyContinueSayUI) window.applyContinueSayUI();
+    var after = (b.style.display === 'none') ? 'hidden' : 'shown';
+    window.replyCfg = saved;
+    if (window.applyContinueSayUI) window.applyContinueSayUI();
+    return JSON.stringify({ before: before, after: after });
+  } catch (e) { return JSON.stringify({ err: String(e && e.message) }); } })()`));
+  check('B10 第二半判别点：replyCfg 未就绪时（合并顺序最早那一发）也按存储键判显隐',
+    !!b10 && b10.before === 'hidden' && b10.after === 'shown', JSON.stringify(b10));
 
   check('B9 全程零 JS 异常', jsErrors.length === 0, JSON.stringify(jsErrors.slice(0, 3)));
 } finally {

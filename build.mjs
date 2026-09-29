@@ -5979,7 +5979,16 @@ const FIX_SENTINELS = [
   { name: '#1419a 输入栏三枚开关型按钮的补算挂在存储自愈广播上（删＝库里新值追平了、屏上仍按被回滚的旧值画，一加 12/多机型「改完重开回原样」复发）', file: 'js/chat.js', needle: "document.addEventListener('mochi-wrj-heal', syncInputBarSwitches);" },
   { name: '#1419b 输入栏按钮位置重排挂在存储自愈广播上（删＝自定义排列刷新重开恢复原样，而存档里明明已是自定义那一份）', file: 'js/chat.js', needle: "document.addEventListener('mochi-wrj-heal', applyInputBtnOrder);" },
   { name: '#1419c 聊天设置「输入栏按钮位置」行内回显跟随存储自愈（删＝输入栏已按自定义序排好、那一行还写着默认排列）', file: 'js/chat-settings.js', needle: "document.addEventListener('mochi-wrj-heal', () => { inputOrderSync(); if (inputOrderPanelOpen()) renderInputOrderPanel(); });" },
-  { name: '#1419d 群聊输入栏继续说按钮改问单聊那把现成的尺（改回读裸键＝「单聊开着、群聊藏着」原地复活，而那枚裸键全站无写入方）', file: 'js/group-chat.js', needle: "window.replyCfg && window.replyCfg()['cs-trigger-bar'] === 1" },
+  // #1419d 换锚（2026-09-29，随在途 #1419 收口）：修复改问单聊现成的尺后，旧 needle「window.replyCfg && window.replyCfg()['cs-trigger-bar'] === 1」必然消失；
+  //   锚收到群聊那排的显隐本体（问 window.mochiContinueBarOn ＋ 群聊自带 gc-cs-trigger-bar 兜底；改回读裸键即报红）。src/js/group-chat.js 内唯一。
+  { name: '#1419d 群聊输入栏继续说按钮改问单聊那把现成的尺（改回读裸键＝「单聊开着、群聊藏着」原地复活，而那枚裸键全站无写入方）', file: 'js/group-chat.js', needle: "window.mochiContinueBarOn ? window.mochiContinueBarOn() : gcSettingOn('reply-cs-trigger-bar')" },
+  // #1419 第二半（2026-09-29 同批追补）：继续说按钮的显隐判据不再经过 cfg——合并顺序里 reply-settings.js 排
+  //   在 chat.js 之后，最早那一发（脚本初始化末尾）读到的是空对象，开关开着也算「关」，而两发重画时机都已用完，
+  //   此后没有重画口＝按钮一直藏着（多机型「刷新重开恢复原样」的第二半；无头账本实测：整场只有一次 applyContinueSayUI、
+  //   读到的 cfg 是 undefined、before/after 都是 none）。判据改走 contSayOn：replyCfg 就绪先问它（保留原有兜底语义），
+  //   未就绪直读存储键——存储直读这一行就是第二半的落点，删掉即回到「慢一拍藏按钮」。
+  { name: '#1419e 继续说按钮显隐判据不再经过 cfg（#1419 第二半：合并顺序最早那一发 replyCfg 未就绪、读到空对象，开关开着也被算成关且再没有重画口；改回旧式 cfg 取值即复发）', file: 'js/chat.js', needle: "if (csBtn) csBtn.style.display = contSayOn('cs-trigger-bar') ? '' : 'none';" },
+  { name: '#1419f contSayOn 的存储直读回退（删＝replyCfg 未就绪那一发又读成空对象、按钮藏到下次重开；这正是第二半的落点）', file: 'js/chat.js', needle: "try { return Number(store.get('reply-' + key)) === 1; } catch (e) { return false; }" },
   /* ==== 2026-09-29 #1356（chat 半边落库）TA 的被动回复只活在一枚 setTimeout 里；页面被系统回收/重开＝那一发承诺连同定时器一起消失，重开后最后一条永远是【自己发的】＝用户口径「消息被吞」（OPPO Find X9/Edge 复报，用户点名其他机型也有，零机型/零 UA 分支）==== */
   { name: '#1356d 欠账只认「上一场留下的那一条」（删＝本场刚发、还在飞的那一发被误判成欠，回复变双份）', file: 'js/chat.js', needle: 'last.ts >= CHAT_SESSION_START' },
   { name: '#1356e 期限从「TA 最长会打多久」读、不从机型读（改回写死机型/UA 分支＝跨机型复发；且历史尾巴被一律补投）', file: 'js/chat.js', needle: 'if (age > chatTypingHorizonMs()) return;' },

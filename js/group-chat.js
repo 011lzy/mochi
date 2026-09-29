@@ -3310,7 +3310,7 @@ window.activeStore().set(key, key === 'cs-enter-send' ? (en ? 'on' : 'off') : (e
 }
 function syncGcInputBtns() {
 if (gcMicBtn) gcMicBtn.style.display = gcSettingOn('cs-voice-send') ? '' : 'none';
-if (gcContinueBtn) gcContinueBtn.style.display = ((window.replyCfg && window.replyCfg()['cs-trigger-bar'] === 1) || gcCfg()['gc-cs-trigger-bar'] === 1) ? '' : 'none';
+if (gcContinueBtn) gcContinueBtn.style.display = ((window.mochiContinueBarOn ? window.mochiContinueBarOn() : gcSettingOn('reply-cs-trigger-bar')) || gcCfg()['gc-cs-trigger-bar'] === 1) ? '' : 'none';
 if (gcBatchBtn) gcBatchBtn.style.display = gcSettingOn('cs-batch-send') ? '' : 'none';
 }
 function gcContinueSay() {
