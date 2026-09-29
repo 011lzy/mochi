@@ -6240,11 +6240,13 @@ document.dispatchEvent(new Event('continue-say-changed')); // 群聊输入栏「
 } catch (e) {}
 };
 window.applyContinueSayUI();
-document.addEventListener('mochi-restore-done', function () {
+function syncInputBarSwitches() {
 try { syncMicBtn(); } catch (e) {}
 try { syncBatchBtn(); } catch (e) {}
 try { if (window.applyContinueSayUI) window.applyContinueSayUI(); } catch (e) {}
-});
+}
+document.addEventListener('mochi-restore-done', syncInputBarSwitches);
+document.addEventListener('mochi-wrj-heal', syncInputBarSwitches); // FIX 2026-09-29 #1419 自愈落库后输入栏三枚开关型按钮要重画（mic/batch/继续说）
 const pAv = document.getElementById('chat-partner-av');
 if (pAv) {
 pAv.addEventListener('click', (e) => {
@@ -12062,6 +12064,7 @@ apply: applyInputBtnOrder
 document.addEventListener('chat-input-order-changed', applyInputBtnOrder);
 document.addEventListener('contact-switched', applyInputBtnOrder);
 document.addEventListener('mochi-restore-done', applyInputBtnOrder);
+document.addEventListener('mochi-wrj-heal', applyInputBtnOrder); // FIX 2026-09-29 #1419 自愈落库后重排输入栏按钮位置
 applyInputBtnOrder();
 const micBtn = document.getElementById('chat-mic-btn');
 const voicePanel = document.getElementById('voice-panel');

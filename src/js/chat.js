@@ -8308,11 +8308,21 @@ window.applyContinueSayUI();
 // 但它们同样只有初始化那一次同步——localStorage 被清、值由 IDB 回填（iOS 常见）时也会停在
 // 隐藏态。三者在数据就绪（回填完成，idb.js 保证必派发）后统一补算一次：此时 replyCfg 与
 // 存档值都是最终值。
-document.addEventListener('mochi-restore-done', function () {
+// FIX 2026-09-29 #1419（一加 12/OPPO Chrome 实报「打开了聊天栏继续说按钮，刷新重开又恢复原样」，多机型同现）：
+// 上面那条「数据就绪后补算」只救得了【LS 那一格空着】的设备——回填的判据是「LS 没值才抄库里的」，
+// 而这一型是「LS 有值，但那一次磁盘提交被内核回滚成了旧值」：回填见 LS 有值且没标脏，就让位了。
+// 真正把新值追回来的是 idb.js 的每键标记合并（wrjMergeFromIdb），它只改 store＋LS，然后派发
+// mochi-wrj-heal。输入栏此前没订这一路 ⇒ 库里/存档已是用户刚设的那份、屏上仍按进场时的旧值画，
+// 用户视角就是「每次改完重开都回原样」（无头实测：自愈后 store 读到新序且 replyCfg 里 bar=1，
+// 而那一排的 flex order 仍是旧序、继续说按钮仍 display:none）。判据零机型／零 UA 分支：
+// 只问「自愈那一发落没落」，站内的全站开关 UI 重同步本就统一走这一条广播。
+function syncInputBarSwitches() {
 try { syncMicBtn(); } catch (e) {}
 try { syncBatchBtn(); } catch (e) {}
 try { if (window.applyContinueSayUI) window.applyContinueSayUI(); } catch (e) {}
-});
+}
+document.addEventListener('mochi-restore-done', syncInputBarSwitches);
+document.addEventListener('mochi-wrj-heal', syncInputBarSwitches); // FIX 2026-09-29 #1419 自愈落库后输入栏三枚开关型按钮要重画（mic/batch/继续说）
 const pAv = document.getElementById('chat-partner-av');
 if (pAv) {
 pAv.addEventListener('click', (e) => {
@@ -15085,6 +15095,11 @@ document.addEventListener('chat-input-order-changed', applyInputBtnOrder);
 document.addEventListener('contact-switched', applyInputBtnOrder);
 // idbRestore 异步回填可能晚于本次初始化（回填后 store 里的键才是最终值），就绪后再重排一次
 document.addEventListener('mochi-restore-done', applyInputBtnOrder);
+// FIX 2026-09-29 #1419：回填只管「LS 空着」那一型；「LS 有值但被内核回滚成旧值」那一型是新值靠
+// idb.js 每键标记合并追回来、追完只改 store＋LS 并广播 mochi-wrj-heal。这一排此前没订那一发 ⇒
+// 存档已是用户自定义的序、屏上仍是进场时那份默认序（一加 12/OPPO Chrome 实报「刷新重开恢复原样」，
+// 无头复现：自愈后 read() 已是新序而 style.order 未变）。零机型／零 UA 分支：只跟随自愈广播重排。
+document.addEventListener('mochi-wrj-heal', applyInputBtnOrder); // FIX 2026-09-29 #1419 自愈落库后重排输入栏按钮位置
 applyInputBtnOrder();
 // ============================== v3.16.x：我可发送语音（录音 → 试听 → 发送） ==============================
 // 聊天设置「我可发送语音」（cs-voice-send，每联系人独立）开启后，输入栏左侧显示「麦克风」按钮：

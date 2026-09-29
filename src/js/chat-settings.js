@@ -3176,6 +3176,10 @@
       closeInputOrderPanel(false);
     });
     document.addEventListener('chat-input-order-changed', inputOrderSync);
+    // FIX 2026-09-29 #1419：小键写日志合并（mochi-wrj-heal）把 cs-input-order 从库里追回新值之后，
+    // 行内回显与「开着的那份列表」也要跟着重画——否则输入栏已按自定义序排好、这一行还写着「默认排列」
+    // （与本文件上方「我可发送语音」的 syncVs 走同一条广播，判据零机型／零 UA 分支）
+    document.addEventListener('mochi-wrj-heal', () => { inputOrderSync(); if (inputOrderPanelOpen()) renderInputOrderPanel(); });
     // 面板开着时开关被改（本页下方就有「批量发送消息」「我可发送语音」两行）→ 重画一遍，
     // 让「开关未开启」标记跟着变，不必关掉面板重开
     document.addEventListener('batch-send-changed', () => { if (inputOrderPanelOpen()) renderInputOrderPanel(); });

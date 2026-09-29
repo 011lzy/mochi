@@ -2508,6 +2508,7 @@ inputOrderSync();
 closeInputOrderPanel(false);
 });
 document.addEventListener('chat-input-order-changed', inputOrderSync);
+document.addEventListener('mochi-wrj-heal', () => { inputOrderSync(); if (inputOrderPanelOpen()) renderInputOrderPanel(); });
 document.addEventListener('batch-send-changed', () => { if (inputOrderPanelOpen()) renderInputOrderPanel(); });
 document.addEventListener('voice-send-changed', () => { if (inputOrderPanelOpen()) renderInputOrderPanel(); });
 }

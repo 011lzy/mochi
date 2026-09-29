@@ -5949,6 +5949,10 @@ const FIX_SENTINELS = [
   { name: '#1412l 发烫报告里那句「负载期约 Nfps」假读数不得回流（回流＝把「同步堵主线程」的算术后果当成流畅度读数：实测三轮逐字都是「负载期约 3fps（掉帧 10 帧、最长帧间隔 17ms）」，掉帧数恒等于轮数、最长间隔恒小于计数阈值），删除型＝产物里出现即红；实测底本命中 1 次·本面 0 次', file: 'js/energy-check.js', needle: "'负载期约 ' + wkFps + 'fps'", absent: true },
   { name: '#1412m 卡顿自检拿名义档位当分母的旧式不得回流（提前结束时报「采样 120 秒」而实际只测 30 秒＝假账面），删除型', file: 'js/perf-check.js', needle: 'rep.effMs = Math.max(0, rep.ms - rep.bgMs);', absent: true },
   { name: '#1412n 卡顿自检「测试中再点＝静默 return」不得回流（屏上什么也不发生，用户只能猜它还在不在跑），删除型', file: 'js/personalize.js', needle: 'if (!window.openModal || window.mochiPerfCheck.running()) return;', absent: true },
+  { name: '#1419a 输入栏三枚开关型按钮的补算挂在存储自愈广播上（删＝库里新值追平了、屏上仍按被回滚的旧值画，一加 12/多机型「改完重开回原样」复发）', file: 'js/chat.js', needle: "document.addEventListener('mochi-wrj-heal', syncInputBarSwitches);" },
+  { name: '#1419b 输入栏按钮位置重排挂在存储自愈广播上（删＝自定义排列刷新重开恢复原样，而存档里明明已是自定义那一份）', file: 'js/chat.js', needle: "document.addEventListener('mochi-wrj-heal', applyInputBtnOrder);" },
+  { name: '#1419c 聊天设置「输入栏按钮位置」行内回显跟随存储自愈（删＝输入栏已按自定义序排好、那一行还写着默认排列）', file: 'js/chat-settings.js', needle: "document.addEventListener('mochi-wrj-heal', () => { inputOrderSync(); if (inputOrderPanelOpen()) renderInputOrderPanel(); });" },
+  { name: '#1419d 群聊输入栏继续说按钮改问单聊那把现成的尺（改回读裸键＝「单聊开着、群聊藏着」原地复活，而那枚裸键全站无写入方）', file: 'js/group-chat.js', needle: "window.replyCfg && window.replyCfg()['cs-trigger-bar'] === 1" },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
