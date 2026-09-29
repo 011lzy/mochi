@@ -6013,6 +6013,10 @@ const FIX_SENTINELS = [
   { name: '#1416d 朋友圈分桶：只有真带 ts 的动态才换算年月（缺 ts 归 none＝「更早」，不许印成 1970 年）', file: 'js/feed.js', needle: "const k = ts ? feedMonthKeyOf(ts) : 'none';" },
   { name: '#1416e 信箱分桶同口径：缺 tm 的信归「更早」，且「更早」永远排最后', file: 'js/mail.js', needle: "const k = tm ? monthKeyOf(tm) : 'none';" },
   { name: '#1416f 折叠开合态用捕获阶段的 toggle 委托存进模块级 map（挂回 DOM 上＝一次整栏重画就把自己展开的月份收回去）', file: 'js/idb.js', needle: "document.addEventListener('toggle', histFoldRemember, true)" },
+  /* ==== 2026-09-30 #1462 互动卡「就地作答」提交前先收键盘（doSend 一处覆盖 提问/好奇/吐槽 三类文字卡；#512 半框／#542 弹窗同根因第三处）==== */
+  { name: '#1462a 就地作答提交前显式 blur 作答框（删掉＝聚焦中的 .ce-box 被 el.innerHTML 换「已回答」直接摘走，键盘是「被元素移除带走」而非「失焦收起」，不派 focusout/vv.resize 的内核上收键盘链无证据，卡到 2.2s 看门狗＝「答完题输入法收起很慢」复发）', file: 'js/chat.js', needle: 'try { inp.blur(); } catch (eKb) {}' },
+  { name: '#1462b 就地作答提交时向移动适配层报备有界兜底（删掉＝连 focusout 都不派的内核上 .phone 收缩高卡在键盘期数值，键盘位那半边灰底只能等看门狗；同 #512 第二道口径）', file: 'js/chat.js', needle: 'if (window.mochiKbDismiss) { try { window.mochiKbDismiss(); } catch (eKd) {} }' },
+
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

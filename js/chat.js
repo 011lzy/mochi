@@ -2914,6 +2914,8 @@ send.textContent = type === 'roast' ? (window.taFit ? window.taFit('回TA') : '�
 const doSend = () => {
 const v = (inp.value || '').trim();
 if (!v) return;
+try { inp.blur(); } catch (eKb) {}
+if (window.mochiKbDismiss) { try { window.mochiKbDismiss(); } catch (eKd) {} }
 if (type === 'curious' && window.chatCuriousReply) {
 const replies = (rec.curiousReplies && rec.curiousReplies.length) ? rec.curiousReplies : ['嗯，我记住了。', '原来是这样。', '好，我记住了。'];
 const reply = (window.pickAskCardReply ? window.pickAskCardReply(replies) : replies[Math.floor(Math.random() * replies.length)]);

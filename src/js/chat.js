@@ -3982,6 +3982,17 @@ send.textContent = type === 'roast' ? (window.taFit ? window.taFit('回TA') : '�
 const doSend = () => {
 const v = (inp.value || '').trim();
 if (!v) return;
+// FIX 2026-09-30 #1462：提交前先收键盘（口径同 #512 askDismissIme／#542 弹窗 close——blur 先行）。
+// 就地作答框（.ip-input，安卓已转 .ce-box）此刻持有焦点，随后 chatAskReply/chatCuriousReply/
+// chatRoastReply 把整张卡 el.innerHTML 换成「已回答」＝聚焦中的可编辑元素被「元素移除」带走
+// 而不是「失焦收起」——一批内核/输入法不为这种移除派 focusout、也不派（或极迟才派）
+// visualViewport.resize，移动适配收键盘链四条复原路全拿不到证据 → .phone 内联收缩高停在键盘期
+// 数值，只能等「2.2s 无活动」看门狗兜底＝「答完题输入法收起很慢、键盘位那半边灰底」（红米 K80
+// Chrome 复报，作者明说其他机型也有；#512 修问问TA半框、#542 修通用弹窗，就地作答是同根因第三处）。
+// 先 blur 走标准失焦链（focusout 必派发），再向移动层报备一次有界兜底（连 focusout 都不派的内核）。
+// 零机型分支：无聚焦时 blur 与报备均为空操作，iOS（不转 ce-box）与桌面行为不变。
+try { inp.blur(); } catch (eKb) {}
+if (window.mochiKbDismiss) { try { window.mochiKbDismiss(); } catch (eKd) {} }
 if (type === 'curious' && window.chatCuriousReply) {
 const replies = (rec.curiousReplies && rec.curiousReplies.length) ? rec.curiousReplies : ['嗯，我记住了。', '原来是这样。', '好，我记住了。'];
 const reply = (window.pickAskCardReply ? window.pickAskCardReply(replies) : replies[Math.floor(Math.random() * replies.length)]);
