@@ -12,6 +12,7 @@ var KB_RATIO = 0.85; // 可视高度 < 视口高度 85% ＝ 键盘弹出期（iO
 var PAGE_CN = { main: '手机桌面', chat: '聊天', 'group-chat': '群聊', home: '桌面二页', mail: '信箱', feed: '朋友圈', calendar: '日历', memory: '纪念', divination: '占卜', note: '备忘录', p2: '功能页', music: '音乐', records: '记录', garden: '花园', room: '房间', 'drift-bottle': '漂流瓶' };
 var PAGE_ID_CN = { phone: '手机桌面', chat: '聊天', 'group-chat': '群聊', home: '桌面二页', mail: '信箱', 'mail-write': '写信箱', 'mail-reply': '回信箱', feed: '朋友圈', calendar: '日历', memory: '纪念', divine: '占卜', music: '音乐', stats: '统计', interact: '互动', checkin: '打卡', 'checkin-cards': '打卡字卡', garden: '花园', room: '房间', drift: '漂流瓶', period: '经期', accounting: '记账', theme: '主题', setting: '设置', storage: '查看存储', 'card-audit': '字卡自检', chatcard: '字卡库', featurehub: '功能中心', 'feature-data': '功能数据', deskcheck: '屏幕适配诊断', guide: '功能介绍', about: '关于', 'chat-settings': '聊天设置', 'reply-settings': '回复设置', 'call-settings': '通话设置', 'sfx-settings': '音效设置', 'custom-cards': '自定义字卡', 'default-cards': '默认字卡', 'dict-cards': '词典字卡', 'fun-cards': '趣味字卡', 'quote-cards': '语录字卡', 'loc-cards': '定位字卡', 'mood-cards': '心情字卡', 'reply-cards': '回复字卡', fav: '收藏', 'fav-settings': '收藏设置' };
 var _running = false;
+var _finish = null;
 var minD = 0; // 窗口内实测刷新周期 ≈ 反复出现的最小帧间隔（模块级：jankThr 要读；_running 保证同一时间只有一个窗口在写）
 var gapHist = {}; // 帧间隔直方图（取整 ms → 出现次数）
 var gapFrames = 0; // 进直方图的样本数（周期估计的分母）
@@ -80,11 +81,13 @@ if (_running) return resolve(null);
 _running = true;
 ms = Math.max(3000, Math.min(300000, Number(ms) || 30000));
 onTick = typeof onTick === 'function' ? onTick : function () {};
-var rep = { t: Date.now(), ms: ms, frames: 0, janky: 0, severe: 0, worst: 0, hid: 0,
+var rep = { t: Date.now(), ms: ms, spanMs: 0, stopped: 0, frames: 0, janky: 0, severe: 0, worst: 0, hid: 0,
 kbFrames: 0, kbJanky: 0, pages: {}, pageFrames: {}, jankMs: 0, period: 0, fps: 0, lt: null,
 int: null, scene: [], lp: false, bgMs: 0, effMs: 0, fz: 0, fzWorst: 0, topCnt: '',
 fzJs: 0, fzPaint: 0, ltCap: false };
-var last = performance.now(), t0 = last, raf = 0, done = false;
+var last = performance.now(), t0 = last, raf = 0, done = false, endTimer = 0;
+_finish = function () { finish(1); };
+try { endTimer = setTimeout(function () { finish(0); }, ms + 200); } catch (e0) {}
 var bgMs = 0, hiddenAt = -1, hidPending = 0;
 function onVis() {
 var now = performance.now();
@@ -150,17 +153,21 @@ prTimer = setTimeout(probe, 0);
 prArm = performance.now();
 try { prTimer = setTimeout(probe, 0); } catch (e) {}
 var first = true;
-function finish() {
+function finish(byStop) {
 if (done) return;
 done = true;
+_finish = null; // #1412⑨ 把手交回（_running 保证同一时间只有一个窗口，不会误清下一轮）
 try { if (po) po.disconnect(); } catch (e) {}
 try { if (pgMo) pgMo.disconnect(); } catch (e) {} // #1226③ 页归因观察器随窗拆除（零常驻）
 try { clearTimeout(prTimer); } catch (e) {} // #1226④ 主线程探针链随窗拆除
+try { clearTimeout(endTimer); } catch (e) {} // #1412⑧ 兜底定时器随窗拆除（零常驻）
 try { document.removeEventListener(downEv, onDown); } catch (e) {} // #818 响应监听随窗拆除
 try { document.removeEventListener('visibilitychange', onVis); } catch (e) {} // #934 可见性监听随窗拆除
 if (hiddenAt >= 0) { bgMs += performance.now() - hiddenAt; hiddenAt = -1; } // 窗口在后台里结束的尾段
+rep.spanMs = Math.max(0, Math.round(performance.now() - t0));
+rep.stopped = byStop ? 1 : 0;
 rep.bgMs = Math.round(bgMs);
-rep.effMs = Math.max(0, rep.ms - rep.bgMs); // 前台有效时长（fps 的分母与报告展示都按它）
+rep.effMs = Math.max(0, rep.spanMs - rep.bgMs); // 前台有效时长（fps 的分母与报告展示都按它）
 rep.lt = lt.ok ? lt : null;
 rep.ltCap = ltCap; // #1226①：报告要分清「真没有长任务」与「这台内核没给观测通道」
 rep.jankMs = Math.round(jankThr());
@@ -274,7 +281,11 @@ L.push('结论：' + r.verdict + concl);
 var per = r.period > 0 ? '，正常帧间隔约 ' + r.period + 'ms' : '';
 var eff = r.effMs == null ? r.ms : r.effMs;
 var core = eff >= 1000 ? '平均 ' + r.fps + 'fps' + per : '前台时间不足 1 秒，未计 fps';
-L.push('采样 ' + Math.round(r.ms / 1000) + ' 秒 / 有效帧 ' + r.frames + '（' + core + '；前台约 ' + Math.round(eff / 1000) + ' 秒，后台/锁屏 ' + Math.round((r.bgMs || 0) / 1000) + ' 秒已剔除）');
+var _span = r.spanMs || r.ms;
+var _spanTxt = '采样 ' + Math.round(_span / 1000) + ' 秒';
+if (r.stopped) _spanTxt += '（提前结束，所选 ' + Math.round(r.ms / 1000) + ' 秒档，下面所有数字只按已测到的这段算）';
+else if (Math.abs(_span - r.ms) > 3000) _spanTxt += '（所选 ' + Math.round(r.ms / 1000) + ' 秒档，实跑这么多；差值＝页面不可见／出帧迟到）';
+L.push(_spanTxt + ' / 有效帧 ' + r.frames + '（' + core + '；前台约 ' + Math.round(eff / 1000) + ' 秒，后台/锁屏 ' + Math.round((r.bgMs || 0) / 1000) + ' 秒已剔除）');
 if (r.lp) L.push('· 实测刷新周期约 ' + r.period + 'ms（≈30fps 档）：iOS 低电量模式会把帧率减半，属系统行为——开了低电量请关闭后复测对照');
 if (r.prev && typeof r.prev.janky === 'number') {
 var pv = r.prev, _meta = [], _cp = ['掉帧 ' + pv.janky + '→' + r.janky + ' 帧'];
@@ -295,9 +306,9 @@ majors.sort(function (a, b) { return b[1] - a[1]; });
 var mtxt = majors.slice(0, 2).map(function (m) { return pageName(m[0]) + ' ' + pct(m[1], r.frames) + '%'; }).join('、');
 if (mtxt) L.push('· 采样期间主要在：' + mtxt);
 if (r.frames < 120) L.push('· 有效样本偏少（可能大部分时间在后台），建议亮屏状态下重测');
-var _fgMs = Math.max(0, (r.ms || 0) - (r.bgMs || 0));
-if (r.ms > 0 && _fgMs < r.ms * 0.2) L.push('· ⚠ 本次窗口前台有效时间仅 ' + Math.round(_fgMs / 1000) + ' 秒（其余在后台/被系统挂起），**结论不可用**——请保持亮屏、在应用内操作时重测');
-if (r.frames > 0 && r.bgMs > r.ms * 0.5) L.push('· 采样期间约 ' + Math.min(100, pct(r.bgMs, r.ms)) + '% 时间在后台/锁屏（已剔除、不影响判定）；想测刚才的卡，建议亮屏状态下重测');
+var _fgMs = Math.max(0, (_span || r.ms || 0) - (r.bgMs || 0));
+if ((_span || r.ms) > 0 && _fgMs < (_span || r.ms) * 0.2) L.push('· ⚠ 本次窗口前台有效时间仅 ' + Math.round(_fgMs / 1000) + ' 秒（其余在后台/被系统挂起），**结论不可用**——请保持亮屏、留在本站里操作时重测；想测「从后台切回来那一下」，请在切回来之后再开一轮，一进场就做那个动作');
+if (r.frames > 0 && r.bgMs > _span * 0.5) L.push('· 采样期间约 ' + Math.min(100, pct(r.bgMs, _span)) + '% 时间在后台/锁屏（已剔除、不影响判定）；想测刚才的卡，建议亮屏状态下重测');
 try {
 var _kp3 = (typeof window.__kaProbe === 'function') ? window.__kaProbe() : null;
 var _diedN = (_kp3 && _kp3.ev) ? (_kp3.ev.died || 0) : 0;
@@ -421,6 +432,7 @@ return L.join('\n');
 }
 window.mochiPerfCheck = {
 start: start,
+stop: function () { if (_finish) { _finish(); return true; } return false; },
 running: function () { return _running; },
 LAST_KEY: LAST_KEY
 };

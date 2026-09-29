@@ -10716,6 +10716,7 @@ try {
     }
     echoLast();
     let bar = null;
+    let lastProg = null; // #1412⑨ 最近一次 onTick 读数，供「进行中」弹窗报出还剩多久／已采多少
     function showBar(txt) {
       try {
         if (!bar) {
@@ -10733,7 +10734,18 @@ try {
     }
     function hideBar() { try { if (bar && bar.parentNode) bar.parentNode.removeChild(bar); } catch (e) {} bar = null; }
     row.addEventListener('click', function () {
-      if (!window.openModal || window.mochiPerfCheck.running()) return;
+      if (!window.openModal) return;
+      // #1412⑨ 进行中再点本行＝「结束并出报告」（对齐电量自测 #935、发烫自测 #1418 那套出口）。
+      // 旧写法是一条 `if (running()) return`＝屏上什么也不发生：2 分钟与 5 分钟档一旦开跑只能干等
+      // （perf-check 导出面实测只有 start/running/LAST_KEY，没有 stop），也没有任何地方告诉你它还在跑。
+      if (window.mochiPerfCheck.running()) {
+        var ctlRun = window.openModal('卡顿自检进行中', '', function () { window.mochiPerfCheck.stop(); }, {
+          noInput: true,
+          staticText: '正在实测' + (lastProg ? '（剩约 ' + lastProg.left + ' 秒｜已采 ' + lastProg.frames + ' 帧 · 掉帧 ' + lastProg.janky + '）' : '') + '。\n点「结束并出报告」＝立刻结算已测到的部分（剩余时长放弃，报告一律按实际跑到的时长算）；点「取消」＝继续测，什么都不发生。'
+        });
+        try { if (ctlRun && ctlRun.okText) ctlRun.okText('结束并出报告'); } catch (e9) {}
+        return;
+      }
       // #905：时长可选（用户实报「为什么只能测十秒，不合理」）——纯 pills 弹窗确定时 cb(pillVal)，
       // 默认 30 秒（原 10 秒样本太少：60fps 下才 ~600 帧，偶发巨帧很容易整窗漏采），10/60 可换。
       // #906：抽 runTest——报告弹窗「确定」＝用同样时长马上再测一轮（okText 定制按钮文案），
@@ -10743,6 +10755,7 @@ try {
         window.mochiPerfCheck.start(durMs, function (p) {
           // #906：浮条带当前页名（采样在跟着走，用户放心）＋后台占比过高时提示「不算数」
           var hidRatio = (p.frames + p.hid) > 0 ? p.hid / (p.frames + p.hid) : 0;
+          lastProg = p; // #1412⑨
           showBar('卡顿实测中…剩 ' + p.left + ' 秒｜' + (p.pg && p.pg !== '?' ? p.pg + '｜' : '') + '已采 ' + p.frames + ' 帧 · 掉帧 ' + p.janky + (hidRatio > 0.3 ? '（锁屏/切后台的时间不算数）' : ''));
         }).then(function (r) {
           hideBar();
@@ -10787,7 +10800,11 @@ try {
         runTest(durMs);
       }, {
         // #908：红字警示——用户在弹窗打开这一刻就要看见「短时长没用」（#900b 的 staticEmph+warn 重点标红机制）
-        staticText: '**⚠ 时长太短没用！**10 秒 / 30 秒只能看「此刻顺不顺」，抓卡顿请用 **2 分钟档（已设为默认）**，卡得少就用 **5 分钟**——切页面卡、用一会儿才卡、玩一阵才掉帧这类，时间越长越撞得上。\n\n点「确定」开始后（弹窗会关）正常用手机：去感觉卡的地方打字、滑动、切页、从后台切回来；顶部浮条实时倒数和显示当前页，结束自动弹报告，可【复制】或【导出docx】留档。采样只在本机、不上传；锁屏/切后台的时间自动剔除不算数。',
+        // #1418/#908：红字警示——用户在弹窗打开这一刻就要看见「短时长没用」（#900b 的 staticEmph+warn 重点标红机制）
+        // #1412⑩：中段口径改口——旧文案叫用户「正常用手机…从后台切回来」，而 #975 那道闸在前台不足
+        // 整窗 20% 时就把这一轮判成「结论不可用」＝照文案做必然白测（实测：8 秒窗切后台 9.6 秒，回前台
+        // 结算即带「结论不可用」）。现在写清「留在本站前台」，并给「想测切回来那一下」的正确次序。
+        staticText: '**⚠ 时长太短没用！**10 秒 / 30 秒只能看「此刻顺不顺」，抓卡顿请用 **2 分钟档（已设为默认）**，卡得少就用 **5 分钟**——切页面卡、用一会儿才卡、玩一阵才掉帧这类，时间越长越撞得上。\n\n点「确定」开始后（弹窗会关）请**留在本站前台**操作：去感觉卡的地方打字、滑动、切页、翻字卡库；顶部浮条实时倒数和显示当前页，结束自动弹报告，中途想收工就再点一次这一行 →「结束并出报告」，可【复制】或【导出docx】留档。\n要看「从后台切回来那一下」：切回来**之后**再开一轮、一进场就做那个动作——锁屏／切去别的应用那段时间会被整段剔除，剔得太多这一轮直接判「结论不可用」（那段时间本来就读不到本站）。采样只在本机、不上传。',
         noInput: true,
         warn: true,
         staticEmph: true,

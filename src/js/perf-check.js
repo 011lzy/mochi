@@ -75,6 +75,20 @@
 //     同样迟到＝这段时间主线程被任务占住（落盘／解码／脚本）；探针按时回执而帧仍迟到＝主线程是空的，
 //     晚的是出帧（合成／栅格：大图层、blur 这类）。iOS 没有 longtask 通道，旧报告只能给「冻结 106 次」
 //     一个孤数，建议把「查该页大图」和「查落盘时机」两条相反方向混成一条；现在当场分流。
+// #1412 三处「长窗口档用起来会咬人」（2026-09-29 用户直派「卡屏自测也有问题」；零机型／零 UA 分支，
+//   判据只取内核事实与实测时长。无头实测复现＝8 秒检测窗起窗 1.5 秒后把页面切到后台，document.hidden
+//   当场读回为 true：9 秒后 running 仍是 true、报告一个数字都没出，回到前台才结算，整窗被拖成 11.3 秒，
+//   且账面上 bgMs 9664 > 所选 ms 8000＝分母算错）：
+//   ⑧到点结算不再只挂在 rAF 上：隐藏页 rAF 停摆＝窗口永不结束，用户按引导「去忙别的／切回来」时报告
+//     时间完全不可预期（5 分钟档更糟：期间被系统回收＝整轮白测，LAST_KEY 只在 finish() 写）。加一只
+//     setTimeout(ms+200) 兜底按点结掉窗口，并把时长口径从「所选档位」改成「实测 spanMs」——提前结束
+//     与隐藏拖长两种情形下，effMs／fps／#975 有效性闸都跟着实测走（旧写法拿名义 ms 当分母）。
+//   ⑨补 stop()／「结束并出报告」出口：旧版导出面实测只有 start/running/LAST_KEY，2 分钟与 5 分钟档
+//     一旦开跑就只能干等，而隔壁电量自测、发烫自测都有这个出口＝同一站三件自测两套口径；并且测试中
+//     再点那一行是 `if (running()) return`＝屏上什么也不发生，用户只能猜。
+//   ⑩引导语与 #975 有效性闸不再互相打脸：弹窗写着「正常用手机…从后台切回来」，而前台不足整窗 20%
+//     就判「结论不可用」＝照文案做就白测。改成「留在本站前台操作；要看『从后台切回来那一下』请在切
+//     回来之后再开一轮，一进场就做那个动作」，「结论不可用」那一行也同口径给这句替代路径。
 (function () {
   'use strict';
   if (window.mochiPerfCheck) return;
@@ -91,6 +105,10 @@
   // PAGE_CN 里旧的桌面图标名映射保留兜底旧报告/旧调用方）
   var PAGE_ID_CN = { phone: '手机桌面', chat: '聊天', 'group-chat': '群聊', home: '桌面二页', mail: '信箱', 'mail-write': '写信箱', 'mail-reply': '回信箱', feed: '朋友圈', calendar: '日历', memory: '纪念', divine: '占卜', music: '音乐', stats: '统计', interact: '互动', checkin: '打卡', 'checkin-cards': '打卡字卡', garden: '花园', room: '房间', drift: '漂流瓶', period: '经期', accounting: '记账', theme: '主题', setting: '设置', storage: '查看存储', 'card-audit': '字卡自检', chatcard: '字卡库', featurehub: '功能中心', 'feature-data': '功能数据', deskcheck: '屏幕适配诊断', guide: '功能介绍', about: '关于', 'chat-settings': '聊天设置', 'reply-settings': '回复设置', 'call-settings': '通话设置', 'sfx-settings': '音效设置', 'custom-cards': '自定义字卡', 'default-cards': '默认字卡', 'dict-cards': '词典字卡', 'fun-cards': '趣味字卡', 'quote-cards': '语录字卡', 'loc-cards': '定位字卡', 'mood-cards': '心情字卡', 'reply-cards': '回复字卡', fav: '收藏', 'fav-settings': '收藏设置' };
   var _running = false;
+  // #1412⑨ 「提前结束并出报告」的把手：start() 里挂上当前窗口的结算入口、finish() 里摘掉。
+  // 旧版导出面只有 start/running/LAST_KEY（实测 Object.keys＝这三项），2 分钟与 5 分钟档一旦开跑
+  // 就只能干等——而隔壁电量自测、发烫自测都有「结束并出报告」，卡顿自检没有＝同一站三件自测两套口径。
+  var _finish = null;
   // #958：minD 语义改「反复出现的最小帧间隔」而非单次最小值——旧实现取窗口内单次最小间隔，
   // iOS Safari 偶发一次 4ms 的 rAF 调度抖动（同一 vsync 内补帧）就把周期记成 4ms、jankThr 落到
   // 24ms 下限，60Hz 屏上正常的 25~33ms 帧被误计成掉帧（报告还写「正常帧间隔约 4ms」，与同一份
@@ -189,11 +207,17 @@
       // 10 秒档实测约 600 帧太容易整窗漏采）；下限 3s 防误触秒断，内存不随时长增长（只累加计数器）。
       ms = Math.max(3000, Math.min(300000, Number(ms) || 30000));
       onTick = typeof onTick === 'function' ? onTick : function () {};
-      var rep = { t: Date.now(), ms: ms, frames: 0, janky: 0, severe: 0, worst: 0, hid: 0,
+      var rep = { t: Date.now(), ms: ms, spanMs: 0, stopped: 0, frames: 0, janky: 0, severe: 0, worst: 0, hid: 0,
                   kbFrames: 0, kbJanky: 0, pages: {}, pageFrames: {}, jankMs: 0, period: 0, fps: 0, lt: null,
                   int: null, scene: [], lp: false, bgMs: 0, effMs: 0, fz: 0, fzWorst: 0, topCnt: '',
                   fzJs: 0, fzPaint: 0, ltCap: false };
-      var last = performance.now(), t0 = last, raf = 0, done = false;
+      var last = performance.now(), t0 = last, raf = 0, done = false, endTimer = 0;
+      // #1412⑨ 把「立即结算」的把手交给模块级（UI 那一行的「结束并出报告」走这条路）
+      _finish = function () { finish(1); };
+      // #1412⑧ 到点结算不再只挂在 rAF 上：隐藏页 rAF 直接停摆，实测「8 秒窗起窗 1.5 秒后切后台，
+      // 9 秒后仍在跑（running=true、报告没出）」，回到前台才结算、整窗被拖成 11.3 秒。加一只定时器
+      // 兜底（隐藏页定时器被节流到秒级也照样落账），到点就结、不陪用户干等。
+      try { endTimer = setTimeout(function () { finish(0); }, ms + 200); } catch (e0) {}
       // #934 后台/锁屏时长实测：fps 分母、「后台占比过半」提示、以及「>250ms 间隙算不算后台」都靠它；
       // 与 rAF/观察器同款纪律，只活在检测窗口内，窗口结束随窗拆除（零常驻）
       var bgMs = 0, hiddenAt = -1, hidPending = 0;
@@ -281,17 +305,24 @@
       prArm = performance.now();
       try { prTimer = setTimeout(probe, 0); } catch (e) {}
       var first = true;
-      function finish() {
+      function finish(byStop) {
         if (done) return;
         done = true;
+        _finish = null; // #1412⑨ 把手交回（_running 保证同一时间只有一个窗口，不会误清下一轮）
         try { if (po) po.disconnect(); } catch (e) {}
         try { if (pgMo) pgMo.disconnect(); } catch (e) {} // #1226③ 页归因观察器随窗拆除（零常驻）
         try { clearTimeout(prTimer); } catch (e) {} // #1226④ 主线程探针链随窗拆除
+        try { clearTimeout(endTimer); } catch (e) {} // #1412⑧ 兜底定时器随窗拆除（零常驻）
         try { document.removeEventListener(downEv, onDown); } catch (e) {} // #818 响应监听随窗拆除
         try { document.removeEventListener('visibilitychange', onVis); } catch (e) {} // #934 可见性监听随窗拆除
         if (hiddenAt >= 0) { bgMs += performance.now() - hiddenAt; hiddenAt = -1; } // 窗口在后台里结束的尾段
+        // #1412⑧⑨ 一律按「这一窗实际跑了多久」（spanMs）算账，不再拿所选档位当分母：提前结束
+        // （⑨）与隐藏期把窗口拖长（⑧，实测 8 秒档拖成 11.3 秒、bgMs 9664 甚至大于所选 8000）两种
+        // 情形下，旧写法的 effMs 都会算错——早先靠 #934 改成「整窗－后台」才勉强对，那是拿名义值兜的。
+        rep.spanMs = Math.max(0, Math.round(performance.now() - t0));
+        rep.stopped = byStop ? 1 : 0;
         rep.bgMs = Math.round(bgMs);
-        rep.effMs = Math.max(0, rep.ms - rep.bgMs); // 前台有效时长（fps 的分母与报告展示都按它）
+        rep.effMs = Math.max(0, rep.spanMs - rep.bgMs); // 前台有效时长（fps 的分母与报告展示都按它）
         rep.lt = lt.ok ? lt : null;
         rep.ltCap = ltCap; // #1226①：报告要分清「真没有长任务」与「这台内核没给观测通道」
         rep.jankMs = Math.round(jankThr());
@@ -430,7 +461,13 @@
     // #934 采样行写明前台时长与后台时长：fps 是前台均速（旧版拿整窗当分母，与「正常帧间隔」自相矛盾）
     var eff = r.effMs == null ? r.ms : r.effMs;
     var core = eff >= 1000 ? '平均 ' + r.fps + 'fps' + per : '前台时间不足 1 秒，未计 fps';
-    L.push('采样 ' + Math.round(r.ms / 1000) + ' 秒 / 有效帧 ' + r.frames + '（' + core + '；前台约 ' + Math.round(eff / 1000) + ' 秒，后台/锁屏 ' + Math.round((r.bgMs || 0) / 1000) + ' 秒已剔除）');
+    // #1412⑧⑨ 「采样 N 秒」这一行以前报的是所选档位，不是实际跑到的时长：提前结束（⑨）时报
+    // 「采样 120 秒」而实际只测了 30 秒＝假账面；隐藏期把窗口拖长（⑧）时又只报 8 秒、少报 3.3 秒。
+    var _span = r.spanMs || r.ms;
+    var _spanTxt = '采样 ' + Math.round(_span / 1000) + ' 秒';
+    if (r.stopped) _spanTxt += '（提前结束，所选 ' + Math.round(r.ms / 1000) + ' 秒档，下面所有数字只按已测到的这段算）';
+    else if (Math.abs(_span - r.ms) > 3000) _spanTxt += '（所选 ' + Math.round(r.ms / 1000) + ' 秒档，实跑这么多；差值＝页面不可见／出帧迟到）';
+    L.push(_spanTxt + ' / 有效帧 ' + r.frames + '（' + core + '；前台约 ' + Math.round(eff / 1000) + ' 秒，后台/锁屏 ' + Math.round((r.bgMs || 0) / 1000) + ' 秒已剔除）');
     if (r.lp) L.push('· 实测刷新周期约 ' + r.period + 'ms（≈30fps 档）：iOS 低电量模式会把帧率减半，属系统行为——开了低电量请关闭后复测对照');
     // #941：与上次对比——配合报告弹窗「再测一次」看前后变化（关保活/清缓存前后各一轮）；旧格式记录不显示
     if (r.prev && typeof r.prev.janky === 'number') {
@@ -457,9 +494,9 @@
     // #934：占比改按「实测时长」算（原＝冻结段数与有效帧数比大小，量纲不同＝恒不触发）
     // #975：窗口有效性判定——前台有效时间太少（整段被系统挂起/杀掉）时结论不可用，
     // 不能给「中度 x%」这类会误导的判定（真机实测：60s 窗口前台不足 1 秒、最慢一帧 20118ms＝被回收）
-    var _fgMs = Math.max(0, (r.ms || 0) - (r.bgMs || 0));
-    if (r.ms > 0 && _fgMs < r.ms * 0.2) L.push('· ⚠ 本次窗口前台有效时间仅 ' + Math.round(_fgMs / 1000) + ' 秒（其余在后台/被系统挂起），**结论不可用**——请保持亮屏、在应用内操作时重测');
-    if (r.frames > 0 && r.bgMs > r.ms * 0.5) L.push('· 采样期间约 ' + Math.min(100, pct(r.bgMs, r.ms)) + '% 时间在后台/锁屏（已剔除、不影响判定）；想测刚才的卡，建议亮屏状态下重测');
+    var _fgMs = Math.max(0, (_span || r.ms || 0) - (r.bgMs || 0));
+    if ((_span || r.ms) > 0 && _fgMs < (_span || r.ms) * 0.2) L.push('· ⚠ 本次窗口前台有效时间仅 ' + Math.round(_fgMs / 1000) + ' 秒（其余在后台/被系统挂起），**结论不可用**——请保持亮屏、留在本站里操作时重测；想测「从后台切回来那一下」，请在切回来之后再开一轮，一进场就做那个动作');
+    if (r.frames > 0 && r.bgMs > _span * 0.5) L.push('· 采样期间约 ' + Math.min(100, pct(r.bgMs, _span)) + '% 时间在后台/锁屏（已剔除、不影响判定）；想测刚才的卡，建议亮屏状态下重测');
     // #961：系统回收（内存压力＝白屏/重载实锤）——与是否掉帧无关，独立成行
     try {
       var _kp3 = (typeof window.__kaProbe === 'function') ? window.__kaProbe() : null;
@@ -606,6 +643,9 @@
 
   window.mochiPerfCheck = {
     start: start,
+    // #1412⑨ 提前结束并出报告：立刻结算已测到的部分（时长口径按实测 spanMs 走，报告里标明提前结束）。
+    // 没在跑时返回 false，调用方据此什么都不做。
+    stop: function () { if (_finish) { _finish(); return true; } return false; },
     running: function () { return _running; },
     LAST_KEY: LAST_KEY
   };

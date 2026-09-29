@@ -142,8 +142,14 @@ check('A25 build.mjs 登记 #818a~d 哨兵', sent818 === 4, '实际 ' + sent818)
 
 // —— #934 追加（报告口径纠偏 + 归因补齐）——
 check('A26 后台/锁屏时长实测 bgMs（可见性跟踪 + 随窗拆除）', pc.includes('var bgMs = 0, hiddenAt = -1, hidPending = 0;') && pc.includes("document.addEventListener('visibilitychange', onVis") && pc.includes("document.removeEventListener('visibilitychange', onVis)"));
-check('A27 fps 按前台有效时长算（frames/effMs，不再拿整窗当分母）', pc.includes('rep.effMs = Math.max(0, rep.ms - rep.bgMs);') && pc.includes('rep.frames * 10000 / rep.effMs'));
-check('A28 后台占比按实测时长点名（r.bgMs > r.ms * 0.5）', pc.includes('r.bgMs > r.ms * 0.5') && pc.includes('已剔除、不影响判定'));
+check('A27 fps 按前台有效时长算（frames/effMs，不再拿整窗当分母）', pc.includes('rep.effMs = Math.max(0, rep.spanMs - rep.bgMs);') && pc.includes('rep.frames * 10000 / rep.effMs'));
+// #1412⑩ 反向钉：被减数必须是「实测窗口」，不许退回名义档位——提前结束（120 秒档跑 2 秒）与隐藏期
+//   拖长（实测 8 秒档拖成 11.3 秒、bgMs 9664 > 所选 8000）两种情形下旧公式都算歪。
+check('A27b #1412⑩ 名义档位当分母的旧公式不得回流', !pc.includes('rep.effMs = Math.max(0, rep.ms - rep.bgMs);'));
+check('A27c #1412⑧ 到点结算不只挂在 rAF 上（隐藏页 rAF 停摆＝窗口永不结束）', pc.includes('endTimer = setTimeout(function () { finish(0); }, ms + 200);') && pc.includes('clearTimeout(endTimer)'));
+check('A27d #1412⑨ 有提前结束的出口（旧导出面只有 start/running/LAST_KEY）', pc.includes("stop: function () { if (_finish) { _finish(); return true; } return false; },"));
+check('A28 后台占比按实测时长点名（#1412⑧ 起分母＝实测窗口 _span，不再拿名义档位）', pc.includes('r.bgMs > _span * 0.5') && pc.includes('已剔除、不影响判定'));
+check('A28b #1412⑧ 名义档位当占比分母的旧式不得回流（提前结束与隐藏拖长两种情形下「后台占比」会算歪）', !pc.includes('r.bgMs > r.ms * 0.5'));
 check('A29 前台冻结识别（>250ms 且无隐藏期照常计入 + 60s 硬兜底）', pc.includes('var BG_HARD = 60000;') && pc.includes('d > BG_GAP && (wasBg || d > BG_HARD)') && pc.includes('var fz = d > BG_GAP ? 1 : 0;'));
 check('A30 长任务归因 top3（第几秒·哪页·切页后/键盘期/后台期）', pc.includes('lt.top.push({ at:') && pc.includes('bgN') && pc.includes("'；最长的 ' + t3.length + ' 次：'"));
 check('A31 集中页按掉帧率选 + ≥2 倍其余页 + 「分散」结论', pc.includes('pkF >= 30') && pc.includes('return (pj / pf) >= 2 * (oj / of);') && pc.includes('· 掉帧分散：最多的'));
