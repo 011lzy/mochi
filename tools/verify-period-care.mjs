@@ -180,6 +180,11 @@ async function evalJs(expr) {
 
 await cdpConnect();
 await cdp('Page.enable');
+// #1407⑦ 之后必须把「驯化随机」提到文档起始：本探针原来是在导航后 500ms 才把 Math.random 钉成
+//   恒不触发，而本批新加的「IDB 回填落地后重读＋补跑」跑得更早（restore-done +200ms），
+//   于是启动期那一发用真随机抢掉了当天名额 → 后面每次触发都数到 0（假红）。
+//   addScriptToEvaluateOnNewDocument 在任何脚本之前落地，启动期所有触发点都被钉住（同 _dbg-scroll 先例）。
+await cdp('Page.addScriptToEvaluateOnNewDocument', { source: 'window.__origRandom=Math.random;Math.random=function(){return 0.999;};' });
 await cdp('Runtime.enable');
 await cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
 
@@ -260,7 +265,7 @@ await navigate();
   const persist = await evalJs("(function(){var raw=localStorage.getItem(window.activePrefix()+':chat-msgs')||'';return raw.indexOf('经期关心')>=0?'persisted':'not-found';})()");
   check('B1c 标签随消息持久化（chat-msgs 快照含「经期关心」，重进聊天仍在）', persist === 'persisted', persist);
   const fired = await evalJs("(function(){var n=JSON.parse(localStorage.getItem('xy-home-v2:period-notify')||'{}');var k=Object.keys(n.fired||{});return JSON.stringify({keys:k});})()");
-  check('B2 同日冷却键已持久化（today_care_inPeriod）', /_care_inPeriod/.test(fired || ''), fired);
+  check('B2 同日冷却键已持久化（#1407⑧ 起两侧共用 today_said_inPeriod）', /_said_inPeriod/.test(fired || ''), fired);
   const r2 = JSON.parse(await armAndCount() || '{}');
   check('B3 同一天重复调用不再追加（本次增量=0、累计仍=1）', r2.count === 0 && r2.total === 1, r2);
 }
@@ -469,7 +474,9 @@ await navigate();
   // F 组：作者明确不要新限制——频率与概率口径必须逐字未动
   const careSrc = readFileSync(join(root, 'src', 'js', 'period.js'), 'utf8');
   check('F1 fired 记账键仍带语境（本批没把「每语境每天一条」折成「每天一条」）',
-    careSrc.indexOf("today + '_care_' + ctx") >= 0, careSrc.indexOf("today + '_care_' + ctx") >= 0 ? '在位' : '被改窄');
+    careSrc.indexOf("today + '_said_' + ctx") >= 0, careSrc.indexOf("today + '_said_' + ctx") >= 0 ? '在位' : '被改窄');
+  check('F1b #1407⑧：通知侧走的是同一枚键（两边各记各的＝同一天两句同义话，正是本批收掉的）',
+    careSrc.indexOf("function said(c) { return !!notifyCfg.fired[today + '_said_' + c]; }") >= 0 && careSrc.indexOf("markSaid('inPeriod')") >= 0, '');
   check('F2 经期天数深浅的概率基数（90/70/55）与当日基数 75 一字未动',
     careSrc.indexOf('baseProb = 90') >= 0 && careSrc.indexOf('baseProb = 70') >= 0 && careSrc.indexOf('baseProb = 55') >= 0 && careSrc.indexOf('var baseProb = 75') >= 0, '');
   check('F3 深夜静默（23:00–06:00 不发也不占名额）那道闸未被本批碰过',
