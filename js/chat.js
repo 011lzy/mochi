@@ -3277,6 +3277,52 @@ windowKeyLoVal = (renderStart >= 0 && renderStart < msgs.length) ? chatWinKey(ms
 windowKeyHiVal = (windowKeyHi >= 0 && windowKeyHi < msgs.length) ? chatWinKey(msgs[windowKeyHi]) : '';
 } catch (e) { windowKeyLo = -1; windowKeyHi = -1; windowKeyLoVal = ''; windowKeyHiVal = ''; }
 }
+const chatWinRingArr = [];
+let chatWinRingLast = null;
+let chatWinRingBacks = 0;
+let chatWinRingProgPx = 0;
+function chatWinRingSnap() {
+return { lo: renderStart, hi: renderEnd, n: msgs.length, rn: windowRenderedN, stale: windowStale ? 1 : 0 };
+}
+function chatWinRingMark(kind, lo, hi) {
+try {
+chatWinRingArr.push({ t: Date.now(), k: kind, lo: lo, hi: hi });
+if (chatWinRingArr.length > 24) chatWinRingArr.shift();
+} catch (e) {}
+}
+function chatWinRingTick() {
+try {
+const pg = document.getElementById('page-chat');
+if (!pg || pg.hidden) return;
+const s = chatWinRingSnap();
+const actTs = (typeof _chatScrollActTs === 'number') ? _chatScrollActTs : 0;
+const supTs = (typeof suppressScrollUntil === 'number') ? suppressScrollUntil : 0;
+const fp = s.lo + '|' + s.hi + '|' + s.n + '|' + s.rn + '|' + s.stale + '|' + actTs + '|' + supTs;
+const now = Date.now();
+if (chatWinRingLast && chatWinRingLast.fp === fp) return; // 指纹没变＝不读几何不记条
+const b = document.getElementById('chat-body');
+const st = b ? b.scrollTop : 0;
+if (chatWinRingLast) {
+const L = chatWinRingLast;
+const backN = L.lo - s.lo;
+const dTop = Math.abs(st - L.st);
+if (backN > 20) {
+chatWinRingBacks++;
+chatWinRingMark('back', s.lo, s.hi);
+}
+if (dTop > 200 && (now < supTs || now - actTs < 200)) {
+chatWinRingProgPx += dTop;
+chatWinRingMark('prog', s.lo, s.hi);
+}
+if (s.n > 0 && b && !b.children.length) chatWinRingMark('blank', s.lo, s.hi);
+}
+chatWinRingLast = { fp: fp, lo: s.lo, hi: s.hi, st: st };
+} catch (e) {}
+}
+try { setInterval(chatWinRingTick, 1200); } catch (e) {}
+window.__chatWinRing = function () {
+return { backs: chatWinRingBacks, progPx: chatWinRingProgPx, ring: chatWinRingArr.slice(-8), cur: chatWinRingSnap() };
+}
 const TIME_DIVIDER_GAP = 5 * 60 * 1000;
 function maybeInsertDivider(idx) {
 if (store.get('cs-time-style') !== 'divider') return;
@@ -3349,6 +3395,7 @@ windowRenderedNicks = chatNickSig(); // #775b：整窗渲染＝屏上昵称已�
 windowRenderedSrcTags = srcTagSig(); // #1236：同一次整窗渲染＝屏上来源 chip 也是当时的闸态，一并登记
 windowStale = false;
 chatWinKeysSync(); // #1010：登记屏上窗口首/尾记录身份（收尾据此判前缀 / 尾部切片）
+chatWinRingMark('win', start, len); // #1466：整窗换装轨迹（取证环，只读）
 collectInplaceDrafts();
 windowRenderedLite = null;
 const _liteIdx = [];

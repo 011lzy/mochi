@@ -318,7 +318,27 @@
   //   连接丢失/打开失败（本文件上方各安卓内核实录）。上层媒体池必须区分：把②当①会永久
   //   拉黑一个其实存在的媒体池条目（朋友圈/聊天的令牌贴纸「有时看不到、很随机」，#665）。
   //   传入一个对象即得 `info.ambiguous === true`（仅②置位），不传参的调用方行为一字不变。
-  window.idbGet = function (key, info) {
+    // ===== #1466 Safari「冻结事务态」读结果守卫（iPhone 15 Pro Max／iOS 18.7 Safari 实证：
+  // 诊断单 mochi-diag-2026-09-29-13-56 的【最近错误】：InvalidStateError: Failed to read the
+  // 'result' property from 'IDBRequest': The request has not finished. @js/idb.js:237＝idbGet
+  // 的 onsuccess 里 finish(req.result) 那一发）——该机本页被系统回收 116 次、前后台频繁切换，
+  // 页面被反复挂起/回收后，success 事件会照常派发、请求本体却还没完成：此刻读 .result 直接抛
+  // InvalidStateError。旧写法把 finish(req.result) 的实参求值放在 onsuccess 里，一抛＝finish
+  // 永远不执行，这一发读既不成功也不失败，只能干等 4s/6s 等待窗→重试→再等；等待窗里上层拿
+  // 旧账渲染、新账几秒后从另一条路画上来＝「聊天记录一会显示以前一会显示现在」的读侧源头之一
+  // （#1357 同症状台账排除数据层时的盲区）。收口＝事务性 onsuccess 的 .result 读取统一过
+  // reqResultSafe：抛了就计一只只读数（__xyIdbBrokeN，诊断单打印）并按各点既有语义判
+  // 「这一发没落地」（主读路径立刻换连接重试一发，不再等满等待窗）。判据只问「这一发完成
+  // 没有」一个事实，零机型／零 UA 分支。
+  try { window.__xyIdbBrokeN = window.__xyIdbBrokeN || 0; } catch (e0) {} // #1466：只读计数启动即置 0（诊断单打印用）
+  function reqResultSafe(rq) {
+    try { return { ok: true, v: rq.result }; }
+    catch (eBroke) {
+      try { window.__xyIdbBrokeN = (window.__xyIdbBrokeN || 0) + 1; } catch (e0) {}
+      return { ok: false, e: eBroke };
+    }
+  }
+window.idbGet = function (key, info) {
     const ambiable = (info && typeof info === 'object') ? info : null;
     const amb = () => { if (ambiable) ambiable.ambiguous = true; };
   // ===== FIX 2026-09-28 #1360 等待窗到点 ≠ 这一发没读出来：真读还在内核里跑就别把结果丢掉
@@ -380,7 +400,24 @@
           const prev = req;
           req = tx.objectStore(STORE).get(key); // #1360：这发请求提到外层，放弃等待窗之后还要给它加落地监听
           if (prev) { try { prev.onsuccess = null; prev.onerror = null; } catch (ePrev) {} }
-          req.onsuccess = () => finish(req.result);
+          req.onsuccess = () => {
+            // #1466：抛了就当场判「没落地」——立刻换连接重试一发（与等待窗首次到点同形），
+            // 不再让这一发既不成功也不失败地干等 4s。
+            const _rG = reqResultSafe(req);
+            if (!_rG.ok) {
+              if (connLost(_rG.e)) dbPromise = null;
+              amb();
+              if (!retried) {
+                retried = true;
+                dbPromise = null;
+                open().then(function (db2) { db = db2; run(); }).catch(function () { finish(undefined); });
+                return;
+              }
+              finish(undefined);
+              return;
+            }
+            finish(_rG.v);
+          };
           req.onerror = () => { if (connLost(req.error)) dbPromise = null; amb(); finish(undefined); };
         } catch (e) { if (connLost(e)) dbPromise = null; amb(); finish(undefined); }
       }
@@ -434,7 +471,7 @@
           let pending = ks.length;
           ks.forEach(k => {
             const req = os.get(k);
-            req.onsuccess = () => { out[k] = req.result; if (--pending <= 0) finish(); };
+            req.onsuccess = () => { const _rM = reqResultSafe(req); if (_rM.ok) out[k] = _rM.v; if (--pending <= 0) finish(); }; // #1466：被打穿的那格按「未返回」处理，交给既有重试腿补读
             req.onerror = () => { if (connLost(req.error)) dbPromise = null; if (--pending <= 0) finish(); };
           });
           tx.onerror = () => { if (connLost(tx.error)) dbPromise = null; finish(); };
@@ -501,7 +538,7 @@
     return idbProbe(function (db, finish) {
       const tx = db.transaction(STORE, 'readonly');
       const req = tx.objectStore(STORE).getAllKeys();
-      req.onsuccess = () => finish(req.result || []);
+      req.onsuccess = () => { const _rL = reqResultSafe(req); finish(_rL.ok ? (_rL.v || []) : IDB_LIST_FAILED); }; // #1466：抛了照 onerror 口径＝「这次没读到」，三态语义不变
       req.onerror = () => { if (connLost(req.error)) dbPromise = null; finish(IDB_LIST_FAILED); };
       tx.onabort = () => { if (connLost(tx.error)) dbPromise = null; finish(IDB_LIST_FAILED); };
     });
@@ -514,7 +551,7 @@
     return idbProbe(function (db, finish) {
       const tx = db.transaction(STORE, 'readonly');
       const req = tx.objectStore(STORE).count(key);
-      req.onsuccess = () => finish((req.result || 0) > 0);
+      req.onsuccess = () => { const _rH = reqResultSafe(req); finish(_rH.ok ? ((_rH.v || 0) > 0) : IDB_LIST_FAILED); }; // #1466：同上，存在性三态不变
       req.onerror = () => { if (connLost(req.error)) dbPromise = null; finish(IDB_LIST_FAILED); };
       tx.onabort = () => { if (connLost(tx.error)) dbPromise = null; finish(IDB_LIST_FAILED); };
     });
@@ -1496,7 +1533,22 @@
         try {
           const tx = db.transaction(STORE, 'readonly');
           const req = tx.objectStore(STORE).get(key);
-          req.onsuccess = () => finish(req.result === undefined ? null : req.result);
+          req.onsuccess = () => {
+            // #1466：同 idbGet——抛了当场判「没落地」＋立刻换连接重试一发，不等 6s 首窗。
+            const _rK = reqResultSafe(req);
+            if (!_rK.ok) {
+              if (connLost(_rK.e)) dbPromise = null;
+              if (!retried) {
+                retried = true;
+                dbPromise = null;
+                open().then(function (db2) { db = db2; run(); }).catch(function () { finish(undefined); });
+                return;
+              }
+              finish(undefined);
+              return;
+            }
+            finish(_rK.v === undefined ? null : _rK.v);
+          };
           req.onerror = () => { if (connLost(req.error)) dbPromise = null; finish(undefined); };
         } catch (e) { if (connLost(e)) dbPromise = null; finish(undefined); }
       }

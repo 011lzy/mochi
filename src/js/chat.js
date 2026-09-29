@@ -4485,6 +4485,66 @@ windowKeyLoVal = (renderStart >= 0 && renderStart < msgs.length) ? chatWinKey(ms
 windowKeyHiVal = (windowKeyHi >= 0 && windowKeyHi < msgs.length) ? chatWinKey(msgs[windowKeyHi]) : '';
 } catch (e) { windowKeyLo = -1; windowKeyHi = -1; windowKeyLoVal = ''; windowKeyHiVal = ''; }
 }
+
+// ===== #1466 聊天渲染窗口取证环（#1357 契约落地；只读取证，零行为改动）=====
+// 背景：「聊天记录乱跳，一会显示以前的聊天记录一会显示现在的」自 #1357 起第三次报
+// （2026-09-29 iPhone 15 Pro Max／iOS 18.7 Safari，诊断单 mochi-diag-2026-09-29-13-56）。
+// #1357 已把数据层三发无头排除（读库/合并/回放/账本全绿），结论＝「定性要等一份带这一格的
+// 新诊断单」，但那支载荷没有落库——其后每份诊断单里都没有这一格，现象始终盲判。本批把
+// 尺子真正装上。
+// 结构：24 格环形、1.2s 一拍；JS 侧状态指纹（窗口起止/条数/整窗凭据/最近滚动与抑制时间戳）
+// 没变就不读几何、不记条（常驻拍零几何读，性能纪律同 #969 家族）。判定沿用 #1357 口径：
+//   back＝窗口起点回挪 >20 条（换装换成更早的一段）；
+//   prog＝两次采样间位移 >200px 且落在程序化滚动抑制窗内（跟底/回钉在用户不在底时拽画面）；
+//   blank＝msgs 有货而消息区空窗（#841 分帧在飞/链断）。
+// 读数入口 window.__chatWinRing()；device.js 诊断【视口/屏幕】节按它打印
+// 「聊天窗口取证：共=N条 此刻画 A–B 窗口倒退=x 程序写入的位移=y」＋最近 8 条轨迹。
+const chatWinRingArr = [];
+let chatWinRingLast = null;
+let chatWinRingBacks = 0;
+let chatWinRingProgPx = 0;
+function chatWinRingSnap() {
+return { lo: renderStart, hi: renderEnd, n: msgs.length, rn: windowRenderedN, stale: windowStale ? 1 : 0 };
+}
+function chatWinRingMark(kind, lo, hi) {
+try {
+chatWinRingArr.push({ t: Date.now(), k: kind, lo: lo, hi: hi });
+if (chatWinRingArr.length > 24) chatWinRingArr.shift();
+} catch (e) {}
+}
+function chatWinRingTick() {
+try {
+const pg = document.getElementById('page-chat');
+if (!pg || pg.hidden) return;
+const s = chatWinRingSnap();
+const actTs = (typeof _chatScrollActTs === 'number') ? _chatScrollActTs : 0;
+const supTs = (typeof suppressScrollUntil === 'number') ? suppressScrollUntil : 0;
+const fp = s.lo + '|' + s.hi + '|' + s.n + '|' + s.rn + '|' + s.stale + '|' + actTs + '|' + supTs;
+const now = Date.now();
+if (chatWinRingLast && chatWinRingLast.fp === fp) return; // 指纹没变＝不读几何不记条
+const b = document.getElementById('chat-body');
+const st = b ? b.scrollTop : 0;
+if (chatWinRingLast) {
+const L = chatWinRingLast;
+const backN = L.lo - s.lo;
+const dTop = Math.abs(st - L.st);
+if (backN > 20) {
+chatWinRingBacks++;
+chatWinRingMark('back', s.lo, s.hi);
+}
+if (dTop > 200 && (now < supTs || now - actTs < 200)) {
+chatWinRingProgPx += dTop;
+chatWinRingMark('prog', s.lo, s.hi);
+}
+if (s.n > 0 && b && !b.children.length) chatWinRingMark('blank', s.lo, s.hi);
+}
+chatWinRingLast = { fp: fp, lo: s.lo, hi: s.hi, st: st };
+} catch (e) {}
+}
+try { setInterval(chatWinRingTick, 1200); } catch (e) {}
+window.__chatWinRing = function () {
+return { backs: chatWinRingBacks, progPx: chatWinRingProgPx, ring: chatWinRingArr.slice(-8), cur: chatWinRingSnap() };
+}
 const TIME_DIVIDER_GAP = 5 * 60 * 1000;
 function maybeInsertDivider(idx) {
 if (store.get('cs-time-style') !== 'divider') return;
@@ -4606,6 +4666,7 @@ windowRenderedNicks = chatNickSig(); // #775b：整窗渲染＝屏上昵称已�
 windowRenderedSrcTags = srcTagSig(); // #1236：同一次整窗渲染＝屏上来源 chip 也是当时的闸态，一并登记
 windowStale = false;
 chatWinKeysSync(); // #1010：登记屏上窗口首/尾记录身份（收尾据此判前缀 / 尾部切片）
+chatWinRingMark('win', start, len); // #1466：整窗换装轨迹（取证环，只读）
 collectInplaceDrafts();
 windowRenderedLite = null;
 const _liteIdx = [];

@@ -23,6 +23,45 @@
 
   let idx = 0;
 
+  // ===== #1466 桌面页码持久化（「滑到别的页过一会儿弹回首页」主根因收口）=====
+  // 报障机（iPhone 15 Pro Max／iOS 18.7 Safari，诊断单 mochi-diag-2026-09-29-13-56）本页被
+  // 系统回收 116 次：回收一次＝整页重载，而桌面翻到第几页从来没被记住 ⇒ 每次重开都落回
+  // 第 1 页＝用户口径「手已经滑到别的页面，过了一会又弹回前面的首页了」（多机型同现＝各家的
+  // 回收频率不同而已）。收口＝翻页落定即把页码写进当前桌面命名空间键（<prefix>:desk-page-idx），
+  // 建桌面时恢复（钳到实际页数；「正在翻页」的 1.2s 内不拽人——只认 touchstart/圆点跳页这类
+  // 真实用户动作记账，程序化定位写入不记账＝开机建桌面的多次重建互相不干扰）。零机型／零 UA。
+  let lastUserSwipeTs = 0;   // 最近一次真实用户翻页动作（touchstart/圆点跳页）
+  let swipeWarmTimer = null; // #1466：滑动期临时提层的收尾计时
+  function deskIdxKey() {
+    try {
+      const p = (typeof window.activePrefix === 'function') ? window.activePrefix() : '';
+      return p ? (p + ':desk-page-idx') : '';
+    } catch (e) { return ''; }
+  }
+  function deskIdxSave() {
+    try { const k = deskIdxKey(); if (k) localStorage.setItem(k, String(idx)); } catch (e) {}
+  }
+  function deskIdxSaved() {
+    try {
+      const k = deskIdxKey(); if (!k) return 0;
+      const v = parseInt(localStorage.getItem(k), 10);
+      return isNaN(v) ? 0 : v;
+    } catch (e) { return 0; }
+  }
+  // #1466：滑动期临时提层——#754 只给开了「整页背景」的桌面提层（.has-page-bg），其余桌面
+  // 三张 .page-slide 都不是独立合成层，翻页时新页瓦片要现场栅格化＝滑动半路只画出一半
+  //（同机诊断「切回桌面 平均297ms/最慢5539ms」，与 #754 报障机同型号；用户口径「别的页面
+  // 屏幕只显示一半」）。收口＝起手（touchstart）到落定后 150ms 给容器挂 .swipe-warm 提层
+  //（home.css），同 #976 运动期摘模糊的瞬态口径：只有手势窗口里有这三张层的显存开销
+  //（#1225 反对的「常驻」一字不沾），停下即还。
+  function swipeWarm() {
+    try {
+      if (!pages.classList.contains('swipe-warm')) pages.classList.add('swipe-warm');
+      clearTimeout(swipeWarmTimer);
+      swipeWarmTimer = setTimeout(function () { pages.classList.remove('swipe-warm'); }, 150);
+    } catch (e) {}
+  }
+
   // v3.27.x（#580）：每帧跟随用的缓存——防卡顿的关键。
   // 跟随改为每帧执行后，若每帧都 querySelectorAll + getComputedStyle，等于把滚动帧
   // 的预算花在查询上（安卓低端机必掉帧）。两者只在「增/删页」「resize」时失效重算。
@@ -65,6 +104,7 @@
   function paint(cur) {
     if (cur === idx) return;
     idx = cur;
+    deskIdxSave(); // #1466：页码落定即持久化（回收重载后回到这一页）
     for (let k = 0; k < dotsCache.length; k++) dotsCache[k].classList.toggle('active', k === idx);
   }
 
@@ -82,6 +122,8 @@
     refreshCache(); // 圆点可能刚被重建过（点击落在 deskRebuild 之后的首帧）
     const slides = getSlides();
     idx = Math.max(0, Math.min(slides.length - 1, i));
+    lastUserSwipeTs = Date.now(); // #1466：圆点点击/外部跳页也是真实翻页动作（恢复闸记账；touchstart 管手势）
+    deskIdxSave(); // #1466：圆点点击/外部跳页同口径持久化
     // v3.5.132：页面隐藏（display:none）时 clientWidth=0，直接赋值会产生 Infinity 下标
     if (!pages.clientWidth) return;
     // 直接赋值 scrollLeft 立即切换（scroll-snap 会自动吸附），避免 smooth 滚动被 snap 打断
@@ -381,6 +423,11 @@
     settleTimer = setTimeout(sync, 80);
   }, { passive: true });
 
+  // #1466：起手即预热——scroll 事件要等内核判定横向滚动之后才来，第一帧新页瓦片往往还没
+  // 栅格化完（「只显示一半」正是这一窗）。touchstart 起手挂 .swipe-warm，比首个 scroll
+  // 事件早整段手势预滚动期，栅格化发生在手指按下还没移动的窗口里。
+  pages.addEventListener('touchstart', function () { lastUserSwipeTs = Date.now(); swipeWarm(); }, { passive: true });
+
   // 圆点点击切换：事件委托（v3.6.x：圆点是动态重建的，不能直接绑每颗）
   document.getElementById('desktop-dots').addEventListener('click', (e) => {
     const dot = e.target.closest('.dot');
@@ -437,6 +484,7 @@
       deskColdArm(false);
       if (pages.clientWidth) {
         refreshCache();
+        sync(); // #1466：先按真实落点校正 idx 再落位——回桌面那一刻若 idx 因滚动事件被节流而陈旧，旧序会照陈旧值把 scrollLeft 写回别的页＝「自己弹回去」；sync 只切圆点不写滚动位，先它一步零成本
         snapToIdx(); // #1301：已经在位就不写（旧写法每次切回桌面必写一次＝把同步布局压进这一帧）
         sync();
         pageScrollGuard.later(60); // #989：回桌面复核一次（残留滚动量在进桌面当帧就修掉）
@@ -461,6 +509,15 @@
   // 卡片全部「不显示」）。钳制后圆点/索引与实际页数一致。
   window.deskRebuild = function () {
     const slides = getSlides();
+    // #1466：恢复上次停留页——跟着每一次建桌面走（开机要建不止一次：先默认布局、数据回填
+    // 后再建全量，一次性恢复会被第一次建掉）。「正在翻页」的 1.2s 内不拽人（记账只认
+    // touchstart/圆点跳页这类真实用户动作，程序化定位写入不记账＝重建自身的落位写入不干扰
+    // 后续恢复）；会话中途的重建发生时持久值本来就等于用户刚落定的那一页（每次翻页落定都已
+    // 同步写键）⇒ 同页无感。
+    if (slides.length && !(lastUserSwipeTs && Date.now() - lastUserSwipeTs < 1200)) {
+      const want1466 = Math.max(0, Math.min(slides.length - 1, deskIdxSaved()));
+      if (want1466 !== idx) idx = want1466;
+    }
     idx = Math.max(0, Math.min(Math.max(slides.length - 1, 0), idx));
     // 重建圆点
     const dotsBox = document.getElementById('desktop-dots');
@@ -487,4 +544,8 @@
   // v3.x：暴露给桌面长按拖拽（跨页翻页 + 当前页索引）
   window.deskGo = go;
   window.deskIdx = function () { return idx; };
+  // #1466：诊断读数（device.js「桌面翻页现场」行按它打印）
+  window.__deskSlideDiag = function () {
+    return { idx: idx, n: Math.max(dotsCache.length, getSlides().length), sl: pages.scrollLeft, warm: pages.classList.contains('swipe-warm') };
+  };
 })();

@@ -194,6 +194,14 @@ tx.onabort = () => { if (done) return; done = true; clearTimeout(t); _idbFailLas
 } catch (e) { if (done) return; done = true; clearTimeout(t); resolve(false); }
 })).catch(() => false);
 };
+try { window.__xyIdbBrokeN = window.__xyIdbBrokeN || 0; } catch (e0) {} // #1466：只读计数启动即置 0（诊断单打印用）
+function reqResultSafe(rq) {
+try { return { ok: true, v: rq.result }; }
+catch (eBroke) {
+try { window.__xyIdbBrokeN = (window.__xyIdbBrokeN || 0) + 1; } catch (e0) {}
+return { ok: false, e: eBroke };
+}
+}
 window.idbGet = function (key, info) {
 const ambiable = (info && typeof info === 'object') ? info : null;
 const amb = () => { if (ambiable) ambiable.ambiguous = true; };
@@ -236,7 +244,22 @@ const tx = db.transaction(STORE, 'readonly');
 const prev = req;
 req = tx.objectStore(STORE).get(key); // #1360：这发请求提到外层，放弃等待窗之后还要给它加落地监听
 if (prev) { try { prev.onsuccess = null; prev.onerror = null; } catch (ePrev) {} }
-req.onsuccess = () => finish(req.result);
+req.onsuccess = () => {
+const _rG = reqResultSafe(req);
+if (!_rG.ok) {
+if (connLost(_rG.e)) dbPromise = null;
+amb();
+if (!retried) {
+retried = true;
+dbPromise = null;
+open().then(function (db2) { db = db2; run(); }).catch(function () { finish(undefined); });
+return;
+}
+finish(undefined);
+return;
+}
+finish(_rG.v);
+};
 req.onerror = () => { if (connLost(req.error)) dbPromise = null; amb(); finish(undefined); };
 } catch (e) { if (connLost(e)) dbPromise = null; amb(); finish(undefined); }
 }
@@ -279,7 +302,7 @@ const os = tx.objectStore(STORE);
 let pending = ks.length;
 ks.forEach(k => {
 const req = os.get(k);
-req.onsuccess = () => { out[k] = req.result; if (--pending <= 0) finish(); };
+req.onsuccess = () => { const _rM = reqResultSafe(req); if (_rM.ok) out[k] = _rM.v; if (--pending <= 0) finish(); }; // #1466：被打穿的那格按「未返回」处理，交给既有重试腿补读
 req.onerror = () => { if (connLost(req.error)) dbPromise = null; if (--pending <= 0) finish(); };
 });
 tx.onerror = () => { if (connLost(tx.error)) dbPromise = null; finish(); };
@@ -333,7 +356,7 @@ window.idbListKeys = function () {
 return idbProbe(function (db, finish) {
 const tx = db.transaction(STORE, 'readonly');
 const req = tx.objectStore(STORE).getAllKeys();
-req.onsuccess = () => finish(req.result || []);
+req.onsuccess = () => { const _rL = reqResultSafe(req); finish(_rL.ok ? (_rL.v || []) : IDB_LIST_FAILED); }; // #1466：抛了照 onerror 口径＝「这次没读到」，三态语义不变
 req.onerror = () => { if (connLost(req.error)) dbPromise = null; finish(IDB_LIST_FAILED); };
 tx.onabort = () => { if (connLost(tx.error)) dbPromise = null; finish(IDB_LIST_FAILED); };
 });
@@ -343,7 +366,7 @@ if (!key) return Promise.resolve(IDB_LIST_FAILED);
 return idbProbe(function (db, finish) {
 const tx = db.transaction(STORE, 'readonly');
 const req = tx.objectStore(STORE).count(key);
-req.onsuccess = () => finish((req.result || 0) > 0);
+req.onsuccess = () => { const _rH = reqResultSafe(req); finish(_rH.ok ? ((_rH.v || 0) > 0) : IDB_LIST_FAILED); }; // #1466：同上，存在性三态不变
 req.onerror = () => { if (connLost(req.error)) dbPromise = null; finish(IDB_LIST_FAILED); };
 tx.onabort = () => { if (connLost(tx.error)) dbPromise = null; finish(IDB_LIST_FAILED); };
 });
@@ -941,7 +964,21 @@ function run() {
 try {
 const tx = db.transaction(STORE, 'readonly');
 const req = tx.objectStore(STORE).get(key);
-req.onsuccess = () => finish(req.result === undefined ? null : req.result);
+req.onsuccess = () => {
+const _rK = reqResultSafe(req);
+if (!_rK.ok) {
+if (connLost(_rK.e)) dbPromise = null;
+if (!retried) {
+retried = true;
+dbPromise = null;
+open().then(function (db2) { db = db2; run(); }).catch(function () { finish(undefined); });
+return;
+}
+finish(undefined);
+return;
+}
+finish(_rK.v === undefined ? null : _rK.v);
+};
 req.onerror = () => { if (connLost(req.error)) dbPromise = null; finish(undefined); };
 } catch (e) { if (connLost(e)) dbPromise = null; finish(undefined); }
 }

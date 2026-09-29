@@ -1367,6 +1367,22 @@
           + '  逃生探针=' + (function () { try { var p = window.__mochiStuckProbe && window.__mochiStuckProbe(); return p ? ('streak=' + p.streak + ' kb=' + (p.kb ? 1 : 0)) : 'n/a'; } catch (e) { return 'n/a'; } })());
       }
     } catch (e) {}
+    // #1466：聊天渲染窗口取证（#1357 契约）＋桌面翻页现场＋IDB 读异常拦截——
+    // 「聊天记录乱跳／桌面弹回首页」两族报障从此有当场读数可判，不再靠猜。
+    try {
+      const wr = (typeof window.__chatWinRing === 'function') ? window.__chatWinRing() : null;
+      if (wr) {
+        const traj = (wr.ring || []).map(function (e) { return e.k + '@' + e.lo + '~' + e.hi; }).join(' → ');
+        L.push('聊天窗口取证：共=' + wr.cur.n + '条 此刻画 ' + wr.cur.lo + '–' + wr.cur.hi
+          + ' 窗口倒退=' + wr.backs + ' 程序写入的位移=' + wr.progPx + 'px'
+          + (traj ? '（' + traj + '）' : '（无轨迹）')
+          + ' IDB读异常拦截=' + (window.__xyIdbBrokeN || 0));
+      }
+    } catch (eW1) {}
+    try {
+      const dp = (typeof window.__deskSlideDiag === 'function') ? window.__deskSlideDiag() : null;
+      if (dp) L.push('桌面翻页现场：页=' + (dp.idx + 1) + '/' + dp.n + ' scrollLeft=' + Math.round(dp.sl) + ' 提层=' + (dp.warm ? '开' : '关'));
+    } catch (eW2) {}
     // v3.26.x：聊天输入栏现场（红米 K60 至尊版 + Edge「打字不显示、空白」）——
     // 「框里看着空白」有三种完全不同的成因，肉眼一模一样，只有这份实测能分案：
     //   A 字没进 DOM：textLen=0（输入法/内核丢提交，或守卫提前清）

@@ -6143,6 +6143,21 @@ const FIX_SENTINELS = [
   /* ==== 2026-09-30 #1462 互动卡「就地作答」提交前先收键盘（doSend 一处覆盖 提问/好奇/吐槽 三类文字卡；#512 半框／#542 弹窗同根因第三处）==== */
   { name: '#1462a 就地作答提交前显式 blur 作答框（删掉＝聚焦中的 .ce-box 被 el.innerHTML 换「已回答」直接摘走，键盘是「被元素移除带走」而非「失焦收起」，不派 focusout/vv.resize 的内核上收键盘链无证据，卡到 2.2s 看门狗＝「答完题输入法收起很慢」复发）', file: 'js/chat.js', needle: 'try { inp.blur(); } catch (eKb) {}' },
   { name: '#1462b 就地作答提交时向移动适配层报备有界兜底（删掉＝连 focusout 都不派的内核上 .phone 收缩高卡在键盘期数值，键盘位那半边灰底只能等看门狗；同 #512 第二道口径）', file: 'js/chat.js', needle: 'if (window.mochiKbDismiss) { try { window.mochiKbDismiss(); } catch (eKd) {} }' },
+  /* ==== 2026-09-30 #1466 ①桌面页码持久化＋滑动期临时提层（iPhone 15 Pro Max／iOS 18.7 Safari 实报「滑到别的页过一会弹回首页（本页被回收 116 次＝重载页码不持久）／翻页时别的页面只显示一半（#754 提层只覆盖开了整页背景的桌面）」）②Safari 冻结事务态 onsuccess 读 .result 抛 InvalidStateError（同机诊断单 @js/idb.js:237 实证＝「聊天记录一会以前一会现在」的读侧源头之一）守卫收口 ③#1357 聊天渲染窗口取证环落地（同症状第三次报、#1357 尺子此前从未入库）==== */
+  { name: '#1466a idb读结果守卫助手（删＝Safari 冻结事务态读 .result 一抛、finish 永不执行＝读既不成功也不失败，干等 4s/6s 等待窗，上层拿旧账渲染）', file: 'js/idb.js', needle: 'function reqResultSafe(rq) {' },
+  { name: '#1466b idbGet 主读守卫（删＝诊断单 @js/idb.js:237 那发 InvalidStateError 原样复发）', file: 'js/idb.js', needle: 'const _rG = reqResultSafe(req);' },
+  { name: '#1466c idbGetMany 批量读守卫（删＝启动回填头像/壁纸那几发同样被冻结事务态打穿）', file: 'js/idb.js', needle: 'const _rM = reqResultSafe(req); if (_rM.ok) out[k] = _rM.v;' },
+  { name: '#1466d idbListKeys 严格清单守卫（删＝三态「权威清单」被异常打穿成 uncaught）', file: 'js/idb.js', needle: "_rL.ok ? (_rL.v || []) : IDB_LIST_FAILED" },
+  { name: '#1466e idbHasKey 存在性守卫（删＝三态「键是否存在」被异常打穿成 uncaught）', file: 'js/idb.js', needle: "_rH.ok ? ((_rH.v || 0) > 0) : IDB_LIST_FAILED" },
+  { name: '#1466f idbHydrateKey 按需取回守卫（删＝字卡池/大键懒加载那发被冻结事务态打穿）', file: 'js/idb.js', needle: 'const _rK = reqResultSafe(req);' },
+  { name: '#1466g 聊天渲染窗口取证环（#1357 契约落地；删＝「聊天记录乱跳」再报时诊断单里仍没有那一格）', file: 'js/chat.js', needle: 'function chatWinRingTick() {' },
+  { name: '#1466h 整窗换装轨迹登记（删＝轨迹里没有 win 节点，换装时刻对不上跳动时刻）', file: 'js/chat.js', needle: "chatWinRingMark('win', start, len);" },
+  { name: '#1466i 诊断「聊天窗口取证」行（删＝共/此刻画/窗口倒退/程序位移没有当场读数）', file: 'index.html', needle: "聊天窗口取证：共='" },
+  { name: '#1466j 诊断「桌面翻页现场」行（删＝页码/提层状态没有当场读数）', file: 'index.html', needle: "桌面翻页现场：页='" },
+  { name: '#1466k 桌面页码恢复（删＝回收重载后永远落回第 1 页＝「滑到别的页过一会弹回首页」复发）', file: 'js/desktop-slider.js', needle: 'if (slides.length && !(lastUserSwipeTs && Date.now() - lastUserSwipeTs < 1200)) {' },
+  { name: '#1466l 滑动期临时提层挂类（删＝没开整页背景的桌面翻页半路只画一半复发）', file: 'js/desktop-slider.js', needle: "pages.classList.add('swipe-warm');" },
+  { name: '#1466m 回桌面先 sync 再落位（删＝idx 陈旧时 snapToIdx 照陈旧值把 scrollLeft 写回别的页＝「自己弹回去」）', file: 'js/desktop-slider.js', needle: 'sync(); // #1466：先按真实落点校正 idx 再落位' },
+  { name: '#1466n 滑动期提层 CSS（删＝.swipe-warm 挂了也没有层，半屏白块复发）', file: 'css/home.css', needle: '.desktop-pages.swipe-warm .page-slide { will-change: transform; }' },
 
 ];
 try {
