@@ -28,11 +28,6 @@
 //      ＝用户「不知道点哪一个」的直接形态；按 #982 原文补回入口行并撤掉死按钮（S10/S17/B12c）。
 //  C 组＝防修过头（两侧同过）：C1 滑杆仍落 LS（本地永久保存语义不变）／C2 全部恢复默认仍归零／
 //      C3 面板仍在返回键清单内（tabs.js）／C4 二十五条哨兵 needle 各自在登记 file 内唯一
-//  #1409（作者 2026-09-29 直派「点击打开【屏幕适配微调】没有自动跳转到桌面」）：设置页那枚入口原只开面板、
-//      不切页＝对着设置列表盲调，要再点一次面板里「桌面」页签才看得见现场。作者定口径＝点入口合并这一跳
-//      （切到桌面＋面板保持展开，关掉面板留在桌面不回设置页）。判别面＝N1 跳到桌面／N2 面板仍展开／
-//      N3 读数与组标记随页走／N4 关面板后留在桌面；B5 期望值随之由「设置」翻成「桌面」（旧值＝替不跳页那一版作证）。
-//      刻意不收的两处＝B12c 聊天设置入口、B13 装修栏入口（本就在自己现场）；B20 走底部导航进设置页读「正在调：设置」＝防「跳页」被搬进开面板函数本身。
 //  Z1 全程零未捕获 JS 异常
 // 用法：node tools/verify-962-screen-adj-entry.mjs
 //       MOCHI_SERVE_ROOT=<产物目录> 做红绿对照（缺省回退仓库根产物——对照时务必显式传）。
@@ -215,15 +210,6 @@ let b2 = String(await hitInside('.tabbar .tab', '.tabbar'));
 let b2Retried = false;
 if (!b2.startsWith('IN')) { b2Retried = true; await clearOverlays(); await sleep(300); b2 = String(await hitInside('.tabbar .tab', '.tabbar')); }
 check('B2 面板开着仍能点到底部导航（命中测试）', b2.startsWith('IN'), '残留遮罩=' + stillMasked + '｜重试=' + b2Retried + '｜' + b2);
-// ==== #1409（作者直派「点击打开【屏幕适配微调】没有自动跳转到桌面」）新契约三支：点设置页那枚入口＝开面板
-// 同时把页面切到桌面现场，且面板保持展开（收了胶囊＝还得再点一下才能拖滑杆，「边拖边看」断在半路）。
-// 上面 B0/B1/B2 量的因此已经是「桌面上的面板」。判据只问屏上事实：哪一页没被 hidden、滑杆真看得见、读数写着哪页。
-const n1 = await evalJs("(function(){var d=document.getElementById('page-phone'),s=document.getElementById('page-setting');return {desk:d?!d.hidden:'no-page-phone',set:s?!s.hidden:'no-page-setting'};})()");
-check('N1 点设置入口当场跳到桌面（作者点名那一跳，设置页同时让位）', !!n1 && n1.desk === true && n1.set === false, JSON.stringify(n1));
-const n2 = await evalJs("(function(){var p=document.getElementById('screen-adj-panel');if(!p)return 'no-panel';var m=p.querySelector('[data-adj-mini]');var s=p.querySelector('input[type=range]');return {mini:m?getComputedStyle(m).display:'no-mini-el',sliderVis:!!s&&s.offsetParent!==null,h:Math.round(p.getBoundingClientRect().height)};})()");
-check('N2 跳过去后面板保持展开（滑杆真看得见，没被顺手收成胶囊）', !!n2 && n2.mini === 'none' && n2.sliderVis === true && n2.h > 140, JSON.stringify(n2));
-const n3 = await evalJs("(function(){var p=document.getElementById('screen-adj-panel');if(!p)return 'no-panel';var ctx=p.querySelector('[data-adj-ctx]');var mine=[].slice.call(p.querySelectorAll('[data-adj-group-mine]')).map(function(m){return m.style.display!=='none'?m.closest('[data-adj-group]').getAttribute('data-adj-group'):null;}).filter(Boolean);return {ctx:ctx?ctx.textContent:'none',mine:mine};})()");
-check('N3 读数随跳页落到「正在调：桌面」＋桌面组打上「你正在这一页」（不是只切页不更新）', !!n3 && n3.ctx === '正在调：桌面' && String(n3.mine) === 'desk', JSON.stringify(n3));
 // 收起 → 小胶囊
 await evalJs("(function(){var p=document.getElementById('screen-adj-panel');if(!p)return false;var b=[].slice.call(p.querySelectorAll('button')).filter(function(x){return x.textContent==='收起';});if(!b.length)return 'no-fold';b[0].click();return true;})()");
 await sleep(400);
@@ -231,9 +217,9 @@ panelR = await rectOf('#screen-adj-panel');
 tabR = await rectOf('.tabbar');
 check('B3 收起＝小胶囊（不再横贯底边）', !!panelR && panelR.w < 390 * 0.7 && panelR.h < 90, panelR ? ('w=' + panelR.w + ' h=' + panelR.h) : 'null');
 check('B4 胶囊不压底部导航', !!panelR && !!tabR && !overlap(panelR, tabR), 'pill.b=' + (panelR && panelR.y + panelR.h) + ' tab.top=' + (tabR && tabR.y));
-// #1409：这一格原期望值是「设置」（＝点入口人还留在设置列表）。入口现在合并了那一跳，
-// 现场已经是桌面，胶囊上写的就该是「桌面」——旧值留在尺子里等于替「不跳页」那一版作证。
-check('B5 胶囊上写着当前页面名（#1409 起＝从设置入口进来也已是「桌面」现场）', String(await evalJs("(function(){var e=document.querySelector('#screen-adj-panel [data-adj-page]');return e?e.textContent:'none';})()")) === '桌面');
+// #1409 起设置入口＝开面板＋立刻跳桌面（作者直派『点入口没自动跳到桌面』），所以从设置点进来后
+// 胶囊写的当前页是『桌面』；本判据随口径更新（verify-1315 S7 同款随批改判据）。
+check('B5 胶囊上写着当前页面名（区分桌面/聊天）', String(await evalJs("(function(){var e=document.querySelector('#screen-adj-panel [data-adj-page]');return e?e.textContent:'none';})()")) === '桌面');
 // 点胶囊展开（红侧没有胶囊，这一条必须判红：先确认胶囊真的存在）
 const miniExists = await evalJs("(function(){var m=document.querySelector('#screen-adj-panel [data-adj-mini]');return !!m;})()");
 await evalJs("(function(){var p=document.getElementById('screen-adj-panel');var m=p&&p.querySelector('[data-adj-mini]');if(!m)return false;m.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}));m.dispatchEvent(new PointerEvent('pointerup',{bubbles:true}));return true;})()");
@@ -287,7 +273,7 @@ check('B13 装修栏「屏幕适配」开面板', decorRes === true, String(deco
 const structDesk = await evalJs("(function(){var p=document.getElementById('screen-adj-panel');if(!p)return 'no-panel';return {groups:[].slice.call(p.querySelectorAll('[data-adj-group]')).map(function(h){return h.getAttribute('data-adj-group');}),heads:[].slice.call(p.querySelectorAll('[data-adj-group]')).map(function(h){return h.textContent.replace(/你正在这一页/,'').trim().slice(0,18);}),axes:[].slice.call(p.querySelectorAll('[data-adj-slider]')).map(function(s){return s.getAttribute('data-adj-slider');}),vals:p.querySelectorAll('[data-adj-val]').length};})()");
 // 红侧面板结构不存在时 structDesk 是字符串，下列断言必须整体判红而不是抛异常（否则脚本半途死掉）
 const sd = (structDesk && typeof structDesk === 'object') ? structDesk : null;
-check('B16 三组滑杆齐全且顺序＝通用→桌面→聊天（防分组重排漏轴）', !!sd && String(sd.groups) === 'pos,desk,text' && String(sd.axes) === 'top,bottom,h,shift,side,desk,text' && sd.vals === 7, JSON.stringify(structDesk));
+check('B16 三组滑杆齐全且顺序＝通用→桌面→聊天（防分组重排漏轴）', !!sd && String(sd.groups) === 'pos,desk,text' && String(sd.axes) === 'top,bottom,h,shift,side,kbgap,desk,text' && sd.vals === 8, JSON.stringify(structDesk));
 check('B17 组标题写明生效页面（只影响桌面页 / 只影响聊天页正文文字）', !!sd && sd.heads.length === 3 && sd.heads[0].indexOf('通用位置轴') === 0 && sd.heads[1] === '只影响「桌面页」' && sd.heads[2].indexOf('只影响「聊天页」正文文字') === 0, JSON.stringify(sd && sd.heads));
 // 拖动说明：用户原话「拖标题行可上移…没有写清楚」——必须完整可读（不被右侧按钮挤成省略号）
 const dragInfo = await evalJs("(function(){var h=document.querySelector('#screen-adj-panel [data-adj-draghint]');if(!h)return 'no-hint';return {t:h.textContent,clip:h.scrollWidth>h.clientWidth+1,w:h.clientWidth};})()");
@@ -301,16 +287,13 @@ const segOnSet = await evalJs("(function(){var p=document.getElementById('screen
 check('B20 设置页：两枚页签都不高亮 + 说明行直说点哪一枚（该点哪个的兜底）', !!segOnSet && segOnSet.ctx === '正在调：设置' && segOnSet.desk === 'false' && segOnSet.chat === 'false' && segOnSet.mine === 0 && String(segOnSet.hint).indexOf('当前不在桌面/聊天页') === 0, JSON.stringify(segOnSet));
 
 console.log('[C] 防修过头（两侧同过）');
-await evalJs("document.getElementById('row-screen-adj').click(); true"); // 统一从设置入口重开面板（#1409 起这一发同时跳回桌面＝N1 那条口径，B20 的「正在调：设置」是走底部导航进的，不受影响）
+await evalJs("document.getElementById('row-screen-adj').click(); true"); // 统一从设置入口重开面板
 await sleep(500);
 await evalJs("(function(){var p=document.getElementById('screen-adj-panel');if(!p)return false;var s=p.querySelector('[data-adj-slider=\"top\"]');if(!s)return 'no-slider';s.value='12';s.dispatchEvent(new Event('input',{bubbles:true}));return localStorage.getItem('xy-home-v2:screen-adj-top');})()");
 await sleep(200);
 check('C1 滑杆仍落 LS（本地永久保存语义不变）', (await evalJs("localStorage.getItem('xy-home-v2:screen-adj-top')")) === '12');
 check('C2 全部恢复默认仍归零', (await evalJs("(function(){var p=document.getElementById('screen-adj-panel');if(!p)return false;var b=[].slice.call(p.querySelectorAll('button')).filter(function(x){return x.textContent.indexOf('全部恢复默认')===0;});if(!b.length)return 'no-btn';b[0].click();return window.mochiScreenAdj.all().top===0 && !localStorage.getItem('xy-home-v2:screen-adj-top');})()")) === true);
 check('C3 返回键清单仍含面板（tabs.js）', srcTabs.includes("'screen-adj-panel'];"));
-// #1409 作者口径的后半句：调完关掉面板就**留在桌面**，不回设置页（这一层不归还页面，别把它当弹窗）
-const n4 = await evalJs("(function(){var p=document.getElementById('screen-adj-panel');if(!p)return 'no-panel';var b=[].slice.call(p.querySelectorAll('button')).filter(function(x){return x.textContent==='完成';});if(!b.length)return 'no-done';b[0].click();var d=document.getElementById('page-phone'),s=document.getElementById('page-setting');return {closed:!document.getElementById('screen-adj-panel'),desk:d?!d.hidden:'no-page-phone',set:s?!s.hidden:'no-page-setting'};})()");
-check('N4 点「完成」＝面板摘掉且人仍停在桌面（不回设置页）', !!n4 && n4.closed === true && n4.desk === true && n4.set === false, JSON.stringify(n4));
 
 check('Z1 全程零未捕获 JS 异常', jsExcepts.length === 0, jsExcepts.slice(0, 3).join(' || '));
 

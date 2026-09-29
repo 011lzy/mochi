@@ -27,12 +27,17 @@ return Date.now() - __actLast() < (holdMs > 0 ? holdMs : 380);
 } catch (e) { return false; }
 };
 if (!isMobile && !isTablet) return;
-window.__mochiScreenAdj = { top: 0, bottom: 0, h: 0, desk: 0, shift: 0, text: 0, side: 0 };
+window.__mochiScreenAdj = { top: 0, bottom: 0, h: 0, desk: 0, shift: 0, text: 0, side: 0, kbgap: 0 };
 function bottomSafeCss(base) {
 var adj = window.__mochiScreenAdj;
 if (base === 'pin') return '0px';
 if (typeof base === 'number') { var v = base + (adj.bottom | 0); return v > 0 ? v + 'px' : '0px'; }
 return adj.bottom ? ('calc(env(safe-area-inset-bottom, 0px) + ' + adj.bottom + 'px)') : '';
+}
+function safeTopCss(base) {
+var adj = window.__mochiScreenAdj;
+if (base === 'pin') return '0px';
+return (adj && adj.top) ? ('calc(env(safe-area-inset-top, 0px) + ' + (adj.top | 0) + 'px)') : '';
 }
 var _bottomPin = 'env';
 function syncBottomSafe(base) {
@@ -522,6 +527,7 @@ if (_phone.style.height && Math.abs((isNaN(cur) ? nh + 99 : cur) - nh) < 6) retu
 if (_phone.style.height !== nh + 'px') _phone.style.height = nh + 'px';
 } catch (e) {}
 }
+function _kbGapPx() { var a = window.__mochiScreenAdj; var v = a ? Math.round(+a.kbgap || 0) : 0; return v > 40 ? 40 : (v < -40 ? -40 : v); }
 var _textFocused = null;
 var _focLostAt = 0;
 var _iFocusAt = 0, _iProv = false, _iIH = window.innerHeight;
@@ -615,7 +621,7 @@ var _kbNow = _h < _fullVv - 60 || _ih < _fullInner - 60;
 var _safeH = (_h >= _fullInner * 0.4) ? _h : Math.round(_fullInner * 0.55);
 if (_kbActive && !_kbNow) { restoreKb(); return; }
 if (_kbActive && _focused && Date.now() > _pinUntil) {
-_setPhoneH(_safeH, 'steady');
+_setPhoneH(_safeH + _kbGapPx(), 'steady');
 return;
 }
 if (_focused && _kbNow && !_kbActive) {
@@ -631,7 +637,7 @@ _pinUntil = Date.now() + 500;
 startKbWatch();
 }
 if (_kbActive) {
-_setPhoneH(_safeH, 'open');
+_setPhoneH(_safeH + _kbGapPx(), 'open');
 if (Date.now() < _pinUntil) pinScrollTop();
 }
 }
@@ -777,7 +783,7 @@ _sig0.envBottom = _envBottomCache;
 var _f = window.mochiViewportForm(_sig0);
 var _safeTop = _f.safeTop;
 var _resStand = _f.resStand;
-var _topPx = _safeTop ? screenVarPx('--mochi-safe-top', _safeTop) : (_resStand ? screenVarPx('--mochi-safe-top', 0) : '');
+var _topPx = _safeTop ? screenVarPx('--mochi-safe-top', _safeTop) : (_resStand ? screenVarPx('--mochi-safe-top', 0) : safeTopCss('env')); // #1463：无基准形态也让用户顶部偏移落 calc(env+偏移)，0=逐字一致
 if (d.style.getPropertyValue('--mochi-safe-top') !== _topPx) {
 if (_topPx) d.style.setProperty('--mochi-safe-top', _topPx);
 else d.style.removeProperty('--mochi-safe-top');
@@ -844,6 +850,7 @@ window.__mochiSyncScreenVars = function () {
 try { syncVvFit(); } catch (e) {}
 try { syncSafeBottom(); } catch (e) {}
 };
+window.__mochiKbReconNow = function () { try { syncIosKb(); } catch (eKG) {} };
 function _kbNowLike() {
 try {
 if (!_vv) return false;
@@ -1339,7 +1346,7 @@ _aClosing = true;
 _aPrevH = h;
 var open = (!_aVvStale && !_aKbMute && h < _aH - 60 && _focNow); // 可视高度明显变小 = 键盘弹出（#236：残留读数闩抑制纯 vv 信号；真键盘不受影响——inner 同缩走原判/交互与回基准解锁；#479：必然伴随文本聚焦）
 if (!open && h > _aH) _aH = h; // 无键盘时更新基准，地址栏变化不误判
-if (open && !_aKb) { _aClosing = false; _aKb = true; _aVvShrunkSeen = true; _aKbAt = Date.now(); _aPhone.style.alignSelf = 'flex-start'; kbDockPanels(); _aProvClear(); }
+if (open && !_aKb) { _aClosing = false; _aKb = true; _aVvShrunkSeen = true; _aKbAt = Date.now(); _aPhone.style.alignSelf = 'flex-start'; kbDockPanels(); _aProvClear(); } _aKbSnapOpen = true; // #1463：本拍钉高落定后留证
 if (!open && _aKb) {
 if (h < _aH - 12) {
 _aClosing = true;
@@ -1351,14 +1358,15 @@ _aClosing = false;
 _aPhone.style.height = '';
 _aPhone.style.alignSelf = '';
 if (_aH < window.innerHeight - 12) _aH = window.innerHeight;
+_aDockFix = 0; _aKbSnapOpen = false; _aKbSnap("close"); // #1463：收起清对账残差账＋现场留档（「收起后白带/残留」族取证）
 _aPanComp();
 kbUndockPanels();
 return;
 }
 if (_aKb) {
-var hs = h + 'px';
-if (_aPhone.style.height !== hs) _aPhone.style.height = hs;
+_aPinHeight(); // #1463：钉高＝vv.height＋键盘间隙轴＋对账残差账（三项全 0＝与原「钉 vv.height」逐字一致）；值不变不写的早退在 _aPinHeight 内
 if (!_aClosing) _aPinPan();
+if (_aKbSnapOpen) { _aKbSnapOpen = false; _aKbSnap("open"); } // #1463：弹起首拍留证（不依赖看门狗在跑）
 }
 }
 var _aWatch = null;
@@ -1373,6 +1381,7 @@ syncAndroidKb();
 nudgeInputVisible();
 _aProvCheck();
 _aProvDeepen();
+_aDockRecon(); _aKbSnap(); // #1463：停靠对账＋现场快照（钉高没贴住可视底边的残差在这里记账）
 _aPinPan();
 var _hNow = _aVV.height;
 if (_aKb && !_aClosing && _aLastVVH && _aLastVVH < _hNow) {
@@ -1419,6 +1428,57 @@ kbDockPanels();
 try { window.scrollTo(0, 0); } catch (e) {}
 _aPinPan(); // v3.15.x：推顶后残留的 vv 平移同样归零（K80 同症状）
 _aProvVkRuler(base); // #337：Chromium 悬浮键盘改用 VirtualKeyboard 实测几何精停
+_aKbSnap("prov"); // #1463：盲猜停靠也留现场（后续实测尺/对账读数进诊断）
+}
+var _aDockFix = 0;
+function _aKbGap() { var a = window.__mochiScreenAdj; return a ? Math.max(-40, Math.min(40, Math.round(+a.kbgap || 0))) : 0; }
+function _aPinHeight() {
+try {
+if (!_aKb || _aClosing || !_aVV || !_aPhone) return;
+var want = Math.round(_aVV.height || 0) + _aKbGap() + Math.round(_aDockFix);
+if (want > 0 && _aPhone.style.height !== want + 'px') _aPhone.style.height = want + 'px';
+} catch (ePH) {}
+}
+function _aDockRecon() {
+try {
+if (!_aKb || _aClosing || !_aVV || !_aPhone) return '';
+var o = Math.round(_aVV.offsetTop || 0);
+var visB = o + Math.round(_aVV.height || 0);
+var pb = Math.round(_aPhone.getBoundingClientRect().bottom);
+var want = Math.round(_aVV.height || 0) + _aKbGap() + Math.round(_aDockFix);
+var cur = parseInt(_aPhone.style.height, 10) || 0;
+if (Math.abs(cur - want) > 2) { _aPinHeight(); return 'repin'; } // 钉高未落到当前目标（轴刚改/上一拍刚记账）：先落笔，下一拍再量真残差
+var err = (visB + _aKbGap()) - pb;
+if (err > 12 && err <= Math.round((window.innerHeight || 844) * 0.6)) {
+_aDockFix += err; _aPinHeight(); return 'grow+' + err;
+} else if (err < -12) {
+_aDockFix = Math.max(_aDockFix + err, -Math.round((window.innerHeight || 844) * 0.5));
+_aPinHeight(); return 'shrink' + err;
+}
+} catch (eR) {}
+return '';
+}
+try { window.__mochiKbReconNow = function () { try { _aDockRecon(); } catch (eRN) {} }; } catch (eRNE) {}
+var _aSnapPre = '';
+var _aKbSnapOpen = false;
+function _aKbSnap(ev) {
+try {
+if (!_aVV || !_aPhone) return null;
+var pre = [(_aKb ? 1 : 0), (_aProv ? 1 : 0), Math.round(_aVV.height || 0), Math.round(_aVV.offsetTop || 0), _aPhone.style.height || ""].join("|");
+if (pre === _aSnapPre && !ev) return window.__mochiKbSnap || null;
+_aSnapPre = pre;
+var pr = _aPhone.getBoundingClientRect();
+var o = Math.round(_aVV.offsetTop || 0);
+var s = { ts: Date.now(), ev: ev || "", kb: _aKb ? 1 : 0, prov: _aProv ? 1 : 0,
+inner: window.innerHeight || 0, vvH: Math.round(_aVV.height || 0), offTop: o,
+scale: +(+( _aVV.scale || 1)).toFixed(2), ph: _aPhone.style.height || "",
+phB: Math.round(pr.bottom), visB: o + Math.round(_aVV.height || 0),
+gap: Math.round((o + (_aVV.height || 0)) - pr.bottom) };
+window.__mochiKbSnap = s;
+var q = window.__mochiKbSnaps = window.__mochiKbSnaps || [];
+q.unshift(s); if (q.length > 4) q.length = 4;
+return s;
+} catch (eS) { return null; }
 }
 var _aVkOn = false;
 function _aProvVkRuler(base) {
@@ -1684,7 +1744,7 @@ document.body.removeChild(_p);
 var _fc = window.mochiViewportForm({ standalone: false, envTop: _aCoverEnvCache, innerH: _ih, screenH: _sh, innerW: window.innerWidth || 0, screenW: (window.screen && window.screen.width) || 0, iosMajor: 0, safMajor: 0, andr: true, safeTopForce: false, e2eLatch: !!window.__mochiE2eLatch });
 if (_fc.e2eBrowser && !window.__mochiE2eLatch) window.__mochiE2eLatch = true;
 var _st = _fc.safeTop || 0;
-var _px = _st ? screenVarPx('--mochi-safe-top', _st) : '';
+var _px = _st ? screenVarPx('--mochi-safe-top', _st) : safeTopCss('env'); // #1463：常规安卓 env=0 时 0 偏移仍摘除（逐字一致），偏移≠0 落 calc(env+偏移)＝顶部轴在安卓活了
 if (_d.style.getPropertyValue('--mochi-safe-top') !== _px) {
 if (_px) _d.style.setProperty('--mochi-safe-top', _px);
 else _d.style.removeProperty('--mochi-safe-top');
@@ -1962,8 +2022,8 @@ lastHeal: his
 (function () {
 var PFX = 'xy-home-v2:';
 var GROOT = 'xy-home-v2';
-var KEYS = { top: 'screen-adj-top', bottom: 'screen-adj-bottom', h: 'screen-adj-h', desk: 'screen-adj-desk', shift: 'screen-adj-shift', text: 'screen-adj-text', side: 'screen-adj-side' };
-var RANGE = { top: [-80, 80], bottom: [-80, 80], h: [-80, 80], desk: [-60, 60], shift: [-60, 60], text: [0, 12], side: [0, 12] };
+var KEYS = { top: 'screen-adj-top', bottom: 'screen-adj-bottom', h: 'screen-adj-h', desk: 'screen-adj-desk', shift: 'screen-adj-shift', text: 'screen-adj-text', side: 'screen-adj-side', kbgap: 'screen-adj-kbgap' };
+var RANGE = { top: [-80, 80], bottom: [-80, 80], h: [-80, 80], desk: [-60, 60], shift: [-60, 60], text: [0, 12], side: [0, 12], kbgap: [-40, 40] };
 function loadAdj(k) {
 var raw = null;
 try { if (window.xyStore) raw = window.xyStore(GROOT).get(KEYS[k]); } catch (e) {}
@@ -1971,9 +2031,9 @@ if (raw === null || raw === undefined) { try { raw = localStorage.getItem(PFX + 
 var v = parseInt(raw, 10); var rg = RANGE[k] || [-80, 80];
 return (!isNaN(v) && v >= rg[0] && v <= rg[1]) ? v : 0;
 }
-var adj = window.__mochiScreenAdj || (window.__mochiScreenAdj = { top: 0, bottom: 0, h: 0, desk: 0, shift: 0, text: 0, side: 0 });
+var adj = window.__mochiScreenAdj || (window.__mochiScreenAdj = { top: 0, bottom: 0, h: 0, desk: 0, shift: 0, text: 0, side: 0, kbgap: 0 });
 adj.top = loadAdj('top'); adj.bottom = loadAdj('bottom'); adj.h = loadAdj('h');
-adj.desk = loadAdj('desk'); adj.shift = loadAdj('shift'); adj.text = loadAdj('text'); adj.side = loadAdj('side');
+adj.desk = loadAdj('desk'); adj.shift = loadAdj('shift'); adj.text = loadAdj('text'); adj.side = loadAdj('side'); adj.kbgap = loadAdj('kbgap');
 var el = document.documentElement;
 var st = el.style;
 var origSet = st.setProperty.bind(st);
@@ -2019,10 +2079,11 @@ applyShift();
 applyText();
 applySide();
 try { if (window.__mochiSyncScreenVars) window.__mochiSyncScreenVars(); } catch (e) {}
+try { if (window.__mochiKbReconNow) window.__mochiKbReconNow(); } catch (eKG0) {} // #1463：键盘间隙轴改动在会话中即时对账
 }
 syncScreenVars();
 window.mochiScreenAdj = {
-all: function () { return { top: adj.top, bottom: adj.bottom, h: adj.h, desk: adj.desk, shift: adj.shift, text: adj.text, side: adj.side }; },
+all: function () { return { top: adj.top, bottom: adj.bottom, h: adj.h, desk: adj.desk, shift: adj.shift, text: adj.text, side: adj.side, kbgap: adj.kbgap }; },
 set: function (k, v) {
 if (!(k in adj)) return false;
 v = parseInt(v, 10);

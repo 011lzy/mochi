@@ -68,7 +68,7 @@
   // 修法（一把尺子）：偏移量是设备属性、必须全局可读，但「落 DOM」这件事只留一个主人——
   // 各系统写入方照常算自己的基准，基准交给下面这两个 resolver 出口落盘；复述循环删除。
   // 零机型／零 UA 分支：判据只有「这一格此刻该不该避让」与「用户把这台屏幕调了几 px」。
-  window.__mochiScreenAdj = { top: 0, bottom: 0, h: 0, desk: 0, shift: 0, text: 0, side: 0 };
+  window.__mochiScreenAdj = { top: 0, bottom: 0, h: 0, desk: 0, shift: 0, text: 0, side: 0, kbgap: 0 };
   // 底部安全区唯一的尺子。base 三种取值：
   //   'pin'   ＝ 这一格此刻不该避让（键盘在场 #556/#530；或浏览器工具条已占走底部那段
   //              #129 同源判据）→ 钉 0px，且【偏移让位】（#707 自己写的口径：键盘期偏移
@@ -81,6 +81,15 @@
     if (base === 'pin') return '0px';
     if (typeof base === 'number') { var v = base + (adj.bottom | 0); return v > 0 ? v + 'px' : '0px'; }
     return adj.bottom ? ('calc(env(safe-area-inset-bottom, 0px) + ' + adj.bottom + 'px)') : '';
+  }
+  // #1463：顶部安全区同一把尺子的 env 形态——系统没给基准（普通安卓浏览器 env=0 且
+  // 非覆盖形态）时，用户的顶部偏移是另一件事实，不该因为没有基准就整个轴失效：
+  // 偏移=0 返回空串（摘除属性回落 env()，与修前逐字一致）；偏移≠0 落 calc(env+偏移)，
+  // env 本就报 0 的设备＝纯手动偏移，env 报正值的设备＝在系统避让上叠加而不是被抹掉。
+  function safeTopCss(base) {
+    var adj = window.__mochiScreenAdj;
+    if (base === 'pin') return '0px';
+    return (adj && adj.top) ? ('calc(env(safe-area-inset-top, 0px) + ' + (adj.top | 0) + 'px)') : '';
   }
   var _bottomPin = 'env';
   // 唯一的写入点：先比 DOM 现值、同值不写（#969 的省样式失效职责留在这儿，不给第二个人）
@@ -913,6 +922,9 @@
       // document.activeElement === <body>，isTextEl 判不出来 → 下方 _open 恒为 false
       // → .phone 永不收缩 → 键盘盖住输入栏完全无法输入。focusin 事件聚焦上报可靠，
       // 用它记录目标元素；用 activeElement 复合判断兜底。
+      // #1463 键盘间隙轴：iOS 键盘会话高度在自动停靠值上叠加用户本机微调——默认 0＝
+      // 传给 _setPhoneH 的值逐位不变；±40 钳制，下限保护仍归 _setPhoneH 的 40% 地板管。
+      function _kbGapPx() { var a = window.__mochiScreenAdj; var v = a ? Math.round(+a.kbgap || 0) : 0; return v > 40 ? 40 : (v < -40 ? -40 : v); }
       var _textFocused = null;
       // v3.26.x #208：最近一次文本失焦时刻（focusin 归零）——键盘收起视口未还原自愈的计时基准
       var _focLostAt = 0;
@@ -1091,7 +1103,7 @@
         // 稳态早退：键盘已开 + 仍在输入框 + 已过开合动画窗口 → height 已设对，
         //   不做开合判定/pin。打字时 vv resize 偶发触发，早退防任何 reflow 闪屏
         if (_kbActive && _focused && Date.now() > _pinUntil) {
-          _setPhoneH(_safeH, 'steady');
+          _setPhoneH(_safeH + _kbGapPx(), 'steady');
           return;
         }
         if (_focused && _kbNow && !_kbActive) {
@@ -1117,7 +1129,7 @@
           startKbWatch();
         }
         if (_kbActive) {
-          _setPhoneH(_safeH, 'open');
+          _setPhoneH(_safeH + _kbGapPx(), 'open');
           // 仅在键盘开合动画窗口内钉顶；稳态打字期不 pin，避免 caret 微滚↔归零闪屏
           if (Date.now() < _pinUntil) pinScrollTop();
         }
@@ -1365,7 +1377,7 @@
           // DOM 单位里——原写法拿包装过的读数（基准+偏移）比裸基准，偏移≠0 时每拍都
           // 判「变了」。resStand 那支同样叠加：该形态写 0px 是防「摘除回落 env() 双重
           // 避让」，用户的偏移是另一件事实，不该被这一格顺带抹掉。
-          var _topPx = _safeTop ? screenVarPx('--mochi-safe-top', _safeTop) : (_resStand ? screenVarPx('--mochi-safe-top', 0) : '');
+          var _topPx = _safeTop ? screenVarPx('--mochi-safe-top', _safeTop) : (_resStand ? screenVarPx('--mochi-safe-top', 0) : safeTopCss('env')); // #1463：无基准形态也让用户顶部偏移落 calc(env+偏移)，0=逐字一致
           if (d.style.getPropertyValue('--mochi-safe-top') !== _topPx) {
             if (_topPx) d.style.setProperty('--mochi-safe-top', _topPx);
             else d.style.removeProperty('--mochi-safe-top');
@@ -1505,6 +1517,8 @@
         try { syncVvFit(); } catch (e) {}
         try { syncSafeBottom(); } catch (e) {}
       };
+      // #1463：键盘间隙轴改动即时生效（面板拖动 → 重跑 iOS 键盘停靠链）
+      window.__mochiKbReconNow = function () { try { syncIosKb(); } catch (eKG) {} };
       // 键盘是否仍有实测证据（供常驻自愈复用，判据与 syncIosKb 一致）
       function _kbNowLike() {
         try {
@@ -2409,7 +2423,7 @@
           // 变化/回基准即解除，见函数头）。
           var open = (!_aVvStale && !_aKbMute && h < _aH - 60 && _focNow); // 可视高度明显变小 = 键盘弹出（#236：残留读数闩抑制纯 vv 信号；真键盘不受影响——inner 同缩走原判/交互与回基准解锁；#479：必然伴随文本聚焦）
           if (!open && h > _aH) _aH = h; // 无键盘时更新基准，地址栏变化不误判
-          if (open && !_aKb) { _aClosing = false; _aKb = true; _aVvShrunkSeen = true; _aKbAt = Date.now(); _aPhone.style.alignSelf = 'flex-start'; kbDockPanels(); _aProvClear(); }
+          if (open && !_aKb) { _aClosing = false; _aKb = true; _aVvShrunkSeen = true; _aKbAt = Date.now(); _aPhone.style.alignSelf = 'flex-start'; kbDockPanels(); _aProvClear(); } _aKbSnapOpen = true; // #1463：本拍钉高落定后留证
           if (!open && _aKb) {
             // v3.27.x：键盘收起——动画期 visualViewport 还没回到无键盘基准（_aH）时，
             // 不要提前把 .phone 撑回全高 + 面板摘停靠。否则键盘收起动画中途就恢复：
@@ -2434,18 +2448,18 @@
             // 「键盘又弹出」把 .phone 锁死在中间高度 = 输入栏下方灰块几秒不收。
             // innerHeight 即布局视口高（resizes-visual 下不随键盘收缩），恒可靠。
             if (_aH < window.innerHeight - 12) _aH = window.innerHeight;
+            _aDockFix = 0; _aKbSnapOpen = false; _aKbSnap("close"); // #1463：收起清对账残差账＋现场留档（「收起后白带/残留」族取证）
             _aPanComp();
             kbUndockPanels();
             return;
           }
           if (_aKb) {
-            var hs = h + 'px';
-            // 值不变不写 DOM（字符串比对早退），打字/滚动时不重排
-            if (_aPhone.style.height !== hs) _aPhone.style.height = hs;
+            _aPinHeight(); // #1463：钉高＝vv.height＋键盘间隙轴＋对账残差账（三项全 0＝与原「钉 vv.height」逐字一致）；值不变不写的早退在 _aPinHeight 内
             // v3.15.x：收缩后浏览器为露焦点做的视口平移已无必要，残留会整页飞走露灰
             // v3.28.x：收起动画期（_aClosing）跳过 _aPinPan——其读 offsetTop/scrollY 强制
             // 同步 reflow，每帧 resize 叠加致"收起键盘卡顿"。弹起期仍需归零平移残留。
             if (!_aClosing) _aPinPan();
+            if (_aKbSnapOpen) { _aKbSnapOpen = false; _aKbSnap("open"); } // #1463：弹起首拍留证（不依赖看门狗在跑）
           }
         }
         // v3.10.x：聚焦期间主动轮询兜底——安卓 visualViewport.resize 在键盘弹出时
@@ -2474,6 +2488,7 @@
                 _aProvCheck();
                 // #337：保底停靠后仍被盖（vv 诚实内核）→ 欠深自纠逐拍收紧
                 _aProvDeepen();
+                _aDockRecon(); _aKbSnap(); // #1463：停靠对账＋现场快照（钉高没贴住可视底边的残差在这里记账）
                 // v3.15.x：平移残留归零
                 _aPinPan();
                 // v3.14.x：vv 从小变大=键盘收回动画（摩托罗拉G100/雨见 focusout/
@@ -2562,6 +2577,7 @@
           try { window.scrollTo(0, 0); } catch (e) {}
           _aPinPan(); // v3.15.x：推顶后残留的 vv 平移同样归零（K80 同症状）
           _aProvVkRuler(base); // #337：Chromium 悬浮键盘改用 VirtualKeyboard 实测几何精停
+        _aKbSnap("prov"); // #1463：盲猜停靠也留现场（后续实测尺/对账读数进诊断）
         }
         // FIX 2026-09-11 #337：悬浮键盘实测尺（VirtualKeyboard API，Chromium 94+）——
         // 畅玩80Pro 族无平移无读数变化，58% 盲猜对高占比输入法（实测 50~62%）停靠不足，
@@ -2569,6 +2585,70 @@
         // geometrychange 实测上报几何，按 base−kbH 精确停靠。特性探测：不支持该 API 的
         // 内核零影响；只在保底停靠已成立时启用（正常内核主路径 _aKb 停靠从不进保底，
         // 行为零变化）；_aProvClear 复原时关回 overlaysContent 还原内核默认行为。
+        // ===== FIX 2026-09-29 #1463：键盘停靠对账＋键盘间隙轴（真我 GT7／红米 K80 均 Edge 实报
+        //   「聊天页点输入栏弹输入法后，输入栏与输入法中间一片空白」，同族 #236/#530/#1330）=====
+        // 主路径钉高原是「开会话那一拍的 vv.height」，内核随后把可视区扩/缩一拍（底栏收起、
+        // 键盘条显隐、平移补偿）时钉高不跟，落差留在输入栏与键盘上沿之间＝那片空白。本段把
+        // 钉高收成【单一写入口】_aPinHeight：钉高 = vv.height + kbgap(用户键盘间隙轴) +
+        // _aDockFix(对账残差账)；对账 _aDockRecon 只按三个几何事实记账、不直接写高度——
+        // ①会话是诚实收缩路径开的（_aKb；_aProv 盲猜的可视读数不可信，绝不当对账基准）；
+        // ②可视带底边（offsetTop+height）；③.phone 实测底边。差值绝对值>12px 才记账（caret
+        // 微滚/取整噪声不误伤）。kbgap 默认 0＝三项全 0，钉高与修前逐字一致。
+        var _aDockFix = 0;
+        function _aKbGap() { var a = window.__mochiScreenAdj; return a ? Math.max(-40, Math.min(40, Math.round(+a.kbgap || 0))) : 0; }
+        function _aPinHeight() {
+          try {
+            if (!_aKb || _aClosing || !_aVV || !_aPhone) return;
+            var want = Math.round(_aVV.height || 0) + _aKbGap() + Math.round(_aDockFix);
+            if (want > 0 && _aPhone.style.height !== want + 'px') _aPhone.style.height = want + 'px';
+          } catch (ePH) {}
+        }
+        function _aDockRecon() {
+          try {
+            if (!_aKb || _aClosing || !_aVV || !_aPhone) return '';
+            var o = Math.round(_aVV.offsetTop || 0);
+            var visB = o + Math.round(_aVV.height || 0);
+            var pb = Math.round(_aPhone.getBoundingClientRect().bottom);
+            var want = Math.round(_aVV.height || 0) + _aKbGap() + Math.round(_aDockFix);
+            var cur = parseInt(_aPhone.style.height, 10) || 0;
+            if (Math.abs(cur - want) > 2) { _aPinHeight(); return 'repin'; } // 钉高未落到当前目标（轴刚改/上一拍刚记账）：先落笔，下一拍再量真残差
+            var err = (visB + _aKbGap()) - pb;
+            if (err > 12 && err <= Math.round((window.innerHeight || 844) * 0.6)) {
+              _aDockFix += err; _aPinHeight(); return 'grow+' + err;
+            } else if (err < -12) {
+              _aDockFix = Math.max(_aDockFix + err, -Math.round((window.innerHeight || 844) * 0.5));
+              _aPinHeight(); return 'shrink' + err;
+            }
+          } catch (eR) {}
+          return '';
+        }
+        try { window.__mochiKbReconNow = function () { try { _aDockRecon(); } catch (eRN) {} }; } catch (eRNE) {}
+        // #1463 取证：键盘停靠现场自动快照——诊断页一点输入框就失焦收键盘，「键盘在场时
+        // 量一量」靠人手点诊断永远拍不到（GT7/K80 两份诊断单都是键盘收起态、几何全对）。
+        // 会话期每个几何变化拍存 window.__mochiKbSnap（最近一次）与 __mochiKbSnaps（环形
+        // 4 条），屏幕适配诊断打印成「键盘期快照」行；纯只读取证、不参与任何判定。读数
+        // 四元组没动就不重量 rect（打字稳态零强制布局）。
+        var _aSnapPre = '';
+        var _aKbSnapOpen = false;
+        function _aKbSnap(ev) {
+          try {
+            if (!_aVV || !_aPhone) return null;
+            var pre = [(_aKb ? 1 : 0), (_aProv ? 1 : 0), Math.round(_aVV.height || 0), Math.round(_aVV.offsetTop || 0), _aPhone.style.height || ""].join("|");
+            if (pre === _aSnapPre && !ev) return window.__mochiKbSnap || null;
+            _aSnapPre = pre;
+            var pr = _aPhone.getBoundingClientRect();
+            var o = Math.round(_aVV.offsetTop || 0);
+            var s = { ts: Date.now(), ev: ev || "", kb: _aKb ? 1 : 0, prov: _aProv ? 1 : 0,
+              inner: window.innerHeight || 0, vvH: Math.round(_aVV.height || 0), offTop: o,
+              scale: +(+( _aVV.scale || 1)).toFixed(2), ph: _aPhone.style.height || "",
+              phB: Math.round(pr.bottom), visB: o + Math.round(_aVV.height || 0),
+              gap: Math.round((o + (_aVV.height || 0)) - pr.bottom) };
+            window.__mochiKbSnap = s;
+            var q = window.__mochiKbSnaps = window.__mochiKbSnaps || [];
+            q.unshift(s); if (q.length > 4) q.length = 4;
+            return s;
+          } catch (eS) { return null; }
+        }
         var _aVkOn = false;
         function _aProvVkRuler(base) {
           try {
@@ -2959,7 +3039,7 @@
           var _st = _fc.safeTop || 0;
           // #1318：与 iOS 侧同一把尺子——落 DOM 的恒为「系统基准＋顶部轴 偏移」，
           // 包装层删除后这里不叠加就会每台安卓每次覆盖形态重校都把用户的顶部微调抹平
-          var _px = _st ? screenVarPx('--mochi-safe-top', _st) : '';
+          var _px = _st ? screenVarPx('--mochi-safe-top', _st) : safeTopCss('env'); // #1463：常规安卓 env=0 时 0 偏移仍摘除（逐字一致），偏移≠0 落 calc(env+偏移)＝顶部轴在安卓活了
           if (_d.style.getPropertyValue('--mochi-safe-top') !== _px) {
             if (_px) _d.style.setProperty('--mochi-safe-top', _px);
             else _d.style.removeProperty('--mochi-safe-top');
@@ -3351,10 +3431,10 @@
 (function () {
   var PFX = 'xy-home-v2:';
   var GROOT = 'xy-home-v2';
-  var KEYS = { top: 'screen-adj-top', bottom: 'screen-adj-bottom', h: 'screen-adj-h', desk: 'screen-adj-desk', shift: 'screen-adj-shift', text: 'screen-adj-text', side: 'screen-adj-side' };
+  var KEYS = { top: 'screen-adj-top', bottom: 'screen-adj-bottom', h: 'screen-adj-h', desk: 'screen-adj-desk', shift: 'screen-adj-shift', text: 'screen-adj-text', side: 'screen-adj-side', kbgap: 'screen-adj-kbgap' };
   // #764 文字大小轴：只叠加在「文字组」字号上（display-tune.css 逐条 calc），范围 0~12px；其余偏移轴维持 ±80
   // #794 左右安全边轴：曲面/瀑布屏内容贴边时两侧同时内收，单向 0~12px（在 .phone 既有 18px 横向内边距上叠加）
-  var RANGE = { top: [-80, 80], bottom: [-80, 80], h: [-80, 80], desk: [-60, 60], shift: [-60, 60], text: [0, 12], side: [0, 12] };
+  var RANGE = { top: [-80, 80], bottom: [-80, 80], h: [-80, 80], desk: [-60, 60], shift: [-60, 60], text: [0, 12], side: [0, 12], kbgap: [-40, 40] };
   // #1393：读优先走数据层（内存缓存＝本会话刚写的那一份，LS 写失败设备靠 IDB 回填那一份），
   // 数据层缺位（外置件没加载上／自愈重注入还没跑到 idb.js）时退回裸 LS 读＝与修前逐字一致。
   function loadAdj(k) {
@@ -3367,9 +3447,9 @@
   // #1318：偏移量的家在文件上方 #1318 处（window.__mochiScreenAdj）——写入方 syncVvFit /
   // syncSafeBottom / _aSyncCoverTop / syncSafeBottomA 全在另一个闭包里，必须读得到同一份。
   // 这里保留 adj 作别名，所以下方四条独立轴（desk/shift/text/side）的写入行一字未动。
-  var adj = window.__mochiScreenAdj || (window.__mochiScreenAdj = { top: 0, bottom: 0, h: 0, desk: 0, shift: 0, text: 0, side: 0 });
+  var adj = window.__mochiScreenAdj || (window.__mochiScreenAdj = { top: 0, bottom: 0, h: 0, desk: 0, shift: 0, text: 0, side: 0, kbgap: 0 });
   adj.top = loadAdj('top'); adj.bottom = loadAdj('bottom'); adj.h = loadAdj('h');
-  adj.desk = loadAdj('desk'); adj.shift = loadAdj('shift'); adj.text = loadAdj('text'); adj.side = loadAdj('side');
+  adj.desk = loadAdj('desk'); adj.shift = loadAdj('shift'); adj.text = loadAdj('text'); adj.side = loadAdj('side'); adj.kbgap = loadAdj('kbgap');
   var el = document.documentElement;
   var st = el.style;
   var origSet = st.setProperty.bind(st);
@@ -3438,11 +3518,12 @@
     applyText();
     applySide();
     try { if (window.__mochiSyncScreenVars) window.__mochiSyncScreenVars(); } catch (e) {}
+    try { if (window.__mochiKbReconNow) window.__mochiKbReconNow(); } catch (eKG0) {} // #1463：键盘间隙轴改动在会话中即时对账
   }
   syncScreenVars();
   // 设置页接线 API（personalize.js 面板用）：读当前偏移 / 设置并立即生效
   window.mochiScreenAdj = {
-    all: function () { return { top: adj.top, bottom: adj.bottom, h: adj.h, desk: adj.desk, shift: adj.shift, text: adj.text, side: adj.side }; },
+    all: function () { return { top: adj.top, bottom: adj.bottom, h: adj.h, desk: adj.desk, shift: adj.shift, text: adj.text, side: adj.side, kbgap: adj.kbgap }; },
     set: function (k, v) {
       if (!(k in adj)) return false;
       v = parseInt(v, 10);

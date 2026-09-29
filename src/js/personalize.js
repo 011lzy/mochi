@@ -8429,6 +8429,7 @@ try {
       { k: 'h', name: '页面高度', min: -80, max: 80, group: 'pos', hint: '页面底部留白=往正撑满；内容超出屏幕被裁=往负收短' },
       { k: 'shift', name: '整体位移', min: -60, max: 60, group: 'pos', hint: '整页位置偏了：正=整页下移、负=上移' },
       { k: 'side', name: '左右安全边', min: 0, max: 12, group: 'pos', hint: '曲面屏/瀑布屏内容贴到屏幕弧边=往正加（两侧同时内收）；0=默认' },
+      { k: 'kbgap', name: '键盘间隙', min: -40, max: 40, group: 'pos', hint: '键盘弹出后输入栏离键盘还悬空一块=往正拖（往下压向键盘）；反而被键盘盖住一条=往负拖（抬回来）；只在键盘弹出期间生效' },
       { k: 'desk', name: '桌面图标区', min: -60, max: 60, group: 'desk', hint: '全屏时桌面图标/按钮整体偏上=往正拉回（只影响桌面页）' },
       { k: 'text', name: '文字大小', min: 0, max: 12, group: 'text', hint: '聊天气泡/输入框/设置列表等正文文字整体加大（只放大文字组，非整页缩放）；0=默认' }
     ];
@@ -8797,6 +8798,15 @@ try {
         const sub = document.createElement('div');
         sub.style.cssText = 'font-size:10.5px;color:#999;line-height:1.4;margin:1px 0 3px';
         sub.textContent = ax.hint;
+        // #1463：平台差异行级标记（#964 惯例：只在对方平台被【正向】判定时点出，不隐藏不裁功能）
+        // ——「页面高度」轴的 CSS 消费方全挂在 iOS 形态类（ios-vv-fit / ios-pwa-standalone /
+        // ios-cover-top）下，安卓既无写入方也无消费方＝拖了无变化是事实，明说比让人盲拖好。
+        if (ax.k === "h" && (function () { try { var md = window.mochiDevice; return !!(md && md.isAndroid && !md.isIOS); } catch (ePT) { return false; } })()) {
+          const ptag = document.createElement("span");
+          ptag.textContent = "iOS 专用（安卓上此轴无落点，拖了无变化属正常）";
+          ptag.style.cssText = "display:inline-block;margin-left:6px;font-size:10px;font-weight:700;color:#888;background:var(--card-border,#e9e9e9);border-radius:6px;padding:1px 6px;vertical-align:middle";
+          sub.appendChild(ptag);
+        }
         row.appendChild(sub);
         const rng = document.createElement('input');
         rng.type = 'range';

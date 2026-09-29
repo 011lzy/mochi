@@ -1498,7 +1498,7 @@
       // 确认弹窗里点名提醒；不阻止导入（同机重装场景那些偏移本来就是对的）。
       let adjNote = '';
       try {
-        const adjKeys = Object.keys(d.ls || {}).filter(k => /^xy-home-v2:screen-adj-(top|bottom|h|desk|shift|text|side)$/.test(k) && parseInt(d.ls[k], 10));
+        const adjKeys = Object.keys(d.ls || {}).filter(k => /^xy-home-v2:screen-adj-(top|bottom|h|desk|shift|text|side|kbgap)$/.test(k) && parseInt(d.ls[k], 10));
         if (adjKeys.length) adjNote = '\n\n⚠ 这份备份带有屏幕适配偏移（' + adjKeys.length + ' 项，属于原来的那台设备）。换设备恢复后若出现错位/裁切，到 设置→屏幕适配微调 点「全部恢复默认」再重新拖，或用「屏幕适配诊断→一键修正」。';
       } catch (eA) {}
       window.openModal('确定导入数据？将覆盖当前所有数据，且无法恢复。', '', () => {

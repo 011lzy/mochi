@@ -3478,7 +3478,7 @@ window.mochiViewportForm = function (sig) {
       tablet: d.classList.contains('tablet'),
       isMobileDev: (function () { try { return !!(window.mochiDevice && window.mochiDevice.isMobile); } catch (e) { return false; } })(),
       andr: (function () { try { return !!(window.mochiDevice && window.mochiDevice.isAndroid); } catch (e) { return false; } })(),
-      kbAnd: (function () { try { var k2 = window.__mochiAndroidKb ? window.__mochiAndroidKb() : null; return k2 ? { kbActive: !!k2.kbActive, prov: !!k2.prov } : null; } catch (e) { return null; } })(),
+      kbAnd: (function () { try { var k2 = window.__mochiAndroidKb ? window.__mochiAndroidKb() : null; return k2 || null; } catch (e) { return null; } })(), // #1463：全字段透传——此前只留 kbActive/prov 两枚，报告「键盘残留」行在安卓恒 n/a
       // v3.26.x #208：全屏页（聊天/朋友圈等 .page.full）打开时 tabs.js 给 .tabbar
       // 挂 hidden（display:none）——矩形全 0，原样返回会判「底部导航栏悬空
       // 860px」：用户在聊天页期间每 5s 自动采集刷一条假错误进错误环（实测
@@ -3520,7 +3520,7 @@ window.mochiViewportForm = function (sig) {
     } catch (eC2) {}
     inp.iosMajor = (function () { try { var a = /OS (\d+)_/.exec(navigator.userAgent || ''); var b = /Version\/(\d+)\./.exec(navigator.userAgent || ''); return Math.max(a ? +a[1] : 0, b ? +b[1] : 0); } catch (e) { return 0; } })();
     inp.safMajor = (function () { try { var m = /Version\/(\d+)\./.exec(navigator.userAgent || ''); return m ? +m[1] : 0; } catch (e) { return 0; } })();
-    inp.osLine = (function () { try { var m1 = /iPhone OS (\d+_\d+(?:_\d+)?) like/.exec(navigator.userAgent || ''); var m2 = /Version\/(\d+\.\d+)/.exec(navigator.userAgent || ''); return 'iOS ' + (m1 ? m1[1].replace(/_/g, '.') : '?') + ' / Safari ' + (m2 ? m2[1] : '?'); } catch (e) { return '未知'; } })();
+    inp.osLine = (function () { try { var _ua = navigator.userAgent || ''; if (/android/i.test(_ua)) { var m3 = /Android (\d+(?:\.\d+)?)/.exec(_ua); return 'Android ' + (m3 ? m3[1] : '?') + '（#1463 起安卓如实报；本行原为 iOS 版式，安卓单子此前恒写 iOS ? / Safari ?）'; } var m1 = /iPhone OS (\d+_\d+(?:_\d+)?) like/.exec(_ua); var m2 = /Version\/(\d+\.\d+)/.exec(_ua); return 'iOS ' + (m1 ? m1[1].replace(/_/g, '.') : '?') + ' / Safari ' + (m2 ? m2[1] : '?'); } catch (e) { return '未知'; } })();
     // #209：用户「顶部避让修正」声明（#186：声明=覆盖形态）——此前漏传，判定器
     // force 分支在真实采集路径永不命中
     inp.force = (function () { try { return localStorage.getItem('xy-home-v2:__safe-top-force') === '1'; } catch (e) { return false; } })();
@@ -3574,9 +3574,21 @@ window.mochiViewportForm = function (sig) {
     //   （'calc(34px + 8px)'），原来这里又给它接了一次单位，产出的值在产物里根本不存在（iPhone17 Pro 那份
     //   报障就写着 calc(34px + 8px)＋一个多余后缀，读的人第一反应是「CSS 语法坏了」，而真病灶是同一格
     //   两个写入方在交替落值）。自定义属性不是长度值，照原样报才是事实。
-    L.push('键盘残留=' + (inp.kb ? ('kbActive=' + !!inp.kb.kbActive + ' 锁=' + !!inp.kb.docLocked + ' 基线 inner/vv=' + inp.kb.fullInner + '/' + inp.kb.fullVv) : 'n/a')
+    // #1463：安卓也要有键盘现场——此前这一行只认 iOS 探针字段（inp.kb），安卓数据明明
+    // 采到了（kbAnd）却被掐成 n/a；GT7/K80 两份报障单都因此拿不到键盘期几何。
+    const _kbTxt = inp.kb ? ('kbActive=' + !!inp.kb.kbActive + ' 锁=' + !!inp.kb.docLocked + ' 基线 inner/vv=' + inp.kb.fullInner + '/' + inp.kb.fullVv)
+      : (inp.kbAnd ? ('安卓探针: kbActive=' + !!inp.kbAnd.kbActive + ' 推定停靠=' + !!inp.kbAnd.prov + ' 收起中=' + !!inp.kbAnd.closing + ' 残留闩=' + !!inp.kbAnd.staleVv
+        + ' 基线 inner/vv=' + inp.kbAnd.fullInner + '/' + inp.kbAnd.fullVv + ' vv现在=' + inp.kbAnd.vvNow + ' 视口平移=' + inp.kbAnd.offsetTop
+        + ' 历史平移=' + inp.kbAnd.panSeen + ' 键盘实测尺=' + (inp.kbAnd.vkH != null && inp.kbAnd.vkH >= 0 ? inp.kbAnd.vkH + 'px' : 'n/a'))
+      : 'n/a');
+    L.push('键盘残留=' + _kbTxt
       + '  --mochi-safe-bottom=' + (function () { try { var _v = getComputedStyle(document.documentElement).getPropertyValue('--mochi-safe-bottom').trim(); return _v || ('(未设/回落 ' + inp.envBottom + 'px)'); } catch (e) { return '?'; } })());
     L.push('');
+        // #1463：键盘停靠现场自动快照（mobile-adapt 安卓分支在会话期自动记，纯只读取证）——
+    // 「点输入栏弹键盘后输入栏与键盘间一片空白」这类现场，人手点诊断必先失焦收键盘＝永远
+    // 拍不到；复现完回来点一次诊断，键盘期的 inner/vv/平移/钉高/底边差就都在这一行里。
+    const _ks = (function () { try { return window.__mochiKbSnap || (window.__mochiKbSnaps && window.__mochiKbSnaps[0]) || null; } catch (eKSS) { return null; } })();
+    L.push('键盘期快照=' + (_ks ? JSON.stringify(_ks) : '无（先去聊天页点输入栏弹一次键盘再收起，回来重测一次就有了）'));
     L.push('== 顶部安全区 ==');
     L.push('env(safe-area-inset-top)=' + inp.envTop + 'px  --mochi-safe-top=' + inp.varTop + 'px  diff(screen−inner)=' + inp.diff + 'px');
     L.push('');

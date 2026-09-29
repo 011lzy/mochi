@@ -1213,7 +1213,7 @@ const FIX_SENTINELS = [
   { name: '#657 键盘滞留读数「几何反证」复原门（信箱写信页滑动＝整页飞出去/只显示上半屏：页面收到的真实触摸点落在可视视口底边以下 ⇒ 该区域没被软键盘占据 ⇒ 键盘必不在场；删掉此判定则 #209/#236 视口闸 + #267/#542 焦点闸在焦点滞留时全被挡住，.phone 永久停在键盘期收缩高）', file: 'js/mobile-adapt.js', needle: 't.clientY > Math.round((_aVV.offsetTop || 0) + _aVV.height) + 24' },
   { name: '#657 平移补偿「成孤儿」恒等式（_aPanComp 补偿量恒等于当时读到的残留平移：读数归零而 .phone 仍带内联 top＝整壳被按旧偏移推下＝用户所见「飞出去+只显示上半屏」；删掉则孤儿补偿永久残留；键盘会话期不参与以免打断动画期零强制读契约）', file: 'js/mobile-adapt.js', needle: "&& Math.abs(Math.round(_aVV.offsetTop || 0)) <= 4) _aPhone.style.removeProperty('top');" },
   { name: '#203 iOS18 保留形态甄别式（standalone+env∈[20,160]+diff≈envTop+iOS≥18，命中即 safeTop 归 0：否则 #179 公式把 .phone 顶出布局视口=居中裁切+文档溢出与 pin 对打=滑动/切换卡顿；#210 起判式收敛到共享判定器，删门槛或改比较符即回归）', file: 'js/device.js', needle: 'diff >= envTop - 8 && iosMajor >= 18' },
-  { name: '#203 iOS18 保留形态显式写 0px（摘除属性会回落 env() 变双重避让，Mochi 行上方 59px 空白；#1318 换锚＝该行改为「系统基准＋顶部轴」一起落 DOM，本针守的是保留形态那一支仍然【显式写值而不摘除】，删掉这半支＝双重避让的 59px 白带复发）', file: 'js/mobile-adapt.js', needle: "(_resStand ? screenVarPx('--mochi-safe-top', 0) : '')" },
+  { name: '#203 iOS18 保留形态显式写 0px（摘除属性会回落 env() 变双重避让，Mochi 行上方 59px 空白；#1318 换锚＝该行改为「系统基准＋顶部轴」一起落 DOM，本针守的是保留形态那一支仍然【显式写值而不摘除】，删掉这半支＝双重避让的 59px 白带复发）', file: 'js/mobile-adapt.js', needle: "(_resStand ? screenVarPx('--mochi-safe-top', 0) : safeTopCss('env'))" },
   { name: '#203 执行器接入共享判定器（syncVvFit 形态判定单一事实源 #210；执行器回退手抄判式此行即消失）', file: 'js/mobile-adapt.js', needle: 'var _f = window.mochiViewportForm(_sig0);' },
   { name: '#203 判定器·保留形态期望底边=inner（.phone 超 inner=文档滚动量；#184 iPad 形态/#186 force 声明同走 inner 分支；#210 起收敛到共享判定器 expBase 单点；2026-09-18 #719 e2e 形态并入同分支，登记同步）', file: 'js/device.js', needle: 'const expBase = (coverBrowser || resStand || ipadForm || e2eBrowser) ? innerH' },
   { name: '#200 通话防误挂·挂断掷骰硬闸（总开关或概率<=0 不掷骰——挂断几率为 0 仍被挂断的兜底闸门，删此条件设 0 即回到「读默认 2% 照挂」）', file: 'js/call.js', needle: 'if (!(hp.nohangup || hp.hangup <= 0) && Math.random() * 100 < hp.hangup) {' },
@@ -1870,7 +1870,7 @@ const FIX_SENTINELS = [
   // 由 display-tune.css 逐条 calc 叠加（气泡/输入框/设置行等文字组），刻意不走 zoom/scale（红线）；
   // all() 旧版只回三轴＝面板上桌面/整体位移显示 undefinedpx，本批一并补齐 ====
   { name: '#764a 文字轴写入 --mochi-text-adj（删＝文字大小拖了没反应＝第六轴失效复发）', file: 'js/mobile-adapt.js', needle: "if (adj.text) origSet('--mochi-text-adj', adj.text + 'px');" },
-  { name: '#764b all() 回满七轴（删回三轴＝面板桌面/整体位移显示 undefinedpx、滑杆初值丢；2026-09-19 #794 加 side 轴随新形态换锚）', file: 'js/mobile-adapt.js', needle: 'all: function () { return { top: adj.top, bottom: adj.bottom, h: adj.h, desk: adj.desk, shift: adj.shift, text: adj.text, side: adj.side }; },' },
+  { name: '#764b all() 回满七轴（删回三轴＝面板桌面/整体位移显示 undefinedpx、滑杆初值丢；2026-09-19 #794 加 side 轴随新形态换锚）', file: 'js/mobile-adapt.js', needle: 'all: function () { return { top: adj.top, bottom: adj.bottom, h: adj.h, desk: adj.desk, shift: adj.shift, text: adj.text, side: adj.side, kbgap: adj.kbgap }; },' },
   { name: '#764c 文字大小轴注册（删行＝面板只剩五轴、字号诉求回流）', file: 'js/personalize.js', needle: "{ k: 'text', name: '文字大小', min: 0, max: 12" },
   { name: '#764d 滑杆实时预览接线（删＝又退回步进/手输猜值模式）', file: 'js/personalize.js', needle: "rng.setAttribute('data-adj-slider', ax.k);" },
   { name: '#764e 文字轴消费规则（删＝--mochi-text-adj 无人消费，字号轴空转）', file: 'css/display-tune.css', needle: '.msg-bubble { font-size: calc(var(--chat-font-size, 14px) + var(--mochi-text-adj, 0px)); }' },
@@ -3810,7 +3810,7 @@ const FIX_SENTINELS = [
   { name: '#794e openModal 第三自定义按钮位接线（删＝extraBtn 永不显示）', file: 'js/personalize.js', needle: 'const cfg3 = opts.extraBtn || null;' },
   { name: '#794f 适配码格式 tag（删/改＝导出的码对方导不进）', file: 'js/personalize.js', needle: "const MOCHI_ADJ_TAG = 'MCADJ1:'" },
   { name: '#794g 微调面板按住看默认对比（删＝拖方向拿不准时无法快速对比调整前后）', file: 'js/personalize.js', needle: "holdBtn.addEventListener('pointerdown', holdOn)" },
-  { name: '#794h 恢复备份带屏幕偏移时点名提醒（删＝换机恢复把旧机的偏移带进本机且无提示）', file: 'js/data-backup.js', needle: 'screen-adj-(top|bottom|h|desk|shift|text|side)' },
+  { name: '#794h 恢复备份带屏幕偏移时点名提醒（删＝换机恢复把旧机的偏移带进本机且无提示）', file: 'js/data-backup.js', needle: 'screen-adj-(top|bottom|h|desk|shift|text|side|kbgap)' },
   { name: '#794i 微调面板打开即现场探测建议行（删＝面板回到纯手拖，诊断发现不主动送上门）', file: 'js/personalize.js', needle: 'window.mochiScreenFixSuggest ? window.mochiScreenFixSuggest() : []' },
   // ==== 2026-09-19 #800 后台通知「一条内容弹两条一模一样的系统通知」根治（红米 K80 Chrome 实报「联系人更换昵称的系统消息重复一条」，用户点名其他消息可能同病、其他设备型号也有；#744/#766/#776/#796 同族新通道）：同一条消息在**同一同步任务**里被投两次——addRec→showDeskMsg 一路 + 机制显式补发一路（avatar-lib 昵称/头像池定时更换、ta-ask 五处、ck-question、incoming-requests 查岗卡），而已发指纹 markNotified 原在 showSysNotification().then(ok) 异步回调里才落账（发送链前段还有头像裁剪 Image onload 最长 1200ms 截止），第二发到达时 notifiedDup/seenDup 查空、recentChatDup 又有「刚入库 2.5s 内条目自排除」＝双弹。修复＝决定发送的同步点记账＋发送失败回调里回滚（v3.12.x 失败可重试语义不变）。零机型分支；行为断言见 tools/verify-notify-dup-gate.mjs ====
   { name: '#800a 决定发送即同步记账（记账仍在发送成功回调＝同任务第二发查空放行，一条内容弹两条一模一样的通知回归）', file: 'js/bg-keep.js', needle: 'gateStats.sent++; markNotified(nkey);' },
@@ -5806,7 +5806,7 @@ const FIX_SENTINELS = [
   { name: '#1318h 偏移面板入口改为请写入方重算（iOS 侧；旧写法是偏移层自己重放缓存的基准＝包装层那份记忆一旦与写入方不同步，回前台/改轴就落回初始状态）', file: 'js/mobile-adapt.js', needle: 'try { syncVvFit(); } catch (e) {}' },
   { name: '#1318l 同一条入口的安卓侧（只修 iOS 一侧＝覆盖式修补：安卓壳设备的顶部轴偏移改了没反应）', file: 'js/mobile-adapt.js', needle: 'try { syncSafeBottomA(); } catch (e) {}' },
   { name: '#1318i #212 全屏纠偏看门狗那一支同尺（只改 syncVvFit 漏了这一支＝开「顶部避让修正」的设备顶部轴被裸基准抹平，两处写法不同正是本族复发的老形状）', file: 'js/mobile-adapt.js', needle: "var _fwTopPx = screenVarPx('--mochi-safe-top', _fw.safeTop);" },
-  { name: '#1318j 安卓覆盖形态执行器同尺（漏这一支＝安卓壳设备的顶部轴每次覆盖重校被覆写）', file: 'js/mobile-adapt.js', needle: "var _px = _st ? screenVarPx('--mochi-safe-top', _st) : '';" },
+  { name: '#1318j 安卓覆盖形态执行器同尺（漏这一支＝安卓壳设备的顶部轴每次覆盖重校被覆写）', file: 'js/mobile-adapt.js', needle: "var _px = _st ? screenVarPx('--mochi-safe-top', _st) : safeTopCss('env');" },
   { name: '#1318k 按秒复述底部 calc 的那条定时器不得回来（它是本批跳动的第二只手；复述一回来就把 #1318c 的回落值顶掉＝同一属性两个主人复活）', file: 'js/mobile-adapt.js', needle: 'setInterval(applyBottom', absent: true },
   // ==== 2026-09-29 #1393 用户直派 iPhone17 Pro／iOS27 Safari「桌面打开，键盘及屏幕最底端上下跳动」＋「我自己调整了屏幕适配微调后屏幕也会莫名其妙抖动跳动，但不调整、用默认状态是正常的」＋「屏幕适配微调设置后会没有保存，刷新重新进入网站就恢复默认状态」，明说「这个问题其他设备型号也有出现」「不要覆盖修改导致不同型号设备浏览器的 bug 反复出现」（随附 mochi-screen-diag-2026-09-28-15-30-4213809377062.docx，那张单写着「本机手调（屏幕位置设置）：bottom+8」）。两件病灶、同一根因＝「同一格两个主人／半个事实」：
   // ① 跳动那一半是 #1318（2026-09-27 那批从未入库的一次收口）的键盘期那一面——#707 把偏移做在写入方【外面】：一条 setInterval(applyBottom,1000) 往 --mochi-safe-bottom 写 calc(env()+偏移)，而 #556/#530 那两位系统写入方在键盘期钉 0px、收键后 removeProperty 回落 env()，落值在两个值之间交替＝无头实测「底部轴=+8 时键盘 5s 窗内该属性值翻 3 次、值集合=[0px, calc(env+8px)]；底部轴=0 时全程一个值、零翻动」，逐字对上用户「调了就跳、不调就正常」。本批按台账把 #1318 整件重放到干净底本（包装层与复述定时器整体删除，偏移由 screenVarPx／bottomSafeCss 在写入方内部叠加，一个属性只剩一个主人；含 #277 那条拿 screen−inner≥20 当反证在 standalone 全出血机型上永不可达的 0/0 读数改判「尚未知道」）。
@@ -6007,6 +6007,22 @@ const FIX_SENTINELS = [
   { name: '#1436g 手动发位置卡/组合卡带限流豁免位（删＝额度满时你手动发或「问 TA 一声」TA 回的位置卡被静默吞＝作者直派「不要受限流管」；两处同型共一针，行为另有 verify-loc-change-setting 钉）', file: 'js/p2-features.js', needle: 'if (window.chatAddIn) window.chatAddIn(text, { rateAllow: true });' },
   /* ==== 2026-09-30 #1461 作者直派：本地音乐上传警示整段标红＋点名 QQ音乐/网易云加密实例（作者口径实例句，防并行改写丢字） ==== */
   { name: '#1461a 上传警示的加密实例句在位（删＝作者点名的 QQ音乐/网易云「有加密、离开本体放不出、须自己转格式破解」提醒丢失，红标回落灰字）', file: 'js/music-player.js', needle: '只能自己转格式破解后才能在别的应用和本地播放' },
+  /* ==== 2026-09-29 #1463 键盘停靠对账＋键盘间隙轴＋安卓键盘取证（真我 GT7／红米 K80 均 Edge 实报
+     「聊天页弹输入法后输入栏与输入法之间一片空白」，同族 #236/#530/#1330；同批修屏幕适配诊断
+     「键盘残留」行安卓恒 n/a（采集器只透传两字段、打印行只认 iOS 字段）。kbgap 默认 0＝
+     所有落点与修前逐位等价）==== */
+  { name: '#1463a 键盘期现场快照落笔（删＝键盘弹起时的几何又拍不进诊断单，GT7/K80 族只能靠猜）', file: 'js/mobile-adapt.js', needle: 'window.__mochiKbSnap = s;' },
+  { name: '#1463b 停靠对账目标式（删＝键盘期内核把可视区又扩了一拍时钉高不跟，输入栏与键盘之间留白条）', file: 'js/mobile-adapt.js', needle: 'var err = (visB + _aKbGap()) - pb;' },
+  { name: '#1463b2 钉高单一写入口（删回裸钉 vv.height＝对账残差与键盘间隙轴无家可落，两写者互踢抖动）', file: 'js/mobile-adapt.js', needle: 'function _aPinHeight() {' },
+  { name: '#1463c 对账＋快照接进 250ms 键盘看门狗（删＝对账只在事件拍跑、轮询期残差无人收口）', file: 'js/mobile-adapt.js', needle: '_aDockRecon(); _aKbSnap();' },
+  { name: '#1463c2 键盘弹起首拍快照（删＝取证依赖看门狗在跑，漏派 focusin 的内核拍不到现场）', file: 'js/mobile-adapt.js', needle: '_aKbSnap("open");' },
+  { name: '#1463d 顶部轴 env 叠加形态（删＝普通安卓浏览器顶部轴恒摘除＝拖了没变化）', file: 'js/mobile-adapt.js', needle: "calc(env(safe-area-inset-top, 0px) + '" },
+  { name: '#1463e iOS 键盘会话高度叠加键盘间隙轴（删＝面板第 8 轴在 iOS 无落点）', file: 'js/mobile-adapt.js', needle: "_setPhoneH(_safeH + _kbGapPx(), 'steady');" },
+  { name: '#1463f 键盘间隙改动即时生效钩（删＝会话中拖滑杆要等下一轮事件才动）', file: 'js/mobile-adapt.js', needle: 'if (window.__mochiKbReconNow) window.__mochiKbReconNow();' },
+  { name: '#1463g 安卓键盘探针全字段透传（删回两字段＝报告「键盘残留」安卓恒 n/a）', file: 'js/device.js', needle: 'var k2 = window.__mochiAndroidKb ? window.__mochiAndroidKb() : null; return k2 || null;' },
+  { name: '#1463h 诊断打印键盘期快照行（删＝取证链断在最后一米）', file: 'js/device.js', needle: '键盘期快照=' },
+  { name: '#1463i 面板第 8 轴登记（删＝键盘间隙轴从面板消失）', file: 'js/personalize.js', needle: "{ k: 'kbgap', name: '键盘间隙', min: -40, max: 40" },
+  { name: '#1463j 诊断系统行安卓如实报（删回 iOS 版式＝安卓单子永远写 iOS ?）', file: 'js/device.js', needle: 'if (/android/i.test(_ua))' },
   /* ==== 2026-09-29 #1416（作者复报「后台通知说有回信、点进信箱找不到」同批的四条定型＋三条换锚） ==== */
   { name: '#1416a 抓包记录的删除身份＝内容指纹（改回数组下标＝确认框停留期间来一条新抓包，unshift 头插让全体下标前移一位，删掉别人的那行＝丢用户数据）', file: 'js/records.js', needle: 'window.mochiHistDel(histKey(x),' },
   { name: '#1416b default 桌面按 cid 取存储时带旧顶层键回退（少这一层＝未迁移的老「禁止对方挂断」被判成没设过、回落 2%，对方照样挂断）', file: 'js/contacts.js', needle: "window.storeForCid = function (cid) { return cid === 'default' ? defaultStore()" },
