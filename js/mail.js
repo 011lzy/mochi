@@ -89,6 +89,7 @@ if (raw === null && !cid && cs.awaitingBigKey && cs.awaitingBigKey(KEY)) {
 mailSyncCold = true;
 try { if (cs.whenBigKeyBack) cs.whenBigKeyBack(KEY, function () { try { render(); updateBadge(); } catch (e0) {} }); } catch (e) {}
 } else if (raw !== null) mailSyncCold = false;
+if (mailStaleLs(cid)) { mailSyncCold = true; mailRescueArm(cid); }
 if (!list.length) { try { const v = loadSnap(cid); if (v.length) list = v; } catch (e) {} }
 if (!cid && (!mailWriteOpen() || mailSyncCold) && mailPending && mailPending.length) {
 const map = {};
@@ -155,6 +156,70 @@ cb();
 });
 } catch (e) { cb(); }
 }
+let mailLibMerged = false; // 本会话已从库里合过一次：合过之后内存那份即权威，旧 LS 不再作数
+function mailStaleLs(cid) {
+if (cid || mailLibMerged) return false;
+try {
+const cs = csFor(cid);
+return !!(cs.lsStale && cs.lsStale(KEY));
+} catch (e) { return false; }
+}
+function mailReadIncomplete(cid) { return (!cid && mailSyncCold) || mailStaleLs(cid); }
+let mailRescueFlight = null;
+let mailRescueNextAt = 0;
+function mailRescueRun(cid, cb) {
+const done = function (r) { try { if (cb) cb(r); } catch (e) {} };
+if (mailRescueFlight) { mailRescueFlight.push(done); return; }
+if (!window.idbGet) { done({ ok: false, why: 'noidb' }); return; }
+mailRescueFlight = [done]; // 先占飞行位再读屏上封数：load 会重进本函数，靠这一位挡住第二发
+let before = 0;
+try { before = (load(cid) || []).length; } catch (e) {}
+const finish = function (r) {
+const f = mailRescueFlight || [];
+mailRescueFlight = null;
+f.forEach(function (fn) { fn(r); });
+};
+const info = {};
+try {
+Promise.resolve(window.idbGet(prefixFor(cid) + ':' + KEY, info)).then(function (v) {
+if (typeof v !== 'string' || v.length <= 2) { finish({ ok: false, why: info.ambiguous ? 'ambiguous' : 'absent' }); return; }
+try { mailMergeFromIdb(v, cid); } catch (e) {}
+mailLibMerged = true;
+mailSyncCold = false;
+let after = 0, rp = 0;
+try {
+const arr = load(cid) || [];
+after = arr.length;
+arr.forEach(function (x) { if (x && x.type === 'received' && x.partnerReply) rp++; });
+} catch (e) {}
+try { render(); updateBadge(); } catch (e) {}
+finish({ ok: true, before: before, after: after, rp: rp });
+}, function () { finish({ ok: false, why: 'fail' }); });
+} catch (e) { finish({ ok: false, why: 'throw' }); }
+}
+function mailRescueArm(cid) {
+if (mailRescueFlight) return;
+const now = Date.now();
+if (now < mailRescueNextAt) return;
+mailRescueNextAt = now + 8000;
+mailRescueRun(cid);
+}
+function mailRescueClick() {
+if (mailRescueFlight) { toast('正在从本地库读取…'); return; }
+toast('正在从本地库找回…');
+mailRescueRun(undefined, function (r) {
+if (r && r.ok) toast('已从本地库合并：屏上 ' + r.before + ' → ' + r.after + ' 封' + (r.rp ? '（带 TA 回信 ' + r.rp + ' 封）' : ''));
+else if (r && r.why === 'absent') toast('本地库里没有这一格（可能从未落地）');
+else if (r && r.why === 'noidb') toast('这台设备没有可用的本地库');
+else toast('本地库这次没读出来（存储正忙）：过几秒再点一次');
+});
+}
+window.mailRescueRun = mailRescueRun; // #1417：别的入口（诊断页等）要复用时走这一条，别再写第二套口径
+function mailRescueStrip() {
+if (!mailReadIncomplete(undefined)) return '';
+return '<div class="mail-rescue-tip"><span class="mail-rescue-txt">这次没读全（本地存储正忙），可能有信没显示出来</span>' +
+'<button class="cc-tool" id="mail-rescue">从本地库找回</button></div>';
+}
 function mailAuthAsk(cid, guard, after) {
 if (!window.idbGet) { mailAuthOk = true; mailDbReady = true; after(); return; }
 const myPrefix = window.activePrefix();
@@ -184,7 +249,8 @@ if (!stale()) mailAuthDelay(cid, guard, after);
 }
 function mailAuthDelay(cid, guard, after) {
 if (mailAuthTries >= MAIL_AUTH_BACKOFF.length) {
-mailAuthOk = true; mailDbReady = true; after(); return;
+mailRescueRun(cid, function () { mailAuthOk = true; mailDbReady = true; after(); });
+return;
 }
 const wait = MAIL_AUTH_BACKOFF[mailAuthTries++];
 try { if (window.__mochiPhase) window.__mochiPhase('mail-auth-retry:' + mailAuthTries); } catch (e) {}
@@ -192,9 +258,10 @@ setTimeout(function () { mailAuthAsk(cid, guard, after); }, wait);
 }
 function save(list, cid) {
 if (!cid && !mailWriteOpen()) { try { mailPending = (list || []).slice(); } catch (e) {} writeSnap(list, cid); return; }
-if (!cid && mailSyncCold) {
+if (mailReadIncomplete(cid)) {
 try { mailPending = mergeLists(mailPending || [], list || []); } catch (e) {}
 writeSnap(list, cid);
+mailRescueArm(cid);
 return;
 }
 csFor(cid).set(KEY, JSON.stringify(list));
@@ -496,35 +563,36 @@ if (key === 'none') return '更早'; // #1416：缺 tm 的老信不猜日期（�
 const p = key.split('-');
 return p[0] + ' 年 ' + Number(p[1]) + ' 月';
 }
-function mailFoldHtml(dir, key, rows, name) {
+function mailFoldHtml(dir, key, rows, name, unreadN) {
 const foldKey = dir + '|' + key; // 收到/寄出各自独立折叠，同一个月不能互相顶掉开合态
-const open = !!mailFoldOpen[foldKey];
+const open = (foldKey in mailFoldOpen) ? !!mailFoldOpen[foldKey] : (unreadN > 0);
 return '<div class="mail-fold' + (open ? ' open' : '') + '" data-mail-fold="' + foldKey + '">' +
 '<div class="mail-fold-head" role="button" tabindex="0" aria-expanded="' + (open ? 'true' : 'false') + '">' +
 '<span class="mail-fold-title">' + monthLabelOf(key) + '</span>' +
-'<span class="mail-fold-right"><span class="mail-fold-count">' + rows.length + ' 封</span>' +
+'<span class="mail-fold-right">' + (unreadN > 0 ? '<span class="mail-fold-unread">' + unreadN + ' 封未读</span>' : '') +
+'<span class="mail-fold-count">' + rows.length + ' 封</span>' +
 '<span class="mail-fold-caret">▾</span></span></div>' +
 '<div class="mail-fold-body">' + rows.map(l => mailItemHtml(l, dir, name)).join('') + '</div></div>';
 }
 function mailGroupedHtml(list, dir, name) {
 const wkStart = weekStartTs(Date.now());
-const pin = [], week = [], months = {}, keys = [];
+const week = [], months = {}, keys = [], unreadOf = {};
 list.forEach(l => {
 const tm = Number(l.tm) || 0;
-if (dir === 'in' && mailIsUnread(l)) { pin.push(l); return; }
+const un = (dir === 'in' && mailIsUnread(l)) ? 1 : 0;
 if (tm && tm >= wkStart) { week.push(l); return; }
 const k = tm ? monthKeyOf(tm) : 'none';
-if (!months[k]) { months[k] = []; keys.push(k); }
+if (!months[k]) { months[k] = []; keys.push(k); unreadOf[k] = 0; }
 months[k].push(l);
+unreadOf[k] += un;
 });
 let html = '';
-if (pin.length) html += '<div class="mail-sec-label">未读</div>' + pin.map(l => mailItemHtml(l, dir, name)).join('');
 if (week.length) {
 if (keys.length) html += '<div class="mail-sec-label">本周</div>';
 html += week.map(l => mailItemHtml(l, dir, name)).join('');
 }
 keys.sort((a, b) => (a === 'none' ? 1 : b === 'none' ? -1 : (a < b ? 1 : -1))); // 最近的月份在前，「更早」（缺 tm 的老信）永远排最后
-keys.forEach(k => { html += mailFoldHtml(dir, k, months[k], name); });
+keys.forEach(k => { html += mailFoldHtml(dir, k, months[k], name, unreadOf[k]); });
 return html;
 }
 function render() {
@@ -537,10 +605,10 @@ const outEl = document.getElementById('mail-out-list');
 const inList = list.filter(l => l.type === 'received');
 if (inEl) {
 const inHtml = mailGroupedHtml(inList, 'in', name);
-inEl.innerHTML = inHtml || (mailEmptyIsLie() && window.mochiLoadingHtml
+inEl.innerHTML = mailRescueStrip() + (inHtml || (mailEmptyIsLie() && window.mochiLoadingHtml
 ? window.mochiLoadingHtml('收到的信')
-: '<div class="ta-empty">' + (window.taFit ? window.taFit('还没有收到信，等等 TA 吧') : '还没有收到信，等等 TA 吧') + '</div>');
-if (inList.length && inEl.querySelectorAll('.mail-item').length < inList.length) inEl.innerHTML = inHtml;
+: '<div class="ta-empty">' + (window.taFit ? window.taFit('还没有收到信，等等 TA 吧') : '还没有收到信，等等 TA 吧') + '</div>'));
+if (inList.length && inEl.querySelectorAll('.mail-item').length < inList.length) inEl.innerHTML = mailRescueStrip() + inHtml;
 }
 const outList = list.filter(l => l.type === 'sent');
 if (outEl) {
@@ -555,6 +623,7 @@ if (window.mochiOnDataReady) window.mochiOnDataReady(function () { try { render(
 function mailListItemClick(e) {
 const t = e.target && e.target.closest ? e.target : null;
 if (!t) return;
+if (t.closest('#mail-rescue')) { mailRescueClick(); return; }
 const foldHead = t.closest('.mail-fold-head');
 if (foldHead) { mailFoldToggle(foldHead.parentNode); return; }
 const it = t.closest('.mail-item');
@@ -567,7 +636,7 @@ if (!sec || !sec.getAttribute) return;
 const key = sec.getAttribute('data-mail-fold');
 if (!key) return;
 const head = sec.querySelector('.mail-fold-head');
-const open = !mailFoldOpen[key];
+const open = !sec.classList.contains('open');
 mailFoldOpen[key] = open;
 sec.classList.toggle('open', open);
 if (head) head.setAttribute('aria-expanded', open ? 'true' : 'false');
@@ -1227,6 +1296,8 @@ mailImportFile(f);
 }
 const mailClearBtn = document.getElementById('mail-clear');
 if (mailClearBtn) mailClearBtn.addEventListener('click', mailClearAll);
+const mailRescueBtn = document.getElementById('mail-rescue-data');
+if (mailRescueBtn) mailRescueBtn.addEventListener('click', mailRescueClick);
 render();
 updateBadge();
 function mailMergeFromIdb(v, cid) {
@@ -1273,6 +1344,7 @@ mailDbReady = false;
 mailAuthOk = false;
 mailAuthTries = 0; // #1309b：新桌面另给一份重试预算（与 mailPending 一样按桌面重置）
 mailPending = null;
+mailLibMerged = false; // #1417：合过的账按桌面重置——新桌面这一格是不是旧账要重新问一次
 let fuseFired = false;
 const fuse = setTimeout(function () {
 if (fuseFired || mailWriteOpen()) return;

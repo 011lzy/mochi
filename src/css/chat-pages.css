@@ -2434,6 +2434,13 @@
 .mail-fold.open .mail-fold-caret { transform:rotate(180deg); }
 .mail-fold:not(.open) > .mail-fold-body { display:none; }
 .mail-fold-body { padding-top:10px; }
+/* #1417：未读跟着自己的时间落进月份组之后，这一枚是组标题上的「未读封数」——
+   组默认开着（见 mailFoldHtml），红字只是让「哪一组里有红点信」一眼可见 */
+.mail-fold-unread { font-size:10px; font-weight:600; color:var(--danger-ink); background:var(--danger-soft); padding:2px 8px; border-radius:99px; flex-shrink:0; }
+/* #1417：读到旧账/读空时列表最上方那张提示条＋「从本地库找回」按钮 */
+.mail-rescue-tip { display:flex; align-items:center; gap:8px; margin:0 0 10px; padding:10px 12px; background:var(--static-bg); border-radius:10px; }
+.mail-rescue-txt { flex:1; font-size:11px; color:var(--muted); line-height:1.5; }
+.mail-rescue-tip .cc-tool { flex-shrink:0; width:auto; padding:8px 12px; }
 
 /* 信纸（简约卡片，非米色信封） */
 .mail-paper {

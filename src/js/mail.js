@@ -142,6 +142,9 @@
       mailSyncCold = true;
       try { if (cs.whenBigKeyBack) cs.whenBigKeyBack(KEY, function () { try { render(); updateBadge(); } catch (e0) {} }); } catch (e) {}
     } else if (raw !== null) mailSyncCold = false;
+    // FIX 2026-09-29 #1417：读到值也可能是旧账（见 mailStaleLs）——同样标残缺读数（提示条改口、
+    //   没有整包写回资格），并当场自动踢一趟「库里那份问回来就合并」，不必等用户去点按钮。
+    if (mailStaleLs(cid)) { mailSyncCold = true; mailRescueArm(cid); }
     // v3.7.x：主键缺失兜底——大列表只进 IDB（Edge 丢 IDB / LS 被清）时读剥图快照，
     //   文本+标题+时间保留；IDB 存活时模块底部 idbGet 会随后用完整数据重渲染
     if (!list.length) { try { const v = loadSnap(cid); if (v.length) list = v; } catch (e) {} }
@@ -241,6 +244,91 @@
       });
     } catch (e) { cb(); }
   }
+  // ================= FIX 2026-09-29 #1417：信箱「读到旧账」与自救恢复 =================
+  // 报障（红米 K80 Chrome／作者明说其他机型同现）：「后台通知弹窗说 20:21 联系人回了一封信，
+  // 点进信箱就是找不到这封新信」。前面 #1454 那只只读取证口逐字读数：那封信**就在 IndexedDB 里**
+  // （库直读 150 封／带 TA 回信 6 封／最近 09/29 20:21），而这台机的 localStorage 写不进去
+  // （本会话 213 次写入被拒）⇒ 同一格停在 09/26 的旧账（145 封／带 TA 回信 5 封）。而 xyStore.get
+  // 的读序是「内存 → LS」、从不读 IDB ⇒ 每次冷启动／页面被系统回收后重开，读到的都是那份旧账，
+  // 那封信就「不见了」。更危险的是写回侧：save() 原来的残缺旗只在「读空」时落下，这台机是
+  // 「读到了旧值」⇒ 闸不落 ⇒ 下一次再正常不过的寄信会把库里那整包换成这页旧账，那 5 封（含回信）
+  // **永久丢失**。本批按「判据只有一份」的口径收口三件事：
+  //   ① 读侧：读到旧值也认成残缺读数（数据层的 cs.lsStale＝本批新增的第五格证据）；
+  //   ② 写侧：残缺读数没有整包写回资格（沿用 #1358f 那一道闸，判据合一，不再各写一份）；
+  //   ③ 恢复：库里那份问回来即字段级合并并重绘（mailRescueRun）——list 渲染时自动踢一趟，
+  //      并给用户一个当场可点的「从本地库找回」按钮（作者直派「有没有什么自己点击修复的功能」
+  //      →「并且也需要新增自救的恢复按钮」）。
+  // 零机型／零 UA 分支：只问「这一格的 LS 是不是写失败留下的旧值」「库里交没交出整包」。
+  let mailLibMerged = false; // 本会话已从库里合过一次：合过之后内存那份即权威，旧 LS 不再作数
+  function mailStaleLs(cid) {
+    if (cid || mailLibMerged) return false;
+    try {
+      const cs = csFor(cid);
+      return !!(cs.lsStale && cs.lsStale(KEY));
+    } catch (e) { return false; }
+  }
+  // 这一轮读数残缺（＝屏上这份不能当「答案」，也没有整包写回资格）：读空（#1358f）或读到旧账（#1417）
+  function mailReadIncomplete(cid) { return (!cid && mailSyncCold) || mailStaleLs(cid); }
+  // 自救恢复：直读本地库那一份 → 字段级合并（mailMergeFromIdb：基准＝库，并集保留本地独有）→
+  //   写回并清残缺旗 → 重绘并当场报读数。单次飞行：同一时刻只许一发在问库，其余搭车同一发结果。
+  let mailRescueFlight = null;
+  let mailRescueNextAt = 0;
+  function mailRescueRun(cid, cb) {
+    const done = function (r) { try { if (cb) cb(r); } catch (e) {} };
+    if (mailRescueFlight) { mailRescueFlight.push(done); return; }
+    if (!window.idbGet) { done({ ok: false, why: 'noidb' }); return; }
+    mailRescueFlight = [done]; // 先占飞行位再读屏上封数：load 会重进本函数，靠这一位挡住第二发
+    let before = 0;
+    try { before = (load(cid) || []).length; } catch (e) {}
+    const finish = function (r) {
+      const f = mailRescueFlight || [];
+      mailRescueFlight = null;
+      f.forEach(function (fn) { fn(r); });
+    };
+    const info = {};
+    try {
+      Promise.resolve(window.idbGet(prefixFor(cid) + ':' + KEY, info)).then(function (v) {
+        if (typeof v !== 'string' || v.length <= 2) { finish({ ok: false, why: info.ambiguous ? 'ambiguous' : 'absent' }); return; }
+        try { mailMergeFromIdb(v, cid); } catch (e) {}
+        mailLibMerged = true;
+        mailSyncCold = false;
+        let after = 0, rp = 0;
+        try {
+          const arr = load(cid) || [];
+          after = arr.length;
+          arr.forEach(function (x) { if (x && x.type === 'received' && x.partnerReply) rp++; });
+        } catch (e) {}
+        try { render(); updateBadge(); } catch (e) {}
+        finish({ ok: true, before: before, after: after, rp: rp });
+      }, function () { finish({ ok: false, why: 'fail' }); });
+    } catch (e) { finish({ ok: false, why: 'throw' }); }
+  }
+  // 自动那一趟：库忙时别把主线程塞满，同一键 8s 内只问一次（用户手动点按钮走 mailRescueRun，不受此限）
+  function mailRescueArm(cid) {
+    if (mailRescueFlight) return;
+    const now = Date.now();
+    if (now < mailRescueNextAt) return;
+    mailRescueNextAt = now + 8000;
+    mailRescueRun(cid);
+  }
+  // 用户能点的自救入口：说清这一发到底抢回了什么（读不出来也如实说，不假装成功）
+  function mailRescueClick() {
+    if (mailRescueFlight) { toast('正在从本地库读取…'); return; }
+    toast('正在从本地库找回…');
+    mailRescueRun(undefined, function (r) {
+      if (r && r.ok) toast('已从本地库合并：屏上 ' + r.before + ' → ' + r.after + ' 封' + (r.rp ? '（带 TA 回信 ' + r.rp + ' 封）' : ''));
+      else if (r && r.why === 'absent') toast('本地库里没有这一格（可能从未落地）');
+      else if (r && r.why === 'noidb') toast('这台设备没有可用的本地库');
+      else toast('本地库这次没读出来（存储正忙）：过几秒再点一次');
+    });
+  }
+  window.mailRescueRun = mailRescueRun; // #1417：别的入口（诊断页等）要复用时走这一条，别再写第二套口径
+  // 读到旧账／读空时列表上方如实说一句＋当场给一个可点的自救入口
+  function mailRescueStrip() {
+    if (!mailReadIncomplete(undefined)) return '';
+    return '<div class="mail-rescue-tip"><span class="mail-rescue-txt">这次没读全（本地存储正忙），可能有信没显示出来</span>' +
+      '<button class="cc-tool" id="mail-rescue">从本地库找回</button></div>';
+  }
   // 三态权威加载（启动与切桌面共用）：confirmed 才交 mailMergeFromIdb 合并并开门；
   // ambiguous 先让 idbHasKey（count 单键，比取值轻得多，MB 级写入排队时也挤得进去）分辨
   // 「有却读不回」与「确无此键」——前者关闸重试，后者按「库里没有」开门（新装用户第一封信
@@ -276,7 +364,12 @@
     if (mailAuthTries >= MAIL_AUTH_BACKOFF.length) {
       // 有界重试耗尽＝这台机这一会话读不回来了。按旧语义放行（宁可退回旧行为，也不把用户的
       // 来信永久卡在内存里——那才是「弹窗说有信、信箱是空的」那一族 iQOO/X5 实报的根因）
-      mailAuthOk = true; mailDbReady = true; after(); return;
+      // FIX 2026-09-29 #1417：但「放行」不等于「就这样了」——原实现只开门、**不合并库里那份**，
+      //   于是屏上永远停在同步口交回的旧账（报障机 LS 写不进去 ⇒ 读到的 09/26 那 145 封成了
+      //   「最终答案」，当天那封回信躺在库里却再没人画一次）。开门之前先把库里那份问一次并合并，
+      //   合并失败仍按旧语义放行（那两条约束不冲突：一个是别丢用户的信，一个是别拿旧账当答案）。
+      mailRescueRun(cid, function () { mailAuthOk = true; mailDbReady = true; after(); });
+      return;
     }
     const wait = MAIL_AUTH_BACKOFF[mailAuthTries++];
     try { if (window.__mochiPhase) window.__mochiPhase('mail-auth-retry:' + mailAuthTries); } catch (e) {}
@@ -295,9 +388,13 @@
     // FIX 2026-09-28 #1358f：残缺读数没有整包写回资格（#1336 给朋友圈的那条，信箱侧原本没有）——
     //   手上一页空纸盖进库里那 20 封，就是「点进去没了、之后真的没了」。增量并进 mailPending 留在
     //   屏上，等 #1358d 那一趟把整包问回来再照常落盘；快照照写（那是更小的一份文本兜底，不是权威）。
-    if (!cid && mailSyncCold) {
+    // FIX 2026-09-29 #1417：判据合一——残缺读数（读空 #1358f ／读到「写失败留下的旧值」 #1417）
+    //   都没有整包写回资格：手上一页旧账盖进库里那整包，就是那封回信的永久丢失。增量并进
+    //   mailPending 留在屏上，并顺手把库里那份问回来（问回来＝字段级合并＋恢复写回资格）。
+    if (mailReadIncomplete(cid)) {
       try { mailPending = mergeLists(mailPending || [], list || []); } catch (e) {}
       writeSnap(list, cid);
+      mailRescueArm(cid);
       return;
     }
     csFor(cid).set(KEY, JSON.stringify(list));
@@ -685,11 +782,14 @@ window.showDeskPopup({ name: '信箱', text: mailPlainDesc('给你回了一封�
       '<div class="mail-item-time">' + fmtDT(l.tm) + '</div></div>';
   }
   // ===== #1402 信箱按时间分组（作者直派「信太多写得很杂」）=====
-  //   打开信箱只平铺「本周」的信，更早的按月份折成一条可点的组标题；未读来信不参与折叠、常驻最前。
+  //   打开信箱只平铺「本周」的信，更早的按月份折成一条可点的组标题。
   //   判据只有两个事实：墙钟日期（本周一 00:00 起＝自然周，不是滚动 7 天）和信件自身的 tm/read 字段，
   //   零机型／零 UA 分支。
-  //   「未读常驻」是硬约束：折叠组是 display:none，未读若进了折叠组＝红点亮着而列表里找不到那封信，
-  //   所以常驻条数与 updateBadge 共用 mailIsUnread 同一把尺（两边读数必然一致）。
+  //   FIX 2026-09-29 #1417：原来未读来信会被抽进列表顶部一个常驻的「未读」分区（#1402 为守住
+  //   「折叠组是 display:none，未读折进去＝红点亮着而列表里找不到那封信」而加）。作者直派
+  //   「不要因为信未读就收进单独的【未读】里，这样会显得非常乱，需要只按时间折叠起来」——
+  //   现在未读跟着自己的时间落进本周／月份组，改由「含未读的组默认展开＋组标题挂未读数」守同一条
+  //   约束（见 mailFoldHtml），徽标仍是 mailIsUnread 同一把尺。
   //   寄出的信没有「未读」概念（read 只在对来信置位、徽标也只数 received），那一侧只做「本周＋按月折叠」，
   //   不为此新造持久字段。
   //   折叠态收在模块级 map：信箱页每次 render 都重设 innerHTML，挂在 DOM 上的开合态活不过一次渲染
@@ -711,39 +811,45 @@ window.showDeskPopup({ name: '信箱', text: mailPlainDesc('给你回了一封�
     const p = key.split('-');
     return p[0] + ' 年 ' + Number(p[1]) + ' 月';
   }
-  function mailFoldHtml(dir, key, rows, name) {
+  function mailFoldHtml(dir, key, rows, name, unreadN) {
     const foldKey = dir + '|' + key; // 收到/寄出各自独立折叠，同一个月不能互相顶掉开合态
-    const open = !!mailFoldOpen[foldKey];
+    // FIX 2026-09-29 #1417：组里还有未读时默认展开。作者直派「不要因为信未读就收进单独的【未读】
+    //   里，显得非常乱，只按时间折叠」之后，#1402 那条硬约束（「红点亮着、列表里却找不到那封信」）
+    //   改用这条守：未读落在它自己的时间组里，组默认是开着的，组标题上还挂着未读数。
+    //   用户手动点过就听用户的（只在从没记录过开合态时才用默认值）；读过之后未读归零、默认回到收起。
+    const open = (foldKey in mailFoldOpen) ? !!mailFoldOpen[foldKey] : (unreadN > 0);
     return '<div class="mail-fold' + (open ? ' open' : '') + '" data-mail-fold="' + foldKey + '">' +
       '<div class="mail-fold-head" role="button" tabindex="0" aria-expanded="' + (open ? 'true' : 'false') + '">' +
       '<span class="mail-fold-title">' + monthLabelOf(key) + '</span>' +
-      '<span class="mail-fold-right"><span class="mail-fold-count">' + rows.length + ' 封</span>' +
+      '<span class="mail-fold-right">' + (unreadN > 0 ? '<span class="mail-fold-unread">' + unreadN + ' 封未读</span>' : '') +
+      '<span class="mail-fold-count">' + rows.length + ' 封</span>' +
       '<span class="mail-fold-caret">▾</span></span></div>' +
       '<div class="mail-fold-body">' + rows.map(l => mailItemHtml(l, dir, name)).join('') + '</div></div>';
   }
   function mailGroupedHtml(list, dir, name) {
     const wkStart = weekStartTs(Date.now());
-    const pin = [], week = [], months = {}, keys = [];
+    const week = [], months = {}, keys = [], unreadOf = {};
     list.forEach(l => {
       // FIX 2026-09-29 #1416：判据只问「这封信带没带 tm」——带了才换算年月，没带的一律归「更早」，
       //   不许拿 0 当日期（同批 idb.js 的 mochiHistFold 就是这个口径）。
       const tm = Number(l.tm) || 0;
-      // 一封信只落一个桶：未读先抽走，剩下的才谈本周／更早
-      if (dir === 'in' && mailIsUnread(l)) { pin.push(l); return; }
+      // FIX 2026-09-29 #1417：未读不再抽成常驻区（作者直派「只按时间折叠」）——一封信只落一个桶，
+      //   未读跟着它自己的时间走；含未读的月份组默认展开＋组标题挂未读数（见 mailFoldHtml）。
+      const un = (dir === 'in' && mailIsUnread(l)) ? 1 : 0;
       if (tm && tm >= wkStart) { week.push(l); return; }
       const k = tm ? monthKeyOf(tm) : 'none';
-      if (!months[k]) { months[k] = []; keys.push(k); }
+      if (!months[k]) { months[k] = []; keys.push(k); unreadOf[k] = 0; }
       months[k].push(l);
+      unreadOf[k] += un;
     });
     let html = '';
-    if (pin.length) html += '<div class="mail-sec-label">未读</div>' + pin.map(l => mailItemHtml(l, dir, name)).join('');
     if (week.length) {
       // 底下真有折叠组时才需要「本周」这条小标题来划界；整箱都是本周的信就不加，避免多一层噪声
       if (keys.length) html += '<div class="mail-sec-label">本周</div>';
       html += week.map(l => mailItemHtml(l, dir, name)).join('');
     }
     keys.sort((a, b) => (a === 'none' ? 1 : b === 'none' ? -1 : (a < b ? 1 : -1))); // 最近的月份在前，「更早」（缺 tm 的老信）永远排最后
-    keys.forEach(k => { html += mailFoldHtml(dir, k, months[k], name); });
+    keys.forEach(k => { html += mailFoldHtml(dir, k, months[k], name, unreadOf[k]); });
     return html;
   }
   function render() {
@@ -761,12 +867,14 @@ window.showDeskPopup({ name: '信箱', text: mailPlainDesc('给你回了一封�
     const inList = list.filter(l => l.type === 'received');
     if (inEl) {
       const inHtml = mailGroupedHtml(inList, 'in', name);
-      inEl.innerHTML = inHtml || (mailEmptyIsLie() && window.mochiLoadingHtml
+      // FIX 2026-09-29 #1417：这一轮读的是旧账/读空时，在列表最上方如实说一句＋给一个当场可点的
+      //   自救入口（mailRescueStrip 自己按残缺判据决定出不出现，正常读写时这段是空串、一个字不加）
+      inEl.innerHTML = mailRescueStrip() + (inHtml || (mailEmptyIsLie() && window.mochiLoadingHtml
         ? window.mochiLoadingHtml('收到的信')
-        : '<div class="ta-empty">' + (window.taFit ? window.taFit('还没有收到信，等等 TA 吧') : '还没有收到信，等等 TA 吧') + '</div>');
+        : '<div class="ta-empty">' + (window.taFit ? window.taFit('还没有收到信，等等 TA 吧') : '还没有收到信，等等 TA 吧') + '</div>'));
       // v3.26.x：防御 innerHTML 未生效——个别安卓内核（红米 K80 Chrome）对 hidden 元素
       // innerHTML 渲染延迟，列表项数与数据不符时重试一次（红米 K80 反馈「列表空」）。
-      if (inList.length && inEl.querySelectorAll('.mail-item').length < inList.length) inEl.innerHTML = inHtml;
+      if (inList.length && inEl.querySelectorAll('.mail-item').length < inList.length) inEl.innerHTML = mailRescueStrip() + inHtml;
     }
     // 寄出的信
     const outList = list.filter(l => l.type === 'sent');
@@ -786,6 +894,8 @@ window.showDeskPopup({ name: '信箱', text: mailPlainDesc('给你回了一封�
   function mailListItemClick(e) {
     const t = e.target && e.target.closest ? e.target : null;
     if (!t) return;
+    // #1417：列表上方那张提示条里的自救按钮（既不是信也不是折叠条，先认它）
+    if (t.closest('#mail-rescue')) { mailRescueClick(); return; }
     // #1402：点月份组的标题条只开合这一组（标题条里没有 .mail-item，展开后点里面的信仍走 openLetter，
     // 不会被这次点击顺手收回去）
     const foldHead = t.closest('.mail-fold-head');
@@ -801,7 +911,10 @@ window.showDeskPopup({ name: '信箱', text: mailPlainDesc('给你回了一封�
     const key = sec.getAttribute('data-mail-fold');
     if (!key) return;
     const head = sec.querySelector('.mail-fold-head');
-    const open = !mailFoldOpen[key];
+    // FIX 2026-09-29 #1417：当前开合态问 DOM 要，不能拿 !mailFoldOpen[key] 推——map 里没有这一键时
+    //   那是 undefined，!undefined=true 会把「默认开着」的含未读组第一次点击也判成「打开」（点不动）。
+    //   渲染时把开合态写进了 class，这里读同一处，默认值与用户操作是同一张嘴。
+    const open = !sec.classList.contains('open');
     mailFoldOpen[key] = open;
     sec.classList.toggle('open', open);
     if (head) head.setAttribute('aria-expanded', open ? 'true' : 'false');
@@ -1670,6 +1783,10 @@ window.showDeskPopup({ name: '信箱', text: mailPlainDesc('给你回了一封�
   }
   const mailClearBtn = document.getElementById('mail-clear');
   if (mailClearBtn) mailClearBtn.addEventListener('click', mailClearAll);
+  // FIX 2026-09-29 #1417：信件数据页的常驻自救入口——列表上方那张提示条只在「读出旧账/读空」时
+  //   出现；这一枚是作者直派「新增自救的恢复按钮」的固定落点（进数据管理就找得到，任何时候可点）
+  const mailRescueBtn = document.getElementById('mail-rescue-data');
+  if (mailRescueBtn) mailRescueBtn.addEventListener('click', mailRescueClick);
 
   render();
   updateBadge();
@@ -1756,6 +1873,7 @@ window.showDeskPopup({ name: '信箱', text: mailPlainDesc('给你回了一封�
       mailAuthOk = false;
       mailAuthTries = 0; // #1309b：新桌面另给一份重试预算（与 mailPending 一样按桌面重置）
       mailPending = null;
+      mailLibMerged = false; // #1417：合过的账按桌面重置——新桌面这一格是不是旧账要重新问一次
       // v3.7.x：补 15s 保险丝（与启动 line 798 同理）——切换联系人后 idbGet 在
       // 个别手机（华为/edge/OPPO 后台挂起）可能不返回，mailDbReady 永远 false →
       // 之后 save() 只暂存内存不落盘，新来信刷新即丢。chat.js 切换时调了

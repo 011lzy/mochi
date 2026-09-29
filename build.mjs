@@ -5645,7 +5645,7 @@ const FIX_SENTINELS = [
   { name: '#1358f 朋友圈冷读判据补上数据层那把尺（改回只问 feedAuthSeen＝启动那发没交出整包的那台机当面宣告「还没有动态」而库里 20 条）', file: 'js/feed.js', needle: "} else if (feedAuthSeen || (store.awaitingBigKey && store.awaitingBigKey(KEY))) {" },
   { name: '#1358g 信箱同一把尺：这一轮同步层交不出主键＝读数残缺（删＝#1195e 放掉副本后点进去只见「还没有收到信」）', file: 'js/mail.js', needle: "if (raw === null && !cid && cs.awaitingBigKey && cs.awaitingBigKey(KEY)) {" },
   { name: '#1358h 残缺期空态不许陈述「还没有收到信」（退回只问 mailAuthOk＝库里 20 封时当面说谎，用户据此以为数据没了）', file: 'js/mail.js', needle: "function mailEmptyIsLie() { if (mailSyncCold) return true;" },
-  { name: '#1358i 残缺读数没有整包写回资格（删＝冷读那一发里最正常的一发寄信把库里 20 封顶成 1 封＝真的没了）', file: 'js/mail.js', needle: "if (!cid && mailSyncCold) {" },
+  { name: '#1358i 残缺读数没有整包写回资格（删＝冷读那一发里最正常的一发寄信把库里 20 封顶成 1 封＝真的没了）', file: 'js/mail.js', needle: "mailPending = mergeLists(mailPending || [], list || []);" }, // #1417 换锚：写回闸判据由「读空」扩到「读空／读到旧账」（mailReadIncomplete）后旧针随本批消失，锚收到闸内「增量并进 mailPending 留在屏上」这一句本体（#1417b 已钉住闸判据那一行，此处避开同名 needle）
   { name: '#1358j 数据层那三句问话从 activeStore/defaultStore 门面也转出（门面只转 get/set/remove＝走门面的消费方够不到这把尺，信箱冷读那一发照旧说谎）', file: 'js/contacts.js', needle: "awaitingBigKey: (k) => { const d = dyn(); return !!(d.awaitingBigKey && d.awaitingBigKey(k)); }," },
 
   // ==== 2026-09-28 #1353 心情日记「只能记录对方三天心情／第四天把之前的清空」＋「日历上也不显示TA的心情」
@@ -5927,7 +5927,7 @@ const FIX_SENTINELS = [
   //   在对来信置位、徽标也只数 received），那一侧只做「本周＋按月折叠」，不为此新造持久字段。折叠态收模块级 map：
   //   信箱每次 render 重设 innerHTML，挂 DOM 上的开合态活不过一次渲染（沿用 #993 统计页 stats-fold 的站内惯例）。 ====
   { name: '#1402a 未读判定只有一个写入方（徽标与列表顶部常驻区共用这把尺；各自再写一份＝红点数与看得见的封数分叉）', file: 'js/mail.js', needle: "function mailIsUnread(l) { return l.type === 'received' && !l.read && !l.myReply; }" },
-  { name: '#1402b 未读来信抽进常驻区、不再落进任何月份组（删＝未读被 display:none 的折叠组盖住，用户见红点却找不到信）', file: 'js/mail.js', needle: "if (dir === 'in' && mailIsUnread(l)) { pin.push(l); return; }" },
+  { name: '#1402b 未读来信抽进常驻区、不再落进任何月份组（删＝未读被 display:none 的折叠组盖住，用户见红点却找不到信）', file: 'js/mail.js', needle: "const open = (foldKey in mailFoldOpen) ? !!mailFoldOpen[foldKey] : (unreadN > 0);" }, // #1417 换锚：作者直派「不要因为未读就收进单独的【未读】分区、只按时间折叠」⇒ 约束的守法从「抽进常驻区」改为「含未读的组默认展开」（旧针随本批必然消失，锚收到新守法本体）
   { name: '#1402c 周界＝本周一 00:00 的自然周（改回滚动 7 天或周日为起点＝「本周」每天变长、界线和用户心里对不上）', file: 'js/mail.js', needle: 'const dow = (d.getDay() + 6) % 7;' },
   { name: '#1402d 本周平铺、更早才按月归组（删掉这道分桶＝回到整箱平铺，「写得很杂」正是本批要治的）', file: 'js/mail.js', needle: 'if (tm && tm >= wkStart) { week.push(l); return; }' },
   { name: '#1402e 折叠态存模块级 map（只写 DOM class＝一次 60s tick 的 render 把用户刚展开的那个月收回去）', file: 'js/mail.js', needle: 'mailFoldOpen[key] = open;' },
@@ -6014,6 +6014,18 @@ const FIX_SENTINELS = [
   { name: '#1416d 朋友圈分桶：只有真带 ts 的动态才换算年月（缺 ts 归 none＝「更早」，不许印成 1970 年）', file: 'js/feed.js', needle: "const k = ts ? feedMonthKeyOf(ts) : 'none';" },
   { name: '#1416e 信箱分桶同口径：缺 tm 的信归「更早」，且「更早」永远排最后', file: 'js/mail.js', needle: "const k = tm ? monthKeyOf(tm) : 'none';" },
   { name: '#1416f 折叠开合态用捕获阶段的 toggle 委托存进模块级 map（挂回 DOM 上＝一次整栏重画就把自己展开的月份收回去）', file: 'js/idb.js', needle: "document.addEventListener('toggle', histFoldRemember, true)" },
+  // ==== #1417 信箱「后台说有回信、点进信箱找不到」＋自救恢复按钮（作者直派，红米 K80 Chrome 复报、多机型同现）====
+  // 根因（#1454 只读取证件逐字读数）：那封回信就在 IndexedDB 里（库直读 150 封），而报障机
+  // localStorage 写不进去（本会话 213 次写入被拒）⇒ 同一格停在 09/26 的旧账（145 封）；xyStore.get
+  // 读序是「内存→LS」、从不读 IDB ⇒ 冷启动/被系统回收后读到的都是旧账。四条针各钉一处收口逻辑。
+  { name: '#1417a 读到「写失败留下的旧值」也认成残缺读数并自动踢一趟库（删＝同步口的旧账被当成最终答案，那封回信再没人画一次）', file: 'js/mail.js', needle: 'if (mailStaleLs(cid)) { mailSyncCold = true; mailRescueArm(cid); }' },
+  { name: '#1417b 残缺读数没有整包写回资格（判据合一：读空 #1358f ／读到旧账 #1417；删＝下一次寄信拿这页旧账把库里整包换掉＝回信永久丢失）', file: 'js/mail.js', needle: 'if (mailReadIncomplete(cid)) {' },
+  { name: '#1417c 自救恢复合并成功后才置「本会话已合过」（删＝每次 load 重算都再置残缺旗→再触发救援，长期空转）', file: 'js/mail.js', needle: 'mailLibMerged = true;' },
+  { name: '#1417d 权威重试耗尽那一刻先合并库里那份再开门（原实现只开门不合并＝屏上永远停在旧账，正是本批报障的最后一环）', file: 'js/mail.js', needle: 'mailRescueRun(cid, function () { mailAuthOk = true; mailDbReady = true; after(); });' },
+  { name: '#1417e 列表上方那张「这次没读全」提示条里的自救按钮（删＝作者直派「新增自救的恢复按钮」当场没有可点的入口）', file: 'js/mail.js', needle: '<button class="cc-tool" id="mail-rescue">从本地库找回</button>' },
+  { name: '#1417f 含未读的月份组标题上那枚未读封数（删＝未读落进时间组后哪一组里有红点信看不出来）', file: 'js/mail.js', needle: '<span class="mail-fold-unread">' },
+  { name: '#1417g 信件数据页的常驻自救入口（删＝提示条不出现时用户在任何地方都点不到这只恢复按钮）', file: 'template.html', needle: 'id="mail-rescue-data"' },
+  { name: '#1417h 折叠开合态问 DOM 要当前值（改回 !mailFoldOpen[key] 推＝含未读的组默认开着，第一次点击被推成「打开」＝那组点不动）', file: 'js/mail.js', needle: 'const open = !sec.classList.contains(\'open\');' }, // #1417
   /* ==== 2026-09-30 #1462 互动卡「就地作答」提交前先收键盘（doSend 一处覆盖 提问/好奇/吐槽 三类文字卡；#512 半框／#542 弹窗同根因第三处）==== */
   { name: '#1462a 就地作答提交前显式 blur 作答框（删掉＝聚焦中的 .ce-box 被 el.innerHTML 换「已回答」直接摘走，键盘是「被元素移除带走」而非「失焦收起」，不派 focusout/vv.resize 的内核上收键盘链无证据，卡到 2.2s 看门狗＝「答完题输入法收起很慢」复发）', file: 'js/chat.js', needle: 'try { inp.blur(); } catch (eKb) {}' },
   { name: '#1462b 就地作答提交时向移动适配层报备有界兜底（删掉＝连 focusout 都不派的内核上 .phone 收缩高卡在键盘期数值，键盘位那半边灰底只能等看门狗；同 #512 第二道口径）', file: 'js/chat.js', needle: 'if (window.mochiKbDismiss) { try { window.mochiKbDismiss(); } catch (eKd) {} }' },

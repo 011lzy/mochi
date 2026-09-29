@@ -558,6 +558,7 @@ if (bigKeyBlind(key)) bigMissRehydrate(key);
 return null;
 },
 awaitingBigKey(k) { return bigReadUnconfirmed(prefix + ':' + k); },
+lsStale(k) { return !!(_lsDirtyKeys && _lsDirtyKeys.has(prefix + ':' + k)); },
 requestBigKey(k) { try { bigMissRehydrate(prefix + ':' + k); } catch (e) {} },
 whenBigKeyBack(k, cb) {
 const full = prefix + ':' + k;

@@ -5167,6 +5167,10 @@ padding:0 6px; border-radius:6px; margin-left:4px;
 .mail-fold.open .mail-fold-caret { transform:rotate(180deg); }
 .mail-fold:not(.open) > .mail-fold-body { display:none; }
 .mail-fold-body { padding-top:10px; }
+.mail-fold-unread { font-size:10px; font-weight:600; color:var(--danger-ink); background:var(--danger-soft); padding:2px 8px; border-radius:99px; flex-shrink:0; }
+.mail-rescue-tip { display:flex; align-items:center; gap:8px; margin:0 0 10px; padding:10px 12px; background:var(--static-bg); border-radius:10px; }
+.mail-rescue-txt { flex:1; font-size:11px; color:var(--muted); line-height:1.5; }
+.mail-rescue-tip .cc-tool { flex-shrink:0; width:auto; padding:8px 12px; }
 .mail-paper {
 background:#fff; border:1px solid rgba(0,0,0,.1); border-radius:12px;
 overflow:hidden; margin-bottom:12px;
@@ -10742,9 +10746,9 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
       <!-- #570：第三行开屏新版检测（ver-check.js 渲染）：检测中 / ✓已是最新 / ⇩有新版本可点更新 -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1790693503588">
+      <div class="splash-ver" id="splash-ver" data-build-ts="1790693988997">
         <span class="sv-app">Mochi 字卡传讯 <b>v8.55</b></span>
-        <span class="sv-deploy">部署于 2026-09-29 22:51<span id="splash-ver-live"></span></span>
+        <span class="sv-deploy">部署于 2026-09-29 22:59<span id="splash-ver-live"></span></span>
         <span class="sv-check" id="splash-ver-check" hidden></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
@@ -15333,8 +15337,10 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
           <div class="mail-data-actions">
             <button class="cc-tool" id="mail-export"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px;margin-right:3px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>导出信件数据</button>
             <button class="cc-tool" id="mail-import"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px;margin-right:3px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>导入信件数据</button>
+            <button class="cc-tool" id="mail-rescue-data"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px;margin-right:3px"><path d="M21 12a9 9 0 11-3-6.7"/><path d="M21 3v6h-6"/></svg>从本地库找回信件</button>
             <button class="cc-tool cc-tool-danger" id="mail-clear"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px;margin-right:3px"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>清空所有信件</button>
           </div>
+          <div class="mail-write-hint">信没显示全时点「从本地库找回信件」：直接读本机存储（IndexedDB）里的那一份，与屏上逐封合并后重画；只合并不覆盖、不删除，读不出来会如实告诉你。</div>
         </div>
       </div>
     </div>
@@ -22713,4 +22719,4 @@ window.__mochiBootRetry = function () { try { location.reload(); } catch (e) {} 
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mumsoeas -->
+<!-- __MOCHI_EOF__ mumsysud -->
