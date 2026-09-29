@@ -4971,16 +4971,42 @@ batchRendering = true;
 const frag = document.createDocumentFragment();
 appendTarget = frag;
 appendAvatarBatch(true);
+// FIX 2026-09-29 #1389（用户第五次复报同一句话「把浏览器挂着后台一段时间，然后回来，聊天里依旧不显示回来后
+// 新发的聊天消息，一片空白，页面看起来可以滑动飞出屏幕，要重新刷新网页才恢复正常」，明说其他设备型号也有、
+// 要求不要覆盖式修补）：判据只取一个事实——「一条记录画不出来，不许把渲染器从此改道」。零机型／零 UA 分支。
+// 根因（无头确定性复现＝tools/verify-1389-incremental-render-blackhole.mjs，红侧读数逐字就是症状本体：
+// flying:true 而 stalled:true→false 恒假、屏上节点恒 200、msgs 400→402、新发的两条永不落屏、8s 后仍不自愈）：
+// 这两个**同步增量轮**与 renderWindow 的分帧轮同构（同样 batchRendering=true、同样把 appendTarget 改道进一块
+// DocumentFragment），却既没有 #919a/#1313 的逐条 try/catch，也没有 finally。一条记录把 renderMsg 弄抛
+// （#919a 注释里留着真机 buildChunk→renderMsg「reading 'side'」的实锤），异常一路抛出函数外
+// ⇒ batchRendering 永久为真、appendTarget 永久指向那块没人会挂上去的 fragment ⇒ 此后每一条新消息都被
+// appendMsg 写进这个黑洞（appendMsg 结尾就是 `(appendTarget || body).appendChild(m)`）＝用户所见「回来后新发的
+// 消息不显示、只有刷新恢复」。而 #1313 那轮的看门狗结构上救不到这一发：chatPumpStalled() 第一行
+// `if (!batchRendering || !chatPump) return false;`——泵只在分帧整窗轮登记，同步增量轮根本没有泵，于是「在飞」
+// 恒真而「停滞」恒假，于是所有让路闸（#874a/b/c 入口、armWindowHoleHeal、回场复核 heal、#716 贴底看门狗、
+// #841 进页收尾）永久早退；屏上还留着上一次的窗口而它已对不上内存，就是「一片空白＋能滑出屏幕」那一半。
+// 前四轮各补了一条循环（分帧 4515、同步整窗 4595、原位补丁 4743 与 4825），漏的正是这两条——所以症状一直在，
+// 而每一轮的尺子都绿：它们量的都是「节点在不在 DOM 里」，没有一总量过「渲染器有没有被永久改道」。
+// 改法＝把这两条循环补齐成与 #1313 同一形态：逐条 try/catch（坏记录跳过并留证，口径同 threwIdx，刻意不喂
+// armWindowHoleHeal＝避免「重画→又抛→又排」的 700ms 空转）＋ finally 无条件把头像批／appendTarget／
+// batchRendering 交回，让「抛出去」不再是一种能持久的状态。
+let _incrThrew = 0;
+try {
 for (let i = newStart; i < renderStart; i++) {
+try {
 maybeInsertDivider(i); // 时间分隔线：新批首条与前一条间距大时补胶囊
 const m = renderMsg(msgs[i], i); // #1326：同上——下插/追加批也要在挂载前落定真实下标
 m.dataset.idx = i;
+} catch (eThrow) { _incrThrew++; } // #1389：单条记录不许带走整批，更不许把 appendTarget 留在半路上
 }
+} finally {
 appendAvatarBatch(false);
 appendTarget = null;
 batchRendering = false;
+}
 renderStart = newStart;
 chatWinKeysSync(); // #1010：上翻增量改了窗口头，身份凭据同步
+if (_incrThrew) { windowStale = true; chatRenderIncident('incr-older-throw', 0, _incrThrew); } // #1389：屏上确实少一条＝作废同窗凭据＋留证（不排自愈，见上）
 if (preNum > 0 && anchor) {
 // FIX 2026-09-13 #396（红米 K80 Chrome 等多机型「聊天/群聊滑动屏幕会弹」）：旧补偿式
 // beforeTop + anchor.offsetTop 读的是插入后首元素的 offsetTop＝插入高度 + .chat-body
@@ -5022,6 +5048,8 @@ for (const el of body.querySelectorAll('[data-idx]')) {
 const k = parseInt(el.dataset.idx, 10);
 if (Number.isFinite(k) && !onScreen.has(k)) onScreen.set(k, el);
 }
+let _incrThrew = 0; // #1389：见 loadOlderIncremental 上方那段批注（同一根因的第二条循环）
+try {
 for (let i = renderEnd; i < newEnd; i++) {
 // FIX 2026-09-18 #766：幂等守卫改**纯属性选择器**。旧写法 `.msg[data-idx="i"]` 只认 .msg 类，而
 // 拍一拍/系统提示/游戏结算等节点类名各异（msg-poke / msg-rps / msg-pong / msg-center…）不带 .msg
@@ -5032,14 +5060,19 @@ if (onScreen.has(i)) continue; // #766a：守卫口径不变（#918 把「查 DO
 if (!anchor) {
 for (let j = i + 1; j < len && !anchor; j++) anchor = onScreen.get(j) || null; // #918b：锚点同批改查表（旧写法每个未命中下标都全表扫一次）
 }
+try {
 maybeInsertDivider(i);
 const m = renderMsg(msgs[i], i); // #1326：同上——下插/追加批也要在挂载前落定真实下标
 m.dataset.idx = i;
+} catch (eThrow) { _incrThrew++; } // #1389：单条记录不许带走整批，更不许把 appendTarget 留在半路上
 }
+} finally {
 appendAvatarBatch(false);
 appendTarget = null;
 batchRendering = false;
+}
 renderEnd = newEnd;
+if (_incrThrew) { windowStale = true; chatRenderIncident('incr-newer-throw', 0, _incrThrew); } // #1389：屏上少一条＝作废同窗凭据＋留证（刻意不排自愈，同 #1313 的 threwIdx 口径）
 if (anchor) body.insertBefore(frag, anchor);
 else if (frag.childNodes.length) body.appendChild(frag);
 if (newEnd - renderStart > WINDOW_MAX) pruneWindowTop();

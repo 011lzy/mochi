@@ -77,7 +77,7 @@ const buildStamp = buildTime.getTime().toString(36); // sw 缓存名版本号（
 // 每提交 10 次 +0.1（258 → v8.25，260 → v8.26，300 → v8.30）。
 // SW 缓存刷新依赖的是上面的 buildStamp（每次构建必变），与 APP_VERSION 无关。
 // 非 git 环境（脚本被拷贝/CI 无 git）回退 v8.0 兜底。
-let APP_VERSION = 'v8.45'; // 仓外隔离副本兜底直置（主树 execSync 自动取；#1011 批按 git rev-list --count 现值对齐，勿回退）
+let APP_VERSION = 'v8.53'; // 仓外隔离副本兜底直置（主树 execSync 自动取；#1011 批按 git rev-list --count 现值对齐，勿回退）
 try {
   const cnt = execSync('git rev-list --count HEAD', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
   if (cnt && /^\d+$/.test(cnt)) APP_VERSION = 'v8.' + Math.floor(parseInt(cnt, 10) / 10);
@@ -5718,6 +5718,18 @@ const FIX_SENTINELS = [
   { name: '#1387e 「记一次经期」一次落成整条区间的入口本体（删＝记 N 天要长按 N 次，同一件「今天来经」又回到三种读法）', file: 'js/period.js', needle: 'function openRecordPop()' },
   { name: '#1387f 预测着色从 starts[1] 起（改回 j=0＝本次经期剩余天数被涂成图例明写「预测」的那种色）', file: 'js/period.js', needle: 'for (var j = 1; j < starts.length; j++) {' },
   { name: '#1387g 新弹层登记进手动锁名单（漏一个＝别的浮层一变动就误摘它的背景滚动锁）', file: 'js/mobile-adapt.js', needle: "'period-notify-pop', 'period-record-pop'" },
+  // FIX 2026-09-29 #1389（用户第五次复报「把浏览器挂着后台一段时间再回来，聊天里依旧不显示回来后新发的
+  // 聊天消息，一片空白，页面看起来可以滑动飞出屏幕，要重新刷新网页才恢复正常」）：两条同步增量补画循环
+  // （loadOlderIncremental／loadNewerIncremental）与分帧整窗轮同构，却既无逐条 try/catch 也无 finally——
+  // 一条坏记录把 renderMsg 弄抛就永久留下「batchRendering 恒真 ＋ appendTarget 指向一块没人挂上去的
+  // DocumentFragment」＝此后每条新消息进黑洞，而 #1313 的看门狗没有泵可接管（chatPumpStalled 第一行就
+  // return false）。判据＝「一条记录画不出来，不许把渲染器从此改道」，零机型／零 UA 分支。行为尺＝
+  // tools/verify-1389-incremental-render-blackhole.mjs（同 tip 纯 HEAD 9 绿/11 红 · 带本批 20 绿/0 红）。
+  // ⚠ needle 一律纯代码形态：外置 js 会剥掉整行注释（实测），拿注释当锚就是永久报绿的哑针。
+  { name: '#1389a 增量补画的抛错留证走 #1313 同一本账（删＝静默失败回归：屏上少一条而无人记账）', file: 'js/chat.js', needle: "chatRenderIncident('incr-older-throw', 0, _incrThrew)" },
+  { name: '#1389b 补尾那条循环同理（同根因的两个写入方，少一条＝那一条仍能永久改道渲染器）', file: 'js/chat.js', needle: "chatRenderIncident('incr-newer-throw', 0, _incrThrew)" },
+  { name: '#1389c 上翻批＝finally 无条件交回在前、推进窗口头在后（改回「抛出函数外」即消失＝黑洞复发）', file: 'js/chat.js', needle: 'batchRendering = false;\n}\nrenderStart = newStart;' },
+  { name: '#1389d 补尾批同理（交回在前、renderEnd 在后；另起第二套收尾或漏 finally 都会消失）', file: 'js/chat.js', needle: 'batchRendering = false;\n}\nrenderEnd = newEnd;' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
