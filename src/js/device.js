@@ -4482,7 +4482,7 @@ window.mochiFilePickSurface = function (btn, opts) {
       }, true);
       input.__mochiSurface = { owner: null, onFiles: null };
     }
-    try { input.accept = o.accept || 'image/*'; } catch (e) {}
+    try { input.accept = typeof o.accept === 'string' ? o.accept : 'image/*'; } catch (e) {} // #1413：只有「没提 accept」才兜底成图片；提了空串＝这一格不限制类型，别再偷偷换成 image/*（同一型缺陷在 chatcard #1040d 那处只能靠事后补写绕开）
     input.multiple = !!o.multiple;
     var rec = input.__mochiSurface = input.__mochiSurface || { owner: null, onFiles: null };
     // FIX 2026-09-25 #1230：宿主按 id 登记时**必须当场解析成元素**。老写法直接把字符串存进 rec.owner，
@@ -4690,7 +4690,7 @@ window.mochiFilePickDoor = function (el, o) {
     if (!host && typeof o.onFiles !== 'function') return null;
     var lid = o.id || ('mochi-door-' + (el.id || ''));
     var layer = window.mochiFilePickSurface(el, {
-      id: lid, accept: o.accept || (host && host.accept) || 'image/*',
+      id: lid, accept: typeof o.accept === 'string' ? o.accept : ((host && host.accept) || 'image/*'), // #1413：门上同一把尺（宿主是空串＝不限制，不许一路兜回相册）
       multiple: typeof o.multiple === 'boolean' ? o.multiple : !!(host && host.multiple),
       owner: host || owner, onFiles: o.onFiles
     });
@@ -5297,7 +5297,7 @@ window.mochiFilePick = function (opts) {
   // FIX 2026-09-25 #1230：两处都改成「本次没提就保留原值」——常驻 input 会被多个调用复用
   // （铺层时预建宿主的调用不带这两个参数），过去那两行无条件赋值会把入口先设好的口径抹掉
   // （聊天壁纸＝多选＋image/*：被抹成单选/全文件＝iOS 选择器里相册不在候选、多选失效）。
-  try { input.accept = (o.accept != null && o.accept !== '') ? o.accept : (input.accept || ''); } catch (e) {}
+  try { input.accept = ('accept' in o) ? String(o.accept == null ? '' : o.accept) : (input.accept || ''); } catch (e) {} // #1413：判据换成「调用方到底提没提这一项」——裸登记（bindHost 不带 accept）照旧保留宿主口径（#1230e 原意不变），而入口**有意**传的空串从此真能清掉上一个分类留下的值；旧写法表达不出「显式清空」，常驻 input 被多个分类共用时后一个档会继承前一个档的过滤器（字卡库语音档实测 chooser 上留着 image/*＝语音文件全灰显）
   if (typeof o.multiple === 'boolean') input.multiple = o.multiple;
   // 读取回调每次重设（闭包随调用方变，常驻 input 不能留旧回调）
   // FIX 2026-09-25 #1230：只有**本次真的给了回调**才覆盖——预建宿主（mochiFilePickBindHost＝带

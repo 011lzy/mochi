@@ -578,7 +578,7 @@ try {
         fileBtn.onclick = () => {
           window.mochiFilePick({
             id: 'dev-modal-file-pick',
-            accept: '.txt,.json,text/plain,application/json',
+            accept: window.mochiDataPickAccept + ',.txt', // #1413：由单一来源派生（原来手抄那份少 octet-stream＝转存后丢类型的方案文件会灰显）
             onFiles: (files) => readTxtInto(files && files[0])
           });
         };
@@ -665,7 +665,7 @@ try {
           try { (pillList || []).forEach(p => { if (!first && p && p.pick) first = p.pick; }); } catch (e) {}
           if (!first) return;
           cfg = {
-            accept: first.accept || 'image/*',
+            accept: typeof first.accept === 'string' ? first.accept : 'image/*', // #1413：胶囊给了空串就按空串铺（与 device.js 那两处同一判据）
             multiple: !!first.multiple,
             entry: first.entry || '',
             // 只有「当前选中的这一档声明了 pick」才让原生默认动作弹选择器；其余档（清除／遮罩浓度／

@@ -10728,9 +10728,9 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
       <!-- #570：第三行开屏新版检测（ver-check.js 渲染）：检测中 / ✓已是最新 / ⇩有新版本可点更新 -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1790664671465">
+      <div class="splash-ver" id="splash-ver" data-build-ts="1790666698557">
         <span class="sv-app">Mochi 字卡传讯 <b>v8.54</b></span>
-        <span class="sv-deploy">部署于 2026-09-29 14:51<span id="splash-ver-live"></span></span>
+        <span class="sv-deploy">部署于 2026-09-29 15:24<span id="splash-ver-live"></span></span>
         <span class="sv-check" id="splash-ver-check" hidden></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
@@ -21014,7 +21014,7 @@ if (bp === 'static' || bp === '') btn.style.position = 'relative';
 }, true);
 input.__mochiSurface = { owner: null, onFiles: null };
 }
-try { input.accept = o.accept || 'image/*'; } catch (e) {}
+try { input.accept = typeof o.accept === 'string' ? o.accept : 'image/*'; } catch (e) {} // #1413：只有「没提 accept」才兜底成图片；提了空串＝这一格不限制类型，别再偷偷换成 image/*（同一型缺陷在 chatcard #1040d 那处只能靠事后补写绕开）
 input.multiple = !!o.multiple;
 var rec = input.__mochiSurface = input.__mochiSurface || { owner: null, onFiles: null };
 var newOwner = o.owner;
@@ -21156,7 +21156,7 @@ if (typeof owner === 'string' && !host && window.mochiFilePickBindHost) host = w
 if (!host && typeof o.onFiles !== 'function') return null;
 var lid = o.id || ('mochi-door-' + (el.id || ''));
 var layer = window.mochiFilePickSurface(el, {
-id: lid, accept: o.accept || (host && host.accept) || 'image/*',
+id: lid, accept: typeof o.accept === 'string' ? o.accept : ((host && host.accept) || 'image/*'), // #1413：门上同一把尺（宿主是空串＝不限制，不许一路兜回相册）
 multiple: typeof o.multiple === 'boolean' ? o.multiple : !!(host && host.multiple),
 owner: host || owner, onFiles: o.onFiles
 });
@@ -21584,7 +21584,7 @@ input.id = id;
 input.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:1;margin:0;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;';
 document.body.appendChild(input);
 }
-try { input.accept = (o.accept != null && o.accept !== '') ? o.accept : (input.accept || ''); } catch (e) {}
+try { input.accept = ('accept' in o) ? String(o.accept == null ? '' : o.accept) : (input.accept || ''); } catch (e) {} // #1413：判据换成「调用方到底提没提这一项」——裸登记（bindHost 不带 accept）照旧保留宿主口径（#1230e 原意不变），而入口**有意**传的空串从此真能清掉上一个分类留下的值；旧写法表达不出「显式清空」，常驻 input 被多个分类共用时后一个档会继承前一个档的过滤器（字卡库语音档实测 chooser 上留着 image/*＝语音文件全灰显）
 if (typeof o.multiple === 'boolean') input.multiple = o.multiple;
 if (typeof o.onFiles === 'function') input.__mochiOnFiles = o.onFiles;
 input.onchange = function () {
@@ -22615,4 +22615,4 @@ window.__mochiBootRetry = function () { try { location.reload(); } catch (e) {} 
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mumbifah -->
+<!-- __MOCHI_EOF__ mumcpvel -->

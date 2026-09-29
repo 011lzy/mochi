@@ -2220,7 +2220,7 @@ window.mochiMediaExpandAsync(k, (d) => { if (d) expMap[k] = d; if (--left === 0)
 }));
 (curSec||settingsBody).appendChild(gcDataLink('导入聊天记录', '从 JSON 文件导入并覆盖当前群聊记录', false, () => {
 window.mochiFilePick({
-id: 'mochi-gc-import-pick', accept: '.json,application/json',
+id: 'mochi-gc-import-pick', accept: window.mochiDataPickAccept, // #1413：与整机导入同一份并集（窄串会让转存后改了类型的备份灰显）
 onFiles: (files) => {
 const f = files && files[0];
 if (!f) { toast('没有取到文件，请再选一次'); return; }

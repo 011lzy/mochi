@@ -1656,7 +1656,7 @@ window.showDeskPopup({ name: '信箱', text: mailPlainDesc('给你回了一封�
     mailImportBtn.addEventListener('click', () => {
       // FIX 2026-09-18 #755：统一走 window.mochiFilePick（原实现 detached＋无 label＋accept 迟到）
       window.mochiFilePick({
-        id: 'mochi-mail-import-pick', accept: '.json,application/json',
+        id: 'mochi-mail-import-pick', accept: window.mochiDataPickAccept, // #1413：与整机导入同一份并集（窄串会让转存后改了类型的备份灰显）
         onFiles: (files) => {
           const f = files && files[0];
           if (!f) { toast('没有取到文件，请再选一次'); return; }

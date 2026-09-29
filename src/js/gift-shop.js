@@ -1794,7 +1794,7 @@
   function importMarketGoods() {
     if (!window.mochiFilePick) { toast('导入功能暂不可用，请稍后再试'); return; }
     window.mochiFilePick({
-      id: 'market-goods-import-pick', accept: '.json,application/json',
+      id: 'market-goods-import-pick', accept: window.mochiDataPickAccept, // #1413：与整机导入同一份并集（窄串会让转存后改了类型的备份灰显）
       onFiles: function (files) {
         const f = files && files[0];
         if (!f) { toast('没有取到文件，请再选一次'); return; }

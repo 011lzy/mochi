@@ -79,8 +79,8 @@ const PNG_B64 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAm0l
     'S6 选完只派发 change、**不派发 click**——否则这一下会冒泡回入口按钮把自己再触发一遍＝二次弹选择器');
   ok(dev.includes("document.addEventListener('pointerup', off, { capture: true, passive: true })") && dev.includes('setTimeout(window.__mochiPickFbOff, 1200)') && !dev.includes('mochiPickFallbackArmed'),
     'S7 搬层那格的「可命中」只活到**这一下手势结束**（pointerup/touchend/mouseup 收窗＋1.2s 硬窗），不吃用户下一次点击；且不留只写不读的死变量');
-  ok(pickBody.includes("input.accept = (o.accept != null && o.accept !== '') ? o.accept : (input.accept || '')") && pickBody.includes("if (typeof o.multiple === 'boolean') input.multiple = o.multiple;"),
-    'S8 常驻 input 的 accept/multiple 改「本次没提就保留原值」——裸登记（预建宿主）不再抹掉入口先设好的口径');
+  ok(pickBody.includes("input.accept = ('accept' in o) ? String(o.accept == null ? '' : o.accept) : (input.accept || '');") && pickBody.includes("if (typeof o.multiple === 'boolean') input.multiple = o.multiple;") && !pickBody.includes("input.accept = (o.accept != null && o.accept !== '')"),
+    'S8 常驻 input 的 accept/multiple＝判据换成**本次提没提这一项**（#1230e 原意保住：裸登记／预建宿主不带 accept＝保留入口先设好的口径；#1413 补另一半：入口**有意**传空串＝真清空，不再把上一个分类留下的 image/* 粘到这一档上——字卡库语音档实测吃过这个亏）');
   ok(pickBody.includes("if (typeof o.onFiles === 'function') input.__mochiOnFiles = o.onFiles;") && pickBody.includes('if (input.__mochiOnFiles)'),
     'S9 回调改成粘性登记：只有本次真给了 onFiles 才覆盖，且 onchange 走它——预建宿主那次裸调用不再把前一入口的管线写没');
   ok(pickBody.includes('if (window.mochiFilePickSurfaceAll && typeof o.onFiles === ') && !pickBody.includes('if (o.btn && window.mochiFilePickSurfaceAll'),

@@ -1380,8 +1380,7 @@ if (ex) ex.addEventListener('click', exportFacesData);
 const imp = pg.querySelector('#divf-import');
 if (imp) imp.addEventListener('click', () => {
 window.mochiFilePick({
-id: 'dev-divf-json-pick',
-accept: '.json,application/json',
+id: 'dev-divf-json-pick', accept: window.mochiDataPickAccept, // #1413：与整机导入同一份并集（窄串会让转存后改了类型的备份灰显）
 onFiles: (files) => {
 const f = files && files[0];
 if (!f) return;
