@@ -164,6 +164,8 @@
   }
   // #1520：加载期自动写的静默读数闸（自动路径不弹 toast；读不全＝宁可不落笔）
   function ckAutoHold(k) { try { return !!(window.xyBigWriteHold && window.xyBigWriteHold(store, k)); } catch (e) { return false; } }
+  // #1521：跨桌面那一发要按**目标桌面的 store** 问——当前桌面那把尺对它无效
+  function ckAutoHoldIn(st, k) { try { return !!(window.xyBigWriteHold && window.xyBigWriteHold(st, k)); } catch (e) { return false; } }
   function ckLoad() {
     let d = null;
     try { d = JSON.parse(store.get(KEY) || 'null'); } catch (e) { d = null; }
@@ -195,6 +197,11 @@
   function ckLoadFrom(s) {
     let d = null;
     try { d = JSON.parse(s.get(KEY) || 'null'); } catch (e) { d = null; }
+    // #1521：这是**跨桌面**的读-改-写（写的是目标桌面的 store，不是当前桌面）——#1520 接闸时只覆盖了
+    //   当前桌面那几发，这里当时漏了（复审 C-3）。盲窗里把「纯预设＋本次改动」写回＝对方桌面的查岗
+    //   题库被清掉。路径是自动的（跨桌面「来消息」抽题，incoming-requests 调 window.ckQuestionPickFor），
+    //   按站内铁律走静默闸：读不全就这一发不落笔（抽题本身不受影响，返回值仍能抽），并请库取回。
+    if (!d) { try { if (s.awaitingBigKey && s.awaitingBigKey(KEY)) s.requestBigKey(KEY); } catch (e0) {} }
     if (!d || typeof d !== 'object' || Array.isArray(d)) d = {};
     if (!d.settings || typeof d.settings !== 'object') d.settings = {};
     if (d.settings.useDefault === undefined) d.settings.useDefault = true;
@@ -206,9 +213,9 @@
         return nq;
       });
       d.mergedIds = DEFAULT_QUESTIONS.map(q => q.id);
-      if (!isNew) { try { s.set(KEY, JSON.stringify(d)); } catch (e) {} }
+      if (!isNew && !ckAutoHoldIn(s, KEY)) { try { s.set(KEY, JSON.stringify(d)); } catch (e) {} }
     } else {
-      if (ckMerge(d)) { try { s.set(KEY, JSON.stringify(d)); } catch (e) {} }
+      if (ckMerge(d) && !ckAutoHoldIn(s, KEY)) { try { s.set(KEY, JSON.stringify(d)); } catch (e) {} }
     }
     if (!Array.isArray(d.groups)) d.groups = [];
     return d;

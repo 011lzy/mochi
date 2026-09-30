@@ -6462,6 +6462,9 @@ const FIX_SENTINELS = [
   { name: '#1520i 题库加载期自动写接静默读数闸（删＝读空播种/合并默认那一发把半份表写回；自动路径不弹 toast）', file: 'js/ta-ask.js', needle: 'if (taAskMerge(d) && !ckHold(KEY))' },
   { name: '#1520j 查岗题库加载期自动写静默闸', file: 'js/ck-question.js', needle: 'if (ckMerge(d) && !ckAutoHold(KEY))' },
   { name: '#1520k 邀请题库加载期自动写静默闸', file: 'js/ta-invite.js', needle: 'if (tiMerge(d) && !ckAutoHold(KEY))' },
+  { name: '#1521a 跨桌面查岗题库写前按目标桌面 store 问读全没有（删＝跨桌面来消息抽题那条自动写把对方桌面题库顶成纯预设）', file: 'js/ck-question.js', needle: '!ckAutoHoldIn(s, KEY)) { try { s.set(KEY' },
+  { name: '#1521b 昵称池整包写前问读全没有（删＝「添加昵称」这条读-改-写在盲窗里把整池顶掉）', file: 'js/avatar-lib.js', needle: "xyBigWriteBlocked(store, 'nick-lib', '昵称池')" },
+  { name: '#1521c 添加昵称尊重闸结果（删＝被拦后仍重绘并报「已添加」，用户以为存进去了）', file: 'js/avatar-lib.js', needle: 'if (saveFn(list) === false) return;' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

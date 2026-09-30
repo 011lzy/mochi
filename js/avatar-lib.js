@@ -62,10 +62,18 @@ return Array.isArray(v) ? v.map(cleanNick).filter(Boolean) : [];
 } catch (e) { return []; }
 }
 function getNickLib() { return loadStrList('nick-lib'); }
-function saveNickLib(list) { store.set('nick-lib', JSON.stringify(list)); }
+function saveNickLib(list) {
+if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, 'nick-lib', '昵称池')) return false;
+store.set('nick-lib', JSON.stringify(list));
+return true;
+}
 function getNickEnabled() { const v = store.get('nick-lib-enabled'); return v === null ? true : v === '1'; }
 function getMeNickLib() { return loadStrList('nick-me-lib'); }
-function saveMeNickLib(list) { store.set('nick-me-lib', JSON.stringify(list)); }
+function saveMeNickLib(list) {
+if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, 'nick-me-lib', '我的昵称池')) return false;
+store.set('nick-me-lib', JSON.stringify(list));
+return true;
+}
 function getMeNickEnabled() { const v = store.get('nick-me-lib-enabled'); return v === null ? true : v === '1'; }
 function curPartnerNick() { return store.get('cs-lbl-partner') || store.get('lbl-partner') || ''; }
 function curMyNick() { return store.get('cs-lbl-user') || store.get('lbl-user') || ''; }
@@ -635,7 +643,7 @@ let dup = 0;
 lines.forEach(n => { if (list.indexOf(n) >= 0) { dup++; return; } list.push(n); });
 const added = lines.length - dup;
 if (!added) { toast(dup > 1 ? '这 ' + dup + ' 个昵称都已经在池子里了' : '这个昵称已经在池子里了'); return; }
-saveFn(list);
+if (saveFn(list) === false) return; // #1521：闸拦下＝这一发没落笔，不重绘也不报「已添加」
 rerender();
 const tail = (dup ? '，' + dup + ' 个已存在' : '') + (blank ? '，跳过 ' + blank + ' 个空行' : '');
 if (dup || blank) toast('已添加 ' + added + ' 个昵称' + tail);

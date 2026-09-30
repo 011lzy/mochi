@@ -140,6 +140,7 @@ if (changed) d.mergedIds = merged;
 return changed;
 }
 function ckAutoHold(k) { try { return !!(window.xyBigWriteHold && window.xyBigWriteHold(store, k)); } catch (e) { return false; } }
+function ckAutoHoldIn(st, k) { try { return !!(window.xyBigWriteHold && window.xyBigWriteHold(st, k)); } catch (e) { return false; } }
 function ckLoad() {
 let d = null;
 try { d = JSON.parse(store.get(KEY) || 'null'); } catch (e) { d = null; }
@@ -165,6 +166,7 @@ return d;
 function ckLoadFrom(s) {
 let d = null;
 try { d = JSON.parse(s.get(KEY) || 'null'); } catch (e) { d = null; }
+if (!d) { try { if (s.awaitingBigKey && s.awaitingBigKey(KEY)) s.requestBigKey(KEY); } catch (e0) {} }
 if (!d || typeof d !== 'object' || Array.isArray(d)) d = {};
 if (!d.settings || typeof d.settings !== 'object') d.settings = {};
 if (d.settings.useDefault === undefined) d.settings.useDefault = true;
@@ -176,9 +178,9 @@ nq.isPreset = true;
 return nq;
 });
 d.mergedIds = DEFAULT_QUESTIONS.map(q => q.id);
-if (!isNew) { try { s.set(KEY, JSON.stringify(d)); } catch (e) {} }
+if (!isNew && !ckAutoHoldIn(s, KEY)) { try { s.set(KEY, JSON.stringify(d)); } catch (e) {} }
 } else {
-if (ckMerge(d)) { try { s.set(KEY, JSON.stringify(d)); } catch (e) {} }
+if (ckMerge(d) && !ckAutoHoldIn(s, KEY)) { try { s.set(KEY, JSON.stringify(d)); } catch (e) {} }
 }
 if (!Array.isArray(d.groups)) d.groups = [];
 return d;

@@ -108,10 +108,21 @@
     } catch (e) { return []; }
   }
   function getNickLib() { return loadStrList('nick-lib'); }
-  function saveNickLib(list) { store.set('nick-lib', JSON.stringify(list)); }
+  // #1521：昵称池「添加」是读-改-写（bindNickAdd：读池→push→整包写回），此前是裸写——盲窗里一次
+  //   「添加昵称」＝整池被顶掉。键很小、超 200KB 的概率极低（这闸多半永不触发），但代价只有一行，
+  //   不写就是同族留洞。拦下照实 toast、绝不落笔，等库回填后再点一次即可。
+  function saveNickLib(list) {
+    if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, 'nick-lib', '昵称池')) return false;
+    store.set('nick-lib', JSON.stringify(list));
+    return true;
+  }
   function getNickEnabled() { const v = store.get('nick-lib-enabled'); return v === null ? true : v === '1'; }
   function getMeNickLib() { return loadStrList('nick-me-lib'); }
-  function saveMeNickLib(list) { store.set('nick-me-lib', JSON.stringify(list)); }
+  function saveMeNickLib(list) {
+    if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, 'nick-me-lib', '我的昵称池')) return false;
+    store.set('nick-me-lib', JSON.stringify(list));
+    return true;
+  }
   function getMeNickEnabled() { const v = store.get('nick-me-lib-enabled'); return v === null ? true : v === '1'; }
   // 昵称池高亮/随机去重当前生效值口径与头像池一致：聊天专用键优先、回退桌面键
   function curPartnerNick() { return store.get('cs-lbl-partner') || store.get('lbl-partner') || ''; }
@@ -862,7 +873,7 @@
         lines.forEach(n => { if (list.indexOf(n) >= 0) { dup++; return; } list.push(n); });
         const added = lines.length - dup;
         if (!added) { toast(dup > 1 ? '这 ' + dup + ' 个昵称都已经在池子里了' : '这个昵称已经在池子里了'); return; }
-        saveFn(list);
+        if (saveFn(list) === false) return; // #1521：闸拦下＝这一发没落笔，不重绘也不报「已添加」
         rerender();
         const tail = (dup ? '，' + dup + ' 个已存在' : '') + (blank ? '，跳过 ' + blank + ' 个空行' : '');
         if (dup || blank) toast('已添加 ' + added + ' 个昵称' + tail);
