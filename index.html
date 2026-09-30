@@ -2785,13 +2785,15 @@ display:flex; align-items:center; gap:8px; min-width:150px; max-width:220px;
 }
 .msg-voice-play {
 flex-shrink:0; width:30px; height:30px; border-radius:50%;
-border:1px solid rgba(0,0,0,.15); background:rgba(0,0,0,.05);
-color:var(--ink); cursor:pointer;
+border:1px solid currentColor; background:transparent;
+color:inherit; cursor:pointer;
+position:relative; isolation:isolate;
 display:flex; align-items:center; justify-content:center;
-transition:transform .12s ease, background .15s ease, border-color .15s ease, color .15s ease;
+transition:transform .12s ease;
 }
+.msg-voice-play::before { content:''; position:absolute; inset:0; border-radius:50%; z-index:-1; background:currentColor; opacity:.16; transition:opacity .15s ease; }
 .msg-voice-play svg { width:13px; height:13px; }
-.msg-voice-play.playing { background:var(--ink); color:#fff; border-color:var(--ink); }
+.msg-voice-play.playing::before { opacity:.5; }
 .msg-voice-play:active { transform:scale(.85); }
 .msg-voice-play .voice-ico-pause { display:none; }
 .msg-voice-play.playing .voice-ico-play { display:none; }
@@ -2800,7 +2802,7 @@ transition:transform .12s ease, background .15s ease, border-color .15s ease, co
 display:flex; align-items:flex-end; gap:2px; height:18px; flex:1;
 }
 .msg-voice-wave i {
-width:3px; border-radius:2px; background:var(--ink); opacity:.4;
+width:3px; border-radius:2px; background:currentColor; opacity:.45;
 height:40%; animation:voiceWave .9s ease-in-out infinite alternate;
 animation-play-state:paused;
 }
@@ -3130,9 +3132,7 @@ border:1.5px solid transparent; background:var(--btn-bg,#111); color:var(--btn-i
 }
 .voice-send-big:active { opacity:.85; }
 .voice-send-big[disabled] { opacity:.4; pointer-events:none; }
-.msg-out .msg-voice-play { background:rgba(255,255,255,.16); border-color:rgba(255,255,255,.35); color:#fff; }
-.msg-out .msg-voice-play.playing { background:#fff; color:#111; border-color:#fff; }
-.msg-out .msg-voice-wave i { background:#fff; opacity:.55; }
+.msg-out .msg-voice-play { color:inherit; }
 @media (prefers-reduced-motion: reduce) {
 .voice-card .voice-wave i, .voice-rec-btn.rec, .msg-voice-play { animation:none !important; transition:none !important; }
 }
@@ -8403,8 +8403,6 @@ html.tablet .tabbar .tab { padding:14px 8px; border-radius:16px; }
 [data-theme="dark"] .emoji-item.sel { background:rgba(255,255,255,.08); }
 [data-theme="dark"] .emoji-empty { color:#666; }
 [data-theme="dark"] .emoji-check { background:var(--btn-bg); color:var(--btn-ink); }
-[data-theme="dark"] .msg-voice-play { background:var(--dark-card); border-color:var(--dark-border-12); color:var(--ink); }
-[data-theme="dark"] .msg-voice-play.playing { background:var(--ink); color:#111; border-color:var(--ink); }
 [data-theme="dark"] .msg-reactions { background:var(--dark-card-92); border-color:var(--dark-border); }
 [data-theme="dark"] .msg-reaction { background:var(--dark-hover); border-color:var(--dark-border-12); }
 [data-theme="dark"] .msg-edit-input { background:var(--dark-card); border-color:var(--dark-border-12); color:var(--ink); }
@@ -10809,9 +10807,9 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
       <!-- #570：第三行开屏新版检测（ver-check.js 渲染）：检测中 / ✓已是最新 / ⇩有新版本可点更新 -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1790757253330">
+      <div class="splash-ver" id="splash-ver" data-build-ts="1790758826197">
         <span class="sv-app">Mochi 字卡传讯 <b>v8.56</b></span>
-        <span class="sv-deploy">部署于 2026-09-30 16:34<span id="splash-ver-live"></span></span>
+        <span class="sv-deploy">部署于 2026-09-30 17:00<span id="splash-ver-live"></span></span>
         <span class="sv-check" id="splash-ver-check" hidden></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
@@ -22865,4 +22863,4 @@ window.__mochiBootRetry = function () { try { location.reload(); } catch (e) {} 
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ munumrwy -->
+<!-- __MOCHI_EOF__ munvkhjp -->

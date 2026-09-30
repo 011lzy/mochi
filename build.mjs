@@ -6328,6 +6328,12 @@ const FIX_SENTINELS = [
   { name: '#1488h 大键没取回同显加载态并请库补渲（删＝把「没读到」画成「还没有商品」诱导重传）', file: 'js/gift-shop.js', needle: 'if (customReadUnconfirmed()) customAwaitBack(marketRerenderBoth);' },
   { name: '#1488i 我的商品块读取中诚实文案（删＝读取窗口谎报「还没上传过商品」）', file: 'js/gift-shop.js', needle: '商品库读取中' },
   { name: '#1488j 导出读不全诚实提示（删＝空读导出空包当备份）', file: 'js/gift-shop.js', needle: '商品库还没读全' },
+  // ==== 2026-09-30 #1487 浅色「我的气泡」上语音条整块隐形（作者实报「语音发出去变成文字气泡、点不动」）：out 侧把播放钮与波形钉死成白，而气泡底色是用户可改的美化项——#536 自愈只翻正文、翻不动这枚钉死的白＝钮与底色撞色隐形 ==== 
+  { name: '#1487a 语音钮底纹由 currentColor 现算（改回钉死黑白＝浅色气泡上语音条又隐形复发）', file: 'css/chat-main.css', needle: ".msg-voice-play::before { content:''; position:absolute; inset:0; border-radius:50%; z-index:-1; background:currentColor; opacity:.16;" },
+  { name: '#1487b 语音钮本体只认所在气泡的字色（自身不铺色＋描边吃 currentColor；拿回 var(--ink)＝换气泡色又瞎）', file: 'css/chat-main.css', needle: 'border:1px solid currentColor; background:transparent;' },
+  { name: '#1487c 语音波形条同口径（钉回 var(--ink) 或白＝浅色气泡上波形隐形复发）', file: 'css/chat-main.css', needle: 'width:3px; border-radius:2px; background:currentColor; opacity:.45;' },
+  { name: '#1487d out 侧不再钉死白色（回流＝作者报障原文：白气泡上只剩「语音 2″」四个字）', file: 'css/chat-main.css', needle: '.msg-out .msg-voice-play { color:inherit; }' },
+  { name: '#1487e 深色模式那份钉色兜底已退役（回流＝深色主题＋浅色气泡又把钮刷回浅色＝又隐形）', file: 'css/dark.css', needle: '[data-theme="dark"] .msg-voice-play { background:var(--dark-card)', absent: true },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

@@ -159,8 +159,8 @@
 [data-theme="dark"] .emoji-item.sel { background:rgba(255,255,255,.08); }
 [data-theme="dark"] .emoji-empty { color:#666; }
 [data-theme="dark"] .emoji-check { background:var(--btn-bg); color:var(--btn-ink); }
-[data-theme="dark"] .msg-voice-play { background:var(--dark-card); border-color:var(--dark-border-12); color:var(--ink); }
-[data-theme="dark"] .msg-voice-play.playing { background:var(--ink); color:#111; border-color:var(--ink); }
+/* #1487 这里原有两条把深色模式语音钮钉成 --ink／#111 的兜底：钮改吃所在气泡自己的字色后，
+   深色模式不再需要单独一份（留着反而会在「深色主题＋浅色气泡」上把钮重新刷回浅色＝又隐形）。 */
 [data-theme="dark"] .msg-reactions { background:var(--dark-card-92); border-color:var(--dark-border); }
 [data-theme="dark"] .msg-reaction { background:var(--dark-hover); border-color:var(--dark-border-12); }
 [data-theme="dark"] .msg-edit-input { background:var(--dark-card); border-color:var(--dark-border-12); color:var(--ink); }
