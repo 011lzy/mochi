@@ -392,7 +392,6 @@ console.log('已复制 PWA 文件 → ' + pwaFiles.join(', ') + '（sw 缓存版
 // （防止并行会话/旧缓冲把已移除的代码改回来）。
 // 维护：新增关键修复时在此登记一行 { name, file, needle }（needle 为产物中的特征串）。
 const FIX_SENTINELS = [
-  { name: '#1471a 功能大全跨页链尾步延后落点（删＝切宿主页的异步收层把同一拍点开的面板收走＝「跳过去了面板没开」复发，功能大全→猜拳实测）', file: 'js/feature-hub.js', needle: "const crossPage = it.go.length > 1 && it.go[0].indexOf('[data-app=') >= 0;" },
 { name: '#1442a 信箱整包写回前问的是数据层那一句尺（xyBigWriteHold＋本桌面主键），不是「这一发传没传 cid」（删＝三条后台通路回到拿读空拼出来的整本顶掉库里那本＝小米 14U/Edge「信箱里的信都没有了」复发）', file: 'js/mail.js', needle: "return !!window.xyBigWriteHold(csFor(cid), KEY);" },
 { name: '#1442b save() 的写闸＝残缺读数（#1358f/#1417）或数据层交不出权威读数（#1442）一律不落整包（删＝一页空纸盖进库里那本）', file: 'js/mail.js', needle: "mailReadIncomplete(cid) || mailBlindRead(cid)" },
 { name: '#1442c TA 主动来信：读不出权威这一班整发让路（不烧 last/next/当日上限、不发通知；删＝弹窗说有信而信箱空＋整本被顶掉）', file: 'js/mail.js', needle: "if (mailBlindRead(cid)) return; // #1442a 来信让路" },
@@ -6191,6 +6190,11 @@ const FIX_SENTINELS = [
   { name: "#1443e1 tag 共存：调用方已给 tag 就沿用只补账（无条件覆写＝顶掉 #1456 来电那一路「同联系人共用一条＋renotify 30 秒重弹」）", file: "js/bg-keep.js", needle: "String(opts.tag || '')" },
   { name: "#1443e2 点击按归属路由（改回裸 enterChat＝跨桌面查岗／贴贴申请点进去仍是当前桌面，「点进去却没有」复发）", file: "js/bg-keep.js", needle: "function notifyRoute(entry) {" },
   { name: "#1443e3 回收后开机补投的读出口（删＝点击落在页面还没挂 message 监听的空档里被吞，「点了通知什么也没发生」复发）", file: "js/bg-keep.js", needle: "window.xyPendingNotifyClick = function () {" },
+  { name: '#1473a 使用说明第 10 节「收不到 ④ 手机开了勿扰/免打扰」条在位（删掉＝用户实报的这条成因又没人写；本条同时把系统勿扰与本站自己的免打扰档分开）', file: 'template.html', needle: '收不到 ④ 手机开了「勿扰 / 免打扰」' },
+  { name: '#1473b 设置页「后台通知」功能说明补 ⑤ 系统勿扰压制（settings-help 要点面，与第 10 节同口径）', file: 'js/settings-help.js', needle: '⑤ 手机开了勿扰 / 免打扰（系统层压制）' },
+  { name: "#1473c 「测试 → 没看到」排查表新增关勿扰那一腿（网页读不到系统勿扰状态，只能教用户自查通知栏）", file: 'js/bg-keep.js', needle: "push('先关勿扰/免打扰" },
+  { name: '#1473d 开屏公告·在线权威源（notice.json）补收不到④勿扰条', file: 'pwa/notice.json', needle: '收不到④·手机开了勿扰/免打扰' },
+  { name: '#1473e 开屏公告·离线兜底（template.html）同条在位（断网用户看到的那份与在线源两份同步）', file: 'template.html', needle: '收不到④·手机开了勿扰/免打扰</b>' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
