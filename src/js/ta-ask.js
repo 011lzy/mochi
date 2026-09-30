@@ -2033,7 +2033,14 @@ window.openTCPanel = openTCPanel;
     d.history.unshift({ q: rec.choiceQuestion, my: rec.choiceAnswer, reply: rec.choiceReply, match: matchTxt, cat: rec.choiceCat || '', ts: Date.now() });
     tcSave(d);
     refreshAskRecordsIfOpen();
-    renderTCResult(msgIdx);
+    // #1508：答完即收——小问题弹窗作答后不再停在「结果页」等手动「收起来」（作者实报
+    // 「我已经选了答案，没有自动关闭收起来」，明说其他设备型号也有＝纯行为口径，零机型分支）。
+    // 与好奇/吐槽同口径：你的选择与 TA 的回应已由 chatChooseReply 写进聊天卡片与消息流
+    // （气泡翻「✓ 你选择了：…」＋TA 回应一条），默契结果仍在「TA的提问」记录里可查。
+    // renderTCResult 保留不删：结果页暂无入口（locateCardIdx 只认未答卡），后续要
+    // 「查看结果」入口时从这里接回。
+    const tcMaskEl = document.getElementById('tc-mask');
+    if (tcMaskEl) tcMaskEl.hidden = true;
   }
   // 结果视图：你的选择 / TA心里的答案 / TA回应 / 默契标签 / 继续问 / 收藏
   function renderTCResult(msgIdx) {

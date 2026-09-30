@@ -1687,7 +1687,8 @@ const d = tcLoad();
 d.history.unshift({ q: rec.choiceQuestion, my: rec.choiceAnswer, reply: rec.choiceReply, match: matchTxt, cat: rec.choiceCat || '', ts: Date.now() });
 tcSave(d);
 refreshAskRecordsIfOpen();
-renderTCResult(msgIdx);
+const tcMaskEl = document.getElementById('tc-mask');
+if (tcMaskEl) tcMaskEl.hidden = true;
 }
 function renderTCResult(msgIdx) {
 let rec = null;

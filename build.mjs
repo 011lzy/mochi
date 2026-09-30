@@ -6404,6 +6404,7 @@ const FIX_SENTINELS = [
   { name: '#1499a 开屏「互助群公告」章保持删除·notice 线上源（回归＝陈旧缓冲回写把整章带回联网用户的开屏）', file: 'pwa/notice.json', needle: '互助群', absent: true },
   { name: '#1499b 开屏「互助群公告」章保持删除·template 离线兜底（回归＝断网/弱网用户又看到该章）', file: 'template.html', needle: '互助群公告</p>', absent: true },
   { name: '#1499c 设置→关于两处提及保持清空（回归＝「版本与更新」「联系作者 / 反馈」又冒出「互助群月底解散」）', file: 'js/personalize.js', needle: '互助群月底解散', absent: true },
+  { name: '#1508a 小问题弹窗答完即收（删掉＝作答后停在「结果页」要手动点「收起来」＝「选了答案没有自动关闭收起来」复发；五类互动卡弹窗唯此一家不自动收）', file: 'js/ta-ask.js', needle: 'if (tcMaskEl) tcMaskEl.hidden = true;' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
