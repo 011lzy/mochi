@@ -6190,6 +6190,7 @@ const FIX_SENTINELS = [
   { name: "#1443e1 tag 共存：调用方已给 tag 就沿用只补账（无条件覆写＝顶掉 #1456 来电那一路「同联系人共用一条＋renotify 30 秒重弹」）", file: "js/bg-keep.js", needle: "String(opts.tag || '')" },
   { name: "#1443e2 点击按归属路由（改回裸 enterChat＝跨桌面查岗／贴贴申请点进去仍是当前桌面，「点进去却没有」复发）", file: "js/bg-keep.js", needle: "function notifyRoute(entry) {" },
   { name: "#1443e3 回收后开机补投的读出口（删＝点击落在页面还没挂 message 监听的空档里被吞，「点了通知什么也没发生」复发）", file: "js/bg-keep.js", needle: "window.xyPendingNotifyClick = function () {" },
+  { name: '#1471a 功能大全跨页链尾步延后落点（删＝切宿主页的异步收层把同一拍点开的面板收走＝「跳过去了面板没开」复发，功能大全→猜拳实测）', file: 'js/feature-hub.js', needle: "const crossPage = it.go.length > 1 && it.go[0].indexOf('[data-app=') >= 0;" },
   { name: '#1473a 使用说明第 10 节「收不到 ④ 手机开了勿扰/免打扰」条在位（删掉＝用户实报的这条成因又没人写；本条同时把系统勿扰与本站自己的免打扰档分开）', file: 'template.html', needle: '收不到 ④ 手机开了「勿扰 / 免打扰」' },
   { name: '#1473b 设置页「后台通知」功能说明补 ⑤ 系统勿扰压制（settings-help 要点面，与第 10 节同口径）', file: 'js/settings-help.js', needle: '⑤ 手机开了勿扰 / 免打扰（系统层压制）' },
   { name: "#1473c 「测试 → 没看到」排查表新增关勿扰那一腿（网页读不到系统勿扰状态，只能教用户自查通知栏）", file: 'js/bg-keep.js', needle: "push('先关勿扰/免打扰" },
