@@ -2047,7 +2047,8 @@ const EXPORT_CATS = [
 ['sticker', '表情包'], ['image', '图片'], ['poke', '拍一拍'], ['voice', '语音'],
 ['fish', '摸鱼'], ['eat', '吃饭'], ['period', '经期'], ['water', '喝水'], ['garden', '花园'],
 ['sync', '同频'], ['reach', '伸手'], ['cjian', '此间'], ['room', '房间'], ['piggy', '存钱罐'],
-['drift', '漂流瓶'], ['interact', '互动回应'], ['music', '音乐']
+['drift', '漂流瓶'], ['interact', '互动回应'], ['music', '音乐'],
+['mjfree', '梦角自由造句']
 ];
 const ceMask = document.getElementById('cc-export-mask');
 const ceCats = document.getElementById('ce-cats');
@@ -2161,7 +2162,7 @@ ccExportOffer(data,
 }
 const ccImportData = document.getElementById('cc-import-data');
 if (ccImportData) {
-const CAT_NAMES = { text: '主字卡', kaomoji: '颜文字', emoji: 'emoji', sticker: '表情包', image: '图片', poke: '拍一拍', voice: '语音', fish: '摸鱼', eat: '吃饭', period: '经期', water: '喝水', garden: '花园', sync: '同频', reach: '伸手', cjian: '此间', room: '房间', piggy: '存钱罐', drift: '漂流瓶', interact: '互动回应', music: '音乐' };
+const CAT_NAMES = { text: '主字卡', kaomoji: '颜文字', emoji: 'emoji', sticker: '表情包', image: '图片', poke: '拍一拍', voice: '语音', fish: '摸鱼', eat: '吃饭', period: '经期', water: '喝水', garden: '花园', sync: '同频', reach: '伸手', cjian: '此间', room: '房间', piggy: '存钱罐', drift: '漂流瓶', interact: '互动回应', music: '音乐', mjfree: '梦角自由造句' };
 ccImportData.addEventListener('click', () => {
 if (window.openModal) {
 const curName = CAT_NAMES[cur] || '当前分类';
@@ -2425,12 +2426,12 @@ if (!raw) { raw = bag[PUB_PREFIX + ':' + PUB_KEY] || ''; fromPubFallback = !!raw
 try {
 const parsed = JSON.parse(String(raw || ''));
 const hasCards = parsed && typeof parsed === 'object' && !Array.isArray(parsed) &&
-CC_TYPES.some(t => Array.isArray(parsed[t]) && parsed[t].length);
+CC_ALL_TYPES.some(t => Array.isArray(parsed[t]) && parsed[t].length);
 if (hasCards) { data = parsed; fromBackup = true; }
 } catch (e) {}
 }
 if (!fmt) {
-['text', 'kaomoji', 'emoji', 'sticker', 'image', 'poke', 'voice'].forEach(k => {
+CC_ALL_TYPES.forEach(k => {
 const arr = data[k];
 if (!Array.isArray(arr)) return;
 arr.forEach(g => {

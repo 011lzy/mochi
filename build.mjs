@@ -6219,6 +6219,11 @@ const FIX_SENTINELS = [
   { name: '#1481d 会话期全高毛刺顶住（删＝收键盘毛刺直接拆会话，两态反复横跳复发）', file: 'js/mobile-adapt.js', needle: 'var _hHold = Math.round(_aKbStableH)' },
   { name: '#1481e 250ms 轮询复原同样过迟滞（删＝毛刺从轮询腿把会话拆掉，回到反复横跳）', file: 'js/mobile-adapt.js', needle: 'if (Date.now() - _aFullSince < 800) return;' },
   { name: '#1481f 诊断打印键盘期快照环（删＝双稳态毛刺序列拍不进诊断单，取证盲）', file: 'js/device.js', needle: '键盘期快照环=' },
+  // ==== 2026-09-30 #1483 字卡库【公用/专属】导出数据缺「梦角自由造句」栏、导入数据解析面只认 7 聊天分类（作者直派「导入数据和导出数据不包括【梦角自由造句】这个tag里的字卡，帮我全部检查修复」）。#353 起 mjfree 卡就在公用/专属两库（管理页 tab＋dream-free 自动入库），导出弹窗 EXPORT_CATS 却没这栏＝造句卡永远导不出；导入侧 applyImportData 只解析 7 类＝功能/造句卡导回来静默丢弃（v3.32.x 起就能导出的 13 功能分类同样进不来，纯功能文件还误报「文件里没有可导入的字卡」）====
+  { name: '#1483a 导出弹窗补「梦角自由造句」分类（删＝两库造句卡永远导不出去，作者点名的症状本体）', file: 'js/chatcard.js', needle: "['mjfree', '梦角自由造句']" },
+  { name: '#1483b 导入解析面扩成 CC_ALL_TYPES 全分类（删＝功能/造句卡导回来静默丢弃，纯功能文件误报「文件里没有可导入的字卡」）', file: 'js/chatcard.js', needle: 'CC_ALL_TYPES.forEach(k => {' },
+  { name: '#1483c 导入文案表认 mjfree（删＝造句 tab 上「导入到当前分类」的档名与 toast 退化成「当前分类」）', file: 'js/chatcard.js', needle: "mjfree: '梦角自由造句' };" },
+  { name: '#1483d 全量备份提取识别面同口径扩全分类（删＝只有功能/造句卡的字卡库备份被误判「没有可导入的字卡」）', file: 'js/chatcard.js', needle: 'CC_ALL_TYPES.some(t => Array.isArray(parsed[t]) && parsed[t].length)' },
   { name: '#1472a 安卓保底停靠叠加键盘间隙轴（删＝悬浮键盘/不平移内核的 58% 停靠不吃轴，被盖住没有自救）', file: 'js/mobile-adapt.js', needle: 'Math.min(ph + _aKbGap(), base - 40)' },
   { name: '#1472b VirtualKeyboard 实测尺叠加键盘间隙轴（删＝overlaysContent 内核实测精停不吃轴）', file: 'js/mobile-adapt.js', needle: 'b2 - Math.max(kbH, 40) + _aKbGap()' },
   { name: '#1472c iOS 保底停靠叠加键盘间隙轴（删＝iOS 盲猜 58% 机型拖轴无效）', file: 'js/mobile-adapt.js', needle: "_setPhoneH(ph + _kbGapPx(), 'prov')" },

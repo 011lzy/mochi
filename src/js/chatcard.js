@@ -2629,7 +2629,10 @@
       ['sticker', '表情包'], ['image', '图片'], ['poke', '拍一拍'], ['voice', '语音'],
       ['fish', '摸鱼'], ['eat', '吃饭'], ['period', '经期'], ['water', '喝水'], ['garden', '花园'],
       ['sync', '同频'], ['reach', '伸手'], ['cjian', '此间'], ['room', '房间'], ['piggy', '存钱罐'],
-      ['drift', '漂流瓶'], ['interact', '互动回应'], ['music', '音乐']
+      ['drift', '漂流瓶'], ['interact', '互动回应'], ['music', '音乐'],
+      // FIX 2026-09-30 #1483：补「梦角自由造句」分类——#353 起 mjfree 卡就存公用/专属两库
+      // （管理页有 tab、dream-free 自动入库），导出弹窗却没有这一栏＝造句卡永远导不出去
+      ['mjfree', '梦角自由造句']
     ];
     const ceMask = document.getElementById('cc-export-mask');
     const ceCats = document.getElementById('ce-cats');
@@ -2754,7 +2757,7 @@
   // 文件先完整解析、确认含有效字卡后才写入：格式错误/空文件不会改动现有字卡库
   const ccImportData = document.getElementById('cc-import-data');
   if (ccImportData) {
-    const CAT_NAMES = { text: '主字卡', kaomoji: '颜文字', emoji: 'emoji', sticker: '表情包', image: '图片', poke: '拍一拍', voice: '语音', fish: '摸鱼', eat: '吃饭', period: '经期', water: '喝水', garden: '花园', sync: '同频', reach: '伸手', cjian: '此间', room: '房间', piggy: '存钱罐', drift: '漂流瓶', interact: '互动回应', music: '音乐' };
+    const CAT_NAMES = { text: '主字卡', kaomoji: '颜文字', emoji: 'emoji', sticker: '表情包', image: '图片', poke: '拍一拍', voice: '语音', fish: '摸鱼', eat: '吃饭', period: '经期', water: '喝水', garden: '花园', sync: '同频', reach: '伸手', cjian: '此间', room: '房间', piggy: '存钱罐', drift: '漂流瓶', interact: '互动回应', music: '音乐', mjfree: '梦角自由造句' };
     ccImportData.addEventListener('click', () => {
       if (window.openModal) {
         const curName = CAT_NAMES[cur] || '当前分类';
@@ -3070,8 +3073,10 @@
         }
         try {
           const parsed = JSON.parse(String(raw || ''));
+          // FIX 2026-09-30 #1483：识别面从 7 聊天分类扩成 CC_ALL_TYPES——库里只有功能/造句卡
+          //（7 聊天分类全空）的全量备份不再被误判成「没有可导入的字卡」
           const hasCards = parsed && typeof parsed === 'object' && !Array.isArray(parsed) &&
-            CC_TYPES.some(t => Array.isArray(parsed[t]) && parsed[t].length);
+            CC_ALL_TYPES.some(t => Array.isArray(parsed[t]) && parsed[t].length);
           // 不能在这里设 fmt——下方本应用格式分支以 !fmt 为条件做字卡计数，
           // 提前置 fmt 会让 imported 恒为 0（「文件里没有可导入的字卡」误报）
           if (hasCards) { data = parsed; fromBackup = true; }
@@ -3079,7 +3084,12 @@
       }
       // 本应用格式（mochi 字卡库导出 json）
       if (!fmt) {
-        ['text', 'kaomoji', 'emoji', 'sticker', 'image', 'poke', 'voice'].forEach(k => {
+        // FIX 2026-09-30 #1483：解析面从 7 聊天分类扩成 CC_ALL_TYPES 全 21 分类——导出弹窗
+        //（EXPORT_CATS）v3.32.x 起就含 13 功能分类、#1483 起含「梦角自由造句」，导入侧却只认
+        // 7 类＝自己导出的功能/造句卡导回来被静默丢弃（混导时 toast 只数聊天卡；纯功能文件
+        // 直接误报「文件里没有可导入的字卡」）。写侧 writeImport 本就按 byCat 任意分类落位、
+        // 「替换字卡」也按 CC_ALL_TYPES 重置，无需再改。
+        CC_ALL_TYPES.forEach(k => {
           const arr = data[k];
           if (!Array.isArray(arr)) return;
           arr.forEach(g => {
