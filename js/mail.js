@@ -1259,6 +1259,7 @@ bindMailToolbar('#page-mail-reply', 'mail-reply-input');
 function mailExportData() {
 const list = load();
 const json = JSON.stringify({ version: '1.0', app: 'mochi-mail', exportTime: new Date().toISOString(), letters: list }, null, 2);
+if (window.mochiExportFile) { window.mochiExportFile(json, '信箱数据_' + new Date().toISOString().slice(0, 10) + '.json', '信箱数据'); return; }
 try {
 const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
 const a = document.createElement('a');

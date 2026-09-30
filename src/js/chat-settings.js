@@ -2499,6 +2499,12 @@
         }
         parts.push(']}');
         const blob = new Blob(parts, { type: 'application/json;charset=utf-8' });
+        // FIX 2026-09-30 #1488：走统一 Blob 三级导出链（系统分享面板→保存框→确认后下载）——
+        // 原裸 a[download] 在 iPhone 主屏安装（standalone 无下载管理器）与 #758 壳浏览器家族
+        // 静默无反应＝聊天记录导不出去（#172 修聊天美化导出时的同族症状，本处当时漏改）。
+        // 流式 parts 构建【原样保留】（整包 stringify 会顶 V8 字符串上限＝当初分段的全部
+        // 理由），只换落盘通道；统一链不可用时保留裸腿兜底。
+        if (window.mochiExportBlob) { window.mochiExportBlob(blob, '聊天记录_' + new Date().toISOString().slice(0, 10) + '.json', '聊天记录数据'); return; }
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
         a.download = '聊天记录_' + new Date().toISOString().slice(0, 10) + '.json';

@@ -6215,6 +6215,9 @@ const FIX_SENTINELS = [
   { name: '#1467c 诊断行截短标注（删＝截短样本看起来和整段采样一模一样，分诊又被假读数带偏）', file: 'js/device.js', needle: "dp.cut ? '（截短：翻页已停，未采满 60 帧）'" },
   { name: '#1486a 实测在场必顶住·主链（删＝GT7 两态横跳复发：实测 355 在场仍被 800ms 迟滞拆会话）', file: 'js/mobile-adapt.js', needle: '(_aVkHonest && _aVkH >= 80)) { var _hHold' },
   { name: '#1486b 实测在场必顶住·轮询腿（删＝横跳从轮询腿复发）', file: 'js/mobile-adapt.js', needle: '(_aVkHonest && _aVkH >= 80)) return;' },
+  // ==== 2026-09-30 #1494（原 #1488，撞号让位心意市集批 14a9a5f）聊天记录导出（cs-export-msgs）与信箱导出（mail-export）裸 a[download] 绕过统一三级导出链（全站导入/导出普查新发现；作者拍板修）。裸 a[download] 在 iPhone 主屏安装（standalone 无下载管理器）与 #758 壳浏览器家族静默无反应＝导出点了没反应；#172 修聊天美化导出时已立「统一链」口径，本批把漏改的两处收进来（mochiExportBlob/mochiExportFile 主路＋裸腿兜底；聊天记录流式 parts 构建原样保留＝整包 stringify 顶 V8 字符串上限）====
+  { name: '#1494a 聊天记录导出走统一 Blob 三级链（删＝iPhone 主屏/壳浏览器点了导出没反应复发）', file: 'js/chat-settings.js', needle: "window.mochiExportBlob(blob, '聊天记录_'" },
+  { name: '#1494b 信箱导出走统一小文件三级链（删＝同族最后一处裸下载复发）', file: 'js/mail.js', needle: "window.mochiExportFile(json, '信箱数据_'" },
   { name: '#1484a overlay 会话实测高度取值口（删＝GT7 类内核继续猜，停靠不准）', file: 'js/mobile-adapt.js', needle: '_aKbStableH = _mv; _aFullSince = 0; return _mv;' },
   { name: '#1484b overlay 签名武装实测尺（删＝回弹全高且仍聚焦时不启用 VirtualKeyboard）', file: 'js/mobile-adapt.js', needle: '_aVkHonest = true;' },
   { name: '#1484c 实测归零即时真收信号（删＝关闭回弹拖 800ms 不及时）', file: 'js/mobile-adapt.js', needle: 'if (_aVkH < 80 && !_aFullSince) _aFullSince = 1;' },

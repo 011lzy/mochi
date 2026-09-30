@@ -1965,6 +1965,7 @@ parts.push(JSON.stringify(arr[i]));
 }
 parts.push(']}');
 const blob = new Blob(parts, { type: 'application/json;charset=utf-8' });
+if (window.mochiExportBlob) { window.mochiExportBlob(blob, '聊天记录_' + new Date().toISOString().slice(0, 10) + '.json', '聊天记录数据'); return; }
 const a = document.createElement('a');
 a.href = URL.createObjectURL(blob);
 a.download = '聊天记录_' + new Date().toISOString().slice(0, 10) + '.json';

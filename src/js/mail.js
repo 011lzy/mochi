@@ -1818,6 +1818,10 @@ window.showDeskPopup({ name: '信箱', notifyKind: 'mail', text: mailPlainDesc('
   function mailExportData() {
     const list = load();
     const json = JSON.stringify({ version: '1.0', app: 'mochi-mail', exportTime: new Date().toISOString(), letters: list }, null, 2);
+    // FIX 2026-09-30 #1488：走统一小文件三级导出链（系统分享面板→保存框→确认后下载）——
+    // 原裸 a[download] 在 iPhone 主屏安装（standalone 无下载管理器）与 #758 壳浏览器家族
+    // 静默无反应＝信箱导不出去（#172 同族最后一处漏改）。链路不可用时保留裸腿兜底。
+    if (window.mochiExportFile) { window.mochiExportFile(json, '信箱数据_' + new Date().toISOString().slice(0, 10) + '.json', '信箱数据'); return; }
     try {
       const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
       const a = document.createElement('a');
