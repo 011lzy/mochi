@@ -2111,8 +2111,9 @@ function editingNow() { return Array.from(document.querySelectorAll('.app-grid')
 function libPool(cat, group, fallback) {
 let arr = (window.getLibPool ? window.getLibPool(cat, group, fallback) : (fallback || [])).slice();
 if (window.isDefaultCardOff) arr = arr.filter(c => !window.isDefaultCardOff(cat, c));
-return arr.length ? arr.slice() : (fallback || []).slice();
+return arr.length ? arr.slice() : (window.gateCardFallback ? window.gateCardFallback(cat, fallback) : (fallback || []).slice());
 }
+window.__p2LibPoolProbe = libPool; // #1515 只读探针（行为尺用，不参与业务）
 function dcfP(cat, def) { try { if (window.dcfGet) return window.dcfGet(cat); } catch (e) {} return def; }
 function dcfHit(cat) { return Math.random() * 100 < dcfP(cat, 100); }
 function toast(msg) {
@@ -2218,9 +2219,9 @@ function tpPool() {
 const s = curStore(); let pool = libPool('sync', 'TA 此刻', DEF_STATUS);
 try { const a = JSON.parse((s && s.get('tongpin-status')) || '[]'); if (Array.isArray(a) && a.length) pool = a.slice(); } catch (e) {}
 try { const a = JSON.parse((s && s.get('checkin-cards-action')) || '[]'); if (Array.isArray(a)) a.forEach(x => { const t = typeof x === 'string' ? x : (x && x.t); if (t && pool.indexOf(t) < 0) pool.push(t); }); } catch (e) {}
-return pool.length ? pool : DEF_STATUS.slice();
+return pool.length ? pool : (window.gateCardFallback ? window.gateCardFallback('sync', DEF_STATUS) : DEF_STATUS.slice()); // #1515 尾行裸兜底同收口
 }
-function tpPick() { const a = tpPool(); const el = document.getElementById('tp-status'); if (el) el.textContent = a[Math.floor(Math.random() * a.length)]; }
+function tpPick() { const a = tpPool(); const el = document.getElementById('tp-status'); if (el && a.length) el.textContent = a[Math.floor(Math.random() * a.length)]; } // #1515 空池不改字
 let knock = 0, knockTimer = null;
 function tpResetKnock() { knock = 0; document.querySelectorAll('#tp-knock .tp-dot').forEach(d => d.classList.remove('on')); }
 function tpKnock() {
@@ -2238,12 +2239,12 @@ vibrate([40, 60, 40, 60, 40]);
 if (area) area.classList.add('flash');
 setTimeout(() => { if (area) area.classList.remove('flash'); }, 700);
 const r = pool[Math.floor(Math.random() * pool.length)];
-if (hint) hint.textContent = window.taFit ? window.taFit('他回你了 · ' + r) : ('他回你了 · ' + r);
-if (tpSendOn() && window.chatAddIn) { try { window.chatAddIn(r); } catch (e) {} }
+if (r && hint) hint.textContent = window.taFit ? window.taFit('他回你了 · ' + r) : ('他回你了 · ' + r); // #1515 空池＝不回话不进聊天
+if (r && tpSendOn() && window.chatAddIn) { try { window.chatAddIn(r); } catch (e) {} }
 } else {
 if (Math.random() < 0.4) {
 const miss = libPool('sync', '没接住回应', ['…没听到', '没接住', '好像走开了']);
-if (hint) hint.textContent = miss[Math.floor(Math.random() * miss.length)];
+if (hint && miss.length) hint.textContent = miss[Math.floor(Math.random() * miss.length)]; // #1515 空池不改字
 } else {
 if (hint) hint.textContent = '没接住 · 过会儿再敲';
 }
@@ -2299,9 +2300,9 @@ const txt = cards[Math.floor(Math.random() * cards.length)];
 vibrate(feel.vib);
 if (glow) { glow.classList.add('on'); glow.classList.add(feel.cls); }
 if (hint) hint.textContent = '摸到了 · ' + feel.label;
-const res = document.getElementById('ss-result'); if (res) { res.textContent = feel.label + ' · \u201c' + txt + '\u201d'; res.className = 'ss-result reach'; }
+const res = document.getElementById('ss-result'); if (res && txt != null) { res.textContent = feel.label + ' · \u201c' + txt + '\u201d'; res.className = 'ss-result reach'; } // #1515 空池不出字
 ssSetCount(ssCount() + 1); ssRenderCount();
-if (ssSendOn() && window.chatAddIn) { try { window.chatAddIn(txt); } catch (e) {} }
+if (txt != null && ssSendOn() && window.chatAddIn) { try { window.chatAddIn(txt); } catch (e) {} } // #1515 空池不进聊天
 setTimeout(() => { if (glow) { glow.classList.remove('on'); glow.classList.remove(feel.cls); } }, 1400);
 } else {
 if (glow) glow.classList.add('dim');
@@ -2324,7 +2325,7 @@ vibrate(30);
 const area = document.getElementById('ss-area');
 if (area) { const tr = document.createElement('div'); tr.className = 'ss-trace'; area.appendChild(tr); setTimeout(() => { try { tr.remove(); } catch (e) {} }, 1600); }
 const hint = document.getElementById('ss-hint'); if (hint) hint.textContent = window.taFit ? window.taFit('他刚才碰了你一下') : '他刚才碰了你一下';
-const res = document.getElementById('ss-result'); if (res) { res.textContent = '\u201c' + txt + '\u201d'; res.className = 'ss-result reach'; }
+const res = document.getElementById('ss-result'); if (res && txt != null) { res.textContent = '\u201c' + txt + '\u201d'; res.className = 'ss-result reach'; } // #1515 空池不出字
 }
 if (ssApp) ssApp.addEventListener('click', () => { if (editingNow()) return; openPage(ssPage); ssRenderCount(); ssMaybePassive(); });
 document.getElementById('ss-back').addEventListener('click', () => backHome(ssPage));
@@ -2449,6 +2450,7 @@ const t = waterToday(); const g = waterGoal();
 const done = waterChatDone();
 const pool = libPool('water', done ? '喝够夸奖' : '梦角催喝水', done ? DEF_WATER_PRAISE : DEF_WATER_CHAT_REMIND);
 const m = pool[Math.floor(Math.random() * pool.length)];
+if (!m) return false; // #1515 全关＝不发（真停用，不再回落同文兜底）
 const tail = (!done && g && t.count > 0 && t.count < g) ? '（还差 ' + (g - t.count) + ' 杯）' : '';
 const text = window.taFit ? window.taFit(m + tail) : (m + tail);
 try { if (window.chatAddIn) { window.chatAddIn(text, { tag: '喝水提醒' }); return true; } } catch (e) {}
@@ -2474,14 +2476,14 @@ let last = 0; try { last = parseInt(s.get('water-last-visit') || '0', 10) || 0; 
 try { s.set('water-last-visit', '' + Date.now()); } catch (e) {}
 const t = waterToday(); const g = waterGoal();
 if (t.count < g && Date.now() - last > 2 * 3600000) {
-if (window.taChimeAllow && window.taChimeAllow('water-ta', { cooldown: 30 * 60 * 1000, dailyMax: 3 }) && dcfHit('water') && Math.random() < 0.5) {
-window.taChimeUse('water-ta');
-const gentle = libPool('water', 'ta视角温柔提醒', DEF_WATER_TA_GENTLE);
+const gentle = libPool('water', 'ta视角温柔提醒', DEF_WATER_TA_GENTLE); // #1515 全关＝不烧冷却不浮层
 const m = gentle[Math.floor(Math.random() * gentle.length)];
+if (m && window.taChimeAllow && window.taChimeAllow('water-ta', { cooldown: 30 * 60 * 1000, dailyMax: 3 }) && dcfHit('water') && Math.random() < 0.5) {
+window.taChimeUse('water-ta');
 const miss = Math.random() < 0.2 ? '（字卡有限，他想说的比这张多）' : null;
 if (window.taChimeShow) window.taChimeShow(m, { miss: miss });
 }
-const msgs = waterMsgs(); waterShowMsg(msgs[Math.floor(Math.random() * msgs.length)]);
+const msgs = waterMsgs(); if (msgs.length) waterShowMsg(msgs[Math.floor(Math.random() * msgs.length)]); // #1515 空池不出声
 }
 if (Date.now() - last > 2 * 3600000) {
 const wp = waterChatDone() ? 0.09 : 0.35;
@@ -2511,9 +2513,9 @@ if (justDone) {
 vibrate([60, 40, 60]);
 const card = document.querySelector('#page-water .water-card');
 if (card) { card.classList.add('done'); setTimeout(() => card.classList.remove('done'), 900); }
-const p = libPool('water', '喝够夸奖', DEF_WATER_PRAISE); waterShowMsg(p[Math.floor(Math.random() * p.length)]);
+const p = libPool('water', '喝够夸奖', DEF_WATER_PRAISE); if (p.length) waterShowMsg(p[Math.floor(Math.random() * p.length)]); // #1515 空池不出声
 }
-else if (Math.random() < 0.2) { const e = libPool('water', '继续鼓励', DEF_WATER_ENCOURAGE); waterShowMsg(e[Math.floor(Math.random() * e.length)]); }
+else if (Math.random() < 0.2) { const e = libPool('water', '继续鼓励', DEF_WATER_ENCOURAGE); if (e.length) waterShowMsg(e[Math.floor(Math.random() * e.length)]); } // #1515 空池不出声
 });
 document.getElementById('water-minus').addEventListener('click', () => {
 if (editingNow()) return;
@@ -2525,7 +2527,7 @@ const t = waterToday(); const g = waterGoal(); const sz = waterSize();
 const done = t.count >= g;
 const base = '你今天喝了 ' + t.count + ' / ' + g + ' 杯（' + (t.count * sz) + 'ml）';
 const praise = libPool('water', '喝够夸奖', DEF_WATER_PRAISE);
-const tail = done ? '，' + praise[Math.floor(Math.random() * praise.length)] : '，还差 ' + (g - t.count) + ' 杯';
+const tail = done ? (praise.length ? '，' + praise[Math.floor(Math.random() * praise.length)] : '') : '，还差 ' + (g - t.count) + ' 杯'; // #1515 全关＝不带夸奖尾（账目照发）
 if (window.chatAddIn) { try { window.chatAddIn(base + tail); } catch (e) {} }
 toast('已发送');
 });
@@ -2534,6 +2536,7 @@ if (editingNow()) return;
 const t = waterToday(); const g = waterGoal();
 const m = waterMsgs()[Math.floor(Math.random() * waterMsgs().length)];
 const taFmt = libPool('water', 'TA 提醒句式', DEF_WATER_TA);
+if (!taFmt.length || !m) return; // #1515 全关＝不出声（不再回落同文兜底）
 const fmt = taFmt[Math.floor(Math.random() * taFmt.length)].replace('{m}', m);
 const tail = t.count < g ? '（还差 ' + (g - t.count) + ' 杯）' : '（今天喝够啦）';
 const shown = window.taFit ? window.taFit(fmt + tail) : (fmt + tail);
@@ -3345,9 +3348,9 @@ return;
 }
 }
 }
-piggyShowMsg(piggyPick(piggyInPool()));
+{ const _in = piggyInPool(); if (_in.length) piggyShowMsg(piggyPick(_in)); } // #1515 空池不出声
 } else {
-piggyShowMsg(piggyPick(libPool('piggy', '取款回应', DEF_PIGGY_OUT)));
+const _out = libPool('piggy', '取款回应', DEF_PIGGY_OUT); if (_out.length) piggyShowMsg(piggyPick(_out)); // #1515 空池不出声
 piggyAskCare();
 }
 }
@@ -3355,7 +3358,7 @@ function piggyAskCare() {
 const box = document.getElementById('piggy-reply');
 if (!box) return;
 const q = document.getElementById('piggy-reply-q');
-if (q) { var care = libPool('piggy', '取款关心', PIGGY_CARE); var careTxt = 'TA：' + care[Math.floor(Math.random() * care.length)]; q.textContent = window.taFit ? window.taFit(careTxt) : careTxt; }
+if (q) { var care = libPool('piggy', '取款关心', PIGGY_CARE); if (care.length) { var careTxt = 'TA：' + care[Math.floor(Math.random() * care.length)]; q.textContent = window.taFit ? window.taFit(careTxt) : careTxt; } } // #1515 空池不追问
 const inp = document.getElementById('piggy-reply-in'); if (inp) inp.value = '';
 box.hidden = false;
 }
@@ -3370,6 +3373,7 @@ if (Math.random() >= prob) return;
 const amt = PIGGY_TA_COINS[Math.floor(Math.random() * PIGGY_TA_COINS.length)];
 const notes = libPool('piggy', '塞硬币悄悄话', PIGGY_TA_NOTES);
 const note = notes[Math.floor(Math.random() * notes.length)];
+if (!note) return; // #1515 全关＝彩蛋静默
 vibrate([20, 60, 20]);
 setTimeout(() => { piggyShowMsg(window.taFit ? window.taFit(note + ' ¥' + piggyFmt(amt) + ' · 替TA存进去？') : (note + ' ¥' + piggyFmt(amt) + ' · 替TA存进去？')); }, 400);
 }
@@ -4189,8 +4193,9 @@ const CATCH_REPLIES = [
 function fishPool(name, fallback) {
 let arr = (window.getFishPool ? window.getFishPool(name, fallback) : fallback).slice();
 if (window.isDefaultCardOff) arr = arr.filter(c => !window.isDefaultCardOff('fish', c));
-return arr.length ? arr : fallback.slice();
+return arr.length ? arr : (window.gateCardFallback ? window.gateCardFallback('fish', fallback) : fallback.slice());
 }
+window.__p2FishPoolProbe = fishPool; // #1515 只读探针（行为尺用，不参与业务）
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function dcfPFish(def) { try { if (window.dcfGet) return window.dcfGet('fish'); } catch (e) {} return def; }
 const GAME_PANEL_IDS = ['chat-snake-panel', 'chat-pong-panel', 'chat-brick-panel', 'chat-rps-panel', 'chat-c4-panel',
@@ -4217,9 +4222,10 @@ let cur = 0; try { cur = parseInt(s.get('fish-total-ta') || '0', 10) || 0; } cat
 if (lastTa === null) { lastTa = cur; settledTa = cur; return; }
 const delta = cur - lastTa;
 if (delta > 0 && Math.random() * 100 < dcfPFish(35) && window.taChimeAllow && window.taChimeAllow('fish-ta-note', { cooldown: 45 * 60 * 1000, dailyMax: 12 })) {
+const note = pick(fishPool('摸鱼浮字', FISH_NOTE_FALLBACK));
+if (!note) { lastTa = cur; return; } // #1515 全关＝不浮字不吃冷却（lastTa 照常推进）
 window.taChimeUse('fish-ta-note');
 if (window.taChimeShow) {
-const note = pick(fishPool('摸鱼浮字', FISH_NOTE_FALLBACK));
 window.taChimeShow(note, {
 dur: 6000,
 onClick: function () {
@@ -4237,8 +4243,8 @@ if (window.addFishCatchRecord) {
 try { window.addFishCatchRecord('me', '抓包成功！双方摸鱼值 +' + bonus); } catch (e) {}
 }
 if (window.toast) window.toast(window.taFit ? window.taFit('抓包成功！双方摸鱼值 +' + bonus) : ('抓包成功！双方摸鱼值 +' + bonus));
-if (window.chatAddIn) {
 const r = pick(fishPool('抓包回应', CATCH_REPLIES));
+if (r && window.chatAddIn) { // #1515 全关＝不接话（抓包结算照常）
 setTimeout(() => { try { window.chatAddIn(window.taFit ? window.taFit(r) : r, { mood: [{ tag: '摸鱼抓包', label: '' }] }); } catch (e) {} }, 900);
 }
 } catch (e) {}

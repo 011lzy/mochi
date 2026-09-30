@@ -482,9 +482,9 @@
     try {
       const fb = ['这件归我啦。', '嘿嘿，到手。', '眼光不错吧。'];
       const pool = window.getInteractPool ? window.getInteractPool('游戏胜利·回应', fb) : fb;
-      const say = pool[Math.floor(Math.random() * pool.length)] || fb[0];
+      const say = pool.length ? pool[Math.floor(Math.random() * pool.length)] : ''; // #1515 整组停用＝静默（TA 抱走）
       const cid1 = prefix();
-      setTimeout(() => {
+      if (say) setTimeout(() => {
         if (prefix() !== cid1) return;
         try { if (window.chatAddIn) window.chatAddIn(say, { silent: true }); } catch (e) {}
       }, 800);
@@ -505,9 +505,9 @@
     try {
       const fb = ['这玩意没人要啊。', '亏本了亏本了。'];
       const pool = window.getInteractPool ? window.getInteractPool('游戏平局·回应', fb) : fb;
-      const say = pool[Math.floor(Math.random() * pool.length)] || fb[0];
+      const say = pool.length ? pool[Math.floor(Math.random() * pool.length)] : ''; // #1515 整组停用＝静默（流拍）
       const cid2 = prefix();
-      setTimeout(() => {
+      if (say) setTimeout(() => {
         if (prefix() !== cid2) return;
         try { if (window.chatAddIn) window.chatAddIn(say, { silent: true }); } catch (e) {}
       }, 800);
@@ -558,10 +558,10 @@
     try {
       const fb = ['被你拍走了…', '亏了亏了。', '那件本来我想要来着。'];
       const pool = window.getInteractPool ? window.getInteractPool('游戏失败·回应', fb) : fb;
-      const say = pool[Math.floor(Math.random() * pool.length)] || fb[0];
+      const say = pool.length ? pool[Math.floor(Math.random() * pool.length)] : ''; // #1515 整组停用＝静默（被拍走）
       // FIX 2026-09-16：800ms 内切联系人桌面，回应会发进新桌面——回调前校验命名空间未变
       const cid0 = prefix();
-      setTimeout(() => {
+      if (say) setTimeout(() => {
         if (prefix() !== cid0) return;
         try { if (window.chatAddIn) window.chatAddIn(say, { silent: true }); } catch (e) {}
       }, 800);
