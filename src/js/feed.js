@@ -1974,7 +1974,7 @@
     const timer = setInterval(() => { if (!box.isConnected) feedCancelPickSticker(); }, 250);
     feedPickCtx = { box, onPick, hint, timer, blank: made.blank };
   }
-  // 我贴一张：每条动态上限 5 张；贴完 TA 有概率（评论回应概率同源）回贴一张并进通知
+  // 我贴一张：每条动态不限张数（2026-09-30 作者直派拆除旧 5 张帽＝#1479；#1219 后图片贴纸写入接媒体池令牌化，多张不再顶爆权威键）；贴完 TA 有概率（评论回应概率同源）回贴一张并进通知
   // FIX 2026-09-26 #1219 贴纸载荷与配图同罪同罚：#1257 只给「发布配图」接了媒体池令牌化，
   //   贴纸这一路一直把整张 dataURL 原样塞进 post.stickers[].src。于是一屏贴纸就把权威键
   //   feed-posts 顶过 200KB 大键线（LS 副本被剥掉、只剩 IDB），而剥图快照又会把配图那一栏
@@ -1988,7 +1988,6 @@
     const p = list.find(x => x.id === pid);
     if (!p) { toast('这条动态不存在了'); return; }
     p.stickers = Array.isArray(p.stickers) ? p.stickers : [];
-    if (p.stickers.length >= 5) { toast('这条动态上贴纸够多啦（最多 5 张）'); return; }
     // v3.36.x：位置自定义——st 带 x/y（点照片选位置的落点）就用它，否则随机
     const pos = (st && Number.isFinite(Number(st.x)) && Number.isFinite(Number(st.y)))
       ? { x: Math.min(92, Math.max(0, Math.round(Number(st.x)))), y: Math.min(92, Math.max(0, Math.round(Number(st.y)))) }
@@ -2006,7 +2005,6 @@
         const p2 = l2.find(x => x.id === pid);
         if (!p2) return;
         p2.stickers = Array.isArray(p2.stickers) ? p2.stickers : [];
-        if (p2.stickers.length >= 5) return;
         const taSt = feedTaPickSticker();
         const pos2 = feedRandStickerPos();
         const nm = p2.taName || taFeedNameFor(cid);

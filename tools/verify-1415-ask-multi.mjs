@@ -44,9 +44,11 @@ const count = (s, needle) => s.split(needle).length - 1;
 console.log('S 组 产物源码级');
 {
   const ask = jsOf('ta-ask.js'), chat = jsOf('chat.js'), idx = htmlOf();
-  ok(count(ask, "qs.push({ type: cur.multi ? 'multi' : 'single', text: cur.text, options: cur.opts.slice() });") === 1,
+  // S1 随 #1480 改口（2026-09-30）：解析出口改走 sq 组装（为了按题限选 multiMax），守的还是
+  // 「multi 这一档真的被分流出来」——旧 needle 钉的那行单行 push 已退役，改口必须连本脚本一起改。
+  ok(count(ask, "const sq = { type: cur.multi ? 'multi' : 'single', text: cur.text, options: cur.opts.slice() };") === 1,
     'S1 问卷解析器有分流出口（红侧读数＝只有 single/text 两档，多选题在解析那一步就没了）',
-    'count=' + count(ask, "qs.push({ type: cur.multi"));
+    'count=' + count(ask, "const sq = { type: cur.multi"));
 
   ok(count(ask, 'askMultiMarkOf(') === 3 && count(ask, 'function askMultiMarkOf(') === 1,
     'S2 「多选」标记只有一处定义、两处消费（问卷解析＋题库批量导入）＝两入口不会各写一套判据',

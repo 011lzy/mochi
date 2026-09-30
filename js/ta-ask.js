@@ -15,7 +15,7 @@ function escG(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').repl
 function askTypeBadge(q) {
 const n = q && Array.isArray(q.options) ? q.options.length : 0;
 if (q && q.type === 'single') return ' <span class="tc-known">单选·' + n + '选项</span>';
-if (q && q.type === 'multi') return ' <span class="tc-known">多选·' + n + '选项</span>';
+if (q && q.type === 'multi') return ' <span class="tc-known">多选' + (q.multiMax >= 2 ? '·限' + q.multiMax : '') + '·' + n + '选项</span>';
 return '';
 }
 function taReplyShow(s) {
@@ -696,7 +696,7 @@ else if (opts && opts.popup === false) popup = false;
 }
 window.chatAddSystem('TA想问你一个问题。', { special: 'ask-msg' });
 const askTs = Date.now();
-const el = window.chatAddSystem(q.text, { special: 'ask-card', askQuestion: q.text, askOptions: isPick ? q.options : null, askType: isPick ? q.type : 'text', askTs: askTs });
+const el = window.chatAddSystem(q.text, { special: 'ask-card', askQuestion: q.text, askOptions: isPick ? q.options : null, askType: isPick ? q.type : 'text', askTs: askTs, askMultiMax: (isPick && q.type === 'multi' && q.multiMax >= 2) ? q.multiMax : 0 });
 try {
 const d = taAskLoad();
 d.history.push({ q: q.text, a: '', reply: '', ts: askTs, status: 'pending' });
@@ -942,7 +942,7 @@ const flush = () => {
 if (!cur) return;
 const q = { id: 'q_' + Date.now() + '_' + Math.floor(Math.random() * 9999), text: cur.text, cat: parsed.cat || 'daily', enabled: true, isPreset: false };
 if (parsed.grp) q.grp = parsed.grp;
-if (cur.opts.length >= 2) { q.type = cur.multi ? 'multi' : 'single'; q.options = cur.opts.slice(); singles++; }
+if (cur.opts.length >= 2) { q.type = cur.multi ? 'multi' : 'single'; q.options = cur.opts.slice(); if (cur.multi && cur.max >= 2) q.multiMax = cur.max; singles++; }
 d2.questions.push(q);
 imported++;
 cur = null;
@@ -952,7 +952,7 @@ const m = t.match(/^【(.+?)】$/);
 if (m) {
 flush();
 const mk = askMultiMarkOf(m[1]);
-if (mk.text) cur = { text: mk.text, opts: [], multi: mk.multi };
+if (mk.text) cur = { text: mk.text, opts: [], multi: mk.multi, max: mk.max || 0 };
 return;
 }
 if (cur) { cur.opts.push(t); return; }
@@ -3569,10 +3569,12 @@ try { if (window.chatSyncSurveyCard) window.chatSyncSurveyCard(d.sentAt, d.statu
 }
 function askMultiMarkOf(text) {
 const s = String(text == null ? '' : text).trim();
-const br = s.match(/[（(]\s*多\s*选\s*[)）]\s*$/);
-if (br) return { text: s.slice(0, br.index).trim(), multi: true };
-if (s.length > 2 && /\s*多\s*选$/.test(s)) return { text: s.replace(/\s*多\s*选$/, '').trim(), multi: true };
-return { text: s, multi: false };
+const capOf = function (n) { const v = parseInt(n, 10); return (v >= 2 && v <= 6) ? v : 0; };
+const br = s.match(/[（(]\s*多\s*选\s*(?:[·•:：]?\s*最\s*多\s*(\d{1,2})\s*个?\s*)?[)）]\s*$/);
+if (br) return { text: s.slice(0, br.index).trim(), multi: true, max: capOf(br[1]) };
+const bare = s.length > 2 ? s.match(/\s*多\s*选\s*(?:[·•:：]?\s*最\s*多\s*(\d{1,2})\s*个?\s*)?$/) : null;
+if (bare) return { text: s.slice(0, bare.index).trim(), multi: true, max: capOf(bare[1]) };
+return { text: s, multi: false, max: 0 };
 }
 function surveyParse(text) {
 const lines = String(text || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
@@ -3580,7 +3582,11 @@ const qs = [];
 let cur = null, marked = false;
 const flush = () => {
 if (!cur) return;
-if (!marked && cur.opts.length >= 2) qs.push({ type: cur.multi ? 'multi' : 'single', text: cur.text, options: cur.opts.slice() });
+if (!marked && cur.opts.length >= 2) {
+const sq = { type: cur.multi ? 'multi' : 'single', text: cur.text, options: cur.opts.slice() };
+if (cur.multi && cur.max >= 2) sq.multiMax = cur.max;
+qs.push(sq);
+}
 else qs.push({ type: 'text', text: cur.text, options: [] });
 cur = null; marked = false;
 };
@@ -3589,7 +3595,7 @@ const m = t.match(/^【(.+?)】$/);
 if (m) {
 flush();
 const mk = askMultiMarkOf(m[1]);
-if (mk.text) cur = { text: mk.text, opts: [], multi: mk.multi };
+if (mk.text) cur = { text: mk.text, opts: [], multi: mk.multi, max: mk.max || 0 };
 return;
 }
 if (cur) {
@@ -3631,7 +3637,8 @@ return t;
 function surveyPickAnswer(q) {
 if (q && Array.isArray(q.options) && q.options.length) {
 if (q.type === 'multi' && typeof window.mochiPickMulti === 'function') {
-const max = typeof window.askMultiMaxLoad === 'function' ? window.askMultiMaxLoad() : 3;
+const max = (q.multiMax >= 2 && q.multiMax <= 6) ? q.multiMax
+: (typeof window.askMultiMaxLoad === 'function' ? window.askMultiMaxLoad() : 3);
 return window.mochiPickMulti(q.options.length, max).map(k => String(q.options[k] == null ? '' : q.options[k])).join('、');
 }
 if (q.type === 'single' || q.type === 'multi') return q.options[Math.floor(Math.random() * q.options.length)];
@@ -3737,7 +3744,8 @@ const nS = d.qs.filter(q => q.type === 'single').length;
 const nM = d.qs.filter(q => q.type === 'multi').length;
 const brk = d.qs.length ? '（单选 ' + nS + ' 题' + (nM ? ' / 多选 ' + nM + ' 题' : '') + ' / 文字 ' + (d.qs.length - nS - nM) + ' 题）' : '';
 const cap = (typeof window.askMultiMaxLoad === 'function' ? window.askMultiMaxLoad() : 3);
-st.innerHTML = '当前状态：草稿 —— 已解析 <b>' + d.qs.length + '</b> 题' + brk + (nM ? '；多选题每次最多选 ' + cap + ' 个。' : '。') + '填好后点「发出问卷给TA」。';
+const nCap = d.qs.filter(q => q.type === 'multi' && q.multiMax >= 2).length;
+st.innerHTML = '当前状态：草稿 —— 已解析 <b>' + d.qs.length + '</b> 题' + brk + (nM ? '；多选题' + (nCap ? nCap + ' 题单独限选、其余' : '') + '每次最多选 ' + cap + ' 个。' : '。') + '填好后点「发出问卷给TA」。';
 } else if (d.status === 'sent') {
 st.innerHTML = '当前状态：TA 作答中 —— 已答 <b>' + d.answers.length + '</b> / ' + d.qs.length + ' 题' + (d.settings.deadline ? '；交卷时间 ' + fmtDeadlineText(d.settings.deadline) : '；未设交卷时间') + '；每 30 秒按 ' + d.settings.prob + '% 概率提前交卷。';
 } else {
@@ -3787,7 +3795,7 @@ const opts = (q && Array.isArray(q.options) && q.options.length) ? q.options : n
 html += '<div class="tc-listitem" style="text-align:left">' +
 '<div class="tc-li-top">' +
 '<input type="checkbox" class="sv-fav-cb" data-i="' + i + '" style="width:16px;height:16px;flex-shrink:0;cursor:pointer">' +
-'<span class="tc-li-q">' + (i + 1) + '. ' + escT((q && q.text) || '') + (opts ? ' <span class="tc-known">' + (q.type === 'multi' ? '多选·' : '单选·') + opts.length + '选项</span>' : '') + '</span>' +
+'<span class="tc-li-q">' + (i + 1) + '. ' + escT((q && q.text) || '') + (opts ? ' <span class="tc-known">' + (q.type === 'multi' ? '多选' + (q.multiMax >= 2 ? '·限' + q.multiMax : '') + '·' : '单选·') + opts.length + '选项</span>' : '') + '</span>' +
 '<span class="sv-fav-state" data-i="' + i + '" style="font-size:11px;font-weight:600;color:#c2864b;flex-shrink:0;white-space:nowrap">' + (favStates[i] ? '★ 已收藏' : '') + '</span>' +
 '</div>' +
 (opts ? '<div class="tc-li-line">选项：' + escT(opts.join(' / ')) + '</div>' : '') +
@@ -3811,7 +3819,7 @@ const text = String((q && q.text) || '').trim();
 if (!text) { dup++; return; }
 if ((d.questions || []).some(b => b && String(b.text || '') === text)) { dup++; return; }
 const nq = { id: 'q_' + Date.now() + '_' + Math.floor(Math.random() * 9999), text: text, cat: 'daily', enabled: true, isPreset: false };
-if (q && Array.isArray(q.options) && q.options.length >= 2) { nq.type = q.type === 'multi' ? 'multi' : 'single'; nq.options = q.options.slice(0, 12).map(o => String(o)); }
+if (q && Array.isArray(q.options) && q.options.length >= 2) { nq.type = q.type === 'multi' ? 'multi' : 'single'; nq.options = q.options.slice(0, 12).map(o => String(o)); if (nq.type === 'multi' && q.multiMax >= 2) nq.multiMax = q.multiMax; }
 d.questions.push(nq);
 added++;
 });

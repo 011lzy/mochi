@@ -28,7 +28,8 @@
   function askTypeBadge(q) {
     const n = q && Array.isArray(q.options) ? q.options.length : 0;
     if (q && q.type === 'single') return ' <span class="tc-known">单选·' + n + '选项</span>';
-    if (q && q.type === 'multi') return ' <span class="tc-known">多选·' + n + '选项</span>';
+    // #1480：题上写死了「最多N」的，徽标跟着亮出来（多选·限2·5选项），列表里一眼分清哪道限几道不限
+    if (q && q.type === 'multi') return ' <span class="tc-known">多选' + (q.multiMax >= 2 ? '·限' + q.multiMax : '') + '·' + n + '选项</span>';
     return '';
   }
   // FIX 2026-09-17 #648 问答/收藏记录页「TA回应」列——存量落库的媒体卡回应（@@m: 令牌/
@@ -915,7 +916,8 @@
     window.chatAddSystem('TA想问你一个问题。', { special: 'ask-msg' });
     // v3.26.x：askTs 作为提问记录的稳定关联键（透传进 chat-msgs 记录，回答时据此更新 history）
     const askTs = Date.now();
-    const el = window.chatAddSystem(q.text, { special: 'ask-card', askQuestion: q.text, askOptions: isPick ? q.options : null, askType: isPick ? q.type : 'text', askTs: askTs });
+    // #1480：题自带「最多N」（multiMax）随卡透传——手动作答那侧同受这道闸；没带＝0＝不限
+    const el = window.chatAddSystem(q.text, { special: 'ask-card', askQuestion: q.text, askOptions: isPick ? q.options : null, askType: isPick ? q.type : 'text', askTs: askTs, askMultiMax: (isPick && q.type === 'multi' && q.multiMax >= 2) ? q.multiMax : 0 });
     // v3.26.x：提问即进记录——发卡同步写一条 pending，回答后由 chatAskReply 包装层更新
     // （此前只有回答才写 history，且单选题点选项直接调 chatAskReply 不经 openAskReply，history 永远空）
     try {
@@ -1214,7 +1216,7 @@
         if (!cur) return;
         const q = { id: 'q_' + Date.now() + '_' + Math.floor(Math.random() * 9999), text: cur.text, cat: parsed.cat || 'daily', enabled: true, isPreset: false };
         if (parsed.grp) q.grp = parsed.grp;
-        if (cur.opts.length >= 2) { q.type = cur.multi ? 'multi' : 'single'; q.options = cur.opts.slice(); singles++; }
+        if (cur.opts.length >= 2) { q.type = cur.multi ? 'multi' : 'single'; q.options = cur.opts.slice(); if (cur.multi && cur.max >= 2) q.multiMax = cur.max; singles++; }
         d2.questions.push(q);
         imported++;
         cur = null;
@@ -1224,7 +1226,7 @@
         if (m) {
           flush();
           const mk = askMultiMarkOf(m[1]);
-          if (mk.text) cur = { text: mk.text, opts: [], multi: mk.multi };
+          if (mk.text) cur = { text: mk.text, opts: [], multi: mk.multi, max: mk.max || 0 };
           return;
         }
         if (cur) { cur.opts.push(t); return; }
@@ -4114,14 +4116,19 @@ window.openTCPanel = openTCPanel;
   }
   // #1415：「多选」标记的唯一定义处——批量问卷解析与题库批量导入共用一份判据。
   // 认两种写法：括号式「题？（多选）」与裸后缀「题？多选」，命中后从题干里剥掉，屏上念的是干净问题。
+  // #1480：标记里还可以把「最多选几个」按题写死——「（多选·最多2）」「（多选·最多 3 个）」
+  // 「（多选：最多4）」与裸后缀「题？多选·最多2」；数字 2~6 有效（与「最多选几个」那根杆同档位），
+  // 写成别的数只当普通多选、上限仍走全站那根杆（宁可少限，也不把没剥干净的标记念给 TA 听）。
   function askMultiMarkOf(text) {
     const s = String(text == null ? '' : text).trim();
-    const br = s.match(/[（(]\s*多\s*选\s*[)）]\s*$/);
-    if (br) return { text: s.slice(0, br.index).trim(), multi: true };
-    if (s.length > 2 && /\s*多\s*选$/.test(s)) return { text: s.replace(/\s*多\s*选$/, '').trim(), multi: true };
-    return { text: s, multi: false };
+    const capOf = function (n) { const v = parseInt(n, 10); return (v >= 2 && v <= 6) ? v : 0; };
+    const br = s.match(/[（(]\s*多\s*选\s*(?:[·•:：]?\s*最\s*多\s*(\d{1,2})\s*个?\s*)?[)）]\s*$/);
+    if (br) return { text: s.slice(0, br.index).trim(), multi: true, max: capOf(br[1]) };
+    const bare = s.length > 2 ? s.match(/\s*多\s*选\s*(?:[·•:：]?\s*最\s*多\s*(\d{1,2})\s*个?\s*)?$/) : null;
+    if (bare) return { text: s.slice(0, bare.index).trim(), multi: true, max: capOf(bare[1]) };
+    return { text: s, multi: false, max: 0 };
   }
-  // 解析问卷文本：返回 [{type:'single'|'multi'|'text', text, options}]
+  // 解析问卷文本：返回 [{type:'single'|'multi'|'text', text, options}]（多选题可带 multiMax=#1480）
   // #1415：多选题的写法＝题干里带「多选」标记（【今晚想吃点什么？（多选）】或【……？多选】），
   // 标记在入库前从题干剥掉，屏上念出来的就是干净问题。选项仍不足 2 个时按文字题处理（同单选口径）。
   function surveyParse(text) {
@@ -4130,7 +4137,12 @@ window.openTCPanel = openTCPanel;
     let cur = null, marked = false;
     const flush = () => {
       if (!cur) return;
-      if (!marked && cur.opts.length >= 2) qs.push({ type: cur.multi ? 'multi' : 'single', text: cur.text, options: cur.opts.slice() });
+      if (!marked && cur.opts.length >= 2) {
+        const sq = { type: cur.multi ? 'multi' : 'single', text: cur.text, options: cur.opts.slice() };
+        // #1480：题干标记里写死了「最多N」就随题存（multiMax），没写＝走「最多选几个」那根杆
+        if (cur.multi && cur.max >= 2) sq.multiMax = cur.max;
+        qs.push(sq);
+      }
       else qs.push({ type: 'text', text: cur.text, options: [] });
       cur = null; marked = false;
     };
@@ -4139,7 +4151,7 @@ window.openTCPanel = openTCPanel;
       if (m) {
         flush();
         const mk = askMultiMarkOf(m[1]);
-        if (mk.text) cur = { text: mk.text, opts: [], multi: mk.multi };
+        if (mk.text) cur = { text: mk.text, opts: [], multi: mk.multi, max: mk.max || 0 };
         return;
       }
       if (cur) {
@@ -4191,8 +4203,10 @@ window.openTCPanel = openTCPanel;
       // #1415：多选题一次抽「2 ~ min(最多选几个, 选项数)」个，按题目原序念成「A、B」整串。
       // 上限取全站共用的那一根杆（chat.js 的 per-cid 键 ask-multi-max）——半框里改过这里就跟着变，
       // 不留两把尺；助手取不到时（单独载入本文件的探针）退化成抽 1 个，不抛错。
+      // #1480：题自己写死了「最多N」（multiMax）就用题上的，没写的题仍走那根杆。
       if (q.type === 'multi' && typeof window.mochiPickMulti === 'function') {
-        const max = typeof window.askMultiMaxLoad === 'function' ? window.askMultiMaxLoad() : 3;
+        const max = (q.multiMax >= 2 && q.multiMax <= 6) ? q.multiMax
+          : (typeof window.askMultiMaxLoad === 'function' ? window.askMultiMaxLoad() : 3);
         return window.mochiPickMulti(q.options.length, max).map(k => String(q.options[k] == null ? '' : q.options[k])).join('、');
       }
       if (q.type === 'single' || q.type === 'multi') return q.options[Math.floor(Math.random() * q.options.length)];
@@ -4309,7 +4323,9 @@ window.openTCPanel = openTCPanel;
         const nM = d.qs.filter(q => q.type === 'multi').length;
         const brk = d.qs.length ? '（单选 ' + nS + ' 题' + (nM ? ' / 多选 ' + nM + ' 题' : '') + ' / 文字 ' + (d.qs.length - nS - nM) + ' 题）' : '';
         const cap = (typeof window.askMultiMaxLoad === 'function' ? window.askMultiMaxLoad() : 3);
-        st.innerHTML = '当前状态：草稿 —— 已解析 <b>' + d.qs.length + '</b> 题' + brk + (nM ? '；多选题每次最多选 ' + cap + ' 个。' : '。') + '填好后点「发出问卷给TA」。';
+        // #1480：有题自带「最多N」时点名说明——杆上那格只是没单独限选的题的默认档
+        const nCap = d.qs.filter(q => q.type === 'multi' && q.multiMax >= 2).length;
+        st.innerHTML = '当前状态：草稿 —— 已解析 <b>' + d.qs.length + '</b> 题' + brk + (nM ? '；多选题' + (nCap ? nCap + ' 题单独限选、其余' : '') + '每次最多选 ' + cap + ' 个。' : '。') + '填好后点「发出问卷给TA」。';
       } else if (d.status === 'sent') {
         st.innerHTML = '当前状态：TA 作答中 —— 已答 <b>' + d.answers.length + '</b> / ' + d.qs.length + ' 题' + (d.settings.deadline ? '；交卷时间 ' + fmtDeadlineText(d.settings.deadline) : '；未设交卷时间') + '；每 30 秒按 ' + d.settings.prob + '% 概率提前交卷。';
       } else {
@@ -4371,7 +4387,7 @@ window.openTCPanel = openTCPanel;
         html += '<div class="tc-listitem" style="text-align:left">' +
           '<div class="tc-li-top">' +
           '<input type="checkbox" class="sv-fav-cb" data-i="' + i + '" style="width:16px;height:16px;flex-shrink:0;cursor:pointer">' +
-          '<span class="tc-li-q">' + (i + 1) + '. ' + escT((q && q.text) || '') + (opts ? ' <span class="tc-known">' + (q.type === 'multi' ? '多选·' : '单选·') + opts.length + '选项</span>' : '') + '</span>' +
+          '<span class="tc-li-q">' + (i + 1) + '. ' + escT((q && q.text) || '') + (opts ? ' <span class="tc-known">' + (q.type === 'multi' ? '多选' + (q.multiMax >= 2 ? '·限' + q.multiMax : '') + '·' : '单选·') + opts.length + '选项</span>' : '') + '</span>' +
           '<span class="sv-fav-state" data-i="' + i + '" style="font-size:11px;font-weight:600;color:#c2864b;flex-shrink:0;white-space:nowrap">' + (favStates[i] ? '★ 已收藏' : '') + '</span>' +
           '</div>' +
           (opts ? '<div class="tc-li-line">选项：' + escT(opts.join(' / ')) + '</div>' : '') +
@@ -4397,7 +4413,7 @@ window.openTCPanel = openTCPanel;
           if (!text) { dup++; return; }
           if ((d.questions || []).some(b => b && String(b.text || '') === text)) { dup++; return; }
           const nq = { id: 'q_' + Date.now() + '_' + Math.floor(Math.random() * 9999), text: text, cat: 'daily', enabled: true, isPreset: false };
-          if (q && Array.isArray(q.options) && q.options.length >= 2) { nq.type = q.type === 'multi' ? 'multi' : 'single'; nq.options = q.options.slice(0, 12).map(o => String(o)); }
+          if (q && Array.isArray(q.options) && q.options.length >= 2) { nq.type = q.type === 'multi' ? 'multi' : 'single'; nq.options = q.options.slice(0, 12).map(o => String(o)); if (nq.type === 'multi' && q.multiMax >= 2) nq.multiMax = q.multiMax; }
           d.questions.push(nq);
           added++;
         });

@@ -50,7 +50,8 @@ const EXCLUDE = ['contacts', 'active-contact', 'feed-posts', 'migrated-v1', 'js-
 'battery-check-run', 'battery-check-last', 'heat-check-last',
 'flash-check-last',
 'ver-retry',
-'fhub-freq', 'fhub-seen'];
+'fhub-freq', 'fhub-seen',
+'age-confirmed'];
 function isExcluded(k) {
 const r = k.slice(G.length + 1);
 if (r.indexOf('__') === 0) return true;

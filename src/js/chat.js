@@ -866,7 +866,7 @@ try { store.set('chat-tail', JSON.stringify(k)); } catch (e) {}
 // （askQuestion/choiceQuestion/curiousQuestion/roastText 及各自选项）不进日志的话，
 // IDB 整包落盘失败后靠尾巴日志恢复出的互动卡＝「卡片在、问题空白」（choose/curious
 // 渲染只读专用字段不回退 text）＋单选丢选项。这些字段都是小文本/小数组，随条收录。
-const CHAT_TAIL_INTERACT_FIELDS = ['askQuestion', 'askOptions', 'askType', 'deskCk', 'deskCkDir',
+const CHAT_TAIL_INTERACT_FIELDS = ['askQuestion', 'askOptions', 'askType', 'askMultiMax', 'deskCk', 'deskCkDir',
 'choiceQuestion', 'choiceOptions', 'choicePref', 'choiceCat',
 'curiousQuestion', 'curiousQuick', 'curiousReplies', 'curiousFollowup', 'curiousQid', 'curiousCat',
 'roastText', 'roastCat', 'inviteContent', 'inviteStatus', 'inviteAnswer', 'inviteType'];
@@ -1278,7 +1278,11 @@ if (pyChipDropIfSingle(r)) c = true;
       if (f.some((o, i) => o !== r.curiousQuick[i])) { r.curiousQuick = f; c = true; }
     }
     if (r.special === 'ask-curious' && typeof r.curiousAnswer === 'string' && ICON_CQ_FIX[r.curiousAnswer]) { r.curiousAnswer = ICON_CQ_FIX[r.curiousAnswer]; c = true; }
-    if (!r.ts) { r.ts = Date.now(); c = true; }
+    // #1477：无 ts 的存量记录改盖「自身事件时间」（红包 rpTs／申请 askTs／问卷 surveyTs／投递 dAt），
+    // 不再盖加载时刻的 Date.now()——旧写法让这类记录每次首遇都变「最新一条」，下一次按 ts 升序
+    // 合并排序即被挪到数组末尾，而 DOM 的 data-idx/data-mk 是按旧顺序画的 ⇒ 点卡片读到别的消息
+    //（「联系人发的红包无法点击领取」的漂移驱动）。链与 msgKeyOf 的 msgRecTsOf 同一条，两头要一起改。
+    if (!r.ts) { r.ts = (r.rpTs || r.askTs || r.surveyTs || r.dAt) || Date.now(); c = true; }
   } catch (e) {}
   return c;
 }
@@ -3945,12 +3949,15 @@ const opts = Array.isArray(rec.askOptions) ? rec.askOptions : (Array.isArray(rec
 if (!opts.length) return false;
 const rows = [];
 const picked = [];
+// #1480：题自带「最多N」（批量问卷/题库导入的「（多选·最多2）」标记经 pushAsk 透传成 askMultiMax）
+// 就给手动作答也上同一道闸——限 2 勾第 3 个点不动并说明；没带＝0＝不限，与改前行为逐字相同。
+const capN = (rec.askMultiMax >= 2 && rec.askMultiMax <= 6) ? rec.askMultiMax : 0;
 const btn = document.createElement('button');
 btn.className = 'ip-multi-submit';
 btn.type = 'button';
 const syncSubmit = () => {
 btn.disabled = !picked.length;
-btn.textContent = picked.length ? '提交（已选 ' + picked.length + ' 个）' : '先勾选答案';
+btn.textContent = picked.length ? '提交（已选 ' + picked.length + (capN ? '/' + capN : '') + ' 个）' : '先勾选答案';
 };
 // 所选选项各自写过的「~TA回应」并成一份候选，交给 chatAskReply 抽一条（一条都没有＝走预设池）
 const repliesOf = o => {
@@ -3968,6 +3975,7 @@ row.innerHTML = '<span class="ip-opt-box"></span><span class="ip-opt-t">' + escT
 (replyArr.length ? '<span class="ip-opt-reply">' + escTxt(replyArr.length > 1 ? replyArr[0] + ' 等' + replyArr.length + '条' : replyArr[0]) + '</span>' : '');
 row.addEventListener('click', () => {
 const at = picked.indexOf(t);
+if (at < 0 && capN && picked.length >= capN) { toast('这题最多选 ' + capN + ' 个'); return; }
 if (at >= 0) picked.splice(at, 1); else picked.push(t);
 row.classList.toggle('on', at < 0);
 syncSubmit();
@@ -4090,8 +4098,12 @@ const rpCard = e.target.closest('.msg-rp-card');
 if (!rpCard) return;
 const rpItem = rpCard.closest('.msg-rp');
 if (!rpItem || rpItem.dataset.idx === undefined) return;
-const rpRec = msgs[Number(rpItem.dataset.idx)];
-if (!rpRec || rpRec.special !== 'redpacket' || rpRec.rpStatus !== 'pending' || rpRec.side !== 'in') return;
+const rpShownDEl = rpItem.querySelector('.msg-rp-status');
+const rpShownD = rpShownDEl ? rpShownDEl.textContent : '';
+const rpHitD = msgRecFromEl(rpItem, function (m) { return rpStatusText(m) === rpShownD; }); // #1477：下标快路径＋data-mk 身份校正；同身份多份取与显示一致那份
+if (!rpHitD) return;
+const rpRec = rpHitD.rec;
+if (!rpRec || rpRec.special !== 'redpacket' || (rpRec.rpStatus || 'pending') !== 'pending' || rpRec.side === 'out') return;
 rpPressTimer = setTimeout(() => {
 rpPressTimer = null;
 rpPressSuppressClick = true;
@@ -4171,11 +4183,15 @@ if (rpPressSuppressClick) { rpPressSuppressClick = false; return; }
 e.stopPropagation();
 const rpItem = rpCard.closest('.msg-rp');
 if (!rpItem || rpItem.dataset.idx === undefined) return;
-const rpIdx = Number(rpItem.dataset.idx);
-const rpRec = msgs[rpIdx];
+const rpShownEl = rpItem.querySelector('.msg-rp-status');
+const rpShown = rpShownEl ? rpShownEl.textContent : '';
+const rpHit = msgRecFromEl(rpItem, function (m) { return rpStatusText(m) === rpShown; }); // #1477：旧下标会把同屏别的消息当成这张卡；同身份多份时取「与卡片显示一致」那份
+if (!rpHit) return;
+const rpIdx = rpHit.idx;
+const rpRec = rpHit.rec;
 if (!rpRec || rpRec.special !== 'redpacket') return;
-if (rpRec.rpStatus !== 'pending') return;
-if (rpRec.side !== 'in') { toast(window.taFit ? window.taFit('等待 TA 领取') : '等待 TA 领取'); return; }
+if ((rpRec.rpStatus || 'pending') !== 'pending') return; // #1477：与卡片状态文案同口径（falsy＝待领取）
+if (rpRec.side === 'out') { toast(window.taFit ? window.taFit('等待 TA 领取') : '等待 TA 领取'); return; } // #1477：与「我 发出」渲染同侧判据（side 缺失的历史卡＝联系人发出，可领）
 rpRec.rpStatus = 'received';
 rpRec.rpOpenedAt = Date.now();
 const wallet = rpWalletGet();
@@ -5734,9 +5750,46 @@ im.replaceWith(ph);
 // msgKeyOf 是消息内容身份（ts|side|type|text80），renderMsg 渲染每个气泡时写进 data-mk＝
 // 「这个节点当时画的是哪条」永不随数组位移变化；开菜单按 mk 反查真实那条（查询 key 冲突
 // 只在同文案同毫秒消息间发生＝引用内容也相同，无感）。
+// #1477：时间位与 normCell 盖章走同一条 fallback 链——无 ts 的存量记录画时按 rpTs 等自身事件时间
+// 取键、盖章后 ts=rpTs 仍取同一值 ⇒ data-mk 不因盖章失效；末段拼卡片身份字段（chatRecCardExtra，
+// #796 同一套）＝红包/礼物这类「正文为空、身份在专用字段上」的卡，同毫秒同侧两张不同卡也分得开。
+// 写（renderMsg 的 data-mk）与读（#491 菜单快照、#1477 msgRecFromEl）同用本函数。
+function msgRecTsOf(rec) {
+return (rec && (rec.ts || rec.rpTs || rec.askTs || rec.surveyTs || rec.dAt)) || 0;
+}
 function msgKeyOf(rec) {
 if (!rec) return '';
-return (rec.ts || 0) + '|' + (rec.side || '') + '|' + (rec.type || '') + '|' + String(rec.text || '').slice(0, 80);
+return msgRecTsOf(rec) + '|' + (rec.side || '') + '|' + (rec.type || '') + '|' + String(rec.text || '').slice(0, 80) + chatRecCardExtra(rec);
+}
+// #1477：互动卡点击的记录解析——下标快路径＋身份校正。msgs 可能在卡片画好之后被重排（权威读库
+// 合并/尾巴日志回放/空权威重建按 ts 插删＋normCell 给无 ts 存量盖章；#407 同族：中段插入删除 ⇒
+// 下标整体位移而 DOM 未重渲），旧 data-idx 会读到别的消息＝「联系人发的红包点了没反应」（点击
+// 实际读到一条别的消息，special 对不上就静默返回）。data-mk 是渲染期身份锚（#491），永不随数组
+// 位移变化：下标取到的记录对不上锚就按锚反查真实那条，命中时顺手把节点下标修回真值（后续按
+// idx 就地补丁的调用方才能找到节点）。反查也无（记录真被删了）才回退旧下标语义＝保守回退。
+// 带 prefer 时先取「下标处的记录与锚一致且状态吻合」的快路径；快路径不满足再全量扫同身份候选。
+function msgRecFromEl(item, prefer) {
+if (!item || item.dataset.idx === undefined) return null;
+const _i = Number(item.dataset.idx);
+const _mk = item.dataset.mk || '';
+let rec = (_i >= 0 && _i < msgs.length) ? msgs[_i] : null;
+const okFast = !!(rec && _mk && msgKeyOf(rec) === _mk);
+if (okFast && typeof prefer !== 'function') return { rec: rec, idx: _i };
+if (_mk) {
+// 同身份可能不止一份（快照回滚链会把「已领」的记录又并回一份「待领」克隆，绿/红两侧实测皆有）：
+// 带 prefer 时优先取与卡片当前显示状态一致的那份——用户看得见的卡片状态就是本次点击的真相。
+let best = -1, first = -1;
+for (let j = 0; j < msgs.length; j++) {
+const m = msgs[j];
+if (!m || msgKeyOf(m) !== _mk) continue;
+if (first < 0) first = j;
+if (typeof prefer === 'function' && prefer(m)) { best = j; break; }
+}
+const j = (best >= 0) ? best : first;
+if (j >= 0) { item.dataset.idx = String(j); return { rec: msgs[j], idx: j }; }
+}
+if (okFast) return { rec: rec, idx: _i };
+return rec ? { rec: rec, idx: _i } : null;
 }
 // v3.33.x #521：批量问卷长卡片（special:'ask-survey'）——观感对齐单题 ask-card（同宽/同圆角/
 // 同阴影/同字号；标题、逐题答案、底部提示一一对应，无 emoji、无独立进度徽标，进度并入底部提示）。
@@ -6220,7 +6273,8 @@ m.innerHTML = '<div class="msg-ask-card' + (answered ? ' answered' : '') + '">' 
 '<div class="msg-ask-q">' + escTxt(rec.askQuestion || rec.text) + '</div>' +
 (answered
 ? '<div class="msg-ask-a">✓ 已回答：' + escTxt(rec.askAnswer) + '</div>' + (rec.askReply ? '<div class="msg-choose-r">' + T('TA：') + escTxt(T(askCardReplyClean(rec.askReply))) + '</div>' : '')
-: '<div class="msg-ask-tip">' + (isMulti ? '可多选，选完点「提交」' : isSingle ? '点击选择你的答案' : T('点击回答 TA 的提问')) + '</div>') +
+// #1480：题自带「最多N」的卡，提示直接把限选数说出来（勾选那侧同受这道闸）
+: '<div class="msg-ask-tip">' + (isMulti ? ((rec.askMultiMax >= 2 && rec.askMultiMax <= 6) ? '最多选 ' + rec.askMultiMax + ' 个，选完点「提交」' : '可多选，选完点「提交」') : isSingle ? '点击选择你的答案' : T('点击回答 TA 的提问')) + '</div>') +
 favHeartHtml(rec) +
 '</div>';
 appendMsg(m);
@@ -7505,6 +7559,21 @@ function chatDeskInboxMerge(forPrefix) {
     }).catch(function () { consume([]); });
   } catch (e) {}
 }
+// FIX 2026-09-30 #1441c：进场「要不要重读库」的第三条证据＝本文档之外的同源上下文写过这一桌的聊天。
+// #1441a 把「在桌面待够 8 秒」从判据里摘掉以后，这一路不能靠时间冒充：localStorage 的 storage 事件只在
+// **别的**同源文档里派发（写入方自己收不到），正是「外部落过笔」的直接读数——命中本命名空间的聊天键就
+// 记一笔账，下一趟进场照旧真读、读完销账。零机型／零 UA 分支；不轮询、不新增定时器（#1318 口径），
+// 只在浏览器已经推给我们的这一发事件上盖章。
+let chatXtxWriteSeen = false;
+window.addEventListener('storage', function (e) {
+try {
+const k = e && e.key ? String(e.key) : '';
+const pre = window.activePrefix();
+if (!k || !pre) return;
+if (k === pre + ':chat-msgs' || k === pre + ':chat-desk-inbox' || k === pre + ':chat-tail' || k.indexOf('chat-blk') >= 0) chatXtxWriteSeen = true;
+} catch (err) {}
+});
+window.chatXtxWriteSeenForDebug = function () { return chatXtxWriteSeen; }; // 只读：供 verify 脚本判「这一发证据有没有被消费掉」
 window.chatAppendToDeskMsg = function (cid, text, opts) {
 opts = opts || {};
 const cur = window.__activeCid || 'default';
@@ -9645,7 +9714,33 @@ chatEnterPaintThen(function () {
 // v3.28.x：进入聊天页即按需取回字卡库（冷启动挂起大键）——专属字卡优先（回复池主源），
 // 公用随后；配合 replyOnce 内的等待，避免首条/持续回复落兜底卡。
 try { if (window.hydrateLibScopes) window.hydrateLibScopes(['own', 'public']); } catch (e) {}
-loadMsgs();
+// FIX 2026-09-30 #1441（红米 K80 Chrome 实报「退出聊天页面回到桌面，再回聊天页面，来回切换时聊天页面
+// 的数据总是会重新加载并闪屏」，用户明说其他设备型号也有出现、点名不要覆盖式修补）：这一发 loadMsgs
+// 过去只由 IDB_RELOAD_MIN_GAP(8s) 时间闸决定读不读——「在桌面待够 8 秒」被当成了「库里可能比内存新」
+// 的证据。可页内切页本身不是外部写入面：桌面期 TA 的新消息本来就进 msgs；真后台回场另有 #967／#1067／
+// #1294 三条各自挂 forceIdb 的路；切联系人与大历史未预读会把 authLoadedPrefix 归位。于是对「历史很大」
+// 的存档，这一发恒等于每次进场重新起一轮读库（本机实测：在桌面停 12 秒再进＝4 发 idbGet，读库期间
+// chatAuthPending 就是屏上那条「正在加载聊天记录」），读完的合并收尾还可能再画一遍＝用户所见「数据重新
+// 加载＋整屏闪」。
+// 判据换成四条现成事实，任何一条成立就照旧真读：① 本命名空间权威从未落定（authLoadedPrefix 不匹配＝
+// 冷启动／切联系人／大历史懒读那一路，#951「未预读就是诚实反馈」的边界一字不动）；② 内存里还没有这一桌
+// 的历史（msgs 空＝屏上本来就没东西，读它零代价，绝不许「静默不读」把空屏坐实——verify-chat-entry-load-window
+// 从旁路灌库测的正是这一支）；③ 本文档之外的同源上下文写过这一桌的聊天（storage 事件，见 chatXtxWriteSeen：
+// 浏览器只在**别的**同源文档里派发，写入方自己收不到＝规范行为、与机型无关）；④ 跨桌面中转箱有货（#1200，
+// 同步可读的小键，排空它必须走权威落定那一段）。四条都不成立＝屏上就是这一桌的权威窗，不必再读。
+// 零机型／零 UA 分支：只问这四件事实，不问停留了多久，更不问浏览器是谁家的。
+let csAuthHere = false;
+try { csAuthHere = authLoadedPrefix === window.activePrefix() && msgs.length > 0 && !chatXtxWriteSeen; } catch (e) {}
+if (!csAuthHere) { chatXtxWriteSeen = false; loadMsgs(); } // 起读＝消费掉这一发证据：一趟只认一次，读完由权威落定那一段重新记账
+else {
+let csInboxHas = true; // 量不动＝保守起读（不把「读不到」当成「没有」）
+try {
+const csRawInbox = localStorage.getItem(window.activePrefix() + ':chat-desk-inbox');
+csInboxHas = false;
+if (csRawInbox) { const csArrInbox = JSON.parse(csRawInbox); csInboxHas = Array.isArray(csArrInbox) ? csArrInbox.length > 0 : csRawInbox.length > 2; }
+} catch (e) { csInboxHas = true; }
+if (csInboxHas) loadMsgs();
+}
 // v3.26.x #220 聊天重开不闪：屏上消息区仍与当前 msgs 同窗同貌（同桌面、同条数、
 // 渲染后归一化没改过窗口内容、窗口未裁剪——顶部上翻裁剪后 renderStart>0 不满足）
 // 时，重复进入聊天页不再整窗重建 200 气泡（img 全部重新解码=肉眼跳动，小米15Pro
@@ -10520,7 +10615,7 @@ const st = rec.rpStatus || 'pending';
 if (st === 'received') return '已领取';
 if (st === 'expired') return '已过期·退回';
 if (st === 'returned') return '已退回';
-return rec.side === 'in' ? '待领取' : (window.taFit ? window.taFit('待TA领取') : '待TA领取');
+return rec.side === 'out' ? (window.taFit ? window.taFit('待TA领取') : '待TA领取') : '待领取'; // #1477：side 缺失的历史卡与渲染的「联系人 发出」同侧＝待我领取
 }
 function rpStatusCls(rec) {
 const st = rec.rpStatus || 'pending';

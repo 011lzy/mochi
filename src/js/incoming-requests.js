@@ -355,6 +355,75 @@
 
   function rootGet(k) { try { return window.xyStore(ROOT).get(k); } catch (e) { return null; } }
   function rootSet(k, v) { try { window.xyStore(ROOT).set(k, v); } catch (e) {} }
+  // ===== #1478：队列那本账的「库里回没回话」三态闸（作者口径：#1435 的挂起必须活过页面回收）=====
+  // 病：队列读走 xyStore.get（内存→LS 同步路），而启动回填是逐批异步跑的 ⇒ 冷启动那一瞬可以读到「空」；
+  //   旧 saveQ 是「整包读-改-写」，这一发就把库里那条【正在等用户回来】的挂起整包抹掉。报障那台机
+  //   （系统主屏幕模式）正是这个形态：LS 每一次写都抛（诊断单 1 字节探针就抛）、本页被系统回收 26 次，现场
+  //   ＝「横幅说了有，点进去没有、主页那一栏也没有」。判据只取「这一键读回来没有」一个事实，沿用
+  //   #1309/#1361 的 info.ambiguous 三态（有值＝读到、undefined＝库里确无、ambiguous＝没读出来继续等），
+  //   零机型／零 UA 分支；确无（absent）时照旧放行，闸门不会变成「存不进去」。合并按 cid|kind|sid 认身份、
+  //   同身份取 ts 更大那一枚（两条坑见 qUnion 上方注释）。
+  var qAuth = 'pending';
+  var qHold = null;
+  var qAuthTries = 0;
+  var Q_AUTH_BACKOFF = [1500, 4000, 9000, 16000];
+  // 身份＝cid|kind|sid，刻意不含 ts：setStatus() 落定状态时会把同一条的 ts 推到当下，带上 ts 就会让
+  // 一条挂起变成两个身份 ⇒ 并集时库里那条 pending 被当成「另一条」并回来，holding 永远清不掉、
+  // 收尾还会重复记账（尺子 H5 实测到 mem 里同一 cid 出现两行）。sid 只在投递时写、状态改判不动它，
+  // 而 deliver() 本来就按 cid+kind 挡住未处理的重复投递 ⇒ 这个三元组在队列里天然唯一。
+  function qIdOf(x) { return String((x && x.cid) || '') + '|' + String((x && x.kind) || '') + '|' + String((x && x.sid) || ''); }
+  // 并集＝按身份（cid|kind|sid）去重后【取 ts 更大那一枚】。⚠ 两条都不能想当然：
+  //   ① 不能「谁排在前面算谁」——setStatus() 改判状态时会把 ts 推到当下，库里那本还是 pending 的旧那一版，
+  //      排前就等于把已落定的 seen 复活成 pending（H5 实测 holding 恒 1、收尾反复记账）；
+  //   ② 身份里不能带 ts——同理，改判前后会被认成两条，两条并存（H5 实测 mem 里同一 cid 出现两行）。
+  //   取 ts 更大者＝让「已经落定的那一版」说话算数，同时仍然保住库里那条对方这一场没写过的挂起。
+  function qUnion(lib, mine) {
+    const byId = Object.create(null), order = [];
+    [].concat(lib || [], mine || []).forEach(function (x) {
+      if (!x || typeof x !== 'object') return;
+      const k = qIdOf(x);
+      const prev = byId[k];
+      if (!prev) { byId[k] = x; order.push(k); return; }
+      if (((x && x.ts) || 0) > ((prev && prev.ts) || 0)) byId[k] = x;
+    });
+    return order.map(function (k) { return byId[k]; })
+      .sort(function (a, b) { return ((a && a.ts) || 0) - ((b && b.ts) || 0); });
+  }
+  function qDrain() {
+    if (qAuth === 'pending') return;
+    const hold = qHold;
+    qHold = null;
+    if (!hold || !hold.length) return;
+    let cur = [];
+    try { cur = JSON.parse(rootGet(KEY) || '[]'); } catch (e) { cur = []; }
+    rootSet(KEY, JSON.stringify(qUnion(Array.isArray(cur) ? cur : [], hold).slice(-MAX)));
+  }
+  function qAuthRetry() {
+    if (qAuthTries >= Q_AUTH_BACKOFF.length) { qAuth = 'ok'; qDrain(); return; } // 有界耗尽＝退回旧语义
+    setTimeout(qAskAuth, Q_AUTH_BACKOFF[qAuthTries++]);
+  }
+  function qAskAuth() {
+    if (qAuth !== 'pending') { qDrain(); return; }
+    if (!window.idbGet) { qAuth = 'ok'; qDrain(); return; } // 无库可用＝LS 是唯一存储，旧行为
+    const info = {};
+    try {
+      Promise.resolve(window.idbGet(ROOT + ':' + KEY, info)).then(function (v) {
+        if (info.ambiguous) { qAuthRetry(); return; }
+        qAuth = (v === undefined || v === null) ? 'absent' : 'ok';
+        if (qAuth === 'ok') {
+          let lib = [];
+          try { lib = typeof v === 'string' ? JSON.parse(v) : (Array.isArray(v) ? v : []); } catch (e) { lib = []; }
+          if (Array.isArray(lib) && lib.length) {
+            let cur = [];
+            try { cur = JSON.parse(rootGet(KEY) || '[]'); } catch (e2) { cur = []; }
+            const merged = qUnion(lib, Array.isArray(cur) ? cur : []).slice(-MAX);
+            if (JSON.stringify(merged) !== JSON.stringify(cur)) rootSet(KEY, JSON.stringify(merged));
+          }
+        }
+        qDrain();
+      }, function () { qAuthRetry(); });
+    } catch (e) { qAuthRetry(); }
+  }
 
   // ---- v3.26.x #264 调度可观测性 + 弹窗互斥（跨机型同一条路径，无设备分支） ----
   var ticks = 0;                         // 本会话轮询次数（诊断：定时器活着吗）
@@ -414,6 +483,12 @@
   function queue() {
     let q = [];
     try { const v = rootGet(KEY); if (v) { const a = JSON.parse(v); if (Array.isArray(a)) q = a; } } catch (e) {}
+    // #1478：闸门关着的这段窗口，落盘扣住了，页面自己那本（qHold）却也因此读不到自己刚投出去的那条——
+    //   hasPending 看不见 ⇒ 同一联系人重复投递、setStatus 找不到 ⇒ 弹窗点「稍后」释放不掉（邻族
+    //   verify-desk-incoming 实测三连红，这是闸门自己造的新洞）。读侧并回这一层：qHold 是 saveQ 收到的
+    //   那份全量，身份同、ts 更大 ⇒ 页面视角永远看见自己最新的意图；写侧一字未动，权威回话才由 qDrain
+    //   与库里那本并集落盘。老的那份快照里这一页没写过的条目照旧保住（并集不裁人）。
+    if (qAuth === 'pending' && qHold && qHold.length) q = qUnion(q, qHold);
     // 清理 seen 过久的（保留 pending）
     const now = Date.now();
     // v3.26.x #264：跨会话孤儿 pending 自愈。弹窗只活在投出它的那个页面会话里，而队列存
@@ -432,11 +507,17 @@
       }
     });
     const filtered = q.filter(x => x.status !== 'seen' || now - (x.ts || 0) < seenKeepMs);
-    if (healed || filtered.length !== q.length) { rootSet(KEY, JSON.stringify(filtered)); q = filtered; }
+    if (healed || filtered.length !== q.length) { saveQ(filtered); q = filtered; } // #1478：与投递路径同一道闸，别从这条支路整包盖回去
     if (healed) noteRelease('跨会话孤儿 pending 释放 ' + healed + ' 条');
     return q;
   }
-  function saveQ(q) { rootSet(KEY, JSON.stringify(q.slice(-MAX))); }
+  function saveQ(q) {
+    // #1478：库里还没回过话 ⇒ 不拿这一发当全量整包落盘（那会抹掉库里正在等的挂起），只暂存内存，
+    //   等权威回话时按 cid|kind|sid 认身份取更晚那一枚并集落盘——同一会话里后一次 saveQ 覆盖前一次是安全的（数组本来
+    //   就是全量），暂存的也必须是全量。
+    if (qAuth === 'pending') { try { qHold = (q || []).slice(); } catch (e) {} return; }
+    rootSet(KEY, JSON.stringify((q || []).slice(-MAX)));
+  }
 
   function cName(cid) {
     try {
@@ -465,10 +546,42 @@
   // recentChatDup 只扫当前桌面聊天，看不到这张卡 → 同一道题再次被抽中时会重复弹系统通知
   //（用户反馈：刚在聊天里看过又重弹）。这里同步读该桌面的聊天记录（本地存储，同步可用），
   // 命中同文则说明用户已看过/答过这道题 → 后台不再重复追问、也不再重复弹通知。
+  // 空白与控制符一律去掉再比（不用正则转义，跨实现口径一致）
+  function ckFlat(t) {
+    const s = String(t || '');
+    let out = '';
+    for (let i = 0; i < s.length; i++) { if (s.charCodeAt(i) > 32) out += s.charAt(i); }
+    return out;
+  }
   function deskQSeenRecently(cid, text) {
     if (!text) return false;
     try {
-      const raw = localStorage.getItem('xy-home-v2:' + cid + ':chat-msgs');
+      // #1478：旧写法只读【裸 localStorage】那本 chat-msgs 快照。这台机上它要么没有要么恒旧（chat.js 那发
+      //   快照 setItem 同样抛，而 chat-msgs 被刻意排除在启动回填之外＝内存里也不会有），于是这道判据在报障
+      //   那台机上永久失效＝同一道题反复弹通知。#1435 之后后台命中根本不再落聊天卡，「这道题见过没有」的
+      //   权威事实本来就是 #1435 自己落的 records-care（普通键，走 xyStore＝内存→LS→回填权威，跨回收存活）。
+      //   现两道一起判：① 该桌面 records-care 里 1 小时内有同一条 desk-checkin 题面 ⇒ 见过；② 原有的聊天快照
+      //   同文判定原样保留（前台答过卡那一型仍靠它）。两本都读不到＝判「没见过」，不拿默认值冒充。
+      //   （注：records-care 走 xyStore＝内存→LS→回填权威；直写 IDB 的那一发不进内存，要等下一场回填。
+      //   尺子因此必须先重载再判——第一版把这条量成了「产品没读到」，其实是夹具缺一次重启。）
+      try {
+        const cv = window.storeFor ? window.storeFor(cid).get('records-care') : null;
+        if (cv) {
+          const rec = JSON.parse(cv);
+          const cut = Date.now() - 60 * 60000;
+          const nk = ckFlat(text);
+          if (Array.isArray(rec) && nk.length > 1) {
+            for (let i = 0; i < rec.length; i++) {
+              const r0 = rec[i];
+              if (!r0 || r0.kind !== 'desk-checkin') continue;
+              if (r0.ts && r0.ts < cut) break;
+              if (ckFlat(r0.text) === nk) return true;
+            }
+          }
+        }
+      } catch (e0) {}
+      let raw = null;
+      try { raw = localStorage.getItem('xy-home-v2:' + cid + ':chat-msgs'); } catch (e1) { raw = null; }
       if (!raw) return false;
       const arr = JSON.parse(raw);
       if (!Array.isArray(arr)) return false;
@@ -893,6 +1006,8 @@
             .reduce(function (m, x) { return Math.min(m, (x.ts || 0) + CK_BG_HOLD_MS); }, Infinity);
           return old === Infinity ? 0 : Math.max(0, old - now);
         })(),
+        auth: qAuth, // #1478：这一键的库回没回话（pending＝还在等，整包写回已被闸住；诊断与尺子共用）
+        qids: q.map(function (x) { return x.cid + ':' + x.status; }), // #1478：闸门关着时落盘会晚一拍，这是「页面这一本账」的唯一可读出口（诊断与尺子共用）
         live: Object.keys(liveModals).length,
         gate: hardLocked() ? '锁屏中' : (typingBusy() ? '输入中暂停' : (layerBusy() ? ('浮层占用让路' + busyTicks + '/' + BUSY_ESCAPE) : '空闲')),
         hidden: !!document.hidden,
@@ -902,6 +1017,8 @@
     } catch (e) { return null; }
   };
 
+  // 只读探针（诊断与回归尺子共用）：这道「同一道题最近见过没有」的判定到底认了哪一本账
+  window.__mochiDeskQSeenProbe = function (cid, text) { try { return deskQSeenRecently(cid, text); } catch (e) { return false; } };
   // v3.26.x #264：首查从 30~90s 提前到 12s（手机上「开一下看一眼就走」的短会话此前
   // 一次都掷不到）；回前台 3s 后补一次——iOS Safari 后台会冻结定时器，切回来若只等
   // 60s 轮询，每次都要白等一整分钟。
@@ -913,6 +1030,15 @@
     setInterval(maybeIncoming, CHECK_MS);
   }
   setTimeout(startIncomingTick, 12000);
+  // #1478：权威问话与首拍都得等「数据回填」——回填是逐批异步的，12 秒那一拍可能正读到空；而冷启动
+  //   根本不派发 visibilitychange ⇒ 那一拍是挂起收尾唯一的机会。就绪后补跑一次（startIncomingTick 自带
+  //   started 闩，重复调用零副作用），12 秒那拍保留作就绪事件丢失（首装／IDB 不可用）时的兜底。
+  try {
+    const qBoot = function () { try { qAskAuth(); } catch (e0) {} try { startIncomingTick(); } catch (e1) {} };
+    if (window.mochiOnDataReady) window.mochiOnDataReady(qBoot);
+    else document.addEventListener('mochi-restore-done', qBoot);
+  } catch (e2) {}
+  setTimeout(qAskAuth, 2500);
   document.addEventListener('visibilitychange', function () {
     if (document.hidden || !started) return;
     reconcileLiveModals();

@@ -268,6 +268,58 @@ document.addEventListener('mochi-restore-done', syncFreqPills);
 }
 function rootGet(k) { try { return window.xyStore(ROOT).get(k); } catch (e) { return null; } }
 function rootSet(k, v) { try { window.xyStore(ROOT).set(k, v); } catch (e) {} }
+var qAuth = 'pending';
+var qHold = null;
+var qAuthTries = 0;
+var Q_AUTH_BACKOFF = [1500, 4000, 9000, 16000];
+function qIdOf(x) { return String((x && x.cid) || '') + '|' + String((x && x.kind) || '') + '|' + String((x && x.sid) || ''); }
+function qUnion(lib, mine) {
+const byId = Object.create(null), order = [];
+[].concat(lib || [], mine || []).forEach(function (x) {
+if (!x || typeof x !== 'object') return;
+const k = qIdOf(x);
+const prev = byId[k];
+if (!prev) { byId[k] = x; order.push(k); return; }
+if (((x && x.ts) || 0) > ((prev && prev.ts) || 0)) byId[k] = x;
+});
+return order.map(function (k) { return byId[k]; })
+.sort(function (a, b) { return ((a && a.ts) || 0) - ((b && b.ts) || 0); });
+}
+function qDrain() {
+if (qAuth === 'pending') return;
+const hold = qHold;
+qHold = null;
+if (!hold || !hold.length) return;
+let cur = [];
+try { cur = JSON.parse(rootGet(KEY) || '[]'); } catch (e) { cur = []; }
+rootSet(KEY, JSON.stringify(qUnion(Array.isArray(cur) ? cur : [], hold).slice(-MAX)));
+}
+function qAuthRetry() {
+if (qAuthTries >= Q_AUTH_BACKOFF.length) { qAuth = 'ok'; qDrain(); return; } // 有界耗尽＝退回旧语义
+setTimeout(qAskAuth, Q_AUTH_BACKOFF[qAuthTries++]);
+}
+function qAskAuth() {
+if (qAuth !== 'pending') { qDrain(); return; }
+if (!window.idbGet) { qAuth = 'ok'; qDrain(); return; } // 无库可用＝LS 是唯一存储，旧行为
+const info = {};
+try {
+Promise.resolve(window.idbGet(ROOT + ':' + KEY, info)).then(function (v) {
+if (info.ambiguous) { qAuthRetry(); return; }
+qAuth = (v === undefined || v === null) ? 'absent' : 'ok';
+if (qAuth === 'ok') {
+let lib = [];
+try { lib = typeof v === 'string' ? JSON.parse(v) : (Array.isArray(v) ? v : []); } catch (e) { lib = []; }
+if (Array.isArray(lib) && lib.length) {
+let cur = [];
+try { cur = JSON.parse(rootGet(KEY) || '[]'); } catch (e2) { cur = []; }
+const merged = qUnion(lib, Array.isArray(cur) ? cur : []).slice(-MAX);
+if (JSON.stringify(merged) !== JSON.stringify(cur)) rootSet(KEY, JSON.stringify(merged));
+}
+}
+qDrain();
+}, function () { qAuthRetry(); });
+} catch (e) { qAuthRetry(); }
+}
 var ticks = 0;                         // 本会话轮询次数（诊断：定时器活着吗）
 var busyTicks = 0;                     // 连续让路轮数（软互斥逃逸计数）
 var releaseLog = [];                   // 最近释放事件（环形 3 条，供诊断回看）
@@ -312,6 +364,7 @@ if (wasCk) recordMissedCheckin(wasCk);
 function queue() {
 let q = [];
 try { const v = rootGet(KEY); if (v) { const a = JSON.parse(v); if (Array.isArray(a)) q = a; } } catch (e) {}
+if (qAuth === 'pending' && qHold && qHold.length) q = qUnion(q, qHold);
 const now = Date.now();
 let healed = 0;
 q.forEach(function (x) {
@@ -323,11 +376,14 @@ if (x.kind === 'checkin') recordMissedCheckin({ cid: x.cid, text: x.text, ts: ar
 }
 });
 const filtered = q.filter(x => x.status !== 'seen' || now - (x.ts || 0) < seenKeepMs);
-if (healed || filtered.length !== q.length) { rootSet(KEY, JSON.stringify(filtered)); q = filtered; }
+if (healed || filtered.length !== q.length) { saveQ(filtered); q = filtered; } // #1478：与投递路径同一道闸，别从这条支路整包盖回去
 if (healed) noteRelease('跨会话孤儿 pending 释放 ' + healed + ' 条');
 return q;
 }
-function saveQ(q) { rootSet(KEY, JSON.stringify(q.slice(-MAX))); }
+function saveQ(q) {
+if (qAuth === 'pending') { try { qHold = (q || []).slice(); } catch (e) {} return; }
+rootSet(KEY, JSON.stringify((q || []).slice(-MAX)));
+}
 function cName(cid) {
 try {
 const c = (window.getContacts() || []).find(x => x.id === cid);
@@ -345,10 +401,33 @@ a = window.xyStore('xy-home-v2').get('feed-ta-avatar') || '';
 return (a && (a.indexOf('data:') === 0 || /^https?:\/\//i.test(a))) ? a : '';
 } catch (e) { return ''; }
 }
+function ckFlat(t) {
+const s = String(t || '');
+let out = '';
+for (let i = 0; i < s.length; i++) { if (s.charCodeAt(i) > 32) out += s.charAt(i); }
+return out;
+}
 function deskQSeenRecently(cid, text) {
 if (!text) return false;
 try {
-const raw = localStorage.getItem('xy-home-v2:' + cid + ':chat-msgs');
+try {
+const cv = window.storeFor ? window.storeFor(cid).get('records-care') : null;
+if (cv) {
+const rec = JSON.parse(cv);
+const cut = Date.now() - 60 * 60000;
+const nk = ckFlat(text);
+if (Array.isArray(rec) && nk.length > 1) {
+for (let i = 0; i < rec.length; i++) {
+const r0 = rec[i];
+if (!r0 || r0.kind !== 'desk-checkin') continue;
+if (r0.ts && r0.ts < cut) break;
+if (ckFlat(r0.text) === nk) return true;
+}
+}
+}
+} catch (e0) {}
+let raw = null;
+try { raw = localStorage.getItem('xy-home-v2:' + cid + ':chat-msgs'); } catch (e1) { raw = null; }
 if (!raw) return false;
 const arr = JSON.parse(raw);
 if (!Array.isArray(arr)) return false;
@@ -655,6 +734,8 @@ var old = q.filter(function (x) { return x.status === 'pending' && x.bgHold && x
 .reduce(function (m, x) { return Math.min(m, (x.ts || 0) + CK_BG_HOLD_MS); }, Infinity);
 return old === Infinity ? 0 : Math.max(0, old - now);
 })(),
+auth: qAuth, // #1478：这一键的库回没回话（pending＝还在等，整包写回已被闸住；诊断与尺子共用）
+qids: q.map(function (x) { return x.cid + ':' + x.status; }), // #1478：闸门关着时落盘会晚一拍，这是「页面这一本账」的唯一可读出口（诊断与尺子共用）
 live: Object.keys(liveModals).length,
 gate: hardLocked() ? '锁屏中' : (typingBusy() ? '输入中暂停' : (layerBusy() ? ('浮层占用让路' + busyTicks + '/' + BUSY_ESCAPE) : '空闲')),
 hidden: !!document.hidden,
@@ -663,6 +744,7 @@ releases: releaseLog.slice(-2)
 };
 } catch (e) { return null; }
 };
+window.__mochiDeskQSeenProbe = function (cid, text) { try { return deskQSeenRecently(cid, text); } catch (e) { return false; } };
 var started = false;
 function startIncomingTick() {
 if (started) return;
@@ -671,6 +753,12 @@ maybeIncoming();
 setInterval(maybeIncoming, CHECK_MS);
 }
 setTimeout(startIncomingTick, 12000);
+try {
+const qBoot = function () { try { qAskAuth(); } catch (e0) {} try { startIncomingTick(); } catch (e1) {} };
+if (window.mochiOnDataReady) window.mochiOnDataReady(qBoot);
+else document.addEventListener('mochi-restore-done', qBoot);
+} catch (e2) {}
+setTimeout(qAskAuth, 2500);
 document.addEventListener('visibilitychange', function () {
 if (document.hidden || !started) return;
 reconcileLiveModals();

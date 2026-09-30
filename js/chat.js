@@ -649,7 +649,7 @@ if (k.length === arr.length) return; // 一条都没覆盖，不写盘
 try { store.set('chat-tail', JSON.stringify(k)); } catch (e) {}
 } catch (e) {}
 }
-const CHAT_TAIL_INTERACT_FIELDS = ['askQuestion', 'askOptions', 'askType', 'deskCk', 'deskCkDir',
+const CHAT_TAIL_INTERACT_FIELDS = ['askQuestion', 'askOptions', 'askType', 'askMultiMax', 'deskCk', 'deskCkDir',
 'choiceQuestion', 'choiceOptions', 'choicePref', 'choiceCat',
 'curiousQuestion', 'curiousQuick', 'curiousReplies', 'curiousFollowup', 'curiousQid', 'curiousCat',
 'roastText', 'roastCat', 'inviteContent', 'inviteStatus', 'inviteAnswer', 'inviteType'];
@@ -947,7 +947,7 @@ const f = r.curiousQuick.map(o => ICON_CQ_FIX[o] || o);
 if (f.some((o, i) => o !== r.curiousQuick[i])) { r.curiousQuick = f; c = true; }
 }
 if (r.special === 'ask-curious' && typeof r.curiousAnswer === 'string' && ICON_CQ_FIX[r.curiousAnswer]) { r.curiousAnswer = ICON_CQ_FIX[r.curiousAnswer]; c = true; }
-if (!r.ts) { r.ts = Date.now(); c = true; }
+if (!r.ts) { r.ts = (r.rpTs || r.askTs || r.surveyTs || r.dAt) || Date.now(); c = true; }
 } catch (e) {}
 return c;
 }
@@ -2877,12 +2877,13 @@ const opts = Array.isArray(rec.askOptions) ? rec.askOptions : (Array.isArray(rec
 if (!opts.length) return false;
 const rows = [];
 const picked = [];
+const capN = (rec.askMultiMax >= 2 && rec.askMultiMax <= 6) ? rec.askMultiMax : 0;
 const btn = document.createElement('button');
 btn.className = 'ip-multi-submit';
 btn.type = 'button';
 const syncSubmit = () => {
 btn.disabled = !picked.length;
-btn.textContent = picked.length ? '提交（已选 ' + picked.length + ' 个）' : '先勾选答案';
+btn.textContent = picked.length ? '提交（已选 ' + picked.length + (capN ? '/' + capN : '') + ' 个）' : '先勾选答案';
 };
 const repliesOf = o => {
 const r = o && o.reply;
@@ -2899,6 +2900,7 @@ row.innerHTML = '<span class="ip-opt-box"></span><span class="ip-opt-t">' + escT
 (replyArr.length ? '<span class="ip-opt-reply">' + escTxt(replyArr.length > 1 ? replyArr[0] + ' 等' + replyArr.length + '条' : replyArr[0]) + '</span>' : '');
 row.addEventListener('click', () => {
 const at = picked.indexOf(t);
+if (at < 0 && capN && picked.length >= capN) { toast('这题最多选 ' + capN + ' 个'); return; }
 if (at >= 0) picked.splice(at, 1); else picked.push(t);
 row.classList.toggle('on', at < 0);
 syncSubmit();
@@ -3007,8 +3009,12 @@ const rpCard = e.target.closest('.msg-rp-card');
 if (!rpCard) return;
 const rpItem = rpCard.closest('.msg-rp');
 if (!rpItem || rpItem.dataset.idx === undefined) return;
-const rpRec = msgs[Number(rpItem.dataset.idx)];
-if (!rpRec || rpRec.special !== 'redpacket' || rpRec.rpStatus !== 'pending' || rpRec.side !== 'in') return;
+const rpShownDEl = rpItem.querySelector('.msg-rp-status');
+const rpShownD = rpShownDEl ? rpShownDEl.textContent : '';
+const rpHitD = msgRecFromEl(rpItem, function (m) { return rpStatusText(m) === rpShownD; }); // #1477：下标快路径＋data-mk 身份校正；同身份多份取与显示一致那份
+if (!rpHitD) return;
+const rpRec = rpHitD.rec;
+if (!rpRec || rpRec.special !== 'redpacket' || (rpRec.rpStatus || 'pending') !== 'pending' || rpRec.side === 'out') return;
 rpPressTimer = setTimeout(() => {
 rpPressTimer = null;
 rpPressSuppressClick = true;
@@ -3077,11 +3083,15 @@ if (rpPressSuppressClick) { rpPressSuppressClick = false; return; }
 e.stopPropagation();
 const rpItem = rpCard.closest('.msg-rp');
 if (!rpItem || rpItem.dataset.idx === undefined) return;
-const rpIdx = Number(rpItem.dataset.idx);
-const rpRec = msgs[rpIdx];
+const rpShownEl = rpItem.querySelector('.msg-rp-status');
+const rpShown = rpShownEl ? rpShownEl.textContent : '';
+const rpHit = msgRecFromEl(rpItem, function (m) { return rpStatusText(m) === rpShown; }); // #1477：旧下标会把同屏别的消息当成这张卡；同身份多份时取「与卡片显示一致」那份
+if (!rpHit) return;
+const rpIdx = rpHit.idx;
+const rpRec = rpHit.rec;
 if (!rpRec || rpRec.special !== 'redpacket') return;
-if (rpRec.rpStatus !== 'pending') return;
-if (rpRec.side !== 'in') { toast(window.taFit ? window.taFit('等待 TA 领取') : '等待 TA 领取'); return; }
+if ((rpRec.rpStatus || 'pending') !== 'pending') return; // #1477：与卡片状态文案同口径（falsy＝待领取）
+if (rpRec.side === 'out') { toast(window.taFit ? window.taFit('等待 TA 领取') : '等待 TA 领取'); return; } // #1477：与「我 发出」渲染同侧判据（side 缺失的历史卡＝联系人发出，可领）
 rpRec.rpStatus = 'received';
 rpRec.rpOpenedAt = Date.now();
 const wallet = rpWalletGet();
@@ -4176,9 +4186,33 @@ im.replaceWith(ph);
 });
 });
 }
+function msgRecTsOf(rec) {
+return (rec && (rec.ts || rec.rpTs || rec.askTs || rec.surveyTs || rec.dAt)) || 0;
+}
 function msgKeyOf(rec) {
 if (!rec) return '';
-return (rec.ts || 0) + '|' + (rec.side || '') + '|' + (rec.type || '') + '|' + String(rec.text || '').slice(0, 80);
+return msgRecTsOf(rec) + '|' + (rec.side || '') + '|' + (rec.type || '') + '|' + String(rec.text || '').slice(0, 80) + chatRecCardExtra(rec);
+}
+function msgRecFromEl(item, prefer) {
+if (!item || item.dataset.idx === undefined) return null;
+const _i = Number(item.dataset.idx);
+const _mk = item.dataset.mk || '';
+let rec = (_i >= 0 && _i < msgs.length) ? msgs[_i] : null;
+const okFast = !!(rec && _mk && msgKeyOf(rec) === _mk);
+if (okFast && typeof prefer !== 'function') return { rec: rec, idx: _i };
+if (_mk) {
+let best = -1, first = -1;
+for (let j = 0; j < msgs.length; j++) {
+const m = msgs[j];
+if (!m || msgKeyOf(m) !== _mk) continue;
+if (first < 0) first = j;
+if (typeof prefer === 'function' && prefer(m)) { best = j; break; }
+}
+const j = (best >= 0) ? best : first;
+if (j >= 0) { item.dataset.idx = String(j); return { rec: msgs[j], idx: j }; }
+}
+if (okFast) return { rec: rec, idx: _i };
+return rec ? { rec: rec, idx: _i } : null;
 }
 function surveyCardHtml(rec) {
 const qs = Array.isArray(rec.surveyQs) ? rec.surveyQs : [];
@@ -4590,7 +4624,7 @@ m.innerHTML = '<div class="msg-ask-card' + (answered ? ' answered' : '') + '">' 
 '<div class="msg-ask-q">' + escTxt(rec.askQuestion || rec.text) + '</div>' +
 (answered
 ? '<div class="msg-ask-a">✓ 已回答：' + escTxt(rec.askAnswer) + '</div>' + (rec.askReply ? '<div class="msg-choose-r">' + T('TA：') + escTxt(T(askCardReplyClean(rec.askReply))) + '</div>' : '')
-: '<div class="msg-ask-tip">' + (isMulti ? '可多选，选完点「提交」' : isSingle ? '点击选择你的答案' : T('点击回答 TA 的提问')) + '</div>') +
+: '<div class="msg-ask-tip">' + (isMulti ? ((rec.askMultiMax >= 2 && rec.askMultiMax <= 6) ? '最多选 ' + rec.askMultiMax + ' 个，选完点「提交」' : '可多选，选完点「提交」') : isSingle ? '点击选择你的答案' : T('点击回答 TA 的提问')) + '</div>') +
 favHeartHtml(rec) +
 '</div>';
 appendMsg(m);
@@ -5560,6 +5594,16 @@ consume(Array.isArray(a) ? a : []);
 }).catch(function () { consume([]); });
 } catch (e) {}
 }
+let chatXtxWriteSeen = false;
+window.addEventListener('storage', function (e) {
+try {
+const k = e && e.key ? String(e.key) : '';
+const pre = window.activePrefix();
+if (!k || !pre) return;
+if (k === pre + ':chat-msgs' || k === pre + ':chat-desk-inbox' || k === pre + ':chat-tail' || k.indexOf('chat-blk') >= 0) chatXtxWriteSeen = true;
+} catch (err) {}
+});
+window.chatXtxWriteSeenForDebug = function () { return chatXtxWriteSeen; }; // 只读：供 verify 脚本判「这一发证据有没有被消费掉」
 window.chatAppendToDeskMsg = function (cid, text, opts) {
 opts = opts || {};
 const cur = window.__activeCid || 'default';
@@ -7173,7 +7217,18 @@ updateChatLoading(); // #703：先于 loadMsgs 置位——loadMsgs 里同步 pa
 scrollChatBottom();
 chatEnterPaintThen(function () {
 try { if (window.hydrateLibScopes) window.hydrateLibScopes(['own', 'public']); } catch (e) {}
-loadMsgs();
+let csAuthHere = false;
+try { csAuthHere = authLoadedPrefix === window.activePrefix() && msgs.length > 0 && !chatXtxWriteSeen; } catch (e) {}
+if (!csAuthHere) { chatXtxWriteSeen = false; loadMsgs(); } // 起读＝消费掉这一发证据：一趟只认一次，读完由权威落定那一段重新记账
+else {
+let csInboxHas = true; // 量不动＝保守起读（不把「读不到」当成「没有」）
+try {
+const csRawInbox = localStorage.getItem(window.activePrefix() + ':chat-desk-inbox');
+csInboxHas = false;
+if (csRawInbox) { const csArrInbox = JSON.parse(csRawInbox); csInboxHas = Array.isArray(csArrInbox) ? csArrInbox.length > 0 : csRawInbox.length > 2; }
+} catch (e) { csInboxHas = true; }
+if (csInboxHas) loadMsgs();
+}
 if (inplacePatchIfSameWindow()) { chatRebuilding = false; updateChatLoading(); } // #841j：同窗补丁命中＝零重建无空窗，就地交回标志（不等 renderWindow 接手）
 else renderWindow(false, true);
 scrollToBottom();
@@ -7991,7 +8046,7 @@ const st = rec.rpStatus || 'pending';
 if (st === 'received') return '已领取';
 if (st === 'expired') return '已过期·退回';
 if (st === 'returned') return '已退回';
-return rec.side === 'in' ? '待领取' : (window.taFit ? window.taFit('待TA领取') : '待TA领取');
+return rec.side === 'out' ? (window.taFit ? window.taFit('待TA领取') : '待TA领取') : '待领取'; // #1477：side 缺失的历史卡与渲染的「联系人 发出」同侧＝待我领取
 }
 function rpStatusCls(rec) {
 const st = rec.rpStatus || 'pending';
