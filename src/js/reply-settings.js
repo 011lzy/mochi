@@ -415,7 +415,11 @@
       val.setAttribute('value', String(v));
     });
   }
+  // #1511：本会话真实动过的设置键（直接点开关/步进/胶囊＝屏面即用户意图）。
+  // 「保存设置」整包写回时「动过的照常写、没动过的要过读数闸」全靠这本账（见 replyKeyUnvouched）。
+  const sessionSavedKeys = new Set();
   window.saveReplyCfg = function (k, v) {
+    try { sessionSavedKeys.add(k); } catch (e0) {}
     if (k.indexOf('gc-') === 0) {
       if (PAIR_SIB[k]) writePairedRange(k, v); else gcWrite(k, v);
       if (k.indexOf('gc-cs-') === 0) document.dispatchEvent(new Event('gc-continue-say-changed'));
@@ -1636,9 +1640,43 @@
 
   // v3.6.x：「保存设置」按钮——把当前页面上所有概率/开关一次性写入本地并提示。
   // 数值本身已随点击即时保存，这里提供明确的「保存」反馈（用户反馈刷新后设置会丢）
+  // ===== #1511 「保存设置」不许拿没读全的屏面值整包顶库 =====
+  // （#1342 美化方案「无法保存，重新刷新过后数据会被清除」iPhone 实报／#1488 市集冷读顶库同族第三处：
+  //   本页＝从存储渲染 →「保存设置」把页面全部 stepper/开关值整包写回。启动回填（idbRestore）
+  //   落定前、或这台机 LS 写失败（配额满/杀进程回滚）只靠 IDB 时，屏面值可能是默认/旧账——
+  //   此刻整包落笔＝把几十枚键一次性顶回默认/旧值，用户看到「保存了，刷新之后又变回去」。
+  //   判据两格，全部当场事实，零机型／零 UA 分支：
+  //   ① store.awaitingBigKey＝数据层唯一那把「这一格读空而库里本该有」的尺（四格证人含
+  //     启动回填未落定 mochiDataPending）；
+  //   ② 启动回填未落定（mochiDataPending）且本会话没动过这一格——LS 里那份可能是写失败
+  //     设备的存量旧账（回填对已有 LS 键不覆盖），没动过＝屏面值没有本会话的新意，顶库纯亏。
+  //   本会话动过的键（sessionSavedKeys，直接交互已即时落库）屏面即意图，照常写＝同 #1342
+  //   「写过即放行」，不把这道闸变成新的存不进去；回填自带 2 分钟上限，健康设备 1~3 秒
+  //   落定＝这道闸对绝大多数会话零感知。
+  function replyStoreFor(k) {
+    if (k.indexOf('gc-') === 0) { try { return window.xyStore ? window.xyStore('xy-home-v2') : null; } catch (e) { return null; } }
+    return ls;
+  }
+  function replyFullKey(k) { return (k.indexOf('gc-') === 0 ? 'reply-gc-' : 'reply-') + k; }
+  function replyKeyUnvouched(k) {
+    const st = replyStoreFor(k);
+    try { if (st && typeof st.awaitingBigKey === 'function' && st.awaitingBigKey(replyFullKey(k))) return true; } catch (e) {}
+    try {
+      if (!sessionSavedKeys.has(k) && window.mochiDataPending && window.mochiDataPending()) return true;
+    } catch (e) {}
+    return false;
+  }
+  function replyAskRehydrate(k) {
+    const st = replyStoreFor(k);
+    try { if (st && st.requestBigKey) st.requestBigKey(replyFullKey(k)); } catch (e) {}
+  }
+  function replyBlockedToast() {
+    toastReply('部分设置这次没读全（存储正忙），先不覆盖：等几秒再点一次保存即可，不需要重新设置', 3200);
+  }
   // v3.26.x：抽出 saveCurrentReplyPage() 公共函数——「保存设置」与「保存全部桌面联系人
   // 设置」共用同一套页面值校验+写入（stepper 范围校验 + 开关落盘），避免两份逻辑漂移
   function saveCurrentReplyPage() {
+    const skipped = []; // #1511：读数未确认的键（这格此刻可能是默认/旧账），不拿屏面值顶库
     try {
       document.querySelectorAll('#page-reply-settings .stepper, #page-call-settings .stepper').forEach(st => {
         const k = st.dataset.k;
@@ -1646,6 +1684,7 @@
         // 同 syncUI：固定选 input.stp-val，避免转换后误读到 ce-box DIV 的过期 expando
         const val = st.querySelector('input.stp-val');
         if (k && val) {
+          if (replyKeyUnvouched(k)) { skipped.push(k); return; } // #1511：这格读数未确认，不拿屏面值顶库
           // 与直接输入同一套范围校验（data-max 缺失 = 不设上限，防 NaN/Infinity 入库）
           const intAttr = (name, def) => { const v = parseInt(st.getAttribute(name), 10); return Number.isNaN(v) ? def : v; };
           const min = intAttr('data-min', 0);
@@ -1658,9 +1697,13 @@
       });
       ['py-en', 'py-punct-en', 'as-en', 'dnd-en', 'as-badge', 'as-badge-heart', 'as-badge-star', 'as-badge-moon', 'as-badge-spark', 'as-badge-paw', 'as-badge-rand', 'ml-kaomoji-en', 'ml-emoji-en', 'ml-sticker-en', 'cs-normal', 'cs-trigger-name', 'cs-trigger-bar', 'gc-cs-normal', 'gc-cs-trigger-name', 'gc-cs-trigger-bar', 'gc-py-en', 'ai-rps-en', 'ai-game-en', 'ai-cuddle-en', 'ai-cc-en', 'ckq-en', 'call-resume', 'call-no-hangup', 'ml-write-en', 'ml-fish-week-en', 'ml-punct-en', 'fd-post-en', 'fd-punct-en', 'fd-kaomoji-en', 'fd-emoji-en', 'fd-sticker-en', 'fd-image-en', 'qs-en', 'qs-cc', 'qs-one', 'qs-multi', 'qs-noLimit', 'mjf-en', 'mjf-src-cc', 'mjf-src-def', 'mjf-src-dict', 'mjf-mix', 'mjf-punct', 'rc-en', 'rl-en', 'fish-en', 'work-en', 'fish-grab-en', 'rp-thx-en', 'turn-en', 'gc-turn-en'].forEach(k => {
         const el = document.getElementById(k);
-        if (el) window.saveReplyCfg(k, el.checked ? 1 : 0);
+        if (el) {
+          if (replyKeyUnvouched(k)) { if (skipped.indexOf(k) < 0) skipped.push(k); return; } // #1511：同上，读数未确认不落笔
+          window.saveReplyCfg(k, el.checked ? 1 : 0);
+        }
       });
     } catch (e) {}
+    return skipped;
   }
   function toastReply(msg, ms) {
     const d = ccToastEnsure();
@@ -1669,7 +1712,14 @@
   const saveBtn = document.getElementById('reply-save-btn');
   if (saveBtn) {
     saveBtn.addEventListener('click', () => {
-      saveCurrentReplyPage();
+      const skipped = saveCurrentReplyPage();
+      if (skipped && skipped.length) {
+        // #1511：这页还有没读全的格子，整包保存＝拿默认/旧账顶库——不落笔＋请一趟库＋照实说；
+        // 回填落定后 mochi-restore-done 会重画本页（下方既有接线），再点一次保存即生效
+        replyAskRehydrate(skipped[0]);
+        replyBlockedToast();
+        return;
+      }
       toastReply('已保存全部回复设置');
     });
   }
@@ -1681,7 +1731,14 @@
   // DEFAULTS），保证同步后各桌面回复设置完全一致。覆盖各桌面现有设置 → openModal
   // 二次确认（同美化方案「应用」弹窗模式，pill 预选「确定保存」保证只点底部确定也生效）
   function saveAllContactsDo() {
-    saveCurrentReplyPage();
+    // #1511：同步全部桌面＝拿当前生效值铺满所有联系人——当前页还有没读全的格子时
+    //（getCfg 此时读到的会是默认/旧账），这一步会把旧账写进每一个桌面，破坏面比单桌面更大，先拦
+    const skipped = saveCurrentReplyPage();
+    if (skipped && skipped.length) {
+      replyAskRehydrate(skipped[0]);
+      replyBlockedToast();
+      return;
+    }
     let count = 0;
     try {
       if (window.getContacts && window.storeFor) {

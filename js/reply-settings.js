@@ -197,7 +197,9 @@ val.value = String(v);
 val.setAttribute('value', String(v));
 });
 }
+const sessionSavedKeys = new Set();
 window.saveReplyCfg = function (k, v) {
+try { sessionSavedKeys.add(k); } catch (e0) {}
 if (k.indexOf('gc-') === 0) {
 if (PAIR_SIB[k]) writePairedRange(k, v); else gcWrite(k, v);
 if (k.indexOf('gc-cs-') === 0) document.dispatchEvent(new Event('gc-continue-say-changed'));
@@ -1223,13 +1225,35 @@ const genRow2 = document.getElementById('row-general');
 if (genRow2) genRow2.addEventListener('click', () => { try { icSync(); } catch (e) {} });
 }
 })();
+function replyStoreFor(k) {
+if (k.indexOf('gc-') === 0) { try { return window.xyStore ? window.xyStore('xy-home-v2') : null; } catch (e) { return null; } }
+return ls;
+}
+function replyFullKey(k) { return (k.indexOf('gc-') === 0 ? 'reply-gc-' : 'reply-') + k; }
+function replyKeyUnvouched(k) {
+const st = replyStoreFor(k);
+try { if (st && typeof st.awaitingBigKey === 'function' && st.awaitingBigKey(replyFullKey(k))) return true; } catch (e) {}
+try {
+if (!sessionSavedKeys.has(k) && window.mochiDataPending && window.mochiDataPending()) return true;
+} catch (e) {}
+return false;
+}
+function replyAskRehydrate(k) {
+const st = replyStoreFor(k);
+try { if (st && st.requestBigKey) st.requestBigKey(replyFullKey(k)); } catch (e) {}
+}
+function replyBlockedToast() {
+toastReply('部分设置这次没读全（存储正忙），先不覆盖：等几秒再点一次保存即可，不需要重新设置', 3200);
+}
 function saveCurrentReplyPage() {
+const skipped = []; // #1511：读数未确认的键（这格此刻可能是默认/旧账），不拿屏面值顶库
 try {
 document.querySelectorAll('#page-reply-settings .stepper, #page-call-settings .stepper').forEach(st => {
 const k = st.dataset.k;
 if (!k) return; // #518：分类档自定义行无 data-k，跳过防 reply-undefined 落盘
 const val = st.querySelector('input.stp-val');
 if (k && val) {
+if (replyKeyUnvouched(k)) { skipped.push(k); return; } // #1511：这格读数未确认，不拿屏面值顶库
 const intAttr = (name, def) => { const v = parseInt(st.getAttribute(name), 10); return Number.isNaN(v) ? def : v; };
 const min = intAttr('data-min', 0);
 const max = intAttr('data-max', Infinity);
@@ -1241,9 +1265,13 @@ window.saveReplyCfg(k, v);
 });
 ['py-en', 'py-punct-en', 'as-en', 'dnd-en', 'as-badge', 'as-badge-heart', 'as-badge-star', 'as-badge-moon', 'as-badge-spark', 'as-badge-paw', 'as-badge-rand', 'ml-kaomoji-en', 'ml-emoji-en', 'ml-sticker-en', 'cs-normal', 'cs-trigger-name', 'cs-trigger-bar', 'gc-cs-normal', 'gc-cs-trigger-name', 'gc-cs-trigger-bar', 'gc-py-en', 'ai-rps-en', 'ai-game-en', 'ai-cuddle-en', 'ai-cc-en', 'ckq-en', 'call-resume', 'call-no-hangup', 'ml-write-en', 'ml-fish-week-en', 'ml-punct-en', 'fd-post-en', 'fd-punct-en', 'fd-kaomoji-en', 'fd-emoji-en', 'fd-sticker-en', 'fd-image-en', 'qs-en', 'qs-cc', 'qs-one', 'qs-multi', 'qs-noLimit', 'mjf-en', 'mjf-src-cc', 'mjf-src-def', 'mjf-src-dict', 'mjf-mix', 'mjf-punct', 'rc-en', 'rl-en', 'fish-en', 'work-en', 'fish-grab-en', 'rp-thx-en', 'turn-en', 'gc-turn-en'].forEach(k => {
 const el = document.getElementById(k);
-if (el) window.saveReplyCfg(k, el.checked ? 1 : 0);
+if (el) {
+if (replyKeyUnvouched(k)) { if (skipped.indexOf(k) < 0) skipped.push(k); return; } // #1511：同上，读数未确认不落笔
+window.saveReplyCfg(k, el.checked ? 1 : 0);
+}
 });
 } catch (e) {}
+return skipped;
 }
 function toastReply(msg, ms) {
 const d = ccToastEnsure();
@@ -1252,12 +1280,22 @@ if (d) { d.textContent = msg; d.className = 'cc-toast'; void d.offsetWidth; d.cl
 const saveBtn = document.getElementById('reply-save-btn');
 if (saveBtn) {
 saveBtn.addEventListener('click', () => {
-saveCurrentReplyPage();
+const skipped = saveCurrentReplyPage();
+if (skipped && skipped.length) {
+replyAskRehydrate(skipped[0]);
+replyBlockedToast();
+return;
+}
 toastReply('已保存全部回复设置');
 });
 }
 function saveAllContactsDo() {
-saveCurrentReplyPage();
+const skipped = saveCurrentReplyPage();
+if (skipped && skipped.length) {
+replyAskRehydrate(skipped[0]);
+replyBlockedToast();
+return;
+}
 let count = 0;
 try {
 if (window.getContacts && window.storeFor) {
