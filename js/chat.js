@@ -947,7 +947,7 @@ const f = r.curiousQuick.map(o => ICON_CQ_FIX[o] || o);
 if (f.some((o, i) => o !== r.curiousQuick[i])) { r.curiousQuick = f; c = true; }
 }
 if (r.special === 'ask-curious' && typeof r.curiousAnswer === 'string' && ICON_CQ_FIX[r.curiousAnswer]) { r.curiousAnswer = ICON_CQ_FIX[r.curiousAnswer]; c = true; }
-if (!r.ts) { r.ts = Date.now(); c = true; }
+if (!r.ts) { r.ts = (r.rpTs || r.askTs || r.surveyTs || r.dAt) || Date.now(); c = true; }
 } catch (e) {}
 return c;
 }
@@ -3007,8 +3007,10 @@ const rpCard = e.target.closest('.msg-rp-card');
 if (!rpCard) return;
 const rpItem = rpCard.closest('.msg-rp');
 if (!rpItem || rpItem.dataset.idx === undefined) return;
-const rpRec = msgs[Number(rpItem.dataset.idx)];
-if (!rpRec || rpRec.special !== 'redpacket' || rpRec.rpStatus !== 'pending' || rpRec.side !== 'in') return;
+const rpHitD = msgRecFromEl(rpItem); // #1477：下标快路径＋data-mk 身份校正（msgs 画后重排＝旧下标读错条）
+if (!rpHitD) return;
+const rpRec = rpHitD.rec;
+if (!rpRec || rpRec.special !== 'redpacket' || (rpRec.rpStatus || 'pending') !== 'pending' || rpRec.side === 'out') return;
 rpPressTimer = setTimeout(() => {
 rpPressTimer = null;
 rpPressSuppressClick = true;
@@ -3077,11 +3079,13 @@ if (rpPressSuppressClick) { rpPressSuppressClick = false; return; }
 e.stopPropagation();
 const rpItem = rpCard.closest('.msg-rp');
 if (!rpItem || rpItem.dataset.idx === undefined) return;
-const rpIdx = Number(rpItem.dataset.idx);
-const rpRec = msgs[rpIdx];
+const rpHit = msgRecFromEl(rpItem); // #1477：同长按分支——旧下标会把同屏别的消息当成这张卡
+if (!rpHit) return;
+const rpIdx = rpHit.idx;
+const rpRec = rpHit.rec;
 if (!rpRec || rpRec.special !== 'redpacket') return;
-if (rpRec.rpStatus !== 'pending') return;
-if (rpRec.side !== 'in') { toast(window.taFit ? window.taFit('等待 TA 领取') : '等待 TA 领取'); return; }
+if ((rpRec.rpStatus || 'pending') !== 'pending') return; // #1477：与卡片状态文案同口径（falsy＝待领取）
+if (rpRec.side === 'out') { toast(window.taFit ? window.taFit('等待 TA 领取') : '等待 TA 领取'); return; } // #1477：与「我 发出」渲染同侧判据（side 缺失的历史卡＝联系人发出，可领）
 rpRec.rpStatus = 'received';
 rpRec.rpOpenedAt = Date.now();
 const wallet = rpWalletGet();
@@ -4176,9 +4180,24 @@ im.replaceWith(ph);
 });
 });
 }
+function msgRecTsOf(rec) {
+return (rec && (rec.ts || rec.rpTs || rec.askTs || rec.surveyTs || rec.dAt)) || 0;
+}
 function msgKeyOf(rec) {
 if (!rec) return '';
-return (rec.ts || 0) + '|' + (rec.side || '') + '|' + (rec.type || '') + '|' + String(rec.text || '').slice(0, 80);
+return msgRecTsOf(rec) + '|' + (rec.side || '') + '|' + (rec.type || '') + '|' + String(rec.text || '').slice(0, 80) + chatRecCardExtra(rec);
+}
+function msgRecFromEl(item) {
+if (!item || item.dataset.idx === undefined) return null;
+const _i = Number(item.dataset.idx);
+const _mk = item.dataset.mk || '';
+let rec = (_i >= 0 && _i < msgs.length) ? msgs[_i] : null;
+if (rec && _mk && msgKeyOf(rec) === _mk) return { rec: rec, idx: _i };
+if (_mk) {
+const j = msgs.findIndex(mkMsg => msgKeyOf(mkMsg) === _mk);
+if (j >= 0) { item.dataset.idx = String(j); return { rec: msgs[j], idx: j }; }
+}
+return rec ? { rec: rec, idx: _i } : null;
 }
 function surveyCardHtml(rec) {
 const qs = Array.isArray(rec.surveyQs) ? rec.surveyQs : [];
@@ -7991,7 +8010,7 @@ const st = rec.rpStatus || 'pending';
 if (st === 'received') return '已领取';
 if (st === 'expired') return '已过期·退回';
 if (st === 'returned') return '已退回';
-return rec.side === 'in' ? '待领取' : (window.taFit ? window.taFit('待TA领取') : '待TA领取');
+return rec.side === 'out' ? (window.taFit ? window.taFit('待TA领取') : '待TA领取') : '待领取'; // #1477：side 缺失的历史卡与渲染的「联系人 发出」同侧＝待我领取
 }
 function rpStatusCls(rec) {
 const st = rec.rpStatus || 'pending';

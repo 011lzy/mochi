@@ -4346,7 +4346,7 @@ const FIX_SENTINELS = [
   { name: '#929b 开屏「建议添加到主屏幕」提示行在位（删＝iOS 浏览器内用户继续裸奔在最高清数据风险档，本批报障复发）', file: 'template.html', needle: 'id="splash-ios-pwa-tip"', absent: true }, // #1216 该条已并入 iPhone 章（正锚见 #1216f/g）＝提示行本身转删除型
   /* ==== 2026-09-20 #932 字卡状态自检纳入「整组停用」（#926 的 dc-groups-off）：此前本页只按 dc-off-* 逐张统计＝整组停用清空分类时自检报「未发现明显问题」、一键修复也不接管 ==== */
   // #937 功能探索提醒（fhub-seen 埋点 + 「还没试过」横幅/角标 + contacts 全局键登记与存量找回）
-  { name: '#937a fhub 统计键全局根键登记（漏登记＝migrateLegacy 每次刷新把 fhub-freq/fhub-seen 迁进 default 并删根键，跨桌面常用行/到达标记全丢；#1475 重锚：age-confirmed 排后同一数组，数组尾括号随之后移）', file: 'js/contacts.js', needle: "'fhub-freq', 'fhub-seen'," },
+  { name: '#937a fhub 统计键全局根键登记（漏登记＝migrateLegacy 每次刷新把 fhub-freq/fhub-seen 迁进 default 并删根键，跨桌面常用行/到达标记全丢）', file: 'js/contacts.js', needle: "'fhub-freq', 'fhub-seen'];" },
   // #937b 换锚（#1293）：本批把回收列表尾追加 screen-adj-* 后，旧的「].forEach」行尾形态失配，
   // 改取列表中段的三项连写（同 #4187 那次的处置口径：同名换 needle，条目不缩）。
   { name: '#937b fhub-freq 存量误迁副本写回根键（删＝修复前滞留在 default 的点击计数找不回，「常用」行白丢）', file: 'js/contacts.js', needle: "'full-beauty-schemes', 'fhub-freq', 'fhub-seen'," },
@@ -6113,7 +6113,7 @@ const FIX_SENTINELS = [
   { name: '#1452a 目录行「首开才建」的幂等闸（删＝每进一次功能大全就重建整张目录＝节点与长任务翻倍，阶段 A 修复当场失效）', file: 'js/feature-hub.js', needle: 'if (built) return;' },
   { name: '#1452b 首开的 hidden 观察器兜底（删＝不经 openHub 的直接显隐路径不再建页＝空白页；已建则由 1452a 的闸空转）', file: 'js/feature-hub.js', needle: "attributeFilter: ['hidden']" },
   /* ==== 2026-09-29 #1459 免责声明「按 B+C 方案修改并同步两源」（作者直派）：在 #1453 七条上做措辞修正 + 条款补充共九条。两源＝站内三处落点（开屏卡 #splash-disclaimer / 设置→关于 #about-disclaimer-sub / 使用说明第 15 章摘要，均在 src/template.html）＋仓库根 README.md「免责声明（重要）」（README 末条自证「同步展示于站点开屏页」）。以下 needle 均取单行内片段，minify 不削。 ==== */
-  { name: '#1459a 免责卡「在法律法规允许的最大范围内」限定在前（删/改回无上限免责＝B① 修正丢失；两处落点同口径，命中其一即算在；#1475 重锚：免责句随作者直派改写为「无论基于何种原因…直接、间接、附带或后果性」，旧句随改写退役）', file: 'template.html', needle: '作者均不承担任何直接、间接、附带或后果性的责任' },
+  { name: '#1459a 免责卡「在法律法规允许的最大范围内」限定在前（删/改回无上限免责＝B① 修正丢失；两处落点同口径，命中其一即算在）', file: 'template.html', needle: '在法律法规允许的最大范围内，作者不承担任何直接或间接责任' },
   { name: '#1459b 免责卡「不构成任何形式的承诺、建议或专业意见，不产生任何法律效力」（删/改回「不具备任何真实、法律、医疗、心理或情感效力」＝B② 修正丢失）', file: 'template.html', needle: '不构成任何形式的承诺、建议或专业意见，不产生任何法律效力' },
   { name: '#1459c 免责卡紧急情形指引（删＝只剩心理援助热线 12356、没有 110/120 与就近急诊这条 C① 补充）', file: 'template.html', needle: '请立即拨打 110（报警）或 120（急救），或前往就近医院急诊' },
   { name: '#1459d 免责卡第 8 条停更对表「停更不等于下线」（删/改回「已宣布 2026 年 9 月底后永久停更」＝C③ 的事实时效修正回退）', file: 'template.html', needle: '停更不等于下线' },
@@ -6195,11 +6195,13 @@ const FIX_SENTINELS = [
   { name: "#1473c 「测试 → 没看到」排查表新增关勿扰那一腿（网页读不到系统勿扰状态，只能教用户自查通知栏）", file: 'js/bg-keep.js', needle: "push('先关勿扰/免打扰" },
   { name: '#1473d 开屏公告·在线权威源（notice.json）补收不到④勿扰条', file: 'pwa/notice.json', needle: '收不到④·手机开了勿扰/免打扰' },
   { name: '#1473e 开屏公告·离线兜底（template.html）同条在位（断网用户看到的那份与在线源两份同步）', file: 'template.html', needle: '收不到④·手机开了勿扰/免打扰</b>' },
-  // ==== v8.56 #1475 免责声明存证＋标准条款批——同意记录改存「时间戳＋声明版本」JSON（改版自动重确认）＋免责卡补「按现状无担保／免费无对价／可分割性／第三方托管」＋第 3 条强化（后果自担自行负责＋最大范围内无论何种原因免责）；README/设置→关于/第15章三处同批同步 ====
-  { name: '#1475a 同意存证写入口（删＝勾选后退回裸 1，无时间无版本，改版重确认与事后举证双双失效）', file: 'js/clock.js', needle: 'JSON.stringify({ t: Date.now(), v: AGE_VER })' },
-  { name: '#1475b 声明版本比对闸（删＝免责声明改版后旧确认仍放行＝re-consent 失效，用户永远停在旧版本的同意上）', file: 'js/clock.js', needle: 'ageOk = !!(obj && obj.v === AGE_VER);' },
-  { name: '#1475c 免责卡「按现状提供＋无担保」条款在位（删＝AS-IS 无担保与第三方托管免责整条丢失；needle 取开屏卡特有措辞，设置→关于同条为有意微差的另一形态）', file: 'template.html', needle: '不作任何形式的明示或默示保证，包括但不限于持续可用' },
-  { name: '#1475d 同意记录根键免迁移（漏登记＝migrateLegacy 每次启动把 age-confirmed 搬进 default 并删根键＝改版重确认退化成每次开屏都重确认，#315c 起的存量隐性 bug）', file: 'js/contacts.js', needle: "'age-confirmed']" },
+  { name: '#1477a 互动卡点击解析的身份校验快路径（删＝msgs 画后重排时旧下标读错条，「联系人发的红包点不动」回归）', file: 'js/chat.js', needle: 'const okFast = !!(rec && _mk && msgKeyOf(rec) === _mk);' },
+  { name: '#1477b 红包领取分支走身份解析＋显示状态 tie-break（删＝只修长按不修领取，主症状回归）', file: 'js/chat.js', needle: 'const rpHit = msgRecFromEl(rpItem, function (m) { return rpStatusText(m) === rpShown; });' },
+  { name: '#1477g 红包长按退回分支走同一解析（删＝长按退回仍按旧下标读错条，退错红包/退不动）', file: 'js/chat.js', needle: 'const rpHitD = msgRecFromEl(rpItem, function (m) { return rpStatusText(m) === rpShownD; });' },
+  { name: '#1477c 身份反查命中后把节点下标修回真值（删＝就地状态补丁 rpPatchStatusInPlace 找不到节点＝领取后整窗重建闪屏回归）', file: 'js/chat.js', needle: 'if (j >= 0) { item.dataset.idx = String(j); return { rec: msgs[j], idx: j }; }' },
+  { name: '#1477d normCell 无 ts 存量改盖自身事件时间（删＝每次首遇跳到数组末尾的漂移驱动回归，#407 同族）', file: 'js/chat.js', needle: 'if (!r.ts) { r.ts = (r.rpTs || r.askTs || r.surveyTs || r.dAt) || Date.now(); c = true; }' },
+  { name: "#1477e msgKeyOf 拼卡片身份字段＋时间同链（删＝同毫秒同侧两张红包分不开／盖章后 data-mk 失效）", file: 'js/chat.js', needle: "String(rec.text || '').slice(0, 80) + chatRecCardExtra(rec);" },
+  { name: '#1477f 待领取侧判据与「联系人 发出」渲染对齐（删＝side 缺失历史卡显示可领、点了一样「等待TA领取」自相矛盾）', file: 'js/chat.js', needle: "return rec.side === 'out' ? (window.taFit ? window.taFit('待TA领取') : '待TA领取') : '待领取';" },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

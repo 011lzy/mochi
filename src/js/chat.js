@@ -1278,7 +1278,11 @@ if (pyChipDropIfSingle(r)) c = true;
       if (f.some((o, i) => o !== r.curiousQuick[i])) { r.curiousQuick = f; c = true; }
     }
     if (r.special === 'ask-curious' && typeof r.curiousAnswer === 'string' && ICON_CQ_FIX[r.curiousAnswer]) { r.curiousAnswer = ICON_CQ_FIX[r.curiousAnswer]; c = true; }
-    if (!r.ts) { r.ts = Date.now(); c = true; }
+    // #1477：无 ts 的存量记录改盖「自身事件时间」（红包 rpTs／申请 askTs／问卷 surveyTs／投递 dAt），
+    // 不再盖加载时刻的 Date.now()——旧写法让这类记录每次首遇都变「最新一条」，下一次按 ts 升序
+    // 合并排序即被挪到数组末尾，而 DOM 的 data-idx/data-mk 是按旧顺序画的 ⇒ 点卡片读到别的消息
+    //（「联系人发的红包无法点击领取」的漂移驱动）。链与 msgKeyOf 的 msgRecTsOf 同一条，两头要一起改。
+    if (!r.ts) { r.ts = (r.rpTs || r.askTs || r.surveyTs || r.dAt) || Date.now(); c = true; }
   } catch (e) {}
   return c;
 }
@@ -4090,8 +4094,12 @@ const rpCard = e.target.closest('.msg-rp-card');
 if (!rpCard) return;
 const rpItem = rpCard.closest('.msg-rp');
 if (!rpItem || rpItem.dataset.idx === undefined) return;
-const rpRec = msgs[Number(rpItem.dataset.idx)];
-if (!rpRec || rpRec.special !== 'redpacket' || rpRec.rpStatus !== 'pending' || rpRec.side !== 'in') return;
+const rpShownDEl = rpItem.querySelector('.msg-rp-status');
+const rpShownD = rpShownDEl ? rpShownDEl.textContent : '';
+const rpHitD = msgRecFromEl(rpItem, function (m) { return rpStatusText(m) === rpShownD; }); // #1477：下标快路径＋data-mk 身份校正；同身份多份取与显示一致那份
+if (!rpHitD) return;
+const rpRec = rpHitD.rec;
+if (!rpRec || rpRec.special !== 'redpacket' || (rpRec.rpStatus || 'pending') !== 'pending' || rpRec.side === 'out') return;
 rpPressTimer = setTimeout(() => {
 rpPressTimer = null;
 rpPressSuppressClick = true;
@@ -4171,11 +4179,15 @@ if (rpPressSuppressClick) { rpPressSuppressClick = false; return; }
 e.stopPropagation();
 const rpItem = rpCard.closest('.msg-rp');
 if (!rpItem || rpItem.dataset.idx === undefined) return;
-const rpIdx = Number(rpItem.dataset.idx);
-const rpRec = msgs[rpIdx];
+const rpShownEl = rpItem.querySelector('.msg-rp-status');
+const rpShown = rpShownEl ? rpShownEl.textContent : '';
+const rpHit = msgRecFromEl(rpItem, function (m) { return rpStatusText(m) === rpShown; }); // #1477：旧下标会把同屏别的消息当成这张卡；同身份多份时取「与卡片显示一致」那份
+if (!rpHit) return;
+const rpIdx = rpHit.idx;
+const rpRec = rpHit.rec;
 if (!rpRec || rpRec.special !== 'redpacket') return;
-if (rpRec.rpStatus !== 'pending') return;
-if (rpRec.side !== 'in') { toast(window.taFit ? window.taFit('等待 TA 领取') : '等待 TA 领取'); return; }
+if ((rpRec.rpStatus || 'pending') !== 'pending') return; // #1477：与卡片状态文案同口径（falsy＝待领取）
+if (rpRec.side === 'out') { toast(window.taFit ? window.taFit('等待 TA 领取') : '等待 TA 领取'); return; } // #1477：与「我 发出」渲染同侧判据（side 缺失的历史卡＝联系人发出，可领）
 rpRec.rpStatus = 'received';
 rpRec.rpOpenedAt = Date.now();
 const wallet = rpWalletGet();
@@ -5734,9 +5746,46 @@ im.replaceWith(ph);
 // msgKeyOf 是消息内容身份（ts|side|type|text80），renderMsg 渲染每个气泡时写进 data-mk＝
 // 「这个节点当时画的是哪条」永不随数组位移变化；开菜单按 mk 反查真实那条（查询 key 冲突
 // 只在同文案同毫秒消息间发生＝引用内容也相同，无感）。
+// #1477：时间位与 normCell 盖章走同一条 fallback 链——无 ts 的存量记录画时按 rpTs 等自身事件时间
+// 取键、盖章后 ts=rpTs 仍取同一值 ⇒ data-mk 不因盖章失效；末段拼卡片身份字段（chatRecCardExtra，
+// #796 同一套）＝红包/礼物这类「正文为空、身份在专用字段上」的卡，同毫秒同侧两张不同卡也分得开。
+// 写（renderMsg 的 data-mk）与读（#491 菜单快照、#1477 msgRecFromEl）同用本函数。
+function msgRecTsOf(rec) {
+return (rec && (rec.ts || rec.rpTs || rec.askTs || rec.surveyTs || rec.dAt)) || 0;
+}
 function msgKeyOf(rec) {
 if (!rec) return '';
-return (rec.ts || 0) + '|' + (rec.side || '') + '|' + (rec.type || '') + '|' + String(rec.text || '').slice(0, 80);
+return msgRecTsOf(rec) + '|' + (rec.side || '') + '|' + (rec.type || '') + '|' + String(rec.text || '').slice(0, 80) + chatRecCardExtra(rec);
+}
+// #1477：互动卡点击的记录解析——下标快路径＋身份校正。msgs 可能在卡片画好之后被重排（权威读库
+// 合并/尾巴日志回放/空权威重建按 ts 插删＋normCell 给无 ts 存量盖章；#407 同族：中段插入删除 ⇒
+// 下标整体位移而 DOM 未重渲），旧 data-idx 会读到别的消息＝「联系人发的红包点了没反应」（点击
+// 实际读到一条别的消息，special 对不上就静默返回）。data-mk 是渲染期身份锚（#491），永不随数组
+// 位移变化：下标取到的记录对不上锚就按锚反查真实那条，命中时顺手把节点下标修回真值（后续按
+// idx 就地补丁的调用方才能找到节点）。反查也无（记录真被删了）才回退旧下标语义＝保守回退。
+// 带 prefer 时先取「下标处的记录与锚一致且状态吻合」的快路径；快路径不满足再全量扫同身份候选。
+function msgRecFromEl(item, prefer) {
+if (!item || item.dataset.idx === undefined) return null;
+const _i = Number(item.dataset.idx);
+const _mk = item.dataset.mk || '';
+let rec = (_i >= 0 && _i < msgs.length) ? msgs[_i] : null;
+const okFast = !!(rec && _mk && msgKeyOf(rec) === _mk);
+if (okFast && typeof prefer !== 'function') return { rec: rec, idx: _i };
+if (_mk) {
+// 同身份可能不止一份（快照回滚链会把「已领」的记录又并回一份「待领」克隆，绿/红两侧实测皆有）：
+// 带 prefer 时优先取与卡片当前显示状态一致的那份——用户看得见的卡片状态就是本次点击的真相。
+let best = -1, first = -1;
+for (let j = 0; j < msgs.length; j++) {
+const m = msgs[j];
+if (!m || msgKeyOf(m) !== _mk) continue;
+if (first < 0) first = j;
+if (typeof prefer === 'function' && prefer(m)) { best = j; break; }
+}
+const j = (best >= 0) ? best : first;
+if (j >= 0) { item.dataset.idx = String(j); return { rec: msgs[j], idx: j }; }
+}
+if (okFast) return { rec: rec, idx: _i };
+return rec ? { rec: rec, idx: _i } : null;
 }
 // v3.33.x #521：批量问卷长卡片（special:'ask-survey'）——观感对齐单题 ask-card（同宽/同圆角/
 // 同阴影/同字号；标题、逐题答案、底部提示一一对应，无 emoji、无独立进度徽标，进度并入底部提示）。
@@ -10520,7 +10569,7 @@ const st = rec.rpStatus || 'pending';
 if (st === 'received') return '已领取';
 if (st === 'expired') return '已过期·退回';
 if (st === 'returned') return '已退回';
-return rec.side === 'in' ? '待领取' : (window.taFit ? window.taFit('待TA领取') : '待TA领取');
+return rec.side === 'out' ? (window.taFit ? window.taFit('待TA领取') : '待TA领取') : '待领取'; // #1477：side 缺失的历史卡与渲染的「联系人 发出」同侧＝待我领取
 }
 function rpStatusCls(rec) {
 const st = rec.rpStatus || 'pending';
