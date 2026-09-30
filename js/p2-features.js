@@ -462,7 +462,11 @@ if (Array.isArray(v) && v.length) return v;
 } catch (e) {}
 return def.slice();
 }
-function ckSaveList(k, list) { store.set('checkin-cards-' + k, JSON.stringify(list)); }
+function ckSaveList(k, list) {
+if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, 'checkin-cards-' + k, '寻踪字卡库')) return false;
+store.set('checkin-cards-' + k, JSON.stringify(list));
+return true;
+}
 function ckCustomList(k) {
 try {
 const v = JSON.parse(store.get('checkin-cards-' + k) || 'null');
@@ -477,7 +481,11 @@ if (Array.isArray(v)) return v.map(x => typeof x === 'string' ? { t: x } : (x &&
 } catch (e) {}
 return [];
 }
-function ckSaveItems(k, items) { store.set('checkin-cards-' + k, JSON.stringify(items)); }
+function ckSaveItems(k, items) {
+if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, 'checkin-cards-' + k, '寻踪字卡库')) return false;
+store.set('checkin-cards-' + k, JSON.stringify(items));
+return true;
+}
 function ckGroups(k) {
 try {
 const v = JSON.parse(store.get('checkin-cards-groups-' + k) || 'null');
@@ -485,9 +493,14 @@ if (Array.isArray(v)) return v;
 } catch (e) {}
 return [];
 }
-function ckSaveGroups(k, groups) { store.set('checkin-cards-groups-' + k, JSON.stringify(groups)); }
+function ckSaveGroups(k, groups) {
+if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, 'checkin-cards-groups-' + k, '寻踪字卡分组')) return false;
+store.set('checkin-cards-groups-' + k, JSON.stringify(groups));
+return true;
+}
 const CK_DEF_LIST = { place: DEF_PLACES, action: DEF_ACTIONS, msg: DEF_CHECK_MSGS };
 function isCkCardOff(k, x) {
+if (!CK_DEF_LIST[k]) return false; // #1520：k 不属于三类（防御：旧写法会静默拼出 ck-off-undefined 键）
 if (CK_DEF_LIST[k].indexOf(x) < 0) return false; // #1519a：不是预设卡 ⇒ 预设开关一律不认
 return store.get('ck-off-' + k + ':' + x) === '1' || !!(window.presetGroup && window.presetGroup.isOff('cck', k));
 }
@@ -688,13 +701,13 @@ if (window.idbSet) window.idbSet(window.activePrefix() + ':checkin-history', JSO
 } catch (e) {}
 renderCheckinHistory();
 }
-let ckBigPending = 0, ckBigSeq = 0;
+let ckBigPending = 0, ckBigSeq = 0, ckBigBypass = false;
 function doCheckin() {
 if (!ckEn()) return; // #823a 关闭即全静默：生成/推送/记录/重置计时一并停
 const blind = ['place', 'action', 'msg'].filter(function (k) {
 try { return typeof store.awaitingBigKey === 'function' && store.awaitingBigKey('checkin-cards-' + k); } catch (e) { return false; }
 });
-if (blind.length) {
+if (blind.length && !ckBigBypass) {
 if (ckBigPending) return; // 已在等库：60 秒轮询/连点刷新不叠加第二发
 ckBigPending = blind.length;
 const seq = ++ckBigSeq;
@@ -714,10 +727,12 @@ setTimeout(function () {
 if (seq !== ckBigSeq || !ckBigPending) return;
 ckBigSeq++; // 作废在途回调＝保底路径后不会再触发第二次生成
 ckBigPending = 0;
+ckBigBypass = true; // #1520：这一发按可读到的生成，且**不再重新武装一轮闸**——原先保底后
 doCheckin(); // 4 秒保底：IDB 挂死也照旧按可读到的生成（宁可残缺不可静默停更）
 }, 4000);
 return;
 }
+ckBigBypass = false; // #1520：保底放行的这一发用掉即清，下一发觉回填落地后照常走闸
 const ck = genCheckin();
 store.set('checkin-current', JSON.stringify(ck));
 renderCheckinUI(ck);
@@ -984,7 +999,7 @@ listEl.querySelectorAll('.ta-del').forEach(b => {
 b.addEventListener('click', () => {
 const l = ckItems(ckTab);
 l.splice(Number(b.dataset.idx), 1);
-ckSaveItems(ckTab, l);
+if (ckSaveItems(ckTab, l) === false) return; // #1520：没读全＝这一发没落笔，别报成功
 renderCkMineList();
 updateCkCount();
 toast('已删除');
@@ -1002,7 +1017,7 @@ if (!val) { toast('内容不能为空'); return; }
 if (val === item.t) return;
 if (l.some((x, xi) => xi !== idx && x.t === val)) { toast('已有相同内容'); return; }
 l[idx].t = val;
-ckSaveItems(ckTab, l);
+if (ckSaveItems(ckTab, l) === false) return; // #1520：同上
 renderCkMineList();
 toast('已更新');
 });
@@ -1019,7 +1034,7 @@ const opts = [{ label: '未分组', value: '' }].concat(groups.map(g => ({ label
 window.openModal('移动到分组', '', (v) => {
 if (v == null) return;
 l[idx].grp = v || '';
-ckSaveItems(ckTab, l);
+if (ckSaveItems(ckTab, l) === false) return; // #1520：同上
 renderCkMineList();
 const tgt = v ? (groups.find(g => g.id === v) || {}).name : '未分组';
 toast('已移动到「' + tgt + '」');
@@ -1231,7 +1246,7 @@ const x = { t: it };
 if (parsed.grp) x.grp = parsed.grp;
 list.push(x);
 });
-ckSaveItems(ckTab, list);
+if (ckSaveItems(ckTab, list) === false) return; // #1520：拦下＝输入框原样保留，等库回填后再点一次
 if (ta) ta.value = '';
 renderCkMineList();
 updateCkCount();

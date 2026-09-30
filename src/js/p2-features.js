@@ -511,7 +511,15 @@ function ckList(k, def) {
   } catch (e) {}
   return def.slice();
 }
-  function ckSaveList(k, list) { store.set('checkin-cards-' + k, JSON.stringify(list)); }
+  // #1520：寻踪三类字卡库的整包写（批量添加/删除/编辑/移组/删分组都经这里）＝读-改-写。#1513 只给
+  //   读侧（生成）接了闸，写侧这三条一直在裸写——大键盲窗里 ckItems() 读到空数组，整本自建卡被这
+  //   一发顶掉（批量添加＝只写进新的一条；删除按钮＝splice(NaN) 后写回空表）。判据与 ta-ask 同款：
+  //   数据层那把唯一的尺 xyBigWriteBlocked，拦下照实 toast、绝不落笔，等库回填后再点一次即可。
+  function ckSaveList(k, list) {
+    if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, 'checkin-cards-' + k, '寻踪字卡库')) return false;
+    store.set('checkin-cards-' + k, JSON.stringify(list));
+    return true;
+  }
   // v3.6.x：纯自定义库读取（不 fallback 到默认）——批量添加/我的添加列表用这个，
   //   避免原 ckList() 在无自定义时返回默认库导致系统预设被"转正"存进自定义库
   function ckCustomList(k) {
@@ -530,7 +538,11 @@ function ckList(k, def) {
     return [];
   }
   // v3.7.x：寻踪字卡保存（统一对象数组）
-  function ckSaveItems(k, items) { store.set('checkin-cards-' + k, JSON.stringify(items)); }
+  function ckSaveItems(k, items) {
+    if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, 'checkin-cards-' + k, '寻踪字卡库')) return false;
+    store.set('checkin-cards-' + k, JSON.stringify(items));
+    return true;
+  }
   // v3.7.x：寻踪自定义分组（按 地点/在做什么/说的话 分类各自独立）——只用于管理页整理，抽取不分组
   function ckGroups(k) {
     try {
@@ -539,7 +551,11 @@ function ckList(k, def) {
     } catch (e) {}
     return [];
   }
-  function ckSaveGroups(k, groups) { store.set('checkin-cards-groups-' + k, JSON.stringify(groups)); }
+  function ckSaveGroups(k, groups) {
+    if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, 'checkin-cards-groups-' + k, '寻踪字卡分组')) return false;
+    store.set('checkin-cards-groups-' + k, JSON.stringify(groups));
+    return true;
+  }
 // v3.6.x：寻踪系统预设字卡单卡开关——逐张开启/关闭（关闭后寻踪不再抽取该条）
 // #1315：整类停用叠在同一出口上（共用件 window.presetGroup，键 pg-groups-off；本页三类 place/action/msg
 //   就是三个「分组」）——genCheckin 与页面列表都走这个判据，无需逐处加分支；逐张开关存值一字不动。
@@ -550,6 +566,7 @@ function ckList(k, def) {
 //   「这张是不是预设卡」（DEF 文本命中），自建卡只由它自己的分组与删除管，与预设开关互不相干。
 const CK_DEF_LIST = { place: DEF_PLACES, action: DEF_ACTIONS, msg: DEF_CHECK_MSGS };
 function isCkCardOff(k, x) {
+  if (!CK_DEF_LIST[k]) return false; // #1520：k 不属于三类（防御：旧写法会静默拼出 ck-off-undefined 键）
   if (CK_DEF_LIST[k].indexOf(x) < 0) return false; // #1519a：不是预设卡 ⇒ 预设开关一律不认
   return store.get('ck-off-' + k + ':' + x) === '1' || !!(window.presetGroup && window.presetGroup.isOff('cck', k));
 }
@@ -818,7 +835,7 @@ function renderCheckinHistory() {
   // 读不全就让路——这一发不生成、不推聊天、不落残缺记录、不重置节奏（#823a 唯一收口点的意义），
   // 顺手请库取回（requestBigKey #1342r 单次飞行闸），回来再跑一次（whenBigKeyBack #1358d）；
   // 等 4 秒还没回来就按此刻读得到的照旧生成（让路一时不让路一世，不把闸变成新的「不更新」#1342）。
-  let ckBigPending = 0, ckBigSeq = 0;
+  let ckBigPending = 0, ckBigSeq = 0, ckBigBypass = false;
   function doCheckin() {
     // #823 总开关关闭＝整条链一步都不做：不生成、不推聊天、不落记录、不重置计时
     //（唯一收口点——手动刷新 / 半框 / 寻踪页 / 自动轮询全部经由本函数）
@@ -827,7 +844,7 @@ function renderCheckinHistory() {
     const blind = ['place', 'action', 'msg'].filter(function (k) {
       try { return typeof store.awaitingBigKey === 'function' && store.awaitingBigKey('checkin-cards-' + k); } catch (e) { return false; }
     });
-    if (blind.length) {
+    if (blind.length && !ckBigBypass) {
       if (ckBigPending) return; // 已在等库：60 秒轮询/连点刷新不叠加第二发
       ckBigPending = blind.length;
       const seq = ++ckBigSeq;
@@ -847,10 +864,15 @@ function renderCheckinHistory() {
         if (seq !== ckBigSeq || !ckBigPending) return;
         ckBigSeq++; // 作废在途回调＝保底路径后不会再触发第二次生成
         ckBigPending = 0;
+        ckBigBypass = true; // #1520：这一发按可读到的生成，且**不再重新武装一轮闸**——原先保底后
+        //   doCheckin() 又进闸，慢设备（取回首窗 6s > 4s 保底）必然「残缺一发 + 取回后完整一发」
+        //   ＝聊天多一条「更新了一条日常」＋记录多一条（复审 A-1 实锤）。bypass 只放行这一次，
+        //   取回落地后由下一次轮询/刷新正常生成，不产生双发。
         doCheckin(); // 4 秒保底：IDB 挂死也照旧按可读到的生成（宁可残缺不可静默停更）
       }, 4000);
       return;
     }
+    ckBigBypass = false; // #1520：保底放行的这一发用掉即清，下一发觉回填落地后照常走闸
     const ck = genCheckin();
     store.set('checkin-current', JSON.stringify(ck));
     renderCheckinUI(ck);
@@ -1174,7 +1196,7 @@ if (ckRefresh) {
       b.addEventListener('click', () => {
         const l = ckItems(ckTab);
         l.splice(Number(b.dataset.idx), 1);
-        ckSaveItems(ckTab, l);
+        if (ckSaveItems(ckTab, l) === false) return; // #1520：没读全＝这一发没落笔，别报成功
         renderCkMineList();
         updateCkCount();
         toast('已删除');
@@ -1193,7 +1215,7 @@ if (ckRefresh) {
           if (val === item.t) return;
           if (l.some((x, xi) => xi !== idx && x.t === val)) { toast('已有相同内容'); return; }
           l[idx].t = val;
-          ckSaveItems(ckTab, l);
+          if (ckSaveItems(ckTab, l) === false) return; // #1520：同上
           renderCkMineList();
           toast('已更新');
         });
@@ -1211,7 +1233,7 @@ if (ckRefresh) {
         window.openModal('移动到分组', '', (v) => {
           if (v == null) return;
           l[idx].grp = v || '';
-          ckSaveItems(ckTab, l);
+          if (ckSaveItems(ckTab, l) === false) return; // #1520：同上
           renderCkMineList();
           const tgt = v ? (groups.find(g => g.id === v) || {}).name : '未分组';
           toast('已移动到「' + tgt + '」');
@@ -1432,7 +1454,7 @@ if (ckRefresh) {
         if (parsed.grp) x.grp = parsed.grp;
         list.push(x);
       });
-      ckSaveItems(ckTab, list);
+      if (ckSaveItems(ckTab, list) === false) return; // #1520：拦下＝输入框原样保留，等库回填后再点一次
       if (ta) ta.value = '';
       renderCkMineList();
       updateCkCount();

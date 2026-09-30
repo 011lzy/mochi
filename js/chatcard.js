@@ -4114,7 +4114,8 @@ fullKey = cid ? ('xy-home-v2:' + cid + ':cc-groups') : hydFullKey(scope);
 deferred = Array.isArray(window.__xyIdbDeferredKeys) && window.__xyIdbDeferredKeys.indexOf(fullKey) >= 0;
 } catch (e) {}
 if (!deferred && hydAbsent[fullKey]) return Promise.resolve(false);
-if (!deferred) {
+var HYDRATE_TRUSTS_MEMORY = true;
+if (HYDRATE_TRUSTS_MEMORY) {
 let hasData = false;
 try {
 hasData = cid

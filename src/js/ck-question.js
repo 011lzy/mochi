@@ -162,6 +162,8 @@
     if (changed) d.mergedIds = merged;
     return changed;
   }
+  // #1520：加载期自动写的静默读数闸（自动路径不弹 toast；读不全＝宁可不落笔）
+  function ckAutoHold(k) { try { return !!(window.xyBigWriteHold && window.xyBigWriteHold(store, k)); } catch (e) { return false; } }
   function ckLoad() {
     let d = null;
     try { d = JSON.parse(store.get(KEY) || 'null'); } catch (e) { d = null; }
@@ -181,9 +183,9 @@
       });
       d.mergedIds = DEFAULT_QUESTIONS.map(q => q.id);
       // 全新用户不立即写盘——防本地空快照覆盖 IDB 权威数据（与 ta-ask.js 同注释同因）
-      if (!isNew) { try { store.set(KEY, JSON.stringify(d)); } catch (e) {} }
+      if (!isNew && !ckAutoHold(KEY)) { try { store.set(KEY, JSON.stringify(d)); } catch (e) {} }
     } else {
-      if (ckMerge(d)) { try { store.set(KEY, JSON.stringify(d)); } catch (e) {} }
+      if (ckMerge(d) && !ckAutoHold(KEY)) { try { store.set(KEY, JSON.stringify(d)); } catch (e) {} }
     }
     if (!Array.isArray(d.groups)) d.groups = [];
     return d;
@@ -214,8 +216,9 @@
   // #1519：查岗题库整包写＝读-改-写。大键没读全时把「纯预设＋本次改动」写回＝自定义题被清空，
   //   判据与文案同 ta-ask（xyBigWriteBlocked 拦下时照实 toast、绝不落笔；回填后再点一次即可）
   function ckSave(d) {
-    if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, KEY, '查岗问题库')) return;
+    if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, KEY, '查岗问题库')) return false;
     try { store.set(KEY, JSON.stringify(d)); } catch (e) {}
+    return true;
   }
 
   // ---------- 抽题：已启用池内随机，避免与上一题相同 ----------
@@ -747,7 +750,7 @@
       lines.forEach(t => {
         d2.questions.push({ id: 'k_' + Date.now() + '_' + Math.floor(Math.random() * 9999), cat: 'text', text: t, enabled: true, isPreset: false });
       });
-      ckSave(d2);
+      if (ckSave(d2) === false) return; // #1520：拦下＝输入框原样保留（用户才有料可「再点一次」）
       batchTextEl.value = '';
       renderCkMineInto(document.getElementById('ckq-mine-cats'), '');
       refreshCkCardCounts();

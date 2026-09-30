@@ -5275,7 +5275,14 @@
     // 空载、TA 回复没有自定义字卡。改为：数据读不到就取回（用户正在看的场景，
     // 显式读不受回填预算限制）；健康连接确认 IDB 无此键才记 absent，此后跳过。
     if (!deferred && hydAbsent[fullKey]) return Promise.resolve(false);
-    if (!deferred) {
+    // #1520：「内存里已经读得到」这一格不再被挂起名单短路（复审 D-1）。键在 __xyIdbDeferredKeys 里
+    //   时旧写法直接发 idbHydrateKey——名单迟迟不收敛（IDB 不稳）的机器上，每次取池都重发一次
+    //   MB 级读；#1519b 把功能字卡取池口也接上这个钩之后，这条路从「每条聊天回复」变成「每次功能
+    //   抽取」。判据仍是当场事实（读得到就不读），挂起名单只该影响 hydAbsent 那一格的短路。
+    // #1520 的口径具名化：这一个开关决定「内存里已读得到」时是否还发取回（true＝不发，见下）。
+    // 写成具名而不是行内条件，是为了它能被哨兵锚住、也让将来回看时一眼看到这条口径的出处。
+    var HYDRATE_TRUSTS_MEMORY = true;
+    if (HYDRATE_TRUSTS_MEMORY) {
       let hasData = false;
       try {
         hasData = cid

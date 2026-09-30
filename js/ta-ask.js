@@ -545,17 +545,18 @@ nq.isPreset = true;
 return nq;
 });
 d.mergedIds = DEFAULT_QUESTIONS.map(q => q.id);
-if (!isNew) { try { store.set(KEY, JSON.stringify(d)); } catch (e) {} }
+if (!isNew && !ckHold(KEY)) { try { store.set(KEY, JSON.stringify(d)); } catch (e) {} }
 } else {
-if (taAskMerge(d)) { try { store.set(KEY, JSON.stringify(d)); } catch (e) {} }
+if (taAskMerge(d) && !ckHold(KEY)) { try { store.set(KEY, JSON.stringify(d)); } catch (e) {} }
 }
 if (!Array.isArray(d.history)) d.history = [];
 if (!Array.isArray(d.groups)) d.groups = [];
 return d;
 }
 function taAskSave(d) {
-if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, KEY, 'TA 的提问题库')) return;
+if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, KEY, 'TA 的提问题库')) return false;
 try { store.set(KEY, JSON.stringify(d)); } catch (e) {}
+return true;
 }
 function askDeadlineMs(d) {
 const v = (d && d.settings && d.settings.deadline) || 0;
@@ -1301,6 +1302,7 @@ const home = document.getElementById('page-chatcard');
 if (home) home.hidden = false;
 });
 }
+function ckHold(k) { try { return !!(window.xyBigWriteHold && window.xyBigWriteHold(store, k)); } catch (e) { return false; } }
 const KEY2 = 'ta-choose';
 const TC_CAT_LABEL = { daily: '日常', like: '喜好', fun: '趣味', rel: '关系', hypo: '假设', star: '摸鱼', world: '两个世界' };
 const TC_DEFAULT = [
@@ -1550,6 +1552,7 @@ return changed;
 function tcLoad() {
 let d = null;
 try { d = JSON.parse(store.get(KEY2) || 'null'); } catch (e) { d = null; }
+if (!d) { try { if (store.awaitingBigKey && store.awaitingBigKey(KEY2)) store.requestBigKey(KEY2); } catch (e0) {} }
 if (!d || typeof d !== 'object' || Array.isArray(d)) d = {};
 if (!d.settings || typeof d.settings !== 'object') d.settings = { enabled: true, prob: 5 };
 if (d.settings.useDefault === undefined) d.settings.useDefault = true;
@@ -1563,16 +1566,20 @@ nq.isPreset = true;
 return nq;
 });
 d.mergedIds = TC_DEFAULT.map(q => q.id);
-if (!isNew) { try { store.set(KEY2, JSON.stringify(d)); } catch (e) {} }
+if (!isNew && !ckHold(KEY2)) { try { store.set(KEY2, JSON.stringify(d)); } catch (e) {} }
 } else {
-if (tcMerge(d)) { try { store.set(KEY2, JSON.stringify(d)); } catch (e) {} }
+if (tcMerge(d) && !ckHold(KEY2)) { try { store.set(KEY2, JSON.stringify(d)); } catch (e) {} }
 }
 if (!Array.isArray(d.history)) d.history = [];
 if (!Array.isArray(d.favs)) d.favs = [];
 if (!Array.isArray(d.groups)) d.groups = [];
 return d;
 }
-function tcSave(d) { try { store.set(KEY2, JSON.stringify(d)); } catch (e) {} }
+function tcSave(d) {
+if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, KEY2, 'TA 的小问题库')) return false;
+try { store.set(KEY2, JSON.stringify(d)); } catch (e) {}
+return true;
+}
 function tcPick(d) {
 const useDefault = (d.settings || {}).useDefault !== false;
 const ready = function (q) { return q.text && q.options && q.options.length >= 2; };
@@ -2283,6 +2290,7 @@ return changed;
 function tcuLoad() {
 let d = null;
 try { d = JSON.parse(store.get(KEY3) || 'null'); } catch (e) { d = null; }
+if (!d) { try { if (store.awaitingBigKey && store.awaitingBigKey(KEY3)) store.requestBigKey(KEY3); } catch (e0) {} }
 if (!d || typeof d !== 'object' || Array.isArray(d)) d = {};
 const CURIOUS_QUICK_FIX = {
 cw4: { '你身边': '我身边' },
@@ -2300,7 +2308,7 @@ const nextQuick = prevQuick.map(o => fix[o] || o);
 if (nextQuick.some((o, i) => o !== prevQuick[i])) { q.quick = nextQuick; migrated = true; }
 }
 });
-if (migrated) { try { store.set(KEY3, JSON.stringify(d)); } catch (e) {} }
+if (migrated && !ckHold(KEY3)) { try { store.set(KEY3, JSON.stringify(d)); } catch (e) {} }
 }
 if (Array.isArray(d.history)) {
 d.history.forEach(h => {
@@ -2321,16 +2329,20 @@ nq.isPreset = true;
 return nq;
 });
 d.mergedIds = TCU_DEFAULT.map(q => q.id);
-if (!isNew) { try { store.set(KEY3, JSON.stringify(d)); } catch (e) {} }
+if (!isNew && !ckHold(KEY3)) { try { store.set(KEY3, JSON.stringify(d)); } catch (e) {} }
 } else {
-if (tcuMerge(d)) { try { store.set(KEY3, JSON.stringify(d)); } catch (e) {} }
+if (tcuMerge(d) && !ckHold(KEY3)) { try { store.set(KEY3, JSON.stringify(d)); } catch (e) {} }
 }
 if (!Array.isArray(d.history)) d.history = [];
 if (!d.known || typeof d.known !== 'object') d.known = {};
 if (!Array.isArray(d.groups)) d.groups = [];
 return d;
 }
-function tcuSave(d) { try { store.set(KEY3, JSON.stringify(d)); } catch (e) {} }
+function tcuSave(d) {
+if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, KEY3, 'TA 的好奇题库')) return false;
+try { store.set(KEY3, JSON.stringify(d)); } catch (e) {}
+return true;
+}
 function tcuPick(d) {
 const useDefault = (d.settings || {}).useDefault !== false;
 const pool = (d.questions && d.questions.length) ? d.questions : TCU_DEFAULT.filter(q => !pgCatOff('ta-curious', q.cat));
@@ -2858,6 +2870,7 @@ return changed;
 function trLoad() {
 let d = null;
 try { d = JSON.parse(store.get(KEY4) || 'null'); } catch (e) { d = null; }
+if (!d) { try { if (store.awaitingBigKey && store.awaitingBigKey(KEY4)) store.requestBigKey(KEY4); } catch (e0) {} }
 if (!d || typeof d !== 'object' || Array.isArray(d)) d = {};
 if (!d.settings || typeof d.settings !== 'object') d.settings = { enabled: true, prob: 5 };
 if (d.settings.useDefault === undefined) d.settings.useDefault = true;
@@ -2870,15 +2883,19 @@ nq.isPreset = true;
 return nq;
 });
 d.mergedIds = TR_DEFAULT.map(q => q.id);
-if (!isNew) { try { store.set(KEY4, JSON.stringify(d)); } catch (e) {} }
+if (!isNew && !ckHold(KEY4)) { try { store.set(KEY4, JSON.stringify(d)); } catch (e) {} }
 } else {
-if (trMerge(d)) { try { store.set(KEY4, JSON.stringify(d)); } catch (e) {} }
+if (trMerge(d) && !ckHold(KEY4)) { try { store.set(KEY4, JSON.stringify(d)); } catch (e) {} }
 }
 if (!Array.isArray(d.history)) d.history = [];
 if (!Array.isArray(d.groups)) d.groups = [];
 return d;
 }
-function trSave(d) { try { store.set(KEY4, JSON.stringify(d)); } catch (e) {} }
+function trSave(d) {
+if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, KEY4, 'TA 的吐槽题库')) return false;
+try { store.set(KEY4, JSON.stringify(d)); } catch (e) {}
+return true;
+}
 function trPick(d, lastUserText) {
 const useDefault = (d.settings || {}).useDefault !== false;
 const pool = (d.questions && d.questions.length) ? d.questions : TR_DEFAULT.filter(q => !pgCatOff('ta-roast', q.cat));

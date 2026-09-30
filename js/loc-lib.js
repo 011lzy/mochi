@@ -48,9 +48,10 @@ return [];
 }
 function saveCustom(list) {
 const arr = (list || []).map(x => typeof x === 'string' ? { t: x } : x).filter(x => x && x.t != null);
-if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, CUSTOM_KEY, '位置卡库')) return;
+if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, CUSTOM_KEY, '位置卡库')) return false;
 store.set(CUSTOM_KEY, JSON.stringify(arr));
 try { if (window.idbSet) window.idbSet(window.activePrefix() + ':' + CUSTOM_KEY, JSON.stringify(arr)); } catch (e) {}
+return true;
 }
 function sysCards(cat) {
 if (!getUseDefault()) return [];
@@ -206,7 +207,7 @@ listEl.querySelectorAll('.ta-del').forEach(b => {
 b.addEventListener('click', () => {
 const list = getCustom();
 list.splice(Number(b.dataset.idx), 1);
-saveCustom(list);
+if (saveCustom(list) === false) return; // #1520：同上
 renderMineList();
 toast('已删除');
 });
@@ -263,7 +264,7 @@ window.cardGroups.removeFlow(g.name, ok => {
 if (!ok) return;
 const list = getCustom();
 list.forEach(x => { if (x.grp === gid) x.grp = ''; });
-saveCustom(list);
+if (saveCustom(list) === false) return; // #1520：拦下＝这一发没落笔，不动分组账也不报成功
 saveGroups(groups.filter(x => x.id !== gid));
 refreshGrpSelect();
 renderMineList();
@@ -326,7 +327,7 @@ const x = { t: it };
 if (parsed && parsed.grp) x.grp = parsed.grp;
 list.push(x);
 });
-saveCustom(list);
+if (saveCustom(list) === false) return; // #1520：拦下＝输入框原样保留（用户才有料可「再点一次」）
 if (ta) ta.value = '';
 switchTab2('mine');
 toast('已添加 ' + items.length + ' 条位置卡');

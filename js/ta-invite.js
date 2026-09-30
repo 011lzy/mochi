@@ -60,6 +60,7 @@ changed = true;
 if (changed) d.mergedIds = merged;
 return changed;
 }
+function ckAutoHold(k) { try { return !!(window.xyBigWriteHold && window.xyBigWriteHold(store, k)); } catch (e) { return false; } }
 function tiLoad() {
 let d = null;
 try { d = JSON.parse(store.get(KEY) || 'null'); } catch (e) { d = null; }
@@ -75,16 +76,17 @@ nq.isPreset = true;
 return nq;
 });
 d.mergedIds = DEFAULT_QUESTIONS.map(q => q.id);
-if (!isNew) { try { store.set(KEY, JSON.stringify(d)); } catch (e) {} }
+if (!isNew && !ckAutoHold(KEY)) { try { store.set(KEY, JSON.stringify(d)); } catch (e) {} }
 } else {
-if (tiMerge(d)) { try { store.set(KEY, JSON.stringify(d)); } catch (e) {} }
+if (tiMerge(d) && !ckAutoHold(KEY)) { try { store.set(KEY, JSON.stringify(d)); } catch (e) {} }
 }
 if (!Array.isArray(d.groups)) d.groups = [];
 return d;
 }
 function tiSave(d) {
-if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, KEY, '邀请字卡库')) return;
+if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, KEY, '邀请字卡库')) return false;
 try { store.set(KEY, JSON.stringify(d)); } catch (e) {}
+return true;
 }
 function pickFrom(pool, lastId) {
 if (!pool || !pool.length) return null;

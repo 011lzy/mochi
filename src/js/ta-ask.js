@@ -711,10 +711,11 @@
       d.mergedIds = DEFAULT_QUESTIONS.map(q => q.id);
       // 全新用户不立即写盘——防「localStorage 配额写失败/大键被移除 → 本地为空」的时序下，
       // 用纯默认题库覆盖 IndexedDB 里含用户自定义的权威数据；已有数据（如用户删空后）则写回
-      if (!isNew) { try { store.set(KEY, JSON.stringify(d)); } catch (e) {} }
+      // #1520：加载期这三发都是**自动**写（播种默认/合并默认/旧数据迁移），按站内铁律走静默闸 xyBigWriteHold（不许凭空弹 toast）；读数没确认时宁可不落笔，也不许把半份表写回去
+      if (!isNew && !ckHold(KEY)) { try { store.set(KEY, JSON.stringify(d)); } catch (e) {} }
     } else {
       // 已有题库：增量合并默认题库新增的题，合并结果持久化（用户自定义永远保留）
-      if (taAskMerge(d)) { try { store.set(KEY, JSON.stringify(d)); } catch (e) {} }
+      if (taAskMerge(d) && !ckHold(KEY)) { try { store.set(KEY, JSON.stringify(d)); } catch (e) {} }
     }
     if (!Array.isArray(d.history)) d.history = [];
     // v3.7.x：我的添加自定义分组
@@ -727,8 +728,9 @@
     // 「纯预设＋本次改动」整包写回＝库里自定义题被清空（作者报障同型：保存后自己的题没了）。
     // 判据用数据层那把唯一的尺 xyBigWriteBlocked（#1342d awaitingBigKey 五格证据，含回填未落定），
     // 拦下时照实 toast、绝不落笔；等库回填后再点一次即可（#1342「不把闸变成新的存不进去」）。
-    if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, KEY, 'TA 的提问题库')) return;
+    if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, KEY, 'TA 的提问题库')) return false;
     try { store.set(KEY, JSON.stringify(d)); } catch (e) {}
+    return true;
   }
 
   // v3.26.x #291：问卷答题结束时间——settings.deadline 存毫秒时间戳（0=未设置）。
@@ -1608,6 +1610,8 @@
 
   // ================= TA的小问题（复刻星言 ta的小问题 完整版） =================
   // 定位：TA 偶尔递一道选择题，你选完，TA 再回应（选项有 TA 的心仪答案 + 回应）
+  // #1520：加载期自动写的静默读数闸（数据层那把尺 xyBigWriteHold，自动路径不许弹 toast）
+  function ckHold(k) { try { return !!(window.xyBigWriteHold && window.xyBigWriteHold(store, k)); } catch (e) { return false; } }
   const KEY2 = 'ta-choose';
   const TC_CAT_LABEL = { daily: '日常', like: '喜好', fun: '趣味', rel: '关系', hypo: '假设', star: '摸鱼', world: '两个世界' };
 const TC_DEFAULT = [
@@ -1870,6 +1874,8 @@ const TC_DEFAULT = [
   function tcLoad() {
     let d = null;
     try { d = JSON.parse(store.get(KEY2) || 'null'); } catch (e) { d = null; }
+    // #1520：读空但库里本该有＝大键没读全，当场请库取回一次（#1349a 单次飞行闸；同 taAskLoad）
+    if (!d) { try { if (store.awaitingBigKey && store.awaitingBigKey(KEY2)) store.requestBigKey(KEY2); } catch (e0) {} }
     if (!d || typeof d !== 'object' || Array.isArray(d)) d = {};
     // v3.13.x：默认触发概率 8 → 5 + 存量旧默认值迁移（互动卡整体降频第二轮）
     if (!d.settings || typeof d.settings !== 'object') d.settings = { enabled: true, prob: 5 };
@@ -1885,10 +1891,10 @@ const TC_DEFAULT = [
         return nq;
       });
       d.mergedIds = TC_DEFAULT.map(q => q.id);
-      if (!isNew) { try { store.set(KEY2, JSON.stringify(d)); } catch (e) {} }
+      if (!isNew && !ckHold(KEY2)) { try { store.set(KEY2, JSON.stringify(d)); } catch (e) {} }
     } else {
       // 增量合并默认题库新增的题并持久化（用户自定义永远保留）
-      if (tcMerge(d)) { try { store.set(KEY2, JSON.stringify(d)); } catch (e) {} }
+      if (tcMerge(d) && !ckHold(KEY2)) { try { store.set(KEY2, JSON.stringify(d)); } catch (e) {} }
     }
     if (!Array.isArray(d.history)) d.history = [];
     if (!Array.isArray(d.favs)) d.favs = [];
@@ -1896,7 +1902,13 @@ const TC_DEFAULT = [
     if (!Array.isArray(d.groups)) d.groups = [];
     return d;
   }
-  function tcSave(d) { try { store.set(KEY2, JSON.stringify(d)); } catch (e) {} }
+  // #1520：与 ta-ask 同款的整包写闸（#1519 只覆盖了同一文件里的 ta-ask 键，这三本当时漏了）：
+  //   大键盲窗里读空播种纯预设 → 这一发整包写回＝自定义内容被清空。拦下照实 toast、绝不落笔。
+  function tcSave(d) {
+    if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, KEY2, 'TA 的小问题库')) return false;
+    try { store.set(KEY2, JSON.stringify(d)); } catch (e) {}
+    return true;
+  }
   // v3.6.x：useDefault=false 时不抽取系统预设（isPreset）题
   function tcPick(d) {
     const useDefault = (d.settings || {}).useDefault !== false;
@@ -2674,6 +2686,8 @@ window.openTCPanel = openTCPanel;
   function tcuLoad() {
     let d = null;
     try { d = JSON.parse(store.get(KEY3) || 'null'); } catch (e) { d = null; }
+    // #1520：读空但库里本该有＝大键没读全，当场请库取回一次（#1349a 单次飞行闸；同 taAskLoad）
+    if (!d) { try { if (store.awaitingBigKey && store.awaitingBigKey(KEY3)) store.requestBigKey(KEY3); } catch (e0) {} }
     if (!d || typeof d !== 'object' || Array.isArray(d)) d = {};
     // 迁移：快捷项人称修正（已存数据与历史答案同步修正）——
     // cw4「你身边」→「我身边」；cw6「跟着你走」→「跟着我走」；cp6「再等等，会遇到我」→「再等等，会遇到你」；
@@ -2700,7 +2714,7 @@ window.openTCPanel = openTCPanel;
           if (nextQuick.some((o, i) => o !== prevQuick[i])) { q.quick = nextQuick; migrated = true; }
         }
       });
-      if (migrated) { try { store.set(KEY3, JSON.stringify(d)); } catch (e) {} }
+      if (migrated && !ckHold(KEY3)) { try { store.set(KEY3, JSON.stringify(d)); } catch (e) {} }
     }
     if (Array.isArray(d.history)) {
       d.history.forEach(h => {
@@ -2723,10 +2737,10 @@ window.openTCPanel = openTCPanel;
         return nq;
       });
       d.mergedIds = TCU_DEFAULT.map(q => q.id);
-      if (!isNew) { try { store.set(KEY3, JSON.stringify(d)); } catch (e) {} }
+      if (!isNew && !ckHold(KEY3)) { try { store.set(KEY3, JSON.stringify(d)); } catch (e) {} }
     } else {
       // 增量合并默认题库新增的题并持久化（用户自定义永远保留）
-      if (tcuMerge(d)) { try { store.set(KEY3, JSON.stringify(d)); } catch (e) {} }
+      if (tcuMerge(d) && !ckHold(KEY3)) { try { store.set(KEY3, JSON.stringify(d)); } catch (e) {} }
     }
     if (!Array.isArray(d.history)) d.history = [];
     if (!d.known || typeof d.known !== 'object') d.known = {};
@@ -2734,7 +2748,13 @@ window.openTCPanel = openTCPanel;
     if (!Array.isArray(d.groups)) d.groups = [];
     return d;
   }
-  function tcuSave(d) { try { store.set(KEY3, JSON.stringify(d)); } catch (e) {} }
+  // #1520：与 ta-ask 同款的整包写闸（#1519 只覆盖了同一文件里的 ta-ask 键，这三本当时漏了）：
+  //   大键盲窗里读空播种纯预设 → 这一发整包写回＝自定义内容被清空。拦下照实 toast、绝不落笔。
+  function tcuSave(d) {
+    if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, KEY3, 'TA 的好奇题库')) return false;
+    try { store.set(KEY3, JSON.stringify(d)); } catch (e) {}
+    return true;
+  }
   // v3.6.x：useDefault=false 时不抽取系统预设（isPreset）题
   function tcuPick(d) {
     const useDefault = (d.settings || {}).useDefault !== false;
@@ -3310,6 +3330,8 @@ window.openTCPanel = openTCPanel;
   function trLoad() {
     let d = null;
     try { d = JSON.parse(store.get(KEY4) || 'null'); } catch (e) { d = null; }
+    // #1520：读空但库里本该有＝大键没读全，当场请库取回一次（#1349a 单次飞行闸；同 taAskLoad）
+    if (!d) { try { if (store.awaitingBigKey && store.awaitingBigKey(KEY4)) store.requestBigKey(KEY4); } catch (e0) {} }
     if (!d || typeof d !== 'object' || Array.isArray(d)) d = {};
     // v3.13.x：默认触发概率 15 → 5（v3.12.x 降频漏改了吐槽，这次补上）+ 存量旧默认值迁移
     if (!d.settings || typeof d.settings !== 'object') d.settings = { enabled: true, prob: 5 };
@@ -3324,17 +3346,23 @@ window.openTCPanel = openTCPanel;
         return nq;
       });
       d.mergedIds = TR_DEFAULT.map(q => q.id);
-      if (!isNew) { try { store.set(KEY4, JSON.stringify(d)); } catch (e) {} }
+      if (!isNew && !ckHold(KEY4)) { try { store.set(KEY4, JSON.stringify(d)); } catch (e) {} }
     } else {
       // 增量合并默认题库新增的字卡并持久化（用户自定义永远保留）
-      if (trMerge(d)) { try { store.set(KEY4, JSON.stringify(d)); } catch (e) {} }
+      if (trMerge(d) && !ckHold(KEY4)) { try { store.set(KEY4, JSON.stringify(d)); } catch (e) {} }
     }
     if (!Array.isArray(d.history)) d.history = [];
     // v3.7.x：我的添加自定义分组
     if (!Array.isArray(d.groups)) d.groups = [];
     return d;
   }
-  function trSave(d) { try { store.set(KEY4, JSON.stringify(d)); } catch (e) {} }
+  // #1520：与 ta-ask 同款的整包写闸（#1519 只覆盖了同一文件里的 ta-ask 键，这三本当时漏了）：
+  //   大键盲窗里读空播种纯预设 → 这一发整包写回＝自定义内容被清空。拦下照实 toast、绝不落笔。
+  function trSave(d) {
+    if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, KEY4, 'TA 的吐槽题库')) return false;
+    try { store.set(KEY4, JSON.stringify(d)); } catch (e) {}
+    return true;
+  }
   // v3.6.x：useDefault=false 时不抽取系统预设（isPreset）字卡
   function trPick(d, lastUserText) {
     const useDefault = (d.settings || {}).useDefault !== false;

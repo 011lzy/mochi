@@ -65,9 +65,11 @@
     const arr = (list || []).map(x => typeof x === 'string' ? { t: x } : x).filter(x => x && x.t != null);
     // #1519：我的添加（整包读-改-写）。库读不全时把空/半份表整包写回＝自定义位置卡被清空，
     //   判据与文案同 ta-ask（xyBigWriteBlocked 拦下时照实 toast、绝不落笔；回填后再点一次即可）
-    if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, CUSTOM_KEY, '位置卡库')) return;
+    // #1520：回传布尔＝调用方知道这一发有没有真落笔（被拦时保留输入框、不报成功）
+    if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, CUSTOM_KEY, '位置卡库')) return false;
     store.set(CUSTOM_KEY, JSON.stringify(arr));
     try { if (window.idbSet) window.idbSet(window.activePrefix() + ':' + CUSTOM_KEY, JSON.stringify(arr)); } catch (e) {}
+    return true;
   }
   // ---- 位置面板词源（字符串数组，仅启用的） ----
   // 系统预设某分类启用字卡（总开关关 → 空；单卡关闭 → 剔除）
@@ -241,7 +243,7 @@
       b.addEventListener('click', () => {
         const list = getCustom();
         list.splice(Number(b.dataset.idx), 1);
-        saveCustom(list);
+        if (saveCustom(list) === false) return; // #1520：同上
         renderMineList();
         toast('已删除');
       });
@@ -299,7 +301,7 @@
             if (!ok) return;
             const list = getCustom();
             list.forEach(x => { if (x.grp === gid) x.grp = ''; });
-            saveCustom(list);
+            if (saveCustom(list) === false) return; // #1520：拦下＝这一发没落笔，不动分组账也不报成功
             saveGroups(groups.filter(x => x.id !== gid));
             refreshGrpSelect();
             renderMineList();
@@ -364,7 +366,7 @@
         if (parsed && parsed.grp) x.grp = parsed.grp;
         list.push(x);
       });
-      saveCustom(list);
+      if (saveCustom(list) === false) return; // #1520：拦下＝输入框原样保留（用户才有料可「再点一次」）
       if (ta) ta.value = '';
       switchTab2('mine');
       toast('已添加 ' + items.length + ' 条位置卡');

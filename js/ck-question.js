@@ -139,6 +139,7 @@ changed = true;
 if (changed) d.mergedIds = merged;
 return changed;
 }
+function ckAutoHold(k) { try { return !!(window.xyBigWriteHold && window.xyBigWriteHold(store, k)); } catch (e) { return false; } }
 function ckLoad() {
 let d = null;
 try { d = JSON.parse(store.get(KEY) || 'null'); } catch (e) { d = null; }
@@ -154,9 +155,9 @@ nq.isPreset = true;
 return nq;
 });
 d.mergedIds = DEFAULT_QUESTIONS.map(q => q.id);
-if (!isNew) { try { store.set(KEY, JSON.stringify(d)); } catch (e) {} }
+if (!isNew && !ckAutoHold(KEY)) { try { store.set(KEY, JSON.stringify(d)); } catch (e) {} }
 } else {
-if (ckMerge(d)) { try { store.set(KEY, JSON.stringify(d)); } catch (e) {} }
+if (ckMerge(d) && !ckAutoHold(KEY)) { try { store.set(KEY, JSON.stringify(d)); } catch (e) {} }
 }
 if (!Array.isArray(d.groups)) d.groups = [];
 return d;
@@ -183,8 +184,9 @@ if (!Array.isArray(d.groups)) d.groups = [];
 return d;
 }
 function ckSave(d) {
-if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, KEY, '查岗问题库')) return;
+if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, KEY, '查岗问题库')) return false;
 try { store.set(KEY, JSON.stringify(d)); } catch (e) {}
+return true;
 }
 function pgCatOff(ns, cat) { return !!(window.presetGroup && window.presetGroup.isOff(ns, cat || 'daily')); }
 function pickQ() {
@@ -644,7 +646,7 @@ const d2 = ckLoad();
 lines.forEach(t => {
 d2.questions.push({ id: 'k_' + Date.now() + '_' + Math.floor(Math.random() * 9999), cat: 'text', text: t, enabled: true, isPreset: false });
 });
-ckSave(d2);
+if (ckSave(d2) === false) return; // #1520：拦下＝输入框原样保留（用户才有料可「再点一次」）
 batchTextEl.value = '';
 renderCkMineInto(document.getElementById('ckq-mine-cats'), '');
 refreshCkCardCounts();
