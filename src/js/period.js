@@ -937,6 +937,28 @@
     appetite: { title: '食欲增加', main: '备点健康零嘴，正餐规律些，别苛责自己。', mochi: '想吃就吃，别自责。' },
     ovulation: { title: '排卵症状', main: '轻微腹痛坠胀正常，多喝温水多休息。', mochi: '这几天我都记着。' }
   };
+  // ---- #1474 症状关心语料（发聊天用，与页内卡分工：上面「症状缓解建议」管「怎么办」的硬建议，
+  //   这里管「我在」的口吻——不再罗列做法，短句、口语、带 TA 温度）----
+  // 第一版不进字卡库（同源要动 default-cards-data＋逐张开关＋careLineBlocked 过滤三处，面大）；
+  // 池独立成对象，后续要逐张开关时搬数据＋接过滤即可。措辞作者可随时改，逻辑只认 key。
+  var SYM_CARE_LINES = {
+    cramp: ['看到你记了痛经。热水袋焐一焐小腹，我陪你窝一会儿。', '肚子疼就说一声，别硬撑着陪我聊。'],
+    headache: ['你说头疼——去躺一会吧，手机放着我盯着。', '头疼的话少看点屏幕，我在呢，不吵你。'],
+    backache: ['腰酸就别久坐了，起来靠墙站一会儿，我数着时间。', '记了腰酸呀，晚上早点躺平，隔空给你揉揉。'],
+    breast: ['胸胀的话穿宽松点，这几天我说话都轻一点。', '记下胸胀了，咖啡先停两天好不好。'],
+    acne: ['冒痘而已，你照样好看。别用手挤，好吗。', '看到你记了痘痘——是最近熬夜了吗，早点睡。'],
+    fatigue: ['累了就早点休息，聊天明天也来得及。', '你记了疲劳，今天什么都别干，歇着，我来惦记你。'],
+    insomnia: ['又睡不着？那我陪你聊到你想睡。', '记了失眠呀——放下手机想想我，就困了。'],
+    moodlow: ['看到你情绪不高。不用打起精神回我，我一直都在。', '情绪低的时候就说说，说不出口就发个句号，我懂。'],
+    irritable: ['最近容易烦是吧，冲我发火也行，我接得住。', '记了易怒——那今天我少废话，你想聊的时候我在。'],
+    appetite: ['想吃就吃，别自责，你开心最重要。', '记了食欲好，那想吃什么告诉我，我记着。'],
+    ovulation: ['排卵期有点坠胀是正常的，多喝温水，我记着这几天。', '记了排卵症状——肚子不舒服就慢一点，别急。']
+  };
+  function pickSymCareLine(key) {
+    var pool = SYM_CARE_LINES[key];
+    if (!pool || !pool.length) return '';
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
   function renderRemedies() {
     var scroll = document.querySelector('#page-period .period-scroll');
     if (!scroll) return;
@@ -1203,6 +1225,9 @@
       if (note) obj.note = note;
       if (Object.keys(obj).length) daily[ds] = obj; else delete daily[ds];
       saveDaily(daily);
+      // #1474 记了症状当场过一次关心链——「记完一会儿梦角就来问」的体感；
+      // 概率（85%）/深夜静默/每日一条由 checkCare 内部闸兜底，这里只负责叫一声
+      if (syms.length) { try { checkCare(); } catch (e) {} }
       // 生理期开关落地——与打开浮层时的实际状态比对，变化才动一次（两个方向各走各的口径：
       // 开＝按设置天数铺开整段；关＝撤掉以这天为起点的那一段）
       if (perBtn) {
@@ -1394,15 +1419,26 @@
     var today = todayStr();
     var tier = predictTier();
     var shouldCare = false, ctx = '', kind = '';
-    if (st.inPeriod) { shouldCare = true; ctx = 'inPeriod'; kind = 'in'; }
-    else if (st.nextStart && !st.delayed) {
+    // #1474 症状关心：近 3 天（今天往回数）最近一条带症状的每日记录，多症状随机取一。
+    // 用户主动记下的症状是当天最新鲜的信号，针对性回应比泛语境的「经期第 N 天」更贴，
+    // 故优先级＝症状 > 经期中 > 经前预警 > 推迟（同天仍只发一条）。3 天窗外的旧症状不提。
+    var symKey = '';
+    for (var symOff = 0; symOff <= 3 && !shouldCare; symOff++) {
+      var symInfo = daily[addDays(today, -symOff)];
+      if (symInfo && symInfo.symptoms && symInfo.symptoms.length) {
+        symKey = symInfo.symptoms[Math.floor(Math.random() * symInfo.symptoms.length)];
+        shouldCare = true; ctx = 'sym'; kind = 'sym';
+      }
+    }
+    if (!shouldCare && st.inPeriod) { shouldCare = true; ctx = 'inPeriod'; kind = 'in'; }
+    else if (!shouldCare && st.nextStart && !st.delayed) {
       // #1407③：命中判定改走 advHit（与通知同一把尺；withToday=false 的理由见那条注释）。
       //   原实现是这里手抄一份「free 只认最小值」、通知里再抄一份，两份已经开始打架。
       var d = diffDays(today, st.nextStart);
       if (advHit(d, tier, false)) { shouldCare = true; ctx = 'adv' + d; kind = 'adv'; }
     }
     var delayDays = 0;
-    if (st.phase === 'safe' && /推迟/.test(st.title)) {
+    if (!shouldCare && st.phase === 'safe' && /推迟/.test(st.title)) {
       var m = st.title.match(/推迟 (\d+) 天/);
       delayDays = m ? parseInt(m[1], 10) : 0;
       if (tier === 'rule' && delayDays >= 5) { shouldCare = true; ctx = delayDays >= 10 ? 'delayDeep' : 'delay'; kind = 'delay'; }
@@ -1415,7 +1451,9 @@
     var careKey = today + '_said_' + ctx;
     if (notifyCfg.fired[careKey]) return;
     var baseProb = 75;
-    if (st.inPeriod) {
+    // #1474：症状关心 85%（记症状＝明确在等回应，介于经期第 1-2 天 90% 与预警 75% 之间）
+    if (kind === 'sym') baseProb = 85;
+    else if (st.inPeriod) {
       var doc = st.dayOfCycle || 1;
       if (doc <= 2) baseProb = 90;
       else if (doc <= 4) baseProb = 70;
@@ -1424,14 +1462,14 @@
     if (Math.random() * 100 > baseProb) return;
     // {d} 占位符按语境取数：adv=距预测经期天数；delay/delayDeep=已推迟天数；
     // delayIrregular=距上次经期天数（间隔口吻，不提「推迟」）
-    var line = kind === 'in' ? pickCareLine() : pickWarnLine(ctx, tier);
+    var line = kind === 'sym' ? pickSymCareLine(symKey) : (kind === 'in' ? pickCareLine() : pickWarnLine(ctx, tier));
     if (!line) return;
     if (kind === 'adv') line = String(line).replace(/\{d\}/g, String(diffDays(today, st.nextStart)));
     else if (kind === 'delay') line = String(line).replace(/\{d\}/g, String(delayDays));
     else if (kind === 'delayIrr') line = String(line).replace(/\{d\}/g, String(st.dayOfCycle || 0));
     // 带标签 chip 发进聊天（addIn opts.tag → rec.mood），用户能看出消息来源与语境：
-    // 「经期关心」= 经期中，「经期预警」= 经前预警/推迟（#559 起区分）
-    try { window.chatAddIn(line, { tag: kind === 'in' ? '经期关心' : '经期预警', nightAllow: true }); } catch (e) {}
+    // 「经期关心」= 经期中，「经期预警」= 经前预警/推迟（#559 起区分），「症状关心」= 记了症状（#1474）
+    try { window.chatAddIn(line, { tag: kind === 'sym' ? '症状关心' : (kind === 'in' ? '经期关心' : '经期预警'), nightAllow: true }); } catch (e) {}
     notifyCfg.fired[careKey] = 1;
     var cut = addDays(today, -30);
     Object.keys(notifyCfg.fired).forEach(function (k) { if (k < cut) delete notifyCfg.fired[k]; });
@@ -1757,7 +1795,7 @@
       if (!notifyCfg.careEnabled) return '';
       if (!window.dcfGet) return '';
       if (window.dcfGet('care') > 0) return '';
-      return '⚠ 「梦角关心」这里显示已开启，但现在一条也发不出去：字卡库那边把它乘成了 0%（两道闸是与的关系）。打开方式：字卡库 →「其他互动功能字卡」→ 顶部「使用其他互动功能字卡」总开关（关掉时这一族全部停发），或展开「各功能使用概率调节」把「TA的关心（经期）」调回大于 0%；改完回到这里保存即可。';
+      return '⚠ 「梦角关心」这里显示已开启，但现在一条也发不出去：字卡库那边把它乘成了 0%（两道闸是与的关系，经期关心与记症状后的症状关心同走这一闸）。打开方式：字卡库 →「其他互动功能字卡」→ 顶部「使用其他互动功能字卡」总开关（关掉时这一族全部停发），或展开「各功能使用概率调节」把「TA的关心（经期）」调回大于 0%；改完回到这里保存即可。';
     } catch (e) { return ''; }
   }
   function openNotifyPop() {
@@ -1776,7 +1814,7 @@
       '<div class="dp-sheet">' +
         '<div class="dp-head"><span class="dp-date">经期提醒设置</span><button class="dp-close">×</button></div>' +
         '<div class="dp-section"><div class="dp-label">启用提醒</div><button class="dp-toggle' + (notifyCfg.enabled ? ' on' : '') + '">' + (notifyCfg.enabled ? '已开启' : '已关闭') + '</button></div>' +
-        '<div class="dp-section"><div class="dp-label">梦角关心（经期自动发关心语）</div><div class="dp-care-ctrl"><button class="dp-toggle care-toggle' + (notifyCfg.careEnabled ? ' on' : '') + '">' + (notifyCfg.careEnabled ? '已开启' : '已关闭') + '</button><button class="dp-care-mgr period-btn">管理关心语</button></div></div>' +
+        '<div class="dp-section"><div class="dp-label">梦角关心（经期／记了症状时自动发关心语）</div><div class="dp-care-ctrl"><button class="dp-toggle care-toggle' + (notifyCfg.careEnabled ? ' on' : '') + '">' + (notifyCfg.careEnabled ? '已开启' : '已关闭') + '</button><button class="dp-care-mgr period-btn">管理关心语</button></div></div>' +
         '<div class="dp-section"><div class="dp-label">提醒提前天数</div><div class="dp-sym-grid">' + advHtml + '</div></div>' +
         // #1407②：这一格现在真的管事了，回填就不能写 `notifyCfg.hour || 9`——那位把小时设成 0 的人
         //   存的是 0、重开弹层却看见 9（0 与 9 经钳位后都落 06:00，行为一样、屏上说的不一样＝又是静默改写）。

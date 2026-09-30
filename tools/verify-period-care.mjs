@@ -83,8 +83,8 @@ function check(desc, ok, detail) {
   const perSrc2 = readFileSync(join(root, 'src', 'js', 'period.js'), 'utf8');
   const p2Src = readFileSync(join(root, 'src', 'js', 'p2-features.js'), 'utf8');
   // #559：经期发送点标签改语境三元（经期中=经期关心/经前预警日·推迟=经期预警），锚点随实现更新
-  check('A12 发送点带语境标签（经期关心/经期预警三元 ×1）、喝水提醒 ×2、吃饭提醒 ×2、摸鱼抓包 ×1',
-    (perSrc2.match(/tag: kind === 'in' \? '经期关心' : '经期预警'/g) || []).length === 1 &&
+  check('A12 发送点带语境标签（#1474 后=症状/经期/预警三词三元 ×1）、喝水提醒 ×2、吃饭提醒 ×2、摸鱼抓包 ×1',
+    (perSrc2.match(/tag: kind === 'sym' \? '症状关心' : \(kind === 'in' \? '经期关心' : '经期预警'\)/g) || []).length === 1 &&
     (p2Src.match(/tag: '喝水提醒'/g) || []).length === 2 &&
     (p2Src.match(/tag: '吃饭提醒'/g) || []).length === 2 &&
     (p2Src.match(/tag: '摸鱼抓包'/g) || []).length === 1);
@@ -224,7 +224,7 @@ async function armAndCount() {
         window.__careWrapped=true;
         var orig=window.chatAddIn;
         window.chatAddIn=function(t,o){
-          if(set[t]){window.__careCount=(window.__careCount||0)+1;window.__lastCareLine=t;window.__lastTag=(o&&o.tag)||'';}
+          if(set[t]||(o&&o.tag)==='症状关心'){window.__careCount=(window.__careCount||0)+1;window.__lastCareLine=t;window.__lastTag=(o&&o.tag)||'';} // #1474 重基线：场景带 3 天内症状时优先发「症状关心」（语料不在经期池），按 tag 认账
           return orig.apply(this,arguments);
         };
       }
@@ -449,7 +449,7 @@ await navigate();
   const tip1 = String(await evalJs("(function(){ var p=document.getElementById('period-notify-pop'); var t=p?p.querySelector('.dp-tip'):null; return t? t.textContent : 'NO-TIP'; })()") || '');
   check('E3 概率回到大于 0% → 这句自己撤掉（不是常驻恐吓文案）', tip1.indexOf('字卡库') < 0, tip1.slice(0, 72));
   const sent1 = JSON.parse(await armAndCount() || '{}');
-  check('E4 概率放开后照发一条（本批没把链路改坏）', sent1.count === 1, sent1);
+  check('E4 概率放开后照发一条（本批没把链路改坏；#1474 起场景带症状时发的是症状关心，计数按 tag 认账）', sent1.count === 1, sent1);
 
   // 本来就是经期页这个开关关的 → 不该再指去字卡库（指错地方＝第二种谎）
   await evalJs("(function(){ try { window.activeStore().set('dcf-care','0'); } catch(e){} Math.random=function(){return 0.999;}; var st=window.xyStore('xy-home-v2'); var n={}; try{ n=JSON.parse(st.get('period-notify')||'{}'); }catch(e2){} n.careEnabled=false; st.set('period-notify',JSON.stringify(n)); var p=document.getElementById('period-notify-pop'); if(p) p.remove(); var a=document.querySelector('.app[data-app=\"period\"]'); if(a) a.click(); var b=document.getElementById('period-notify-btn'); if(b) b.click(); return 1; })()");

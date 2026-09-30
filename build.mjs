@@ -2641,7 +2641,7 @@ const FIX_SENTINELS = [
   // ==== 2026-09-16 #559 经期预警按「语境 × 经期规律」分级：经前/推迟不再发经期中口吻；不规律者不说「推迟」改间隔口吻 ====
   { name: '#559a 经前预警 {d} 替换为距预测经期天数（删则经前预警不带日期参数）', file: 'js/period.js', needle: "String(line).replace(/\\{d\\}/g, String(diffDays(today, st.nextStart)));" },
   { name: '#559b 推迟预警 {d} 替换为已推迟天数（删则推迟预警不带日期参数）', file: 'js/period.js', needle: "String(line).replace(/\\{d\\}/g, String(delayDays));" },
-  { name: '#559c 标签按语境区分（删则经前预警日又以「经期关心」标签发经期中口吻语料＝症状回流）', file: 'js/period.js', needle: "{ tag: kind === 'in' ? '经期关心' : '经期预警', nightAllow: true }" },
+  { name: '#559c 标签按语境区分（删则经前预警日又以「经期关心」标签发经期中口吻语料＝症状回流；#1474 扩成三词三元后 2026-09-30 同名重锚到 in/预警两词的判定片段）', file: 'js/period.js', needle: "kind === 'in' ? '经期关心' : '经期预警'" },
   { name: '#559d 经前预警语料分组（删则经前预警日无专属预警语、字卡库缺该组）', file: 'js/default-cards-data.js', needle: '["经前预警", [' },
   { name: '#559e 规律分级判据（删则不规律用户也被当「预测可信」按推迟口径轰炸＝「太扯淡」回流）', file: 'js/period.js', needle: "if (s.n >= 3 && s.cv < 0.2) return 'rule';" },
   { name: '#559f 规律型推迟门 ≥5 天（删则规律用户推迟无预警）', file: 'js/period.js', needle: "if (tier === 'rule' && delayDays >= 5)" },
@@ -6191,6 +6191,12 @@ const FIX_SENTINELS = [
   { name: "#1443e1 tag 共存：调用方已给 tag 就沿用只补账（无条件覆写＝顶掉 #1456 来电那一路「同联系人共用一条＋renotify 30 秒重弹」）", file: "js/bg-keep.js", needle: "String(opts.tag || '')" },
   { name: "#1443e2 点击按归属路由（改回裸 enterChat＝跨桌面查岗／贴贴申请点进去仍是当前桌面，「点进去却没有」复发）", file: "js/bg-keep.js", needle: "function notifyRoute(entry) {" },
   { name: "#1443e3 回收后开机补投的读出口（删＝点击落在页面还没挂 message 监听的空档里被吞，「点了通知什么也没发生」复发）", file: "js/bg-keep.js", needle: "window.xyPendingNotifyClick = function () {" },
+  // ==== v8.56 #1474 症状关心——经期页记了症状，梦角按概率发进聊天（带「症状关心」标签）并自动进主页「TA 的关心记录」按月折叠（作者拍板「症状缓解建议像梦角关心那样发聊天＋收纳」；闸/概率/静默/每日一条全部复用 checkCare 现有骨架，零新设置项） ====
+  { name: '#1474a 症状关心语境判定（近 3 天窗内最近一条带症状的 daily＋多症状随机取一；删掉＝记了症状聊天里永远没人问）', file: 'js/period.js', needle: "shouldCare = true; ctx = 'sym'; kind = 'sym';" },
+  { name: '#1474b 症状关心带标签发进聊天（摘掉标签三元＝消息无来源、主页关心记录这一类永远收不到）', file: 'js/period.js', needle: "kind === 'sym' ? '症状关心' : (kind === 'in' ? '经期关心' : '经期预警')" },
+  { name: '#1474c 主页「TA 的关心记录」回收症状关心（删掉＝聊天里发了、记录页永远不出现）', file: 'js/records.js', needle: "tag === '症状关心'" },
+  { name: '#1474d 日格弹层保存症状后当场过关心链（删掉＝只能等下次联系人回复被动触发，体感「记了没人理」）', file: 'js/period.js', needle: 'if (syms.length) { try { checkCare(); } catch (e) {} }' },
+  // ====
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

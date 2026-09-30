@@ -181,7 +181,7 @@ const el = document.getElementById('home-care');
 if (!el) return;
 const name = dispName();
 const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-const KIND_ICON = { period: '🌸', water: '💧', eat: '🍚', pomo: '🍅' };
+const KIND_ICON = { period: '🌸', sym: '💊', water: '💧', eat: '🍚', pomo: '🍅' }; // #1474 加 sym
 const rows = [];
 caresLoad().forEach(r => { if (r.kind === 'pomo') rows.push({ icon: '🍅', main: '番茄钟陪伴', sub: fmtDT(r.ts), ts: r.ts }); });
 let msgs = [];
@@ -191,10 +191,11 @@ if (!m) return;
 const t = m.ts || 0;
 const tag = (m.mood && m.mood[0] && m.mood[0].tag) || '';
 if (tag === '经期关心') rows.push({ icon: KIND_ICON.period, main: '经期关心 · ' + esc(m.text || ''), sub: fmtDT(t), ts: t });
+else if (tag === '症状关心') rows.push({ icon: KIND_ICON.sym, main: '症状关心 · ' + esc(m.text || ''), sub: fmtDT(t), ts: t }); // #1474：经期页记了症状后梦角发的那条
 else if (tag === '喝水提醒') rows.push({ icon: KIND_ICON.water, main: '提醒喝水 · ' + esc(m.text || ''), sub: fmtDT(t), ts: t });
 else if (tag === '吃饭提醒') rows.push({ icon: KIND_ICON.eat, main: '提醒吃饭 · ' + esc(m.text || ''), sub: fmtDT(t), ts: t });
 });
-if (!rows.length) { el.innerHTML = recEmpty('<div class="ta-empty">暂无联系人的关心记录（TA 会提醒你喝水吃饭、关心经期、陪你专注；查岗看「联系人对我查岗」与「联系人跨桌面查岗」两栏）</div>'); return; }
+if (!rows.length) { el.innerHTML = recEmpty('<div class="ta-empty">暂无联系人的关心记录（TA 会提醒你喝水吃饭、关心经期与症状、陪你专注；查岗看「联系人对我查岗」与「联系人跨桌面查岗」两栏）</div>'); return; }
 rows.sort((a, b) => (b.ts || 0) - (a.ts || 0));
 el.innerHTML = window.mochiHistFold(rows.map(r => ({ ts: Number(r.ts) || 0, html: '<div class="tc-listitem"><div class="tc-li-top"><span class="tc-li-q">' + r.icon + ' ' + r.main + '</span><span class="tc-li-time">' + r.sub + '</span></div></div>' })), {
 key: 'records-care',
