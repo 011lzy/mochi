@@ -6297,6 +6297,16 @@ const FIX_SENTINELS = [
   // ==== v8.56 #1490 「症状缓解建议」卡：查旧/写新同 id（作者复报页内该卡重复七八条）＋补就近删除入口（作者复报「内容没有删除的按钮」）====
   { name: '#1490a 症状缓解建议卡查旧与写新同 id（改回 card.id = period-card＝每 render 多留一张，页内重复七八条回流）', file: 'js/period.js', needle: "var olds = scroll.querySelectorAll('#period-card, #period-remedy-card');" },
   { name: '#1490b 症状缓解建议卡就近删除＝只清掉当天症状记录（删掉＝作者报的「内容没有删除的按钮」回流，症状/TOP3 只能绕去日格弹层删）', file: 'js/period.js', needle: 'if (rec) rec.symptoms = [];' },
+  { name: '#1489a 保活抢不抢音频通道只由「本档开关＋有没有自定义音频＋这条路基坏没」决定（退回按机型/UA 分支＝作者明令禁止的「修好一个机型弄坏另一个」；也是零机型判据的唯一逻辑锚）', file: 'js/bg-keep.js', needle: 'function kaNoDuckNow() { return kaNoDuckSaved() && !kaCustomWanted() && !kaWaBroken; }' },
+  { name: '#1489b 新档不声明保活媒体条（媒体条 playbackState=playing 就是内核去抢媒体音频焦点的那一手；删＝「进 mochi 变响、退出变轻」的音量泵动复发，Mate80 实报）', file: 'js/bg-keep.js', needle: 'if (kaNoDuckNow()) { kaReleaseKeepMediaSession(); return; }' },
+  { name: '#1489c 5s 轻心跳不再把 playbackState 按回 playing（旧写法每 5s 无条件重申「我在放媒体」＝被对方接走后又被我们抢回来，与 #780「谁在放谁拿条」相矛盾）', file: 'js/bg-keep.js', needle: 'let hold = !kaNoDuckNow();' },
+  { name: '#1489d 启动只经 kaBuildTransducer 选通道（两条转子一个出口；退回各写一份＝新档与老路漂移，音量唯一写入方 #1374a 同时失守）', file: 'js/bg-keep.js', needle: 'if (!kaBuildTransducer(KA_VOL_BASE))' },
+  { name: '#1489e 两条转子共用同一套 play/pause 边沿（#153 切后台补播/#901 退避/#924 隐藏期让位/#1374 前台闸的时序不因换通道而分叉）', file: 'js/bg-keep.js', needle: "keepEl.addEventListener('play', function () { kaOnPlayEdge(); });" },
+  { name: '#1489f 用户上传的自定义保活音频恒走媒体元素（那是用户要出声放的白噪音/助眠；删＝v3.44.x 的用途被新档吃掉，前台也不响了）', file: 'js/bg-keep.js', needle: 'if (keepAudio.mode === KA_MODE_WA) { kaSwapTransducer(); return; }' },
+  { name: '#1489g WebAudio 路不通＝当场回落媒体元素继续保活（删＝没有 AudioContext 的内核直接没保活，后台消息/通知全停＝比原症状更重的回归）', file: 'js/bg-keep.js', needle: 'kaWaBroken = true; kaFallbackToMedia();' },
+  { name: '#1489h 媒体会话收口只剩一处 kaClearKeepMediaSession（#924b/#924d 的 WebKit 怪癖处置被抄成两份＝两个写入方，迟早漂回「关了还挂着」）', file: 'js/bg-keep.js', needle: 'function kaClearKeepMediaSession() {' },
+  { name: '#1489i 诊断【保活现场】点名「锚=」（保活此刻占不占媒体音频通道直接可读；删＝下次「音乐被压低/后台收不到」又只能靠口述猜是哪一路）', file: 'js/device.js', needle: "if (kp.anchor) kpParts.push('锚=' + kp.anchor);" },
+  { name: '#1489j 设置→系统 的「保活不抢其他 App 的声音」行在位（用户的一键逃生门＝老路可原样回来；删掉这行＝新档不可逆，个别只认媒体条豁免的内核无路可退）', file: 'index.html', needle: '<input type="checkbox" id="bg-keep-noduck">' },
   // ====
   // ==== v8.56 #1485 多联系人下 TA 朋友圈/评论只剩默认卡颜文字 ＋ 语音通话自定义铃声有时不响（一加 Ace3／Edge 报障，多机型同现；判据零机型／零 UA） ====
   { name: '#1485a 朋友圈 TA 生成前的按桌面就绪原语（非当前桌面 cc-groups 是 IDB-only 大键，同步读空把「没读到」当「没字卡」；删＝动态/评论只剩默认卡与兜底句）', file: 'js/feed.js', needle: "if (cid === cur || !window.hydrateLibForCid) { cb(); return; }" },

@@ -57,6 +57,10 @@
   function kaAudioLabel() { return (kaCustomAudio || kaCustomOn()) ? '自定义音频' : '默认静音音频'; }
   function kaApplyCustomAudio() {
     if (!kaCustomAudio || !keepAudio || !keepAudio.el) return;
+    // #1489④：用户上传的保活音频是「要出声」的主动选择，恒走媒体元素。自定义音频到货时若正走
+    // WebAudio 通道（它是异步从 IDB 取回的，可能晚于 startKeepAlive），当场换转子——换完
+    // keepAudio 已是媒体元素且已挂上这份 src，不再走下面的 diff。
+    if (keepAudio.mode === KA_MODE_WA) { kaSwapTransducer(); return; }
     try {
       if (keepAudio.el.src !== kaCustomAudio) {
         keepAudio.el.src = kaCustomAudio;
@@ -94,11 +98,10 @@
       window.xyStore(GNS).remove('__ka-audio-name');
     } catch (e) {}
     if (keepEnabled && keepAudio && keepAudio.el) {
-      try {
-        keepAudio.el.src = ensureKeepAudioDataUrl();
-        kaSetToneLevel(KA_VOL_BASE); // #724 基础档＋#1374b 前台静音闸的唯一落点（原直写 0.05→0.2 常数）
-        if (!musicNowPlaying()) { const p = keepAudio.el.play(); if (p && p.catch) p.catch(function () {}); }
-      } catch (e) {}
+      // #724 基础档＋#1374b 前台静音闸的唯一落点在 kaBuildTransducer 里（原这里直写常数＋另起一发
+      // play）；#1489：自定义撤掉后要按当前档重选通道（开着「不抢」就回 WebAudio，关着才回媒体元素），
+      // 媒体条也随之接管/让出——换转子＝旧元素的 src 已无从复用。
+      try { kaSwapTransducer(true); } catch (e) {}
     }
     syncKaAudioUI();
     toast('已恢复默认静音音频');
@@ -143,7 +146,7 @@
     if (kaCustomAudio || kaCustomOn()) pills.push({ label: '清除自定义', value: 'clear' });
     const hasCustom = !!(kaCustomAudio || kaCustomOn());
     const cur = kaAudioLabel() + (hasCustom && kaCustomAudioName ? '（' + kaCustomAudioName + '）' : '');
-    const txt = '后台保活需要在后台持续播放一段音频来让页面保持运行。\n\n· 默认静音音频：内置生成、近乎无声，推荐。\n· 自定义音频：上传自己的音频（白噪音 / 助眠声，或更彻底的静音文件），按原音量循环播放。\n\n注意：任何持续播放的音频都会占用手机音频通道，可能影响其他 App 的声音（详见「后台保活」功能说明）。\n当前：' + cur;
+    const txt = '后台保活需要在后台持续播放一段音频来让页面保持运行。\n\n· 默认静音音频：内置生成、近乎无声，推荐。\n· 自定义音频：上传自己的音频（白噪音 / 助眠声，或更彻底的静音文件），按原音量循环播放。\n\n注意：默认静音音频走「不抢其他 App 的声音」那条通道（见 设置→系统 同名开关），不再把别的 App 的音量压低；但上传自定义音频是要出声的，它仍会占用手机音频通道，可能影响其他 App 的声音（详见「后台保活」功能说明）。\n当前：' + cur;
     window.openModal('【保活音频】', '', function (v) {
       if (v === 'default' || v === 'clear') kaSetDefaultAudio();
       else if (v === 'upload') kaPickCustomAudio();
@@ -156,6 +159,193 @@
   let keepEnabled = false;
   let keepUserTouched = false; // v3.26.x #88：本会话用户手动动过保活开关 → 回填后不重读覆盖
   let wakeSentinel = null; // v3.5.131：模块级，供 stopKeepAlive 释放
+
+  // ================= #1489 保活不抢其他 App 的声音（作者直派：华为 Mate80／自带浏览器「在后台放音乐，
+  // 进 mochi 会突然变响，退出来又会变轻」，并明说「不要覆盖修改导致不同型号设备浏览器的 bug 反复出现」
+  // 「这个问题其他设备型号也有出现」）=================
+  // 根因（作者诊断单当场读数＝证据，不是推测）：【保活现场】在【前台】读到
+  // 「保活=开 · 音频=播放 vol=0 · 媒体条=有 playing」。保活押的是「<audio> 媒体元素常播＋媒体会话
+  // playbackState=playing」这一条路，而它在系统眼里＝「本应用正在放媒体」＝占住媒体音频通道，
+  // 别的 App 于是被强制压低（音频焦点的 duck 语义）。#1374b 为治「边放音乐边嘟嘟响」把【前台】音量
+  // 钉成 0、【后台】才回到 0.2 那一档——于是每次前后台切换都在改「我们到底算不算在放媒体」：
+  // 进页＝系统收走我们的焦点→对方恢复（突然变响）；退页＝我们又抢回来→对方再被压低（又变轻）＝音量泵动。
+  // 这是通道性质不是机型性质：任何认音频焦点的内核同一把尺（#1374 报障机＝iQOO10/Chrome；本文件
+  // v3.13.x 自述「安卓上网页音频与其他 App 共用系统音频焦点」、v3.44.x 自述「持续播放的音频会占用
+  // 手机音频通道，可能影响其他 App 的声音」＝两任批都看见了这堵墙，只是都没拆）。
+  // 修法（判据零机型／零 UA，只认两个代码事实＝本档开关＋有没有用户自定义音频）：
+  //   ① 把「这口气从哪个孔出」抽成转子 keepAudio={el,mode,arm,kill}：媒体元素与 WebAudio 两条实现
+  //     共用同一套 play/pause 边沿（kaOnPlayEdge/kaOnPauseEdge）＝#153/#901/#924/#1374 的退避、让位、
+  //     轻心跳、首次交互补播时序一字不动，各处 keepAudio.el.* 调用点零改动；
+  //   ② 新档（默认开）＝同一颗 18kHz 近静音样本改经 WebAudio 输出（站内音效 sfx 早就是这条通道）：
+  //     它不走 HTMLMediaElement 的媒体会话（本文件 v3.5.160 自述「Web Audio 的 AudioContext 振荡器
+  //     不触发媒体条」），也就没那一次「抢媒体音频焦点」＝不 duck 别人，进出页面不再忽响忽轻；
+  //     页面仍「持续出声」＋#260 的 WebRTC 回环锚（其自述「无音频焦点、无声可听」）＝两道冻结豁免照旧；
+  //   ③ 新档下不再声明「Mochi 后台保活」媒体条——媒体条本身就是那次抢焦点，挂着它＝明明不出声还占着
+  //     通道；站内听歌（music-player 自己的歌曲条）一概不动。开关关掉＝现状逐字回来（媒体元素＋媒体条），
+  //     个别只认媒体条豁免的内核若后台收消息变差，一键切回即可，不必等改版；
+  //   ④ 用户上传的自定义保活音频（v3.44.x 白噪音/助眠）是「要出声」的主动选择，恒走媒体元素；
+  //     没有 AudioContext／解码失败→静默回落媒体元素＝保活绝不因新档而当场死掉。
+  const KA_MODE_MEDIA = '媒体元素(占媒体通道)', KA_MODE_WA = 'WebAudio(不占媒体通道)';
+  function kaNoDuckSaved() { try { const v = gGet('__ka-noduck'); return v === null ? true : v === '1'; } catch (e) { return true; } }
+  function kaCustomWanted() { return !!kaCustomAudio || kaCustomOn(); }
+  let kaWaBroken = false; // #1489：本会话 WebAudio 路失败过（无 ctx／解码被拒）→ 不再反复试，留在媒体元素
+  function kaNoDuckNow() { return kaNoDuckSaved() && !kaCustomWanted() && !kaWaBroken; }
+
+  // #1489①：两条转子共用的边沿——原样搬自 startKeepAlive 的 play/pause 监听（语义零改）
+  function kaOnPlayEdge() { kaMarkPlayed(); }
+  function kaOnPauseEdge() {
+    if (!keepEnabled || !keepAudio || !keepAudio.el || musicNowPlaying()) return;
+    if (kaTimer) return; // 已在退避轨道
+    if (kaYieldStealFocus()) return; // #924：隐藏期被外部抢走焦点＝用户正在听歌/看视频，不回抢
+    kaSchedule(); // 连击计数由 kaSchedule 内部递增
+  }
+
+  // ===== #1489② WebAudio 转子：同一颗近静音样本，换个出声的孔（不建媒体元素＝不占媒体通道）=====
+  let kaWaCtx = null, kaWaGain = null, kaWaSrc = null, kaWaBuf = null, kaWaVol = 0, kaWaPaused = true, kaWaErr = '';
+  function kaWaDecode(cb) {
+    if (kaWaBuf) { cb(true); return; }
+    if (!kaWaCtx || !KEEP_AUDIO_WAV) { kaWaErr = 'no wav/ctx'; cb(false); return; }
+    let done = false;
+    const fin = function (ok) { if (done) return; done = true; cb(!!ok); };
+    try {
+      if (!kaWaGain) { kaWaGain = kaWaCtx.createGain(); kaWaGain.connect(kaWaCtx.destination); }
+      // decodeAudioData 只认 ArrayBuffer：交 TypedArray 视图会当场 throw（无头实测「decode threw」＝
+      // 新通道一次都没跑起来，全靠回落那一发才没把保活弄死）。每次交整块副本＝原件留着可反复解，
+      // 因为解码会 detach 传进去的那块 buffer。
+      const ab = KEEP_AUDIO_WAV.slice(0);
+      const p = kaWaCtx.decodeAudioData(ab, function (b) { if (b) kaWaBuf = b; fin(!!b); },
+        function () { kaWaErr = 'decode rejected'; fin(false); });
+      if (p && p.then) p.then(function (b) { if (b) kaWaBuf = b; fin(!!b); }, function () { kaWaErr = 'decode threw'; fin(false); });
+    } catch (e) { kaWaErr = String((e && e.message) || e); fin(false); }
+  }
+  function kaWaStopSrc() {
+    try { if (kaWaSrc) { kaWaSrc.onended = null; kaWaSrc.stop(); } } catch (e) {}
+    try { if (kaWaSrc) kaWaSrc.disconnect(); } catch (e) {}
+    kaWaSrc = null;
+  }
+  function kaWaStart() {
+    return new Promise(function (res, rej) {
+      if (!keepEnabled) { rej(new Error('keep off')); return; }
+      if (musicNowPlaying()) { res(); return; } // v3.10.x 让位语义与 playIt 的早退一致（不抢，等收回）
+      const run = function () {
+        try {
+          if (kaWaCtx.state !== 'running') { rej(new Error('ctx ' + kaWaCtx.state)); return; } // 自动播放策略未解锁＝如实报错，交给既有退避／首次交互补播
+          kaWaStopSrc();
+          const s = kaWaCtx.createBufferSource();
+          s.buffer = kaWaBuf; s.loop = true; s.connect(kaWaGain); s.start(0);
+          kaWaSrc = s; kaWaPaused = false;
+          kaApplyToneVolume(); // #1374a：转子换完仍由唯一落点档位说了算（前台＝0）
+          kaOnPlayEdge();
+          res();
+        } catch (e) { rej(e); }
+      };
+      kaWaDecode(function (ok) {
+        if (!ok) { kaWaBroken = true; kaFallbackToMedia(); rej(new Error(kaWaErr || 'decode fail')); return; } // #1489④：解码路不通＝本会话不再试，并当场换回媒体元素（保活绝不因新档而死）
+        try {
+          const rp = kaWaCtx.state === 'running' ? null : kaWaCtx.resume();
+          if (rp && rp.then) rp.then(function () { run(); }, function () { run(); });
+          else run();
+        } catch (e) { run(); }
+      });
+    });
+  }
+  // #1489④：WebAudio 这条路不通（内核没有 / 样本解不开）＝当场把转子换回媒体元素并起播。
+  // 注意 ctx.state 停在 suspended（自动播放策略还没解锁）不算这条路坏——那是既有退避＋
+  // 首次交互补播负责的场景，与媒体元素被 NotAllowedError 拒掉一模一样，不回落。
+  function kaFallbackToMedia() {
+    if (!keepEnabled || !keepAudio || keepAudio.mode !== KA_MODE_WA) return;
+    if (!kaBuildTransducer(kaToneLevel)) return;
+    setKeepMediaSession();
+    if (!musicNowPlaying()) { try { const p = keepAudio.el.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {} }
+  }
+  function kaWaKill() {
+    kaWaStopSrc();
+    try { if (kaWaCtx && kaWaCtx.close) kaWaCtx.close(); } catch (e) {}
+    kaWaCtx = null; kaWaGain = null; kaWaBuf = null; kaWaPaused = true;
+  }
+  function kaMakeWebAudioKeep() {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    if (!kaWaCtx) { try { kaWaCtx = new AC(); } catch (e) { return null; } }
+    const el = {
+      loop: true,
+      get paused() { return kaWaPaused; },
+      set paused(v) { kaWaPaused = !!v; },
+      get volume() { return kaWaVol; },
+      set volume(v) { kaWaVol = v; try { if (kaWaGain) kaWaGain.gain.value = v; } catch (e) {} },
+      get src() { return 'webaudio:' + (kaWaBuf ? 'decoded' : 'pending'); },
+      set src(_v) {}, // 自定义音频绝不吃这条通道（#1489④ 由 kaCustomWanted 把转子换成媒体元素）
+      play: function () { return kaWaStart(); },
+      pause: function () { if (kaWaSrc || !kaWaPaused) { kaWaStopSrc(); kaWaPaused = true; kaOnPauseEdge(); } },
+      removeAttribute: function () {}, load: function () {}, setAttribute: function () {}, addEventListener: function () {}
+    };
+    return { el: el, mode: KA_MODE_WA, arm: function () {}, kill: kaWaKill };
+  }
+  function kaMakeMediaKeep() {
+    // v3.5.160：保活音频用 <audio> 元素循环播放——媒体通知条才会显示；v3.44.x：优先用户上传
+    const keepEl = document.createElement('audio');
+    keepEl.loop = true;
+    keepEl.setAttribute('playsinline', '');
+    // v3.13.x：play/pause 事件跟踪——play 成功刷新「最近播过」，外部打断（pause）进入退避排程；
+    // 主动让位（音乐在播）不算打断。#1489①：边沿本体收进共用函数，这里只剩挂线。
+    keepEl.addEventListener('play', function () { kaOnPlayEdge(); });
+    keepEl.addEventListener('pause', function () { kaOnPauseEdge(); });
+    return { el: keepEl, mode: KA_MODE_MEDIA, arm: function (s) { keepEl.src = s; }, kill: null };
+  }
+  function kaTeardownTransducer() {
+    const old = keepAudio; keepAudio = null; // 先摘在册：换通道那一刻的 pause 边沿不该排补播
+    if (!old) return;
+    try { if (old.el && old.el.pause) old.el.pause(); } catch (e) {}
+    try { if (old.kill) old.kill(); } catch (e) {}
+  }
+  // #1489：按当前口径选通道并重建转子——顺序照原 startKeepAlive：先在册→再落档→再挂源
+  // （#1374b「要先在册再落档」）。定时器／退避轨道／WebRTC 锚／wakeLock 一概不动＝换的只是出声的孔。
+  function kaBuildTransducer(level) {
+    kaTeardownTransducer();
+    const src = kaCustomAudio || ensureKeepAudioDataUrl();
+    if (!src) return false;
+    let t = kaNoDuckNow() ? kaMakeWebAudioKeep() : kaMakeMediaKeep();
+    if (!t) { kaWaBroken = true; t = kaMakeMediaKeep(); } // #1489④ 环境不支持＝静默回落，保活不因新档而死
+    keepAudio = t;
+    kaSetToneLevel(level || KA_VOL_BASE); // #1374a：档位只有一个写入方；#724 基础档＋#1374b visible⇒0／hidden⇒该档
+    t.arm(src);
+    return true;
+  }
+  // #1489：开关当场生效（不用等重启页面）。resetBase＝清除自定义音频时回 #724 基础档。
+  function kaSwapTransducer(resetBase) {
+    if (!keepEnabled) return;
+    if (!kaBuildTransducer(resetBase ? KA_VOL_BASE : kaToneLevel)) return;
+    if (kaNoDuckNow()) kaReleaseKeepMediaSession(); else setKeepMediaSession(); // #1489③
+    if (!musicNowPlaying()) { try { const p = keepAudio.el.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {} }
+  }
+  // #1489③：把「Mochi 后台保活」那条媒体条让出去——挂媒体条本身就是那次抢媒体音频焦点。
+  // 站内听歌的条（music-player 的 metadata）一概不动，与 #978/#1374「谁在放音乐谁拿条」同一口径。
+  function kaReleaseKeepMediaSession() {
+    try {
+      if (window.__musicPlaying || musicIntentPlaying()) return; // 歌曲在播／还想播＝那条是 music-player 自己的，不摘
+      if (!('mediaSession' in navigator) || !navigator.mediaSession) return;
+      const md = navigator.mediaSession.metadata;
+      if (md && String(md.title) !== 'Mochi 后台保活') return; // 不是我们的条，不摘
+    } catch (e) { return; }
+    kaClearKeepMediaSession();
+  }
+  // #1489：媒体会话的「收口」只剩这一处——原写法内联在 stopKeepAlive 里，而新档让出媒体条走的是同
+  // 一套处置（#924d 钉的「先落 paused 再清 metadata」WebKit 残留怪癖）。两处各写一遍＝两个写入方，
+  // 迟早漂移（#707/#1374a 同款病灶），所以抽成一个函数、两边同调。
+  function kaClearKeepMediaSession() {
+    // v3.9.x：音乐播放时不清除——music-player 正在用 MediaSession 控制音乐
+    if (window.__musicPlaying) return;
+    try {
+      if ('mediaSession' in navigator && navigator.mediaSession) {
+        // #924b：先把播放态落回 paused——iOS WebKit 清 metadata 后媒体条/控制中心「正在播放」项
+        // 有残留（已知怪癖），只清 metadata 不改播放态时条目滞留＝用户看到保活条还在、以为「关不掉」
+        try { navigator.mediaSession.playbackState = 'paused'; } catch (e2) {}
+        navigator.mediaSession.metadata = null;
+        try { navigator.mediaSession.setActionHandler('play', null); } catch (e) {}
+        try { navigator.mediaSession.setActionHandler('pause', null); } catch (e) {}
+      }
+    } catch (e) {}
+  }
 
   // v3.13.x：保活补播改指数退避——原来每 5 秒无条件 play() 抢回播放权，但安卓上网页
   // 音频与其他 App 共用系统音频焦点：被抢暂停后每 5 秒抢一次＝与对方无限拉锯（用户实测：
@@ -303,7 +493,10 @@
   // #207 结论不变）；心跳断流取证命中一次即升 KA_VOL_MAX=0.35（-43dBFS）仍不可闻。
   // iOS 分支 amp 0.002 且 WebKit 忽略 <audio>.volume（#340），完全不受影响；自定义音频仍 volume=1。
   const KA_VOL_BASE = 0.2, KA_VOL_MAX = 0.35;
-  let KEEP_AUDIO_DATAURL = '';
+  // #1489：同一颗样本留两份出口——dataURL 给 <audio> 媒体元素，RAW 字节给 WebAudio 转子
+  // （直接 decodeAudioData 手上的 PCM，省一次 base64 往返；交出去的是 slice 副本，
+  //  因为 decodeAudioData 会 detach 传入的 ArrayBuffer，原件要留着可反复解）。
+  let KEEP_AUDIO_DATAURL = '', KEEP_AUDIO_WAV = null;
   // ================= #1374b/#1374c 唯一音量写入方 + 前台静音闸 =================
   // FIX 2026-09-28 #1374b（用户实报「安卓 iQOO10／Chrome：网站内播放音乐的时候一直有嘟嘟声，
   //   一直边放音乐边嘟嘟响，是其他音频设置混进来了，而不是只有音乐的声音」，并明说
@@ -395,10 +588,11 @@
         dv.setInt16(44 + i * 2, Math.round(v * 32767), true);
       }
       const bytes = new Uint8Array(buf);
+      KEEP_AUDIO_WAV = buf; // #1489：WebAudio 转子要 ArrayBuffer 本体（媒体元素那份走 dataURL）
       let bin = '';
       for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
       KEEP_AUDIO_DATAURL = 'data:audio/wav;base64,' + btoa(bin);
-    } catch (e) { KEEP_AUDIO_DATAURL = ''; }
+    } catch (e) { KEEP_AUDIO_DATAURL = ''; KEEP_AUDIO_WAV = null; }
     return KEEP_AUDIO_DATAURL;
   }
 
@@ -414,6 +608,9 @@
       if (!('mediaSession' in navigator) || !navigator.mediaSession || !window.MediaMetadata) return;
       if (window.__musicPlaying) return; // 音乐在播，保留音乐的媒体条
       if (musicIntentPlaying()) return; // 音乐还想播（瞬断暂停中），不覆盖歌曲媒体条
+      // #1489③：新档（不抢别的 App 的声音）下压根不声明保活媒体条——playbackState='playing' 就是
+      // 内核去 requestAudioFocus 的那一手，挂着条＝不出声也占住媒体通道＝对方的音乐被压低。
+      if (kaNoDuckNow()) { kaReleaseKeepMediaSession(); return; }
       navigator.mediaSession.metadata = new window.MediaMetadata({
         title: 'Mochi 后台保活',
         artist: 'mochi',
@@ -877,6 +1074,14 @@
       keep: keepEnabled,
       notify: notifyEnabled,
       perm: ('Notification' in window) ? Notification.permission : 'unsupported',
+      // #1489：把「这口气从哪个孔出」摊进诊断——作者下一份诊断单能直接看出保活此刻占不占媒体通道
+      // （锚=媒体元素(占媒体通道) ＝会压低别的 App；锚=WebAudio(不占媒体通道) ＝不抢）。
+      anchor: keepAudio ? (keepAudio.mode || '?') : null,
+      noduck: kaNoDuckNow(),
+      // #1489：三个判据输入一并给出——「为什么这次走的是元素路」必须能从诊断单直接判出来
+      // （档没开／有自定义音频／这条路坏过），否则下次真机报障还是只能靠猜。
+      duckIn: { saved: kaNoDuckSaved(), custom: kaCustomWanted(), broken: kaWaBroken },
+      waErr: kaWaBroken ? (kaWaErr || 'webaudio unavailable') : '',
       audio: audio,
       ms: ms,
       music: music,
@@ -894,36 +1099,19 @@
     try {
       // v3.5.160：保活音频改用 <audio> 元素循环播放极轻正弦波——媒体通知条才会显示
       // v3.44.x：优先用用户上传的自定义音频；否则内置默认静音音频
-      const src = kaCustomAudio || ensureKeepAudioDataUrl();
-      if (!src) { if (showToast) toast('后台保活启动失败（无法生成保活音频）'); return; }
-      const keepEl = document.createElement('audio');
-      keepEl.loop = true;
-      // 自定义音频是用户主动选的（白噪音/助眠等），按原音量播放；默认静音音频压到近无声
-      // #724：基础档音量升级 KA_VOL_BASE（0.05→0.2，见上方分级说明），治新内核 audible 收紧后豁免丢失
-      // FIX 2026-09-28 #1374b：档位只有一个写入方，且要先在册再落档——keepAudio 登记从 playIt
-      //   之后提到这里（同一个同步函数内，不改变任何时序），否则 kaApplyToneVolume() 找不到元素，
-      //   前台静音闸就得在这里再写一遍常数＝两个写入方（#707 同款病灶）。
-      keepAudio = { el: keepEl };
-      kaSetToneLevel(KA_VOL_BASE); // #724 基础档＋#1374b：visible⇒0 / hidden⇒0.2（自定义音频恒原音量）
-      keepEl.src = src;
-      keepEl.setAttribute('playsinline', '');
-      // v3.13.x：play/pause 事件跟踪——play 成功刷新"最近播过"，外部打断（pause）
-      // 进入退避排程；主动让位（音乐在播）不算打断
-      keepEl.addEventListener('play', function () { kaMarkPlayed(); });
-      keepEl.addEventListener('pause', function () {
-        if (!keepEnabled || !keepAudio || !keepAudio.el || musicNowPlaying()) return;
-        if (kaTimer) return; // 已在退避轨道
-        // #924：隐藏期被其他 App 抢走焦点＝用户正在看视频/听歌，不排回抢（见 kaYieldStealFocus）
-        if (kaYieldStealFocus()) return;
-        kaSchedule(); // 连击计数由 kaSchedule 内部递增
-      });
+      // FIX 2026-09-28 #1374b：档位只有一个写入方，且要先在册再落档（登记从 playIt 之后提到
+      //   建元素那一刻），否则 kaApplyToneVolume() 找不到元素＝两个写入方（#707 同款病灶）。
+      // #1489：转子的「选哪条通道＋建＋落档＋挂源」收进 kaBuildTransducer（新档＝WebAudio 不占
+      //   媒体通道；关档＝原媒体元素路逐字，含上面的在册顺序与 #724 基础档）；src 取不到时的
+      //   toast 语义留在原位。
+      if (!kaBuildTransducer(KA_VOL_BASE)) { if (showToast) toast('后台保活启动失败（无法生成保活音频）'); return; }
       const playIt = function () {
         if (musicNowPlaying()) return; // v3.10.x：音乐在播，让位不抢音频（由 syncKeepForMusic 收回）
-        const p = keepEl.play();
+        const p = keepAudio.el.play();
         if (p && p.catch) p.catch(function () {});
       };
       playIt();
-      // #1374b：keepAudio 已在建元素那一刻登记（见上），这里不再重复赋值
+      // #1374b：keepAudio 已在建转子那一刻登记（见上），这里不再重复赋值
 
       // v3.5.155：媒体会话标记——Chrome 安卓把「有活跃媒体会话 + 音频输出」的页面
       // 视为"正在播放媒体"，后台几乎不冻结（Youtube 网页版后台持续播放即此原理）。
@@ -972,7 +1160,7 @@
               // 刚接管的系统媒体会话抢回来，真机表现＝通知栏条变成「Mochi 后台保活」+
               // 用户的音乐被挤停。改为「谁在放音乐谁拿条」：隐藏态只在条确实还归保活自己
               // 时才维持该信号，被接走（或没了）就让位。前台照旧，回前台由 healKeepAlive 接管。
-              let hold = true;
+              let hold = !kaNoDuckNow(); // #1489③：新档下这条心跳不再把 playbackState 按回 'playing'（那正是抢媒体焦点的那一手）
               try {
                 if (document.visibilityState === 'hidden') {
                   const md = navigator.mediaSession && navigator.mediaSession.metadata;
@@ -1044,21 +1232,14 @@
     //   当媒体加载」的 load/error 循环，error 事件再触发既有补播口子的边缘路径＝关了
     //   以后音频/媒体条阴魂不散（用户实报「后台保活关不掉」的组成部分）。
     try { if (keepAudio && keepAudio.el) { keepAudio.el.pause(); keepAudio.el.removeAttribute('src'); try { keepAudio.el.load(); } catch (e2) {} } } catch (e) {}
+    // #1489：WebAudio 转子没有 src 可摘，但要关的是那条 Context（不关＝换完通道后旧 ctx 仍在跑）；
+    // 媒体元素转子的 kill＝null，这一发什么都不做＝关档路径逐字不变。
+    try { if (keepAudio && keepAudio.kill) keepAudio.kill(); } catch (e) {}
     // v3.5.155：清除媒体会话标记（通知栏媒体条消失）
     // v3.9.x：音乐播放时不清除——music-player 正在用 MediaSession 控制音乐
-    if (!window.__musicPlaying) {
-      try {
-        if ('mediaSession' in navigator && navigator.mediaSession) {
-          // #924b：先把播放态落回 paused——iOS WebKit 清 metadata 后媒体条/控制中心
-          //   「正在播放」项有残留（已知怪癖），只清 metadata 不改播放态时条目滞留
-          //   ＝用户看到保活条还在、以为「关不掉」。声明暂停后由系统收走该条目。
-          try { navigator.mediaSession.playbackState = 'paused'; } catch (e2) {}
-          navigator.mediaSession.metadata = null;
-          try { navigator.mediaSession.setActionHandler('play', null); } catch (e) {}
-          try { navigator.mediaSession.setActionHandler('pause', null); } catch (e) {}
-        }
-      } catch (e) {}
-    }
+    // #1489：处置本体（#924b/#924d 那条 WebKit 怪癖）抽成唯一收口 kaClearKeepMediaSession，
+    //   与新档「让出保活媒体条」共用同一处——两处各写一遍＝两个写入方，迟早漂移。
+    kaClearKeepMediaSession();
     // v3.5.131：释放屏幕常亮（原实现从不 release——关闭保活后屏幕持续不熄）
     try { if (wakeSentinel) { wakeSentinel.release(); } } catch (e) {}
     wakeSentinel = null;
@@ -1195,7 +1376,7 @@
       window.openModal('后台保活已开启 · 三条必知', '', function () {}, {
         noInput: true, pillSubmit: true,
         pills: [{ label: '知道了', value: 'ok' }],
-        staticText: '保活＝页面在后台持续播放一段近无声音频，让系统不冻结本页。有两条硬限制（手机/浏览器限制，不是网站故障）：\n\n① 别的 App 会把保活截断：刷视频、听歌等会占用手机音频通道，保活音频被暂停＝保活失效，回到本页才自动恢复；被截断期间后台消息收不到、后台弹窗不弹。\n\n② 后台挂久了会失效：系统省电/内存策略会把挂久的页面冻结甚至丢弃重载（Edge「睡眠标签页」/Chrome「内存节省程序」约 30 分钟就会丢）。失效后请彻底关闭网页重新打开，再把「后台保活」「后台弹窗」开关重新打开。\n\n③ 开着它时页面不会在后台自动换新版（换版要重载页面、会把后台运行打断）：顶部出现「检测到新版本」条时，你自己挑时间点「刷新使用新版」即可；不点也不影响使用，下次彻底关闭网页重开会自然换到新版。'
+        staticText: '保活＝页面在后台持续播放一段近无声音频，让系统不冻结本页。有两条硬限制（手机/浏览器限制，不是网站故障）：\n\n① 别的 App 会把保活截断：刷视频、听歌等会占用手机音频通道，保活音频被暂停＝保活失效，回到本页才自动恢复；被截断期间后台消息收不到、后台弹窗不弹。（反过来也一样：老路会把你正在听的音乐压低——现在默认静音音频改走「不抢其他 App 的声音」那条通道，切进切出不再忽响忽轻，代价是通知栏那条「Mochi 后台保活」不再出现；想要回到老路（占住音频通道、通知栏有媒体条）就把 设置→系统→「保活不抢其他 App 的声音」关掉。）\n\n② 后台挂久了会失效：系统省电/内存策略会把挂久的页面冻结甚至丢弃重载（Edge「睡眠标签页」/Chrome「内存节省程序」约 30 分钟就会丢）。失效后请彻底关闭网页重新打开，再把「后台保活」「后台弹窗」开关重新打开。\n\n③ 开着它时页面不会在后台自动换新版（换版要重载页面、会把后台运行打断）：顶部出现「检测到新版本」条时，你自己挑时间点「刷新使用新版」即可；不点也不影响使用，下次彻底关闭网页重开会自然换到新版。'
       });
     } catch (e) {}
   }
@@ -1248,6 +1429,25 @@
       else stopKeepAlive(true);
     });
   }
+  // #1489：设置→系统 新增一档「保活不抢其他 App 的声音」（存储缺省＝开＝新通道）。挂与「后台保活」
+  // 同一套用户手势闸（#921f/#988：Edge 睡眠标签页/Chrome 内存节省程序重载带来的无手势 change
+  // 一律照实回填，绝不把档写花）。点动当场换转子，不用等重开网页。
+  const kaNoduckBtn = document.getElementById('bg-keep-noduck');
+  function syncKaNoduckUI() { try { if (kaNoduckBtn) kaNoduckBtn.checked = kaNoDuckSaved(); } catch (e) {} }
+  // #1489：落档＋当场生效只有一个口——设置行的 change 与回归量具同走这里（量具直连它，测的就是
+  // 「换了没换」而不是「那点按有没有被 #921f 手势闸收下」；同 __kaRetryBaseMs/__kaNextDelayMs 那一族先例）
+  function kaApplyNoduckPref(on) {
+    gSet('__ka-noduck', on ? '1' : '0');
+    syncKaNoduckUI();
+    try { if (window.__mochiPhase) window.__mochiPhase('ka-noduck'); } catch (e) {}
+    kaSwapTransducer();
+  }
+  window.__kaNoduckSet = kaApplyNoduckPref;
+  if (kaNoduckBtn) kaNoduckBtn.addEventListener('change', function (e) {
+    if (!kaUserGesture(e)) { syncKaNoduckUI(); return; }
+    kaApplyNoduckPref(!!(e.target && e.target.checked));
+  });
+  syncKaNoduckUI();
   (function () {
     // v3.9.x：全局化迁移——旧版按桌面存（activeStore），读时回退旧值并写全局，
     // 之后开关不再随桌面/active-contact 变化而"自己关掉"

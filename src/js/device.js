@@ -1494,6 +1494,11 @@
           '通知=' + (kp.notify ? '开' : '关') + '/' + kp.perm];
         if (kp.audio) kpParts.push('音频=' + (kp.audio.paused ? '暂停' : '播放') + ' vol=' + kp.audio.volume);
         else kpParts.push('音频=无（保活未起）');
+        // #1489：把「这口气从哪个孔出」摊开——作者报「进 mochi 突然变响、退出来又变轻」这类音量泵动，
+        // 判的就是保活此刻占不占媒体音频通道：锚=媒体元素(占媒体通道)＝会压低别的 App；
+        // 锚=WebAudio(不占媒体通道)＝不抢。路=xxx 是 WebAudio 不可用时回落的原因（没有＝没回落）。
+        if (kp.anchor) kpParts.push('锚=' + kp.anchor);
+        if (kp.waErr) kpParts.push('路=' + kp.waErr);
         if (kp.ms) kpParts.push('媒体条=' + (kp.ms.metadata ? '有' : '无') + ' ' + kp.ms.state);
         kpParts.push('WebRTC=' + kp.pc);
         // FIX 2026-09-22 #1017：把「通知这一侧」的现场也摊开——开关/权限在开头那行早就有了，但

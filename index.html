@@ -10809,9 +10809,9 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
       <!-- #570：第三行开屏新版检测（ver-check.js 渲染）：检测中 / ✓已是最新 / ⇩有新版本可点更新 -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1790755409186">
+      <div class="splash-ver" id="splash-ver" data-build-ts="1790757253330">
         <span class="sv-app">Mochi 字卡传讯 <b>v8.56</b></span>
-        <span class="sv-deploy">部署于 2026-09-30 16:03<span id="splash-ver-live"></span></span>
+        <span class="sv-deploy">部署于 2026-09-30 16:34<span id="splash-ver-live"></span></span>
         <span class="sv-check" id="splash-ver-check" hidden></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
@@ -12235,6 +12235,11 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
         <div class="gs-row"><span>后台保活</span><label class="toggle"><input type="checkbox" id="bg-keepalive"><span class="tk"></span></label></div>
         <!-- v3.44.x：保活音频可选——默认内置静音音频 / 用户上传自定义音频（逻辑在 bg-keep.js） -->
         <div class="gs-row"><span>保活音频</span><button class="bg-notify-test" id="bg-keep-audio-btn" type="button">默认静音音频</button></div>
+        <!-- #1489：保活不抢其他 App 的声音（作者直派 华为 Mate80／自带浏览器「在后台放音乐，进 mochi 突然变响、
+             退出来又变轻」）——默认静音音频改走 WebAudio 通道，不再向系统声明「本站正在放媒体」＝不把别的
+             App 的音量压低；关掉＝回到老路（媒体元素＋通知栏媒体条）。逻辑在 bg-keep.js 的 kaBuildTransducer -->
+        <div class="gs-row"><span>保活不抢其他 App 的声音</span><label class="toggle"><input type="checkbox" id="bg-keep-noduck"><span class="tk"></span></label></div>
+        <div class="gs-sub" id="bg-keep-noduck-sub"><b>默认开启</b>：保活那段近无声音频改走「站内音效」那条通道，不再向手机声明「本站正在放媒体」——你在别的 App 听歌 / 看视频时不会被它压低音量，切进切出也不再忽响忽轻。代价：通知栏那条「Mochi 后台保活」不再出现（那条媒体横幅本身就是这次音频通道的占用）；个别只认这条媒体条豁免的浏览器后台收消息可能变差，把本开关关掉即回到老路（有媒体条、会压低别的 App）。上传了自定义保活音频时本开关不参与——那是你要出声放的东西，照旧占用音频通道。</div>
         <!-- #977：后台保活两条硬限制当面铺在行下（用户直派「两功能要提示用户：后台长时间挂着会失效，
              需重新关掉网页打开并重新打开功能；别的 App 刷视频/听音乐会占用音频截断保活，也要写清楚」）。
              红色视觉复用 #961 红条族；完整口径见本组「功能说明」胶囊与 使用说明 第 10 节 -->
@@ -18943,6 +18948,8 @@ const kpParts = ['保活=' + (kp.keep ? '开' : '关'),
 '通知=' + (kp.notify ? '开' : '关') + '/' + kp.perm];
 if (kp.audio) kpParts.push('音频=' + (kp.audio.paused ? '暂停' : '播放') + ' vol=' + kp.audio.volume);
 else kpParts.push('音频=无（保活未起）');
+if (kp.anchor) kpParts.push('锚=' + kp.anchor);
+if (kp.waErr) kpParts.push('路=' + kp.waErr);
 if (kp.ms) kpParts.push('媒体条=' + (kp.ms.metadata ? '有' : '无') + ' ' + kp.ms.state);
 kpParts.push('WebRTC=' + kp.pc);
 try {
@@ -22858,4 +22865,4 @@ window.__mochiBootRetry = function () { try { location.reload(); } catch (e) {} 
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ muntj8yq -->
+<!-- __MOCHI_EOF__ munumrwy -->

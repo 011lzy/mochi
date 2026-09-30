@@ -23,6 +23,9 @@
 //      消息类音效不叠；没在放歌时照常响；来电铃声（错过就没了的单发事件）照旧响。
 //
 // 断言分组：F 夹具诚实 · A 本批新契约（红侧读数即症状本体）· B 旧契约不许动 · S 逻辑锚 · Z 零异常
+// #1489 重锚：本批把默认保活通道换成 WebAudio（不占媒体音频通道＝不把别的 App 压低），
+//   而本尺通篇量的是那颗 <audio> 媒体元素（音量闸三态／媒体条归属／让位时序）＝夹具显式钉 __ka-noduck='0'
+//   走老通道，一条断言不改地继续守老路；新通道的同义面由 verify-1489-ka-audio-channel.mjs 守。
 // verify-suite:timeout=300000
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
@@ -186,6 +189,7 @@ try {
         url:'https://cdn.test/a1374.mp3', source:'url', cover:'', duration:180, playlistId:'default', addedAt:Date.now() }];
       window.storeFor('default').set('music-library', JSON.stringify(arr));
       window.xyStore('xy-home-v2').set('bg-keepalive', '1');
+      window.xyStore('xy-home-v2').set('__ka-noduck', '0'); // #1489：本尺量的是「媒体元素那条通道」（保活音频＋媒体条的音量闸/共存），新通道的同义断言在 verify-1489-ka-audio-channel.mjs
       // 用户自己在「音效设置」里配过的收消息音效（dataURL＝自定义路径，mock 元素必出声，不受自动播放策略摆布）
       var dv='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=';
       try { window.activeStore().set('sfx-in', dv); window.activeStore().set('sfx-out', dv);
@@ -347,8 +351,15 @@ try {
   check('B5 music-media-release 后保活条恢复（#2346 那条接线未断）', b5 && /后台保活/.test(String(b5.title)), b5);
   check('B6 #924 隐藏期被外部抢焦点不回的闸仍在（iOS 分支一字未动）',
     /function kaYieldStealFocus\(\)\s*\{\s*return kaIsIOS\(\) && document\.visibilityState === 'hidden';/.test(prodKeep), undefined);
-  check('B7 #724 分级常量与两条档位落点仍在（KA_VOL_BASE=0.2 / KA_VOL_MAX=0.35）',
-    /const KA_VOL_BASE = 0\.2, KA_VOL_MAX = 0\.35;/.test(prodKeep) && (prodKeep.match(/kaSetToneLevel\(KA_VOL_BASE\);/g) || []).length === 2, undefined);
+  // #1489 重锚（同一把尺，问的还是「基础档在不在两处入口落得到」）：#1374a 那两处 kaSetToneLevel(KA_VOL_BASE)
+  //   在 #1489 收进转子构造——启动 kaBuildTransducer(KA_VOL_BASE)、清自定义 kaSwapTransducer(true)→resetBase
+  //   那一支，唯一的直写口变成 kaSetToneLevel(level || KA_VOL_BASE)。老拓扑（恰 2 处直写）与新拓扑任一在位
+  //   都算合格；把音量直写成常数那种坏法（keepEl.volume = 0.2）两边都不许回流。
+  check('B7 #724 分级常量与档位入口仍在（老拓扑两处直写基础档／新拓扑启动＋清自定义两入口，#1489 重锚）',
+    /const KA_VOL_BASE = 0\.2, KA_VOL_MAX = 0\.35;/.test(prodKeep) &&
+    ((prodKeep.match(/kaSetToneLevel\(KA_VOL_BASE\);/g) || []).length === 2 ||
+      (/kaSetToneLevel\(level \|\| KA_VOL_BASE\);/.test(prodKeep) && /if \(!kaBuildTransducer\(KA_VOL_BASE\)\)/.test(prodKeep) && /resetBase \? KA_VOL_BASE : kaToneLevel/.test(prodKeep))) &&
+    !/keepEl\.volume = 0\.\d+;/.test(prodKeep), undefined);
 
   // ---------- S 组·逻辑锚 ----------
   check('S1 音量只有一个写入方：闸表达式 visible⇒0 / hidden⇒该档（产物）',

@@ -32,6 +32,7 @@ function kaCustomOn() { try { return gGet('__ka-audio-on') === '1'; } catch (e) 
 function kaAudioLabel() { return (kaCustomAudio || kaCustomOn()) ? '自定义音频' : '默认静音音频'; }
 function kaApplyCustomAudio() {
 if (!kaCustomAudio || !keepAudio || !keepAudio.el) return;
+if (keepAudio.mode === KA_MODE_WA) { kaSwapTransducer(); return; }
 try {
 if (keepAudio.el.src !== kaCustomAudio) {
 keepAudio.el.src = kaCustomAudio;
@@ -66,11 +67,7 @@ window.xyStore(GNS).remove('__ka-audio-on');
 window.xyStore(GNS).remove('__ka-audio-name');
 } catch (e) {}
 if (keepEnabled && keepAudio && keepAudio.el) {
-try {
-keepAudio.el.src = ensureKeepAudioDataUrl();
-kaSetToneLevel(KA_VOL_BASE); // #724 基础档＋#1374b 前台静音闸的唯一落点（原直写 0.05→0.2 常数）
-if (!musicNowPlaying()) { const p = keepAudio.el.play(); if (p && p.catch) p.catch(function () {}); }
-} catch (e) {}
+try { kaSwapTransducer(true); } catch (e) {}
 }
 syncKaAudioUI();
 toast('已恢复默认静音音频');
@@ -113,7 +110,7 @@ const pills = [
 if (kaCustomAudio || kaCustomOn()) pills.push({ label: '清除自定义', value: 'clear' });
 const hasCustom = !!(kaCustomAudio || kaCustomOn());
 const cur = kaAudioLabel() + (hasCustom && kaCustomAudioName ? '（' + kaCustomAudioName + '）' : '');
-const txt = '后台保活需要在后台持续播放一段音频来让页面保持运行。\n\n· 默认静音音频：内置生成、近乎无声，推荐。\n· 自定义音频：上传自己的音频（白噪音 / 助眠声，或更彻底的静音文件），按原音量循环播放。\n\n注意：任何持续播放的音频都会占用手机音频通道，可能影响其他 App 的声音（详见「后台保活」功能说明）。\n当前：' + cur;
+const txt = '后台保活需要在后台持续播放一段音频来让页面保持运行。\n\n· 默认静音音频：内置生成、近乎无声，推荐。\n· 自定义音频：上传自己的音频（白噪音 / 助眠声，或更彻底的静音文件），按原音量循环播放。\n\n注意：默认静音音频走「不抢其他 App 的声音」那条通道（见 设置→系统 同名开关），不再把别的 App 的音量压低；但上传自定义音频是要出声的，它仍会占用手机音频通道，可能影响其他 App 的声音（详见「后台保活」功能说明）。\n当前：' + cur;
 window.openModal('【保活音频】', '', function (v) {
 if (v === 'default' || v === 'clear') kaSetDefaultAudio();
 else if (v === 'upload') kaPickCustomAudio();
@@ -124,6 +121,143 @@ let keepInterval = null;
 let keepEnabled = false;
 let keepUserTouched = false; // v3.26.x #88：本会话用户手动动过保活开关 → 回填后不重读覆盖
 let wakeSentinel = null; // v3.5.131：模块级，供 stopKeepAlive 释放
+const KA_MODE_MEDIA = '媒体元素(占媒体通道)', KA_MODE_WA = 'WebAudio(不占媒体通道)';
+function kaNoDuckSaved() { try { const v = gGet('__ka-noduck'); return v === null ? true : v === '1'; } catch (e) { return true; } }
+function kaCustomWanted() { return !!kaCustomAudio || kaCustomOn(); }
+let kaWaBroken = false; // #1489：本会话 WebAudio 路失败过（无 ctx／解码被拒）→ 不再反复试，留在媒体元素
+function kaNoDuckNow() { return kaNoDuckSaved() && !kaCustomWanted() && !kaWaBroken; }
+function kaOnPlayEdge() { kaMarkPlayed(); }
+function kaOnPauseEdge() {
+if (!keepEnabled || !keepAudio || !keepAudio.el || musicNowPlaying()) return;
+if (kaTimer) return; // 已在退避轨道
+if (kaYieldStealFocus()) return; // #924：隐藏期被外部抢走焦点＝用户正在听歌/看视频，不回抢
+kaSchedule(); // 连击计数由 kaSchedule 内部递增
+}
+let kaWaCtx = null, kaWaGain = null, kaWaSrc = null, kaWaBuf = null, kaWaVol = 0, kaWaPaused = true, kaWaErr = '';
+function kaWaDecode(cb) {
+if (kaWaBuf) { cb(true); return; }
+if (!kaWaCtx || !KEEP_AUDIO_WAV) { kaWaErr = 'no wav/ctx'; cb(false); return; }
+let done = false;
+const fin = function (ok) { if (done) return; done = true; cb(!!ok); };
+try {
+if (!kaWaGain) { kaWaGain = kaWaCtx.createGain(); kaWaGain.connect(kaWaCtx.destination); }
+const ab = KEEP_AUDIO_WAV.slice(0);
+const p = kaWaCtx.decodeAudioData(ab, function (b) { if (b) kaWaBuf = b; fin(!!b); },
+function () { kaWaErr = 'decode rejected'; fin(false); });
+if (p && p.then) p.then(function (b) { if (b) kaWaBuf = b; fin(!!b); }, function () { kaWaErr = 'decode threw'; fin(false); });
+} catch (e) { kaWaErr = String((e && e.message) || e); fin(false); }
+}
+function kaWaStopSrc() {
+try { if (kaWaSrc) { kaWaSrc.onended = null; kaWaSrc.stop(); } } catch (e) {}
+try { if (kaWaSrc) kaWaSrc.disconnect(); } catch (e) {}
+kaWaSrc = null;
+}
+function kaWaStart() {
+return new Promise(function (res, rej) {
+if (!keepEnabled) { rej(new Error('keep off')); return; }
+if (musicNowPlaying()) { res(); return; } // v3.10.x 让位语义与 playIt 的早退一致（不抢，等收回）
+const run = function () {
+try {
+if (kaWaCtx.state !== 'running') { rej(new Error('ctx ' + kaWaCtx.state)); return; } // 自动播放策略未解锁＝如实报错，交给既有退避／首次交互补播
+kaWaStopSrc();
+const s = kaWaCtx.createBufferSource();
+s.buffer = kaWaBuf; s.loop = true; s.connect(kaWaGain); s.start(0);
+kaWaSrc = s; kaWaPaused = false;
+kaApplyToneVolume(); // #1374a：转子换完仍由唯一落点档位说了算（前台＝0）
+kaOnPlayEdge();
+res();
+} catch (e) { rej(e); }
+};
+kaWaDecode(function (ok) {
+if (!ok) { kaWaBroken = true; kaFallbackToMedia(); rej(new Error(kaWaErr || 'decode fail')); return; } // #1489④：解码路不通＝本会话不再试，并当场换回媒体元素（保活绝不因新档而死）
+try {
+const rp = kaWaCtx.state === 'running' ? null : kaWaCtx.resume();
+if (rp && rp.then) rp.then(function () { run(); }, function () { run(); });
+else run();
+} catch (e) { run(); }
+});
+});
+}
+function kaFallbackToMedia() {
+if (!keepEnabled || !keepAudio || keepAudio.mode !== KA_MODE_WA) return;
+if (!kaBuildTransducer(kaToneLevel)) return;
+setKeepMediaSession();
+if (!musicNowPlaying()) { try { const p = keepAudio.el.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {} }
+}
+function kaWaKill() {
+kaWaStopSrc();
+try { if (kaWaCtx && kaWaCtx.close) kaWaCtx.close(); } catch (e) {}
+kaWaCtx = null; kaWaGain = null; kaWaBuf = null; kaWaPaused = true;
+}
+function kaMakeWebAudioKeep() {
+const AC = window.AudioContext || window.webkitAudioContext;
+if (!AC) return null;
+if (!kaWaCtx) { try { kaWaCtx = new AC(); } catch (e) { return null; } }
+const el = {
+loop: true,
+get paused() { return kaWaPaused; },
+set paused(v) { kaWaPaused = !!v; },
+get volume() { return kaWaVol; },
+set volume(v) { kaWaVol = v; try { if (kaWaGain) kaWaGain.gain.value = v; } catch (e) {} },
+get src() { return 'webaudio:' + (kaWaBuf ? 'decoded' : 'pending'); },
+set src(_v) {}, // 自定义音频绝不吃这条通道（#1489④ 由 kaCustomWanted 把转子换成媒体元素）
+play: function () { return kaWaStart(); },
+pause: function () { if (kaWaSrc || !kaWaPaused) { kaWaStopSrc(); kaWaPaused = true; kaOnPauseEdge(); } },
+removeAttribute: function () {}, load: function () {}, setAttribute: function () {}, addEventListener: function () {}
+};
+return { el: el, mode: KA_MODE_WA, arm: function () {}, kill: kaWaKill };
+}
+function kaMakeMediaKeep() {
+const keepEl = document.createElement('audio');
+keepEl.loop = true;
+keepEl.setAttribute('playsinline', '');
+keepEl.addEventListener('play', function () { kaOnPlayEdge(); });
+keepEl.addEventListener('pause', function () { kaOnPauseEdge(); });
+return { el: keepEl, mode: KA_MODE_MEDIA, arm: function (s) { keepEl.src = s; }, kill: null };
+}
+function kaTeardownTransducer() {
+const old = keepAudio; keepAudio = null; // 先摘在册：换通道那一刻的 pause 边沿不该排补播
+if (!old) return;
+try { if (old.el && old.el.pause) old.el.pause(); } catch (e) {}
+try { if (old.kill) old.kill(); } catch (e) {}
+}
+function kaBuildTransducer(level) {
+kaTeardownTransducer();
+const src = kaCustomAudio || ensureKeepAudioDataUrl();
+if (!src) return false;
+let t = kaNoDuckNow() ? kaMakeWebAudioKeep() : kaMakeMediaKeep();
+if (!t) { kaWaBroken = true; t = kaMakeMediaKeep(); } // #1489④ 环境不支持＝静默回落，保活不因新档而死
+keepAudio = t;
+kaSetToneLevel(level || KA_VOL_BASE); // #1374a：档位只有一个写入方；#724 基础档＋#1374b visible⇒0／hidden⇒该档
+t.arm(src);
+return true;
+}
+function kaSwapTransducer(resetBase) {
+if (!keepEnabled) return;
+if (!kaBuildTransducer(resetBase ? KA_VOL_BASE : kaToneLevel)) return;
+if (kaNoDuckNow()) kaReleaseKeepMediaSession(); else setKeepMediaSession(); // #1489③
+if (!musicNowPlaying()) { try { const p = keepAudio.el.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {} }
+}
+function kaReleaseKeepMediaSession() {
+try {
+if (window.__musicPlaying || musicIntentPlaying()) return; // 歌曲在播／还想播＝那条是 music-player 自己的，不摘
+if (!('mediaSession' in navigator) || !navigator.mediaSession) return;
+const md = navigator.mediaSession.metadata;
+if (md && String(md.title) !== 'Mochi 后台保活') return; // 不是我们的条，不摘
+} catch (e) { return; }
+kaClearKeepMediaSession();
+}
+function kaClearKeepMediaSession() {
+if (window.__musicPlaying) return;
+try {
+if ('mediaSession' in navigator && navigator.mediaSession) {
+try { navigator.mediaSession.playbackState = 'paused'; } catch (e2) {}
+navigator.mediaSession.metadata = null;
+try { navigator.mediaSession.setActionHandler('play', null); } catch (e) {}
+try { navigator.mediaSession.setActionHandler('pause', null); } catch (e) {}
+}
+} catch (e) {}
+}
 let kaTimer = null;     // 排中的退避补播定时器
 let kaDelay = 0;        // 下一次补播间隔 ms；0=不在退避轨道
 let kaPauseStreak = 0;  // 连续被打断次数（稳定播放一段时间后清零）
@@ -210,7 +344,7 @@ setTimeout(syncKeepForMusic, 0);
 } catch (e) {}
 })();
 const KA_VOL_BASE = 0.2, KA_VOL_MAX = 0.35;
-let KEEP_AUDIO_DATAURL = '';
+let KEEP_AUDIO_DATAURL = '', KEEP_AUDIO_WAV = null;
 let kaToneLevel = KA_VOL_BASE; // #724 分级读数：断流命中一次升 KA_VOL_MAX，本会话不回改
 function kaVisibleNow() { try { return document.visibilityState === 'visible'; } catch (e) { return false; } }
 function kaApplyToneVolume() {
@@ -246,10 +380,11 @@ const v = Math.sin(2 * Math.PI * freq * (i / sr)) * amp;
 dv.setInt16(44 + i * 2, Math.round(v * 32767), true);
 }
 const bytes = new Uint8Array(buf);
+KEEP_AUDIO_WAV = buf; // #1489：WebAudio 转子要 ArrayBuffer 本体（媒体元素那份走 dataURL）
 let bin = '';
 for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
 KEEP_AUDIO_DATAURL = 'data:audio/wav;base64,' + btoa(bin);
-} catch (e) { KEEP_AUDIO_DATAURL = ''; }
+} catch (e) { KEEP_AUDIO_DATAURL = ''; KEEP_AUDIO_WAV = null; }
 return KEEP_AUDIO_DATAURL;
 }
 function musicIntentPlaying() { try { return !!window.__musicWantPlay; } catch (e) { return false; } }
@@ -258,6 +393,7 @@ try {
 if (!('mediaSession' in navigator) || !navigator.mediaSession || !window.MediaMetadata) return;
 if (window.__musicPlaying) return; // 音乐在播，保留音乐的媒体条
 if (musicIntentPlaying()) return; // 音乐还想播（瞬断暂停中），不覆盖歌曲媒体条
+if (kaNoDuckNow()) { kaReleaseKeepMediaSession(); return; }
 navigator.mediaSession.metadata = new window.MediaMetadata({
 title: 'Mochi 后台保活',
 artist: 'mochi',
@@ -602,6 +738,10 @@ return {
 keep: keepEnabled,
 notify: notifyEnabled,
 perm: ('Notification' in window) ? Notification.permission : 'unsupported',
+anchor: keepAudio ? (keepAudio.mode || '?') : null,
+noduck: kaNoDuckNow(),
+duckIn: { saved: kaNoDuckSaved(), custom: kaCustomWanted(), broken: kaWaBroken },
+waErr: kaWaBroken ? (kaWaErr || 'webaudio unavailable') : '',
 audio: audio,
 ms: ms,
 music: music,
@@ -616,24 +756,10 @@ ev: { stall: kaEv.stall, died: kaEv.died }
 function startKeepAlive(showToast) {
 if (keepAudio) return;
 try {
-const src = kaCustomAudio || ensureKeepAudioDataUrl();
-if (!src) { if (showToast) toast('后台保活启动失败（无法生成保活音频）'); return; }
-const keepEl = document.createElement('audio');
-keepEl.loop = true;
-keepAudio = { el: keepEl };
-kaSetToneLevel(KA_VOL_BASE); // #724 基础档＋#1374b：visible⇒0 / hidden⇒0.2（自定义音频恒原音量）
-keepEl.src = src;
-keepEl.setAttribute('playsinline', '');
-keepEl.addEventListener('play', function () { kaMarkPlayed(); });
-keepEl.addEventListener('pause', function () {
-if (!keepEnabled || !keepAudio || !keepAudio.el || musicNowPlaying()) return;
-if (kaTimer) return; // 已在退避轨道
-if (kaYieldStealFocus()) return;
-kaSchedule(); // 连击计数由 kaSchedule 内部递增
-});
+if (!kaBuildTransducer(KA_VOL_BASE)) { if (showToast) toast('后台保活启动失败（无法生成保活音频）'); return; }
 const playIt = function () {
 if (musicNowPlaying()) return; // v3.10.x：音乐在播，让位不抢音频（由 syncKeepForMusic 收回）
-const p = keepEl.play();
+const p = keepAudio.el.play();
 if (p && p.catch) p.catch(function () {});
 };
 playIt();
@@ -658,7 +784,7 @@ if (!keepAudio.el.paused) keepAudio.el.pause();
 return;
 }
 if (!keepAudio.el.paused) {
-let hold = true;
+let hold = !kaNoDuckNow(); // #1489③：新档下这条心跳不再把 playbackState 按回 'playing'（那正是抢媒体焦点的那一手）
 try {
 if (document.visibilityState === 'hidden') {
 const md = navigator.mediaSession && navigator.mediaSession.metadata;
@@ -710,16 +836,8 @@ toast(ok
 }
 function stopKeepAlive(showToast) {
 try { if (keepAudio && keepAudio.el) { keepAudio.el.pause(); keepAudio.el.removeAttribute('src'); try { keepAudio.el.load(); } catch (e2) {} } } catch (e) {}
-if (!window.__musicPlaying) {
-try {
-if ('mediaSession' in navigator && navigator.mediaSession) {
-try { navigator.mediaSession.playbackState = 'paused'; } catch (e2) {}
-navigator.mediaSession.metadata = null;
-try { navigator.mediaSession.setActionHandler('play', null); } catch (e) {}
-try { navigator.mediaSession.setActionHandler('pause', null); } catch (e) {}
-}
-} catch (e) {}
-}
+try { if (keepAudio && keepAudio.kill) keepAudio.kill(); } catch (e) {}
+kaClearKeepMediaSession();
 try { if (wakeSentinel) { wakeSentinel.release(); } } catch (e) {}
 wakeSentinel = null;
 kaStopTimer();
@@ -809,7 +927,7 @@ if (typeof window.openModal !== 'function') return;
 window.openModal('后台保活已开启 · 三条必知', '', function () {}, {
 noInput: true, pillSubmit: true,
 pills: [{ label: '知道了', value: 'ok' }],
-staticText: '保活＝页面在后台持续播放一段近无声音频，让系统不冻结本页。有两条硬限制（手机/浏览器限制，不是网站故障）：\n\n① 别的 App 会把保活截断：刷视频、听歌等会占用手机音频通道，保活音频被暂停＝保活失效，回到本页才自动恢复；被截断期间后台消息收不到、后台弹窗不弹。\n\n② 后台挂久了会失效：系统省电/内存策略会把挂久的页面冻结甚至丢弃重载（Edge「睡眠标签页」/Chrome「内存节省程序」约 30 分钟就会丢）。失效后请彻底关闭网页重新打开，再把「后台保活」「后台弹窗」开关重新打开。\n\n③ 开着它时页面不会在后台自动换新版（换版要重载页面、会把后台运行打断）：顶部出现「检测到新版本」条时，你自己挑时间点「刷新使用新版」即可；不点也不影响使用，下次彻底关闭网页重开会自然换到新版。'
+staticText: '保活＝页面在后台持续播放一段近无声音频，让系统不冻结本页。有两条硬限制（手机/浏览器限制，不是网站故障）：\n\n① 别的 App 会把保活截断：刷视频、听歌等会占用手机音频通道，保活音频被暂停＝保活失效，回到本页才自动恢复；被截断期间后台消息收不到、后台弹窗不弹。（反过来也一样：老路会把你正在听的音乐压低——现在默认静音音频改走「不抢其他 App 的声音」那条通道，切进切出不再忽响忽轻，代价是通知栏那条「Mochi 后台保活」不再出现；想要回到老路（占住音频通道、通知栏有媒体条）就把 设置→系统→「保活不抢其他 App 的声音」关掉。）\n\n② 后台挂久了会失效：系统省电/内存策略会把挂久的页面冻结甚至丢弃重载（Edge「睡眠标签页」/Chrome「内存节省程序」约 30 分钟就会丢）。失效后请彻底关闭网页重新打开，再把「后台保活」「后台弹窗」开关重新打开。\n\n③ 开着它时页面不会在后台自动换新版（换版要重载页面、会把后台运行打断）：顶部出现「检测到新版本」条时，你自己挑时间点「刷新使用新版」即可；不点也不影响使用，下次彻底关闭网页重开会自然换到新版。'
 });
 } catch (e) {}
 }
@@ -844,6 +962,20 @@ if (keepEnabled) { startKeepAlive(true); kaOpenEnableHints(); }
 else stopKeepAlive(true);
 });
 }
+const kaNoduckBtn = document.getElementById('bg-keep-noduck');
+function syncKaNoduckUI() { try { if (kaNoduckBtn) kaNoduckBtn.checked = kaNoDuckSaved(); } catch (e) {} }
+function kaApplyNoduckPref(on) {
+gSet('__ka-noduck', on ? '1' : '0');
+syncKaNoduckUI();
+try { if (window.__mochiPhase) window.__mochiPhase('ka-noduck'); } catch (e) {}
+kaSwapTransducer();
+}
+window.__kaNoduckSet = kaApplyNoduckPref;
+if (kaNoduckBtn) kaNoduckBtn.addEventListener('change', function (e) {
+if (!kaUserGesture(e)) { syncKaNoduckUI(); return; }
+kaApplyNoduckPref(!!(e.target && e.target.checked));
+});
+syncKaNoduckUI();
 (function () {
 let saved = gGet('bg-keepalive');
 if (saved === null) {
