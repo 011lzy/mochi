@@ -812,8 +812,8 @@ return pool[Math.floor(Math.random() * pool.length)];
 function renderRemedies() {
 var scroll = document.querySelector('#page-period .period-scroll');
 if (!scroll) return;
-var old = document.getElementById('period-remedy-card');
-if (old) old.remove();
+var olds = scroll.querySelectorAll('#period-card, #period-remedy-card');
+for (var oi = 0; oi < olds.length; oi++) olds[oi].remove();
 var latest = daily[todayStr()];
 var ds = todayStr();
 if (!latest || !latest.symptoms || !latest.symptoms.length) {
@@ -826,7 +826,7 @@ if (info && info.symptoms && info.symptoms.length) { ds = keys[i]; latest = info
 if (!latest) {
 var card = document.createElement('div');
 card.className = 'period-card glass';
-card.id = 'period-card';
+card.id = 'period-remedy-card';
 card.innerHTML = '<div class="period-card-title">症状缓解建议</div>' +
 '<div class="pr-empty">记录症状后，这里会给针对性缓解建议。</div>';
 var stats = document.getElementById('period-stats-card');
@@ -843,8 +843,17 @@ html += '<div class="pr-row"><span class="pr-sym">' + r.title + '</span><span cl
 if (!html) return;
 var card = document.createElement('div');
 card.className = 'period-card glass';
-card.id = 'period-card';
-card.innerHTML = '<div class="period-card-title">症状缓解建议</div>' + html;
+card.id = 'period-remedy-card';
+card.innerHTML = '<div class="period-card-title"><span>症状缓解建议</span>' +
+'<button class="pc-del" data-ds="' + ds + '" title="删除这条症状记录"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2M19 6l-1 14a1 1 0 01-1 1H7a1 1 0 01-1-1L5 6"/></svg></button></div>' + html;
+var delBtn = card.querySelector('.pc-del');
+if (delBtn) delBtn.addEventListener('click', function () {
+var rec = daily[delBtn.getAttribute('data-ds')];
+if (rec) rec.symptoms = [];
+saveDaily(daily);
+render();
+toast('已删除症状记录');
+});
 var stats = document.getElementById('period-stats-card');
 if (stats && stats.nextSibling) stats.parentNode.insertBefore(card, stats.nextSibling);
 else scroll.appendChild(card);
