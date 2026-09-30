@@ -866,7 +866,7 @@ try { store.set('chat-tail', JSON.stringify(k)); } catch (e) {}
 // （askQuestion/choiceQuestion/curiousQuestion/roastText 及各自选项）不进日志的话，
 // IDB 整包落盘失败后靠尾巴日志恢复出的互动卡＝「卡片在、问题空白」（choose/curious
 // 渲染只读专用字段不回退 text）＋单选丢选项。这些字段都是小文本/小数组，随条收录。
-const CHAT_TAIL_INTERACT_FIELDS = ['askQuestion', 'askOptions', 'askType', 'deskCk', 'deskCkDir',
+const CHAT_TAIL_INTERACT_FIELDS = ['askQuestion', 'askOptions', 'askType', 'askMultiMax', 'deskCk', 'deskCkDir',
 'choiceQuestion', 'choiceOptions', 'choicePref', 'choiceCat',
 'curiousQuestion', 'curiousQuick', 'curiousReplies', 'curiousFollowup', 'curiousQid', 'curiousCat',
 'roastText', 'roastCat', 'inviteContent', 'inviteStatus', 'inviteAnswer', 'inviteType'];
@@ -3949,12 +3949,15 @@ const opts = Array.isArray(rec.askOptions) ? rec.askOptions : (Array.isArray(rec
 if (!opts.length) return false;
 const rows = [];
 const picked = [];
+// #1480：题自带「最多N」（批量问卷/题库导入的「（多选·最多2）」标记经 pushAsk 透传成 askMultiMax）
+// 就给手动作答也上同一道闸——限 2 勾第 3 个点不动并说明；没带＝0＝不限，与改前行为逐字相同。
+const capN = (rec.askMultiMax >= 2 && rec.askMultiMax <= 6) ? rec.askMultiMax : 0;
 const btn = document.createElement('button');
 btn.className = 'ip-multi-submit';
 btn.type = 'button';
 const syncSubmit = () => {
 btn.disabled = !picked.length;
-btn.textContent = picked.length ? '提交（已选 ' + picked.length + ' 个）' : '先勾选答案';
+btn.textContent = picked.length ? '提交（已选 ' + picked.length + (capN ? '/' + capN : '') + ' 个）' : '先勾选答案';
 };
 // 所选选项各自写过的「~TA回应」并成一份候选，交给 chatAskReply 抽一条（一条都没有＝走预设池）
 const repliesOf = o => {
@@ -3972,6 +3975,7 @@ row.innerHTML = '<span class="ip-opt-box"></span><span class="ip-opt-t">' + escT
 (replyArr.length ? '<span class="ip-opt-reply">' + escTxt(replyArr.length > 1 ? replyArr[0] + ' 等' + replyArr.length + '条' : replyArr[0]) + '</span>' : '');
 row.addEventListener('click', () => {
 const at = picked.indexOf(t);
+if (at < 0 && capN && picked.length >= capN) { toast('这题最多选 ' + capN + ' 个'); return; }
 if (at >= 0) picked.splice(at, 1); else picked.push(t);
 row.classList.toggle('on', at < 0);
 syncSubmit();
@@ -6269,7 +6273,8 @@ m.innerHTML = '<div class="msg-ask-card' + (answered ? ' answered' : '') + '">' 
 '<div class="msg-ask-q">' + escTxt(rec.askQuestion || rec.text) + '</div>' +
 (answered
 ? '<div class="msg-ask-a">✓ 已回答：' + escTxt(rec.askAnswer) + '</div>' + (rec.askReply ? '<div class="msg-choose-r">' + T('TA：') + escTxt(T(askCardReplyClean(rec.askReply))) + '</div>' : '')
-: '<div class="msg-ask-tip">' + (isMulti ? '可多选，选完点「提交」' : isSingle ? '点击选择你的答案' : T('点击回答 TA 的提问')) + '</div>') +
+// #1480：题自带「最多N」的卡，提示直接把限选数说出来（勾选那侧同受这道闸）
+: '<div class="msg-ask-tip">' + (isMulti ? ((rec.askMultiMax >= 2 && rec.askMultiMax <= 6) ? '最多选 ' + rec.askMultiMax + ' 个，选完点「提交」' : '可多选，选完点「提交」') : isSingle ? '点击选择你的答案' : T('点击回答 TA 的提问')) + '</div>') +
 favHeartHtml(rec) +
 '</div>';
 appendMsg(m);

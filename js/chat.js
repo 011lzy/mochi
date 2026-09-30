@@ -649,7 +649,7 @@ if (k.length === arr.length) return; // 一条都没覆盖，不写盘
 try { store.set('chat-tail', JSON.stringify(k)); } catch (e) {}
 } catch (e) {}
 }
-const CHAT_TAIL_INTERACT_FIELDS = ['askQuestion', 'askOptions', 'askType', 'deskCk', 'deskCkDir',
+const CHAT_TAIL_INTERACT_FIELDS = ['askQuestion', 'askOptions', 'askType', 'askMultiMax', 'deskCk', 'deskCkDir',
 'choiceQuestion', 'choiceOptions', 'choicePref', 'choiceCat',
 'curiousQuestion', 'curiousQuick', 'curiousReplies', 'curiousFollowup', 'curiousQid', 'curiousCat',
 'roastText', 'roastCat', 'inviteContent', 'inviteStatus', 'inviteAnswer', 'inviteType'];
@@ -2877,12 +2877,13 @@ const opts = Array.isArray(rec.askOptions) ? rec.askOptions : (Array.isArray(rec
 if (!opts.length) return false;
 const rows = [];
 const picked = [];
+const capN = (rec.askMultiMax >= 2 && rec.askMultiMax <= 6) ? rec.askMultiMax : 0;
 const btn = document.createElement('button');
 btn.className = 'ip-multi-submit';
 btn.type = 'button';
 const syncSubmit = () => {
 btn.disabled = !picked.length;
-btn.textContent = picked.length ? '提交（已选 ' + picked.length + ' 个）' : '先勾选答案';
+btn.textContent = picked.length ? '提交（已选 ' + picked.length + (capN ? '/' + capN : '') + ' 个）' : '先勾选答案';
 };
 const repliesOf = o => {
 const r = o && o.reply;
@@ -2899,6 +2900,7 @@ row.innerHTML = '<span class="ip-opt-box"></span><span class="ip-opt-t">' + escT
 (replyArr.length ? '<span class="ip-opt-reply">' + escTxt(replyArr.length > 1 ? replyArr[0] + ' 等' + replyArr.length + '条' : replyArr[0]) + '</span>' : '');
 row.addEventListener('click', () => {
 const at = picked.indexOf(t);
+if (at < 0 && capN && picked.length >= capN) { toast('这题最多选 ' + capN + ' 个'); return; }
 if (at >= 0) picked.splice(at, 1); else picked.push(t);
 row.classList.toggle('on', at < 0);
 syncSubmit();
@@ -4622,7 +4624,7 @@ m.innerHTML = '<div class="msg-ask-card' + (answered ? ' answered' : '') + '">' 
 '<div class="msg-ask-q">' + escTxt(rec.askQuestion || rec.text) + '</div>' +
 (answered
 ? '<div class="msg-ask-a">✓ 已回答：' + escTxt(rec.askAnswer) + '</div>' + (rec.askReply ? '<div class="msg-choose-r">' + T('TA：') + escTxt(T(askCardReplyClean(rec.askReply))) + '</div>' : '')
-: '<div class="msg-ask-tip">' + (isMulti ? '可多选，选完点「提交」' : isSingle ? '点击选择你的答案' : T('点击回答 TA 的提问')) + '</div>') +
+: '<div class="msg-ask-tip">' + (isMulti ? ((rec.askMultiMax >= 2 && rec.askMultiMax <= 6) ? '最多选 ' + rec.askMultiMax + ' 个，选完点「提交」' : '可多选，选完点「提交」') : isSingle ? '点击选择你的答案' : T('点击回答 TA 的提问')) + '</div>') +
 favHeartHtml(rec) +
 '</div>';
 appendMsg(m);

@@ -1497,7 +1497,8 @@ const FIX_SENTINELS = [
   // ==== 2026-09-11 #291 经期桌面卡文字重叠（OPPO Reno6+雨见/Firefox152：160px 卡内 dpd-inner 绝对居中无底部预留，Gecko 默认行高更高，dpd-sub 与绝对定位 dpd-bar-cap 几何重叠；Chrome 擦边幸免故仅部分浏览器现形）====
   { name: '#291 经期卡防重叠·dpd-inner 底部预留 26px（删则 Gecko 行高下副标题与进度条说明叠字复发）', file: 'css/home.css', needle: 'padding-bottom:26px' },
   // ==== 2026-09-11 #292 问问ta批量导入单选题（【】为问题、其后每行一个选项）+ 问卷答题结束时间（过点不发新问、不能再作答）====
-  { name: '#292 批量导入单选题解析·【问题】+选项行（删则退回一行一题、单选格式整行丢失）', file: 'js/ta-ask.js', needle: "if (cur.opts.length >= 2) { q.type = cur.multi ? 'multi' : 'single'; q.options = cur.opts.slice(); singles++; }" },
+  // #292 首条重锚（2026-09-30 随 #1480：批量导入同一线里补 multiMax 落库），守的还是这条解析行本身。
+  { name: '#292 批量导入单选题解析·【问题】+选项行（删则退回一行一题、单选格式整行丢失）', file: 'js/ta-ask.js', needle: "if (cur.opts.length >= 2) { q.type = cur.multi ? 'multi' : 'single'; q.options = cur.opts.slice(); if (cur.multi && cur.max >= 2) q.multiMax = cur.max; singles++; }" },
   { name: '#292 问卷答题结束时间·作答统一闸门（chatAskReply 包装层删拦截则过点后仍可作答）', file: 'js/ta-ask.js', needle: "if (askDeadlinePassed(taAskLoad())) { toast('已过问卷答题结束时间，不能再作答'); return undefined; }" },
   // ==== 2026-09-11 #293 后台来电挂起回前台不响铃（resumeHeldCall 原要求 h.cid===当前桌面——跨桌面来电/冷启动 cid 未校正时判不成立，静默补未接＝点开通知永远接不到）====
   { name: '#293 跨桌面挂起重响·先切归属联系人桌面再响铃（删切换分支则回到非归属桌面永远直接判未接）', file: 'js/call.js', needle: "known = window.getContacts().some(c => c && c.id === h.cid);" },
@@ -1627,7 +1628,8 @@ const FIX_SENTINELS = [
   // ==== 2026-09-12 #339 设置改完退后台/等一两小时回退成默认值（默认字卡概率/回复速度/emoji 概率等全站小键，多机型；LS 回滚家族第五层 #82/#88/#226/#229/#233/#265）：wrj 启动回放 wrjReplay 把回滚日志里的旧值 idbSet 回写 IDB 踩掉新值，wrjMergeFromIdb 按「标记更新→取 IDB 值自愈」读到的恰是被踩掉的旧值＝自愈被自己废掉。修复：回放只救 内存+LS，绝不回写 IDB。行为断言 tools/verify-wrj-replay-no-stomp.mjs 红绿对照 ====
   { name: '#339 wrj 回放禁写 IDB·守卫常量（翻成 false/删除＝恢复无条件回写＝「改完设置就退浏览器」最近一次改动 100% 丢失回归）', file: 'js/idb.js', needle: 'var WRJ_REPLAY_NO_IDB = true;' },
   { name: '#339 wrj 回放禁写 IDB·守卫包住 idbSet（删守卫留裸 idbSet＝回放旧值踩掉 IDB 新值、wrjMerge 自愈读回被踩旧值）', file: 'js/idb.js', needle: 'if (!WRJ_REPLAY_NO_IDB) { try { if (window.idbSet) window.idbSet(e.k, e.v); } catch (e2) {} }' },
-  { name: '#337 尾巴日志收录互动卡问题/选项字段（删字段清单＝IDB 落盘失败回放出的互动卡「卡片在、问题空白」回归）', file: 'js/chat.js', needle: "const CHAT_TAIL_INTERACT_FIELDS = ['askQuestion', 'askOptions', 'askType', 'deskCk', 'deskCkDir'," },
+  // #337 尾日志字段表重锚（2026-09-30 随 #1480：清单里补 askMultiMax），守的还是这张字段清单本身。
+  { name: '#337 尾巴日志收录互动卡问题/选项字段（删字段清单＝IDB 落盘失败回放出的互动卡「卡片在、问题空白」回归）', file: 'js/chat.js', needle: "const CHAT_TAIL_INTERACT_FIELDS = ['askQuestion', 'askOptions', 'askType', 'askMultiMax', 'deskCk', 'deskCkDir'," },
   { name: '#337 互动卡渲染回退 rec.text 自愈（三个 || 去掉＝存量空白卡永远空白、无自愈路径）', file: 'js/chat.js', needle: "escTxt(rec.choiceQuestion || rec.text || '')" },
   // ==== 2026-09-12 #342 拍卖会两缺陷：①⛶ 全屏被 #321 半框 ID 规则钳在 68% 高（ID 特异性压过 .poke-card.game-fs 的 max-height:none，实测 574/844px 底部露出聊天页）→ 半框规则加 :not(.game-fs) 限定；②#321 全屏教学浮层盖住头部 ✕ 且无自己的出口＝想走只能先开局 → 加「先不玩」按钮（template+js）。行为断言 tools/verify-auction-overlay.mjs E/F 组 ====
   { name: '#342 拍卖半框 68% 规则限定非全屏（删 :not(.game-fs)＝ID 规则重新压过 game-fs，⛶ 全屏只有 68% 高半截屏）', file: 'css/chat-pages.css', needle: '#chat-auction-panel:not(.game-fs) { height:auto; min-height:min(68%, 560px); max-height:68%; }' },
@@ -6036,14 +6038,33 @@ const FIX_SENTINELS = [
   { name: '#1415d 「A、B」整串按段回显判据（删＝已答多选题重开卡片一灰到底，看不出 TA 到底挑了哪几个）', file: 'js/chat.js', needle: "const segs = a.split('、').map(s => s.trim()).filter(Boolean);" },
   { name: '#1415e 问问TA 半框第三枚题型按钮（删＝出题时没有多选题这一档，后面全链路到不了）', file: 'js/chat.js', needle: "<button class=\"chat-ask-type-btn\" data-atype=\"multi\">多选题</button>" },
   { name: '#1415f 多选上限的 per-cid 取数（两处控件共用它，改成各处自留一份＝两把尺）', file: 'js/chat.js', needle: "const n = parseInt(store.get('ask-multi-max'), 10); return (n >= 2 && n <= 6) ? n : 3;" },
-  { name: '#1415g 批量问卷多选题解析（删＝题干里的「多选」标记原样留在屏上、题还是单选）', file: 'js/ta-ask.js', needle: "const br = s.match(/[（(]\\s*多\\s*选\\s*[)）]\\s*$/);" },
-  { name: '#1415h 问卷按题型分流出 multi 结果（删＝解析器永远只产 single/text）', file: 'js/ta-ask.js', needle: "qs.push({ type: cur.multi ? 'multi' : 'single', text: cur.text, options: cur.opts.slice() });" },
+  // #1415g/#1415h 重锚（2026-09-30 随 #1480：标记解析扩出「·最多N」按题上限、解析出口改走 sq 组装），
+  // 同名换 needle、守的还是同一段逻辑：标记还在被剥、multi 结果还在被分流出来。
+  { name: '#1415g 批量问卷多选题解析（删＝题干里的「多选」标记原样留在屏上、题还是单选）', file: 'js/ta-ask.js', needle: "if (bare) return { text: s.slice(0, bare.index).trim(), multi: true, max: capOf(bare[1]) };" },
+  { name: '#1415h 问卷按题型分流出 multi 结果（删＝解析器永远只产 single/text）', file: 'js/ta-ask.js', needle: "const sq = { type: cur.multi ? 'multi' : 'single', text: cur.text, options: cur.opts.slice() };" },
   { name: '#1415i TA 答多选题一次抽好几个（删＝问卷里的多选题又变回抽 1 个）', file: 'js/ta-ask.js', needle: "if (q.type === 'multi' && typeof window.mochiPickMulti === 'function') {" },
   { name: '#1415j 题库多选题走点卡作答不弹纯文字窗（删＝多选题弹出一个只有输入框的窗，勾选无从表达）', file: 'js/ta-ask.js', needle: "const isPick = q && (q.type === 'single' || q.type === 'multi') && Array.isArray(q.options) && q.options.length;" },
   { name: '#1415k 题型原样透传进询问卡（改成写死 single＝题库里攒的多选题全被降级成单选）', file: 'js/ta-ask.js', needle: "askType: isPick ? q.type : 'text'" },
   { name: '#1415l 勾选态那条规则（删＝勾没勾在屏上完全一样，两拍交互没有读数）', file: 'css/chat-main.css', needle: ".msg-inplace .ip-opt-chk.on { border-color:var(--ink); background:rgba(0,0,0,.04); font-weight:600; }" },
   { name: '#1415m 暗色下那枚方框的底与描边（沿用浅色系＝黑底上看不见框）', file: 'css/dark.css', needle: "[data-theme=\"dark\"] .msg-inplace .ip-opt-box { background:var(--dark-card); border-color:rgba(255,255,255,.34); }" },
   { name: '#1415n 批量问卷页那行「多选题最多选几个」（删＝问卷侧没有调上限的地方）', file: 'template.html', needle: "id=\"ta-survey-mmax\"" },
+  // ==== #1480 多选题「按题限个数」（用户实报「无法设置单个题目最多选几个答案，只能设置整体的」）====
+  // 标记语法扩成「（多选·最多N）」即按题写死上限，随题/随卡/随收藏一路透传；以下针按链路逐环钉。
+  { name: '#1480a 标记解析认「·最多N」括号式（删/退回旧正则＝按题上限从源头就没人读，「只能设置整体的」复发）', file: 'js/ta-ask.js', needle: "const br = s.match(/[（(]\\s*多\\s*选\\s*(?:[·•:：]?\\s*最\\s*多\\s*(\\d{1,2})\\s*个?\\s*)?[)）]\\s*$/);" },
+  { name: '#1480b TA 作答上限先取题上的 multiMax 再落回全站杆（删＝题干写死的 N 不作数，作答仍看杆）', file: 'js/ta-ask.js', needle: "const max = (q.multiMax >= 2 && q.multiMax <= 6) ? q.multiMax" },
+  { name: '#1480c 问卷解析把按题上限存成 multiMax（删＝解析时认了、落库时丢了，发出的卷子没有限选）', file: 'js/ta-ask.js', needle: "if (cur.multi && cur.max >= 2) sq.multiMax = cur.max;" },
+  { name: '#1480d 题库批量导入同判据落 multiMax（删＝同一标记两个入口只有问卷认，题库导入悄悄降级）', file: 'js/ta-ask.js', needle: "if (cur.multi && cur.max >= 2) q.multiMax = cur.max; singles++;" },
+  { name: '#1480e 按题上限随互动卡透传（删＝题库里的限选题推给用户答时不带闸，手动勾选想勾几个勾几个）', file: 'js/ta-ask.js', needle: "askMultiMax: (isPick && q.type === 'multi' && q.multiMax >= 2) ? q.multiMax : 0" },
+  { name: '#1480f 问卷收藏进题库保住 multiMax（删＝限选题收进题库变普通多选，限选悄悄消失）', file: 'js/ta-ask.js', needle: "if (nq.type === 'multi' && q.multiMax >= 2) nq.multiMax = q.multiMax;" },
+  { name: '#1480g 题库徽标亮出「多选·限N」（删＝列表里限与不限长得一样，出题人分不清哪道按题限了）', file: 'js/ta-ask.js', needle: "tc-known\">多选' + (q.multiMax >= 2 ? '·限' + q.multiMax : '')" },
+  { name: '#1480h 问卷详情徽标同口径（删＝点开卷子看不出哪道题限选几个）', file: 'js/ta-ask.js', needle: "(q.type === 'multi' ? '多选' + (q.multiMax >= 2 ? '·限' + q.multiMax : '') + '·' : '单选·')" },
+  { name: '#1480i 草稿状态行点名单独限选的题数（删＝杆上读数被当成全卷统一上限，用户无从知道按题限已生效）', file: 'js/ta-ask.js', needle: "+ (nCap ? nCap + ' 题单独限选、其余' : '') +" },
+  { name: '#1480j 手动作答的上限闸（删＝限 2 的题勾第 3 个照样上屏，用户侧与 TA 侧两套规矩）', file: 'js/chat.js', needle: "if (at < 0 && capN && picked.length >= capN) { toast('这题最多选 ' + capN + ' 个'); return; }" },
+  { name: '#1480k 手动作答上限的取数（删＝capN 恒 0＝闸永远不关）', file: 'js/chat.js', needle: "const capN = (rec.askMultiMax >= 2 && rec.askMultiMax <= 6) ? rec.askMultiMax : 0;" },
+  { name: '#1480l 限选卡提示语直接说「最多选 N 个」（删＝卡上不说、勾到第三个才被拦，人不知道是规则不是故障）', file: 'js/chat.js', needle: "? '最多选 ' + rec.askMultiMax + ' 个，选完点「提交」'" },
+  { name: '#1480m 尾日志压缩字段表带上 askMultiMax（删＝尾巴日志回放出的限选卡丢了按题上限，跨桌面/回收恢复后闸失效）', file: 'js/chat.js', needle: "'askType', 'askMultiMax', 'deskCk'" },
+  { name: '#1480n 问卷格式说明写出按题限选写法（删＝页面上没有任何一处教「（多选·最多2）」，功能等于不存在）', file: 'template.html', needle: "个别题想另限就写成「（多选·最多2）」" },
+  { name: '#1480o 开屏公告章同步按题限选文案（权威源 notice.json；删＝在线公告与页面说明各说各话）', file: 'pwa/notice.json', needle: "想按题限个数就写成「（多选·最多2）」" },
   { name: '#1419a 输入栏三枚开关型按钮的补算挂在存储自愈广播上（删＝库里新值追平了、屏上仍按被回滚的旧值画，一加 12/多机型「改完重开回原样」复发）', file: 'js/chat.js', needle: "document.addEventListener('mochi-wrj-heal', syncInputBarSwitches);" },
   { name: '#1419b 输入栏按钮位置重排挂在存储自愈广播上（删＝自定义排列刷新重开恢复原样，而存档里明明已是自定义那一份）', file: 'js/chat.js', needle: "document.addEventListener('mochi-wrj-heal', applyInputBtnOrder);" },
   { name: '#1419c 聊天设置「输入栏按钮位置」行内回显跟随存储自愈（删＝输入栏已按自定义序排好、那一行还写着默认排列）', file: 'js/chat-settings.js', needle: "document.addEventListener('mochi-wrj-heal', () => { inputOrderSync(); if (inputOrderPanelOpen()) renderInputOrderPanel(); });" },
