@@ -2028,6 +2028,7 @@ bind('dq-accent', 'row-accent-color');
 bind('dq-bg', 'row-bg-preset');
 bind('dq-radius', 'row-desk-card-radius');
 bind('dq-tabbar', 'row-tabbar-beauty'); // #769：底部栏直达
+bind('dq-icon', 'row-custom-icon'); // #1516：图标自定义直达（row-custom-icon 即进装修模式）
 })();
 let beautyDockBot = null;
 function beautyDrawerReserve() {
@@ -2652,24 +2653,7 @@ el.parentNode.insertBefore(chip, el);
 }
 chip.style.background = color;
 }
-const widgetColorRow = document.getElementById('row-widget-color');
-const widgetColorVal = document.getElementById('widget-color-val');
-const applyWidgetColor = (color) => {
-document.documentElement.style.setProperty('--widget-bg', color);
-paintBeautyVal(widgetColorVal, color, '#ffffff', '默认白');
-};
-const savedWidgetColor = store.get('widget-bg-color');
-if (savedWidgetColor) applyWidgetColor(savedWidgetColor);
-if (widgetColorRow) {
-const syncWidgetColorUI = () => {
-const c = store.get('widget-bg-color') || '#ffffff';
-paintBeautyVal(widgetColorVal, c, '#ffffff', '默认白');
-};
-syncWidgetColorUI();
-widgetColorRow.addEventListener('click', () => {
-if (!window.openModal) return;
-const current = store.get('widget-bg-color') || '#ffffff';
-const swatchList = [
+const WIDGET_BG_SWATCHES = [
 { color: '#ffffff', label: '默认白' },
 { color: '#f5f0eb', label: '暖米白' },
 { color: '#fff0f0', label: '樱花粉' },
@@ -2691,6 +2675,24 @@ const swatchList = [
 { color: '#b8d4e8', label: '天蓝' },
 { color: '#c8e6c9', label: '森绿' },
 ];
+const widgetColorRow = document.getElementById('row-widget-color');
+const widgetColorVal = document.getElementById('widget-color-val');
+const applyWidgetColor = (color) => {
+document.documentElement.style.setProperty('--widget-bg', color);
+paintBeautyVal(widgetColorVal, color, '#ffffff', '默认白');
+};
+const savedWidgetColor = store.get('widget-bg-color');
+if (savedWidgetColor) applyWidgetColor(savedWidgetColor);
+if (widgetColorRow) {
+const syncWidgetColorUI = () => {
+const c = store.get('widget-bg-color') || '#ffffff';
+paintBeautyVal(widgetColorVal, c, '#ffffff', '默认白');
+};
+syncWidgetColorUI();
+widgetColorRow.addEventListener('click', () => {
+if (!window.openModal) return;
+const current = store.get('widget-bg-color') || '#ffffff';
+const swatchList = WIDGET_BG_SWATCHES;
 window.openModal('小组件颜色', '', (v) => {
 const color = (typeof v === 'number' && swatchList[v]) ? swatchList[v].color : v;
 if (!color) return;
@@ -3202,6 +3204,9 @@ const BEAUTY_KEYS = [
 ];
 ['deco','quote','fish','checkin','music','memo','mood','week','weekend'].forEach(function(t) {
 BEAUTY_KEYS.push('card-bg-' + t, 'card-bg-mask-' + t);
+});
+['deco','quote','fish','checkin','music','memo','mood','week','weekend','desk-period','desk-clock','desk-calendar','desk-timer','desk-anniv'].forEach(function(t) {
+BEAUTY_KEYS.push('widget-bg-' + t, 'widget-opacity-' + t);
 });
 for (var _i = 0; _i < 5; _i++) BEAUTY_KEYS.push('page-bg-' + _i);
 ['deco','quote','fish','checkin','music','memo','mood','week','weekend','desk-clock','desk-calendar','desk-timer','desk-anniv'].forEach(function(t) {
@@ -4634,6 +4639,23 @@ if (!isNaN(p)) applyWidgetOpacityOf(t, Math.max(0, Math.min(100, p)));
 }
 });
 };
+const widgetBgKey = (type) => 'widget-bg-' + type;
+const applyWidgetBgOf = (type, color) => {
+try {
+const els = document.querySelectorAll('[data-card-bg="' + type + '"]');
+els.forEach(el => { if (el) el.style.backgroundColor = color || ''; });
+} catch (e) {}
+};
+const applyAllWidgetBgs = () => {
+const seen = {};
+document.querySelectorAll('[data-card-bg]').forEach(el => {
+const t = el.getAttribute('data-card-bg');
+if (!t || seen[t]) return;
+seen[t] = 1;
+const c = store.get(widgetBgKey(t));
+if (c) applyWidgetBgOf(t, c);
+});
+};
 const MASK_ALPHA_LEGACY = { off: 0, light: 30, mid: 50, strong: 72, on: 50 };
 const maskAlphaOf = (type) => {
 const v = store.get('card-bg-mask-' + type);
@@ -4714,7 +4736,7 @@ function refreshDeskVisuals() {
 try { window.applyAvatars(); } catch (e) {}
 try { applyAllCardBgs(); } catch (e) {}
 try { applyPageBgs(); } catch (e) {}
-const rest = [applyAllWidgetTexts, applyAllWidgetOpacities, renderDeskImages, syncBgUI];
+const rest = [applyAllWidgetTexts, applyAllWidgetOpacities, applyAllWidgetBgs, renderDeskImages, syncBgUI];
 let rest943 = 0;
 const step943 = function () {
 while (rest943 < rest.length) {
@@ -4757,6 +4779,7 @@ return true;
 applyAllCardBgs();
 applyAllWidgetTexts();
 applyAllWidgetOpacities();
+applyAllWidgetBgs(); // #1516：组件独立背景颜色
 const openCardBgMenu = (type, name, anchorEl) => {
 const img = store.get('card-bg-' + type);
 const widgetEl = anchorEl ? anchorEl.closest('[data-desk-widget]') : null;
@@ -4802,6 +4825,7 @@ if (img) pills.push({ label: '清除图片', value: '2' });
 if (img) pills.push({ label: '遮罩浓度', value: 'mask' });
 if (img) pills.push({ label: maskPctOf(type) === 0 ? '原图直出 ✓' : '原图直出', value: 'origin' });
 pills.push({ label: '组件透明度', value: 'opacity' });
+pills.push({ label: '组件颜色', value: 'wcolor' }); // #1516 独立背景颜色（与背景图片分两层：颜色垫底、图片在上）
 if (WIDGET_TEXT_PARTS[type]) pills.push({ label: '文字颜色', value: 'text' });
 if (widgetEl) {
 pills.push({ label: '上移', value: 'up' });
@@ -4880,6 +4904,44 @@ onChange: (val) => { sliderVal = val; applyWidgetOpacityOf(type, val); },
 },
 pills: [
 { label: '应用到全部小组件', value: '__all__' },
+{ label: '恢复默认（跟随全局）', value: '__reset__' },
+],
+});
+} else if (v === 'wcolor') {
+const bgKey = widgetBgKey(type);
+const curBg = store.get(bgKey) || store.get('widget-bg-color') || '#ffffff';
+const bgApply = (target, color) => {
+if (target === 'all') {
+const seen2 = {};
+document.querySelectorAll('[data-card-bg]').forEach(el => { const t = el.getAttribute('data-card-bg'); if (t && !seen2[t]) { seen2[t] = 1; store.set(widgetBgKey(t), color); applyWidgetBgOf(t, color); } });
+toast('全部小组件颜色已统一');
+} else {
+store.set(bgKey, color);
+applyWidgetBgOf(type, color);
+toast(name + '颜色已设置');
+}
+};
+openCardMenuNext('组件颜色（' + name + '）', '', (sv) => {
+if (sv === 'one' || sv === 'all') {
+window.openModal(sv === 'all' ? '全部小组件颜色' : name + '颜色', '', (cv) => {
+const color = (typeof cv === 'number' && WIDGET_BG_SWATCHES[cv]) ? WIDGET_BG_SWATCHES[cv].color : cv;
+if (!color) return;
+bgApply(sv, color);
+}, {
+colorPicker: true,
+noInput: true,
+color: curBg,
+swatches: WIDGET_BG_SWATCHES,
+});
+return;
+}
+if (sv === '__reset__') { store.remove(bgKey); applyWidgetBgOf(type, ''); toast(name + '已恢复，跟随全局小组件颜色'); }
+}, {
+noInput: true,
+staticText: '改这一个还是全部小组件？选范围再选颜色，选完即生效',
+pills: [
+{ label: '只改「' + name + '」', value: 'one' },
+{ label: '应用到全部小组件', value: 'all' },
 { label: '恢复默认（跟随全局）', value: '__reset__' },
 ],
 });

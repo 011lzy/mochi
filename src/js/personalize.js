@@ -2671,6 +2671,7 @@ try {
     bind('dq-bg', 'row-bg-preset');
     bind('dq-radius', 'row-desk-card-radius');
     bind('dq-tabbar', 'row-tabbar-beauty'); // #769：底部栏直达
+    bind('dq-icon', 'row-custom-icon'); // #1516：图标自定义直达（row-custom-icon 即进装修模式）
     // v3.27.x #146：dq-random（随机美化快捷入口）已随「一键随机美化」功能一并删除
   })();
   // FIX 2026-09-15 #527：边看边调改为「底部抽屉」。
@@ -3417,6 +3418,31 @@ try {
     chip.style.background = color;
   }
 
+  // #1516：小组件背景色板提到模块级——设置页全局行与装修模式「组件颜色」（单组件/应用到全部）
+  // 共用同一份，改色板只改一处
+  const WIDGET_BG_SWATCHES = [
+    { color: '#ffffff', label: '默认白' },
+    { color: '#f5f0eb', label: '暖米白' },
+    { color: '#fff0f0', label: '樱花粉' },
+    { color: '#f0f4ff', label: '雾霭蓝' },
+    { color: '#f0fff0', label: '薄荷绿' },
+    { color: '#fff5e6', label: '奶油黄' },
+    { color: '#f5e6ff', label: '淡紫' },
+    { color: '#fff0e0', label: '暖橘' },
+    { color: '#e6f7f5', label: '薄青' },
+    { color: '#fff8dc', label: '米黄' },
+    { color: '#fce4ec', label: '粉桃' },
+    { color: '#e8eaf6', label: '淡靛' },
+    { color: '#f1f8e9', label: '嫩绿' },
+    { color: '#fafafa', label: '银灰' },
+    { color: '#f0f0f0', label: '浅灰' },
+    { color: '#d4d4d4', label: '中灰' },
+    { color: '#111111', label: '深黑' },
+    { color: '#e8b4b8', label: '玫瑰' },
+    { color: '#b8d4e8', label: '天蓝' },
+    { color: '#c8e6c9', label: '森绿' },
+  ];
+
   // 小组件颜色：点击色板选择，CSS 变量 --widget-bg 实时生效
   const widgetColorRow = document.getElementById('row-widget-color');
   const widgetColorVal = document.getElementById('widget-color-val');
@@ -3435,29 +3461,7 @@ try {
     widgetColorRow.addEventListener('click', () => {
       if (!window.openModal) return;
       const current = store.get('widget-bg-color') || '#ffffff';
-      // v3.6.x：20 色板（覆盖黑白灰 + 8 个常用色相浅色 + 8 个深/中色）——告别"阉割版"
-      const swatchList = [
-        { color: '#ffffff', label: '默认白' },
-        { color: '#f5f0eb', label: '暖米白' },
-        { color: '#fff0f0', label: '樱花粉' },
-        { color: '#f0f4ff', label: '雾霭蓝' },
-        { color: '#f0fff0', label: '薄荷绿' },
-        { color: '#fff5e6', label: '奶油黄' },
-        { color: '#f5e6ff', label: '淡紫' },
-        { color: '#fff0e0', label: '暖橘' },
-        { color: '#e6f7f5', label: '薄青' },
-        { color: '#fff8dc', label: '米黄' },
-        { color: '#fce4ec', label: '粉桃' },
-        { color: '#e8eaf6', label: '淡靛' },
-        { color: '#f1f8e9', label: '嫩绿' },
-        { color: '#fafafa', label: '银灰' },
-        { color: '#f0f0f0', label: '浅灰' },
-        { color: '#d4d4d4', label: '中灰' },
-        { color: '#111111', label: '深黑' },
-        { color: '#e8b4b8', label: '玫瑰' },
-        { color: '#b8d4e8', label: '天蓝' },
-        { color: '#c8e6c9', label: '森绿' },
-      ];
+      const swatchList = WIDGET_BG_SWATCHES;
       window.openModal('小组件颜色', '', (v) => {
         // v 可能是色板下标（number）或自定义色值（#hex 字符串）
         const color = (typeof v === 'number' && swatchList[v]) ? swatchList[v].color : v;
@@ -4022,6 +4026,11 @@ try {
   ];
   ['deco','quote','fish','checkin','music','memo','mood','week','weekend'].forEach(function(t) {
     BEAUTY_KEYS.push('card-bg-' + t, 'card-bg-mask-' + t);
+  });
+  // #1516：组件独立背景颜色随方案走；顺带补登记 widget-opacity-<type>（独立透明度批漏登记＝
+  // 此前不随方案导入导出、「恢复全部默认」也清不掉）
+  ['deco','quote','fish','checkin','music','memo','mood','week','weekend','desk-period','desk-clock','desk-calendar','desk-timer','desk-anniv'].forEach(function(t) {
+    BEAUTY_KEYS.push('widget-bg-' + t, 'widget-opacity-' + t);
   });
   for (var _i = 0; _i < 5; _i++) BEAUTY_KEYS.push('page-bg-' + _i);
   // v3.26.x：文字部位颜色（widget-text-<type>-<key>）随美化方案导入导出
@@ -5689,6 +5698,30 @@ try {
       }
     });
   };
+  // ===== v8.56 #1516：小组件独立背景颜色 =====
+  // 每个组件按类型单独存 widget-bg-<type>（per-cid 随桌面独立，走 store），应用方式为内联
+  // background-color 直接覆盖全局 --widget-bg；未设置时清内联回落全局。装修模式点卡片菜单
+  // 「组件颜色」改本组件，并可一键应用到全部。卡片背景图在内联 background-image 层：
+  // 有图时图在上、颜色垫底（清除图片后颜色显现），两层互不覆盖。
+  const widgetBgKey = (type) => 'widget-bg-' + type;
+  const applyWidgetBgOf = (type, color) => {
+    try {
+      const els = document.querySelectorAll('[data-card-bg="' + type + '"]');
+      els.forEach(el => { if (el) el.style.backgroundColor = color || ''; });
+    } catch (e) {}
+  };
+  // 应用所有已保存的组件独立颜色（启动 / 切桌面 / 恢复方案后调用）；类型从 DOM [data-card-bg]
+  // 收集：比枚举 CARD_BG_TYPES 多覆盖 desk-period 等裸类型（同 applyAllWidgetOpacities 口径）
+  const applyAllWidgetBgs = () => {
+    const seen = {};
+    document.querySelectorAll('[data-card-bg]').forEach(el => {
+      const t = el.getAttribute('data-card-bg');
+      if (!t || seen[t]) return;
+      seen[t] = 1;
+      const c = store.get(widgetBgKey(t));
+      if (c) applyWidgetBgOf(t, c);
+    });
+  };
   // 应用单个卡片的背景：遮罩用多层背景（白色半透明叠加在图片上）
   // v3.6.x：遮罩浓度滑块 0~85（百分比），存数字字符串；旧值 'off'/'light'/'mid'/'strong'/'on' 迁移
   const MASK_ALPHA_LEGACY = { off: 0, light: 30, mid: 50, strong: 72, on: 50 };
@@ -5818,7 +5851,7 @@ try {
     // 拆帧：头像/卡片背景/页面背景三样最显眼的大图仍在本帧落位（不闪旧桌面，#695 语义不变），
     // 其余四项（文本组件/透明度/图片组件/设置页背景 UI）逐帧让出，每帧之间主线程可响应触摸；
     // 隐藏态无渲染竞争，一次跑完。
-    const rest = [applyAllWidgetTexts, applyAllWidgetOpacities, renderDeskImages, syncBgUI];
+    const rest = [applyAllWidgetTexts, applyAllWidgetOpacities, applyAllWidgetBgs, renderDeskImages, syncBgUI];
     let rest943 = 0;
     const step943 = function () {
       while (rest943 < rest.length) {
@@ -5876,8 +5909,9 @@ try {
   applyAllCardBgs();
   applyAllWidgetTexts();
   applyAllWidgetOpacities();
+  applyAllWidgetBgs(); // #1516：组件独立背景颜色
   // FIX 2026-09-07 #249 切桌面卡死：这三个监听器删掉——6750 行的综合切换监听器已调
-  // refreshDeskVisuals()（内部含 applyAllCardBgs/applyAllWidgetTexts/applyAllWidgetOpacities，
+  // refreshDeskVisuals()（内部含 applyAllCardBgs/applyAllWidgetTexts/applyAllWidgetOpacities/applyAllWidgetBgs，
   // 还带头像/页面背景/图片组件/壁纸 UI），同一批赋值每次切换重复跑两遍（prof-contact-switch
   // 实测 applyCardBg 全家桶 ~13ms/次，MB 级 dataURL 在真机上翻倍成解码卡顿）。重应用语义
   // 全保留在综合监听器一处，applyPageBgs→applyCardBg 的恒等跳过短路兜底其余重复赋值。
@@ -5951,6 +5985,7 @@ try {
     if (img) pills.push({ label: '遮罩浓度', value: 'mask' });
     if (img) pills.push({ label: maskPctOf(type) === 0 ? '原图直出 ✓' : '原图直出', value: 'origin' });
     pills.push({ label: '组件透明度', value: 'opacity' });
+    pills.push({ label: '组件颜色', value: 'wcolor' }); // #1516 独立背景颜色（与背景图片分两层：颜色垫底、图片在上）
     if (WIDGET_TEXT_PARTS[type]) pills.push({ label: '文字颜色', value: 'text' });
     if (widgetEl) {
       pills.push({ label: '上移', value: 'up' });
@@ -6032,6 +6067,47 @@ try {
           },
           pills: [
             { label: '应用到全部小组件', value: '__all__' },
+            { label: '恢复默认（跟随全局）', value: '__reset__' },
+          ],
+        });
+      } else if (v === 'wcolor') {
+        // #1516：独立背景颜色——两步弹窗（同「文字颜色」模具）：先选应用范围，再选颜色即生效。
+        // 「应用到全部」把当前色写入所有组件独立键（设置页「小组件颜色」是全局键，两者并存：
+        // 全局定基调、单组件可各自覆盖）。
+        const bgKey = widgetBgKey(type);
+        const curBg = store.get(bgKey) || store.get('widget-bg-color') || '#ffffff';
+        const bgApply = (target, color) => {
+          if (target === 'all') {
+            const seen2 = {};
+            document.querySelectorAll('[data-card-bg]').forEach(el => { const t = el.getAttribute('data-card-bg'); if (t && !seen2[t]) { seen2[t] = 1; store.set(widgetBgKey(t), color); applyWidgetBgOf(t, color); } });
+            toast('全部小组件颜色已统一');
+          } else {
+            store.set(bgKey, color);
+            applyWidgetBgOf(type, color);
+            toast(name + '颜色已设置');
+          }
+        };
+        openCardMenuNext('组件颜色（' + name + '）', '', (sv) => {
+          if (sv === 'one' || sv === 'all') {
+            window.openModal(sv === 'all' ? '全部小组件颜色' : name + '颜色', '', (cv) => {
+              const color = (typeof cv === 'number' && WIDGET_BG_SWATCHES[cv]) ? WIDGET_BG_SWATCHES[cv].color : cv;
+              if (!color) return;
+              bgApply(sv, color);
+            }, {
+              colorPicker: true,
+              noInput: true,
+              color: curBg,
+              swatches: WIDGET_BG_SWATCHES,
+            });
+            return;
+          }
+          if (sv === '__reset__') { store.remove(bgKey); applyWidgetBgOf(type, ''); toast(name + '已恢复，跟随全局小组件颜色'); }
+        }, {
+          noInput: true,
+          staticText: '改这一个还是全部小组件？选范围再选颜色，选完即生效',
+          pills: [
+            { label: '只改「' + name + '」', value: 'one' },
+            { label: '应用到全部小组件', value: 'all' },
             { label: '恢复默认（跟随全局）', value: '__reset__' },
           ],
         });

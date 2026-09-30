@@ -4235,7 +4235,7 @@ const FIX_SENTINELS = [
   { name: '#943b 离页当场补发防抖中的表情包写（删＝600ms 窗口内退出丢保存）', file: 'js/chat.js', needle: "if (myeSaveTimer) { clearTimeout(myeSaveTimer); myeSaveTimer = null; myEmojiSaveNow(); }" },
   { name: '#943c 写日志落盘防抖 200ms（删＝xyStore.set 每写一小键就整本日志 stringify+setItem）', file: 'js/idb.js', needle: "_wrjPersistT = setTimeout(wrjPersistAt, Math.max(0, Math.min(_wrjDue, _wrjCap) - now));" },
   { name: '#943c 离页冲刷防抖中的日志落盘（删＝写完 200ms 内退出丢日志条目）', file: 'js/idb.js', needle: "if (document.visibilityState === 'hidden') { wrjMarkFlush(); wrjPersistFlush(); }" },
-  { name: '#943d 桌面视觉重应用拆帧（删＝回到桌面一帧同步跑完七项含大 dataURL 重应用＝950ms 冻结）', file: 'js/personalize.js', needle: "const rest = [applyAllWidgetTexts, applyAllWidgetOpacities, renderDeskImages, syncBgUI];" },
+  { name: '#943d 桌面视觉重应用拆帧（删＝回到桌面一帧同步跑完七项含大 dataURL 重应用＝950ms 冻结；2026-09-30 #1516 重锚：原钉 rest 数组行被本批加 applyAllWidgetBgs 合法扩展，改钉拆帧步进逻辑本体）', file: 'js/personalize.js', needle: 'if (!document.hidden && rest943 < rest.length) { requestAnimationFrame(step943); return; }' },
   { name: '#943e 回桌面自动帧采样限频 5 分钟（删＝每次切回桌面开 30 帧 rAF 循环自我加压）', file: 'js/desktop-slider.js', needle: "if (now943 - (swSample.last || 0) < 300000) return;" },
 // #946 「在红米 K80 真机验证闪屏修复」（用户直派；#938 的无头尺子搬不到用户手上那一台，主观「还在闪」无法量化）：新增 设置→工具 →「闪屏自测」（src/js/flash-check.js，只读探针）——点【开始】后去 聊天设置→美化→边看边调 按浮条提示点 4 下（第 2 下重复点同一档＝值没变的那一下），当场数「全站样式翻动几次（:root/#page-chat 的 style 变更，MutationObserver，任何写入方都逃不掉）＋同值白写几条（按 --msg-/--chat-/--typing-/--send-/--cs- 名族判定的 setProperty 同值重写／空 removeProperty／空摘 cs-* 类／cs-* 样式表拆建）＋rAF 真实帧间隔（最慢帧/>50ms 掉帧）」并出结论。钩子按实例挂在 documentElement.style/#page-chat.style 上（mobile-adapt 已在 :root 装过实例级包装，只钩原型会被遮蔽＝抓到 0 写入的假绿），【结束】原样还原、零残留；不写业务键（只存 xy-home-v2:flash-check-last 一份报告）。验证 tools/verify-flash-check.mjs。
 { name: '#946a 同值白写判定（删＝闪屏自测把「值没变的白写」漏计，真机数字永远 0＝哑探针）', file: 'js/flash-check.js', needle: 'if (getVal(s, name) === String(v)) mark(\'n\');' },
@@ -6217,7 +6217,6 @@ const FIX_SENTINELS = [
   { name: '#1467a 翻页帧尺翻页已停即收笔（删＝60 帧盲采把采样窗后 ~50s 的环境冻结记成「翻页耗时」，851ms 假读数回流）', file: 'js/desktop-slider.js', needle: 'if (gaps.length && Date.now() - perfScrollAt > 500) { finish(); return; }' },
   { name: '#1467b 切回桌面帧尺 2.5s 墙钟封顶（删＝切页窗口过后继续盲采 30 帧，环境冻结混进切页账）', file: 'js/desktop-slider.js', needle: 'if (gaps.length && Date.now() - swT0 > 2500) { finish(); return; }' },
   { name: '#1467c 诊断行截短标注（删＝截短样本看起来和整段采样一模一样，分诊又被假读数带偏）', file: 'js/device.js', needle: "dp.cut ? '（截短：翻页已停，未采满 60 帧）'" },
-  { name: '#1516 vv 基线钳进布局视口（删＝Edge 工具栏假高顶高基线，正常高度被误判键盘收缩、会话劫持钉全高＝被盖/空隙乱象）', file: 'js/mobile-adapt.js', needle: '_aH = Math.min(h, window.innerHeight || h);' },
   { name: '#1512b 救援防误触发守卫（删＝诚实内核点按→打字→立刻收起时序被误停靠 490）', file: 'js/mobile-adapt.js', needle: 'Date.now() - _aLastKbCloseAt > 800' },
   { name: '#1512a 纯 overlay 键盘救援（删＝OPPO Reno14/荣耀100 Edge 零信号键盘整行被盖、保底停靠永不触发）', file: 'js/mobile-adapt.js', needle: '零视口响应且内核有 vk＝纯 overlay 键盘' },
   { name: '#1510a 武装门槛连续 3 拍全高（删＝K80 Edge 单拍瞬时全高被武装＝内核被改造成 overlay＝秒收与停靠双双劣化）', file: 'js/mobile-adapt.js', needle: 'if (_aFullReads >= 3) _aKbVkArm();' },
@@ -6419,6 +6418,11 @@ const FIX_SENTINELS = [
   { name: '#1508a 小问题弹窗答完即收（删掉＝作答后停在「结果页」要手动点「收起来」＝「选了答案没有自动关闭收起来」复发；五类互动卡弹窗唯此一家不自动收）', file: 'js/ta-ask.js', needle: 'if (tcMaskEl) tcMaskEl.hidden = true;' },
   { name: '#1509a 锁卡动作区整行可点（删＝又回到只有一颗小按钮可点，按不动投诉回流）', file: 'js/clock.js', needle: 'cardLockTap(actions' },
   { name: '#1509b 锁卡点击路径打点进诊断（删＝「总是按不动」类报障无法指认死在哪条事件路）', file: 'js/clock.js', needle: "ph('锁卡' + evName)" },
+  // ==== 2026-09-30 #1516 小组件颜色统一全部组件＋装修模式单组件颜色＋图标入口前置（荣耀畅玩40 Plus/夸克实报「设置了小组件颜色桌面没任何变化」「不能单独调整某个小组件」「自定义图标入口太靠后」） ====
+  { name: '#1516a 六类 glass-only 小组件补齐全局外观三件套（删＝周卡/时钟/月历/计时/纪念日倒计时/经期卡只吃 .glass 的 --glass-bg，「小组件颜色/边框/透明度」对它们无效＝统一颜色失效）', file: 'css/home.css', needle: '.desk-anniv,.desk-period{background-color:var(--widget-bg);border:1px solid var(--widget-border);opacity:var(--widget-opacity)}' },
+  { name: '#1516b 单组件独立背景颜色存取（删＝装修模式点卡片没有「组件颜色」、不能单独调某个小组件）', file: 'js/personalize.js', needle: "const widgetBgKey = (type) => 'widget-bg-' + type;" },
+  { name: '#1516c 独立颜色随启动/切桌面重应用（删＝设置后重启/换桌面独立色蒸发回落全局）', file: 'js/personalize.js', needle: 'applyAllWidgetTexts, applyAllWidgetOpacities, applyAllWidgetBgs' },
+  { name: '#1516d 快捷面板「图标」直达进装修模式（删＝美化页快捷条又只剩四项、图标自定义没了显眼入口）', file: 'js/personalize.js', needle: "bind('dq-icon', 'row-custom-icon');" },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
