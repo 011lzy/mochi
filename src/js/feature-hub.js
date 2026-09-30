@@ -763,21 +763,24 @@
   function jump(it) {
     if (it.go && it.go.length) {
       try {
-        let clicked = 0;
-        it.go.forEach(sel => {
-          const el = document.querySelector(sel);
-          if (el && typeof el.click === 'function') { el.click(); clicked++; }
+        const fireSel = function (sel2) { const el2 = document.querySelector(sel2); if (el2 && typeof el2.click === 'function') { el2.click(); return true; } return false; };
+        if (!fireSel(it.go[0])) { toast('「' + it.n + '」的位置：' + (it.where || it.g) + '（入口暂不可达，如有需要请在对应页面寻找）'); return; }
+        bumpFreq(it); bumpSeen([{ g: it.g, n: it.n }]);
+        // #1471 跨页链尾步延后落点：首步若是切宿主页（.app[data-app=…]），页面进入流程的异步收层
+        // 会把同一拍里点开的链尾面板又收走（功能大全→猜拳＝「跳过去了、面板没开」实测）。宿主页链
+        // 第 2 步起延后 350ms 再点＝落在收层之后；同页链（tab/列表项）时机不变、每步只发一次。
+        const crossPage = it.go.length > 1 && it.go[0].indexOf('[data-app=') >= 0;
+        it.go.slice(1).forEach(function (sel2, k2) {
+          if (crossPage) { setTimeout(function () { try { fireSel(sel2); } catch (e2) {} }, 350 + k2 * 120); }
+          else { try { fireSel(sel2); } catch (e2) {} }
         });
-        if (clicked) { bumpFreq(it); bumpSeen([{ g: it.g, n: it.n }]); return; }
-      } catch (e) { /* 落到位置提示 */ }
-      toast('「' + it.n + '」的位置：' + (it.where || it.g) + '（入口暂不可达，如有需要请在对应页面寻找）');
+      } catch (e) { /* 落到位置提示 */ toast('「' + it.n + '」的位置：' + (it.where || it.g) + '（入口暂不可达，如有需要请在对应页面寻找）'); }
       return;
     }
     toast('「' + it.n + '」的位置：' + (it.where || it.g));
     // #937：无直达入口的条目（动作类/位置提示类）DOM 侧无从判定到达，看到位置提示即算看过
     bumpSeen([{ g: it.g, n: it.n }]);
   }
-
   // ---- 打开：两处入口共用（设置行 / 桌面图标），每次进入复位到宫格首页并清空搜索 ----
   // hubFrom 记住来源，返回键据此回桌面或回设置页（原实现恒回设置页，桌面进入会迷路）
   let hubFrom = 'setting';

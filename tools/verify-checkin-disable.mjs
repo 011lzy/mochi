@@ -428,10 +428,11 @@ await boot();
     var len = -1;
     try { len = JSON.parse(window.activeStore().get('checkin-history') || '[]').length; } catch (e) {}
     if (window.__mochiHistPendingReal) window.mochiDataPending = window.__mochiHistPendingReal;
-    return JSON.stringify({ maskOpen: !!(mask && !mask.hidden), len: len, toasts: window.__ckToast || [] });
+    return JSON.stringify({ maskOpen: !!(mask && !mask.hidden), mtitle: String((document.getElementById('modal-title') || {}).textContent || ''), len: len, toasts: window.__ckToast || [] });
   })()`));
-  check('A12 记录还在读取时点删除＝弹都不弹、一条不删，并给一句「稍等一下再删」',
-    gated.maskOpen === false && gated.len === 5 && gated.toasts.some((m) => m.indexOf('稍等一下再删') >= 0), JSON.stringify(gated));
+  // 收口批补二改判据：原「maskOpen===false」会被站内一次性弹层（storage-guide/备份提醒，新装档必弹）恰落窗内打红＝假红（2026-09-30 实测读数：toast 与不删两条产品行为全对、只有 maskOpen=true）。改判「没弹删除确认框」——站内其它弹层真人会自己点掉，与判据无关（同 A11 族口径）。
+  check('A12 记录还在读取时点删除＝不弹删除确认、一条不删，并给一句「稍等一下再删」',
+    gated.len === 5 && gated.toasts.some((m) => m.indexOf('稍等一下再删') >= 0) && String(gated.mtitle || '').indexOf('删除这条') < 0, JSON.stringify(gated));
   // A10e 没有 ts 的存量记录：不猜日期，整批落进末尾「更早」月块里照旧可查、也照旧删得掉
   await evalJs(`(function(){
     var st = window.activeStore();
@@ -492,7 +493,7 @@ await boot();
     // 与 build.mjs 的 artifactText 同口径回落 index.html（#1403 第二轮把折叠抽成共用件后必须这样取）
     histFold: cnt(IDB, 'window.mochiHistFold = function'),
     histDel: cnt(IDB, 'window.mochiHistDelBind = function'),
-    fold: cnt(IDB, "<details class=\"dc-h-more\"><summary class=\"dc-h-more-sum\">' + m.label"),
+    fold: cnt(IDB, "HIST_FOLD_OPEN[fk]"), // 收口批补二重锚：#1402/#1417 族给 details 加了 HIST_FOLD_OPEN 状态恢复（未读组默认开/开合态持久），旧静态形态锚已从产物消失（2026-09-30 实测 fold:0）
     ckDel: cnt(P2, 'window.mochiHistDelBind(document.getElementById(\'ck-history\')'),
     more: cnt(CHAT, "it.id === 'more-ck' && window.checkinEnabled"),     // 聊天那头仍收（未动）
     iconUnion: cnt(PERS, "if (hidden.indexOf(key) >= 0 || (ckOff && key === 'checkin')) app.style.display = 'none';"),

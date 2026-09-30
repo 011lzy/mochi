@@ -180,7 +180,7 @@ const badSub = [];
 for (const [nm, expect] of SUBS) {
   await reset();
   const found = await clickRow(nm);
-  await sleep(240);
+  await sleep(600); // #1471 跨页链尾步延后 350ms 落点，窗口随之放宽（原 240ms 会读到尾步落地前的旧页＝错拍假红）
   const pages = await ev(`[...document.querySelectorAll('.page')].filter(p=>!p.hidden).map(p=>p.id)`);
   if (!found || !pages || pages.indexOf(expect) < 0) badSub.push(nm + '→' + JSON.stringify(pages) + (found ? '' : '(行未找到)'));
 }
@@ -211,7 +211,7 @@ await reset();
 await ev(`document.getElementById('row-featurehub').click()`);
 await sleep(120);
 await clickRow('心情日记');
-await sleep(260);
+await sleep(600); // #1471 该行是跨页链（.app[calendar]→#cal-mood-entry），尾步 350ms 落点，窗口随之放宽（原 260ms）
 A('B8 心情日记直达日记页 page-mood（修复前停在日历首页）', await ev(`!document.getElementById('page-mood').hidden`));
 
 // ---- B9 「图标不见了」这条走位置提示（where 条目不静默） ----

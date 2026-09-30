@@ -114,7 +114,7 @@ A('A5 跳转花园页', await ev(`!document.getElementById('page-garden').hidden
 await ev(`document.getElementById('row-featurehub').click()`);
 await sleep(80);
 await ev(`[...document.querySelectorAll('#fhub-body .set-row')].find(r=>{const t=r.querySelector('.txt'); return t&&t.firstChild&&t.firstChild.textContent.trim()==='猜拳';}).click()`);
-await sleep(200);
+await sleep(800); // #1471 守卫补点落在 600ms，窗口随之放宽（原 200ms）
 A('A6 跳转猜拳面板（聊天页+面板可见）', await ev(`!document.getElementById('page-chat').hidden && !document.getElementById('chat-rps-panel').hidden`));
 
 // A7 无直达条目：弹位置提示（引用回复）——同样按名称精确匹配

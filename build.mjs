@@ -392,6 +392,7 @@ console.log('已复制 PWA 文件 → ' + pwaFiles.join(', ') + '（sw 缓存版
 // （防止并行会话/旧缓冲把已移除的代码改回来）。
 // 维护：新增关键修复时在此登记一行 { name, file, needle }（needle 为产物中的特征串）。
 const FIX_SENTINELS = [
+  { name: '#1471a 功能大全跨页链尾步延后落点（删＝切宿主页的异步收层把同一拍点开的面板收走＝「跳过去了面板没开」复发，功能大全→猜拳实测）', file: 'js/feature-hub.js', needle: "const crossPage = it.go.length > 1 && it.go[0].indexOf('[data-app=') >= 0;" },
 { name: '#1442a 信箱整包写回前问的是数据层那一句尺（xyBigWriteHold＋本桌面主键），不是「这一发传没传 cid」（删＝三条后台通路回到拿读空拼出来的整本顶掉库里那本＝小米 14U/Edge「信箱里的信都没有了」复发）', file: 'js/mail.js', needle: "return !!window.xyBigWriteHold(csFor(cid), KEY);" },
 { name: '#1442b save() 的写闸＝残缺读数（#1358f/#1417）或数据层交不出权威读数（#1442）一律不落整包（删＝一页空纸盖进库里那本）', file: 'js/mail.js', needle: "mailReadIncomplete(cid) || mailBlindRead(cid)" },
 { name: '#1442c TA 主动来信：读不出权威这一班整发让路（不烧 last/next/当日上限、不发通知；删＝弹窗说有信而信箱空＋整本被顶掉）', file: 'js/mail.js', needle: "if (mailBlindRead(cid)) return; // #1442a 来信让路" },

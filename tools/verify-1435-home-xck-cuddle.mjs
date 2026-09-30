@@ -311,6 +311,18 @@ async function boot(opts = {}) {
       return document.hidden;
     }, v),
     fgResume: () => page.evaluate(() => { document.dispatchEvent(new Event('mochi-fg-resume')); return true; }),
+    // 夹具诚实：别的桌面的聊天必须走**应用自己的写口**（idbSet＋LS 双写）落一份，IDB 里真有这个键。
+    // 只直写 localStorage 是个现实中不存在的状态——#358 那道「防整包覆盖」守卫会认定「探测在说谎」，
+    // 宁可 5×2s 重试也不写回（正确行为），而我的轮询预算比它短 ⇒ X9 会假红成「稍后没落卡」。
+    seedDeskChat: (cid, n) => page.evaluate(async ([c, cnt]) => {
+      const key = 'xy-home-v2:' + c + ':chat-msgs';
+      const arr = [];
+      for (let i = 0; i < cnt; i++) arr.push({ side: 'out', text: '原有第 ' + i + ' 条', ts: Date.now() - 90000 + i });
+      const s = JSON.stringify(arr);
+      try { if (window.idbSet) await window.idbSet(key, s); } catch (e) {}
+      try { localStorage.setItem(key, s); } catch (e) {}
+      return true;
+    }, [cid, n]),
     answerModal: (pillText) => page.evaluate((t) => {
       const pills = Array.prototype.slice.call(document.querySelectorAll('#modal-pills .pill'));
       const hit = pills.filter((b) => b.textContent.indexOf(t) >= 0)[0];
@@ -486,6 +498,7 @@ try {
   console.log('\n== X 跨桌面查岗（作者②③）==');
   {
     const s = await boot({ hiddenNow: true, seed: "localStorage.setItem('xy-home-v2:cmtprobe1:chat-msgs', JSON.stringify([{side:'out',text:'先说一句',ts:Date.now()-90000}]));localStorage.setItem('xy-home-v2:default:records-care', JSON.stringify([{kind:'pomo',text:'',ts:Date.now()-1000}]));" });
+    await s.seedDeskChat('cmtprobe1', 1); // 走应用写口，见 boot() 里 seedDeskChat 那段注释
     await s.wait(() => (window.__mochiIncomingProbe ? window.__mochiIncomingProbe().ticks : 0) >= 2, null, 12000);
     const before = await s.state();
     const fired = await s.ev(() => { try { return window.triggerIncomingCheckin('cmtprobe1'); } catch (e) { return 'ERR:' + e.message; } });
@@ -506,14 +519,21 @@ try {
     ok('X8 此刻仍未进聊天、仍未写记录（点了【确认】才算数——作者②前半句）', st2.chatA === before.chatA && st2.careA.length === 0, st2.careA);
     // 点「稍后」→ 卡落聊天 + 记录 res=later
     await s.answerModal('稍后');
-    await sleep(700);
+    // 跨桌面追加是「异步读 IDB → 合并 → 写回」还带重试预算（chatAppendDeskRec/#1200），
+    // 定长 sleep 会在它重试期间读数＝假红。改成轮询等它落地，并把中转箱一起打出来：
+    // 轮询到＝时序；轮询不到而箱里有货＝真没落聊天（那是应用缺陷，不是尺子的问题）。
+    const grew = await s.wait(() => {
+      try { return (JSON.parse(localStorage.getItem('xy-home-v2:cmtprobe1:chat-msgs') || '[]')).length > 1; } catch (e) { return false; }
+    }, null, 12000); // 收口批补二：预算 8s→12s——应用写口自带 5×2s 重试（见上注释），8s 窗低于其最坏 10s＝本注释自己预言过的假红形态
     const st3 = await s.state();
-    ok('X9 选「稍后」：卡落进 TA 桌面聊天可补答，记录写「选了稍后」', st3.chatA === before.chatA + 1 && st3.careA.some((x) => x.kind === 'desk-checkin' && x.res === 'later'), { chatA: st3.chatA, careA: st3.careA });
+    const inbox = await s.ev(() => { try { return JSON.parse(localStorage.getItem('xy-home-v2:cmtprobe1:chat-desk-inbox') || '[]').length; } catch (e) { return -1; } });
+    ok('X9 选「稍后」：卡落进 TA 桌面聊天可补答，记录写「选了稍后」', grew && st3.chatA === before.chatA + 1 && st3.careA.some((x) => x.kind === 'desk-checkin' && x.res === 'later'), { chatA: st3.chatA, 中转箱: inbox, careA: st3.careA });
     await s.close();
   }
   {
     // 错过：弹窗开着时被顶掉/关闭，没点【确认】
     const s = await boot({ seed: "localStorage.setItem('xy-home-v2:cmtprobe1:chat-msgs', JSON.stringify([{side:'out',text:'先说一句',ts:Date.now()-90000}]));" });
+    await s.seedDeskChat('cmtprobe1', 1); // 走应用写口，见 boot() 里 seedDeskChat 那段注释
     await s.wait(() => (window.__mochiIncomingProbe ? window.__mochiIncomingProbe().ticks : 0) >= 2, null, 12000);
     const before = await s.state();
     await s.ev(() => { try { return window.triggerIncomingCheckin('cmtprobe1'); } catch (e) { return false; } });
@@ -535,6 +555,7 @@ try {
   {
     // 超时：后台挂起后 4 分钟才回来（自己推钟，不等真时间）
     const s = await boot({ hiddenNow: true, advanceMs: 0, seed: "localStorage.setItem('xy-home-v2:cmtprobe1:chat-msgs', JSON.stringify([{side:'out',text:'先说一句',ts:Date.now()-90000}]));" });
+    await s.seedDeskChat('cmtprobe1', 1); // 走应用写口，见 boot() 里 seedDeskChat 那段注释
     await s.wait(() => (window.__mochiIncomingProbe ? window.__mochiIncomingProbe().ticks : 0) >= 2, null, 12000);
     const before = await s.state();
     await s.ev(() => { try { window.triggerIncomingCheckin('cmtprobe1'); } catch (e) {} return true; });
