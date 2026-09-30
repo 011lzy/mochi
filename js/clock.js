@@ -316,16 +316,22 @@ const loadingEl = document.getElementById('splash-loading');
 const loadingSubEl = document.getElementById('splash-loading-sub');
 const hintEl = document.getElementById('splash-enter-hint');
 const AGE_KEY = 'xy-home-v2:age-confirmed';
+const AGE_VER = '2026-09-30';
 let ageOk = false;
-try { ageOk = localStorage.getItem(AGE_KEY) === '1'; } catch (e) {}
+try {
+const raw = localStorage.getItem(AGE_KEY);
+let obj = null;
+try { obj = raw && raw.charAt(0) === '{' ? JSON.parse(raw) : null; } catch (e2) {}
+ageOk = !!(obj && obj.v === AGE_VER);
+} catch (e) {}
 const ageRow = document.getElementById('splash-age-row');
 const ageCheck = document.getElementById('splash-age-check');
 if (ageRow && ageCheck) {
-ageCheck.checked = ageOk; // 已确认过的老用户自动勾上，不重复打断
+ageCheck.checked = ageOk; // 本版声明已确认过的自动勾上；改版后首次进入＝未勾，重新确认一次
 ageRow.hidden = false;
 ageCheck.addEventListener('change', function () {
 ageOk = !!ageCheck.checked;
-try { if (ageOk) localStorage.setItem(AGE_KEY, '1'); } catch (e) {}
+try { if (ageOk) localStorage.setItem(AGE_KEY, JSON.stringify({ t: Date.now(), v: AGE_VER })); } catch (e) {}
 updateEnterState();
 });
 }

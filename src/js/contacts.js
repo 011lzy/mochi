@@ -211,7 +211,13 @@
     // 全局根键（feature-hub.js 用 xyStore(G) 语义直写根命名空间，目录与跳转目标全桌面共用）。
     // fhub-freq 系补登：此前一直不在 EXCLUDE，每次刷新被 migrateLegacy 当旧顶层业务键迁进
     // default 并删根键 → 非 default 桌面「常用」行常空（原注释「全局键不区分联系人」与实现不符）。
-    'fhub-freq', 'fhub-seen'];
+    'fhub-freq', 'fhub-seen',
+    // #1475（2026-09-30）：免责声明同意记录（clock.js 开屏年龄闸门）——裸键 xy-home-v2:age-confirmed
+    // 走根命名空间（相对键名无冒号，吃不到「含冒号保守视为命名空间键」那条守卫），出生即不在
+    // EXCLUDE ⇒ migrateLegacy 每次数据就绪把它当旧顶层业务键迁进 default 并删根键＝#315c 的
+    // 「确认一次永久记住」自上线起就被每次启动吃掉（用户每次开屏都要重新勾选）。#1475 起该键
+    // 存「时间戳＋声明版本」JSON（改版自动重确认），是同意举证链的本体，必须留在根命名空间。
+    'age-confirmed'];
   function isExcluded(k) {
     const r = k.slice(G.length + 1);
     // #233：__ 前缀＝系统键（idb.js 根命名空间专用：__wr-journal 写日志＝LS 回滚自愈

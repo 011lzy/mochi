@@ -429,20 +429,29 @@
   const loadingSubEl = document.getElementById('splash-loading-sub');
   const hintEl = document.getElementById('splash-enter-hint');
   // #315c：一次性年龄确认闸门——勾选「已年满 18 周岁并同意全部说明」后才可进入；
-  //   确认一次永久记住（xy-home-v2:age-confirmed），之后开屏自动勾上不重复打断。
+  //   确认记录按声明版本记住（xy-home-v2:age-confirmed），本版已确认则开屏自动勾上不重复打断。
   //   与「滑到底」并列为进入前置条件：未勾选时按钮置灰（updateEnterState），
   //   enter/forceEnter 双入口都拦截。checkbox 行为 label 包裹，点击文字即可勾选。
+  // #1475 同意存证：记录从裸 '1' 改存 JSON（t＝勾选时间戳、v＝声明版本＝免责卡「最后更新」日期），
+  //   仅保存在设备浏览器本地、不上传；开屏按版本比对，声明改版后旧确认自动失效＝重新勾选一次（re-consent）。
+  //   旧格式 '1' 视为对旧版声明的一次确认、本版不认：存量用户升级后首次进入会重新勾选一次，属预期。
   const AGE_KEY = 'xy-home-v2:age-confirmed';
+  const AGE_VER = '2026-09-30';
   let ageOk = false;
-  try { ageOk = localStorage.getItem(AGE_KEY) === '1'; } catch (e) {}
+  try {
+    const raw = localStorage.getItem(AGE_KEY);
+    let obj = null;
+    try { obj = raw && raw.charAt(0) === '{' ? JSON.parse(raw) : null; } catch (e2) {}
+    ageOk = !!(obj && obj.v === AGE_VER);
+  } catch (e) {}
   const ageRow = document.getElementById('splash-age-row');
   const ageCheck = document.getElementById('splash-age-check');
   if (ageRow && ageCheck) {
-    ageCheck.checked = ageOk; // 已确认过的老用户自动勾上，不重复打断
+    ageCheck.checked = ageOk; // 本版声明已确认过的自动勾上；改版后首次进入＝未勾，重新确认一次
     ageRow.hidden = false;
     ageCheck.addEventListener('change', function () {
       ageOk = !!ageCheck.checked;
-      try { if (ageOk) localStorage.setItem(AGE_KEY, '1'); } catch (e) {}
+      try { if (ageOk) localStorage.setItem(AGE_KEY, JSON.stringify({ t: Date.now(), v: AGE_VER })); } catch (e) {}
       updateEnterState();
     });
   }
