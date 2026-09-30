@@ -4346,7 +4346,7 @@ const FIX_SENTINELS = [
   { name: '#929b 开屏「建议添加到主屏幕」提示行在位（删＝iOS 浏览器内用户继续裸奔在最高清数据风险档，本批报障复发）', file: 'template.html', needle: 'id="splash-ios-pwa-tip"', absent: true }, // #1216 该条已并入 iPhone 章（正锚见 #1216f/g）＝提示行本身转删除型
   /* ==== 2026-09-20 #932 字卡状态自检纳入「整组停用」（#926 的 dc-groups-off）：此前本页只按 dc-off-* 逐张统计＝整组停用清空分类时自检报「未发现明显问题」、一键修复也不接管 ==== */
   // #937 功能探索提醒（fhub-seen 埋点 + 「还没试过」横幅/角标 + contacts 全局键登记与存量找回）
-  { name: '#937a fhub 统计键全局根键登记（漏登记＝migrateLegacy 每次刷新把 fhub-freq/fhub-seen 迁进 default 并删根键，跨桌面常用行/到达标记全丢）', file: 'js/contacts.js', needle: "'fhub-freq', 'fhub-seen'];" },
+  { name: '#937a fhub 统计键全局根键登记（漏登记＝migrateLegacy 每次刷新把 fhub-freq/fhub-seen 迁进 default 并删根键，跨桌面常用行/到达标记全丢；#1475 重锚：age-confirmed 排后同一数组，数组尾括号随之后移）', file: 'js/contacts.js', needle: "'fhub-freq', 'fhub-seen'," },
   // #937b 换锚（#1293）：本批把回收列表尾追加 screen-adj-* 后，旧的「].forEach」行尾形态失配，
   // 改取列表中段的三项连写（同 #4187 那次的处置口径：同名换 needle，条目不缩）。
   { name: '#937b fhub-freq 存量误迁副本写回根键（删＝修复前滞留在 default 的点击计数找不回，「常用」行白丢）', file: 'js/contacts.js', needle: "'full-beauty-schemes', 'fhub-freq', 'fhub-seen'," },
@@ -6113,7 +6113,7 @@ const FIX_SENTINELS = [
   { name: '#1452a 目录行「首开才建」的幂等闸（删＝每进一次功能大全就重建整张目录＝节点与长任务翻倍，阶段 A 修复当场失效）', file: 'js/feature-hub.js', needle: 'if (built) return;' },
   { name: '#1452b 首开的 hidden 观察器兜底（删＝不经 openHub 的直接显隐路径不再建页＝空白页；已建则由 1452a 的闸空转）', file: 'js/feature-hub.js', needle: "attributeFilter: ['hidden']" },
   /* ==== 2026-09-29 #1459 免责声明「按 B+C 方案修改并同步两源」（作者直派）：在 #1453 七条上做措辞修正 + 条款补充共九条。两源＝站内三处落点（开屏卡 #splash-disclaimer / 设置→关于 #about-disclaimer-sub / 使用说明第 15 章摘要，均在 src/template.html）＋仓库根 README.md「免责声明（重要）」（README 末条自证「同步展示于站点开屏页」）。以下 needle 均取单行内片段，minify 不削。 ==== */
-  { name: '#1459a 免责卡「在法律法规允许的最大范围内」限定在前（删/改回无上限免责＝B① 修正丢失；两处落点同口径，命中其一即算在）', file: 'template.html', needle: '在法律法规允许的最大范围内，作者不承担任何直接或间接责任' },
+  { name: '#1459a 免责卡「在法律法规允许的最大范围内」限定在前（删/改回无上限免责＝B① 修正丢失；两处落点同口径，命中其一即算在；#1475 重锚：免责句随作者直派改写为「无论基于何种原因…直接、间接、附带或后果性」，旧句随改写退役）', file: 'template.html', needle: '作者均不承担任何直接、间接、附带或后果性的责任' },
   { name: '#1459b 免责卡「不构成任何形式的承诺、建议或专业意见，不产生任何法律效力」（删/改回「不具备任何真实、法律、医疗、心理或情感效力」＝B② 修正丢失）', file: 'template.html', needle: '不构成任何形式的承诺、建议或专业意见，不产生任何法律效力' },
   { name: '#1459c 免责卡紧急情形指引（删＝只剩心理援助热线 12356、没有 110/120 与就近急诊这条 C① 补充）', file: 'template.html', needle: '请立即拨打 110（报警）或 120（急救），或前往就近医院急诊' },
   { name: '#1459d 免责卡第 8 条停更对表「停更不等于下线」（删/改回「已宣布 2026 年 9 月底后永久停更」＝C③ 的事实时效修正回退）', file: 'template.html', needle: '停更不等于下线' },
@@ -6190,6 +6190,11 @@ const FIX_SENTINELS = [
   { name: "#1443e1 tag 共存：调用方已给 tag 就沿用只补账（无条件覆写＝顶掉 #1456 来电那一路「同联系人共用一条＋renotify 30 秒重弹」）", file: "js/bg-keep.js", needle: "String(opts.tag || '')" },
   { name: "#1443e2 点击按归属路由（改回裸 enterChat＝跨桌面查岗／贴贴申请点进去仍是当前桌面，「点进去却没有」复发）", file: "js/bg-keep.js", needle: "function notifyRoute(entry) {" },
   { name: "#1443e3 回收后开机补投的读出口（删＝点击落在页面还没挂 message 监听的空档里被吞，「点了通知什么也没发生」复发）", file: "js/bg-keep.js", needle: "window.xyPendingNotifyClick = function () {" },
+  // ==== v8.56 #1475 免责声明存证＋标准条款批——同意记录改存「时间戳＋声明版本」JSON（改版自动重确认）＋免责卡补「按现状无担保／免费无对价／可分割性／第三方托管」＋第 3 条强化（后果自担自行负责＋最大范围内无论何种原因免责）；README/设置→关于/第15章三处同批同步 ====
+  { name: '#1475a 同意存证写入口（删＝勾选后退回裸 1，无时间无版本，改版重确认与事后举证双双失效）', file: 'js/clock.js', needle: 'JSON.stringify({ t: Date.now(), v: AGE_VER })' },
+  { name: '#1475b 声明版本比对闸（删＝免责声明改版后旧确认仍放行＝re-consent 失效，用户永远停在旧版本的同意上）', file: 'js/clock.js', needle: 'ageOk = !!(obj && obj.v === AGE_VER);' },
+  { name: '#1475c 免责卡「按现状提供＋无担保」条款在位（删＝AS-IS 无担保与第三方托管免责整条丢失；needle 取开屏卡特有措辞，设置→关于同条为有意微差的另一形态）', file: 'template.html', needle: '不作任何形式的明示或默示保证，包括但不限于持续可用' },
+  { name: '#1475d 同意记录根键免迁移（漏登记＝migrateLegacy 每次启动把 age-confirmed 搬进 default 并删根键＝改版重确认退化成每次开屏都重确认，#315c 起的存量隐性 bug）', file: 'js/contacts.js', needle: "'age-confirmed']" },
   { name: '#1471a 功能大全跨页链尾步延后落点（删＝切宿主页的异步收层把同一拍点开的面板收走＝「跳过去了面板没开」复发，功能大全→猜拳实测）', file: 'js/feature-hub.js', needle: "const crossPage = it.go.length > 1 && it.go[0].indexOf('[data-app=') >= 0;" },
   { name: '#1473a 使用说明第 10 节「收不到 ④ 手机开了勿扰/免打扰」条在位（删掉＝用户实报的这条成因又没人写；本条同时把系统勿扰与本站自己的免打扰档分开）', file: 'template.html', needle: '收不到 ④ 手机开了「勿扰 / 免打扰」' },
   { name: '#1473b 设置页「后台通知」功能说明补 ⑤ 系统勿扰压制（settings-help 要点面，与第 10 节同口径）', file: 'js/settings-help.js', needle: '⑤ 手机开了勿扰 / 免打扰（系统层压制）' },
