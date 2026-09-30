@@ -673,7 +673,7 @@ _iProv = true;
 lockDocScroll();
 try { _phone.style.minHeight = '0'; } catch (e) {} // v3.15.x：同 syncIosKb，防 min-height 钳制
 _phone.style.alignSelf = 'flex-start';
-_setPhoneH(ph, 'prov'); // v3.26.x：改走唯一写入口
+_setPhoneH(ph + _kbGapPx(), 'prov'); // v3.26.x：改走唯一写入口；#1472：保底停靠叠加键盘间隙轴（默认 0＝逐位不变）
 kbDockPanels();
 syncModalKbDock(); // #255：同 syncIosKb，弹窗切顶对齐
 pinScrollTop();
@@ -849,7 +849,7 @@ window.__mochiSyncScreenVars = function () {
 try { syncVvFit(); } catch (e) {}
 try { syncSafeBottom(); } catch (e) {}
 };
-window.__mochiKbReconNow = function () { try { syncIosKb(); } catch (eKG) {} };
+window.__mochiKbReconNow = function () { try { if (_iProv && !_kbActive) { _iProvDock(); return; } syncIosKb(); } catch (eKG) {} }; // #1472：保底态拖轴当场重停靠
 function _kbNowLike() {
 try {
 if (!_vv) return false;
@@ -1422,6 +1422,7 @@ if (_meas >= 240 && _meas <= base - 40) ph = _meas;
 _aProv = true;
 try { syncSafeBottomA(); } catch (eSBP) {} // FIX 2026-09-15 #530：推定停靠同样按键盘在场归零
 _aPhone.style.alignSelf = 'flex-start';
+ph = Math.max(240, Math.min(ph + _aKbGap(), base - 40)); // #1472：保底停靠同样叠加键盘间隙轴（默认 0＝逐位不变）
 if (_aPhone.style.height !== ph + 'px') _aPhone.style.height = ph + 'px';
 kbDockPanels();
 try { window.scrollTo(0, 0); } catch (e) {}
@@ -1457,7 +1458,7 @@ _aPinHeight(); return 'shrink' + err;
 } catch (eR) {}
 return '';
 }
-try { window.__mochiKbReconNow = function () { try { _aDockRecon(); } catch (eRN) {} }; } catch (eRNE) {}
+try { window.__mochiKbReconNow = function () { try { if (_aProv && !_aKb && !_aClosing) { _aProvDock(); return; } _aDockRecon(); } catch (eRN) {} }; } catch (eRNE) {} // #1472：保底态拖轴当场重停靠（会话中边拖边看）
 var _aSnapPre = '';
 var _aKbSnapOpen = false;
 function _aKbSnap(ev) {
@@ -1493,7 +1494,7 @@ if (!_aProv || _aKb || !_aPhone) return;
 var kbH = Math.round((vk.boundingRect && vk.boundingRect.height) || 0);
 if (kbH < 80) return;
 var b2 = Math.min(_aH, _aIH);
-var ph2 = Math.max(240, Math.min(b2 - Math.max(kbH, 40), b2 - 40));
+var ph2 = Math.max(240, Math.min(b2 - Math.max(kbH, 40) + _aKbGap(), b2 - 40)); // #1472：实测尺停靠同样叠加键盘间隙轴（默认 0＝逐位不变）
 if (_aPhone.style.height !== ph2 + 'px') _aPhone.style.height = ph2 + 'px';
 } catch (eG) {}
 });

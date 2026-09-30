@@ -6169,6 +6169,11 @@ const FIX_SENTINELS = [
   { name: '#1467a 翻页帧尺翻页已停即收笔（删＝60 帧盲采把采样窗后 ~50s 的环境冻结记成「翻页耗时」，851ms 假读数回流）', file: 'js/desktop-slider.js', needle: 'if (gaps.length && Date.now() - perfScrollAt > 500) { finish(); return; }' },
   { name: '#1467b 切回桌面帧尺 2.5s 墙钟封顶（删＝切页窗口过后继续盲采 30 帧，环境冻结混进切页账）', file: 'js/desktop-slider.js', needle: 'if (gaps.length && Date.now() - swT0 > 2500) { finish(); return; }' },
   { name: '#1467c 诊断行截短标注（删＝截短样本看起来和整段采样一模一样，分诊又被假读数带偏）', file: 'js/device.js', needle: "dp.cut ? '（截短：翻页已停，未采满 60 帧）'" },
+  { name: '#1472a 安卓保底停靠叠加键盘间隙轴（删＝悬浮键盘/不平移内核的 58% 停靠不吃轴，被盖住没有自救）', file: 'js/mobile-adapt.js', needle: 'Math.min(ph + _aKbGap(), base - 40)' },
+  { name: '#1472b VirtualKeyboard 实测尺叠加键盘间隙轴（删＝overlaysContent 内核实测精停不吃轴）', file: 'js/mobile-adapt.js', needle: 'b2 - Math.max(kbH, 40) + _aKbGap()' },
+  { name: '#1472c iOS 保底停靠叠加键盘间隙轴（删＝iOS 盲猜 58% 机型拖轴无效）', file: 'js/mobile-adapt.js', needle: "_setPhoneH(ph + _kbGapPx(), 'prov')" },
+  { name: '#1472d 安卓保底态拖轴当场重停靠（删＝盲猜机型会话中拖轴要收起重开键盘才生效）', file: 'js/mobile-adapt.js', needle: 'if (_aProv && !_aKb && !_aClosing) { _aProvDock(); return; }' },
+  { name: '#1472e iOS 保底态拖轴当场重停靠（删＝iOS 保底态拖轴同样要重开键盘才生效）', file: 'js/mobile-adapt.js', needle: 'if (_iProv && !_kbActive) { _iProvDock(); return; }' },
 
   { name: "#1443a 跨桌面写回要认库的回执（删＝idbSet resolve(false) 时通知已弹、卡一个字没落；iPhone 12 Pro／iOS 17.1.1 实报「某角色查岗：刚才有没有感觉到我？点进去所有角色页面都没有这条消息（以前都是有记录的）」；行为侧由 tools/verify-1443-ls-frozen-write-ack 的 D 组钉）", file: "js/chat.js", needle: "function deskAppendLastToInbox(cid, arr) {" },
   { name: "#1443a2 跨桌面改写类认回执＝重跑一次读-改-写（删＝答案写失败静默丢，那张卡永远停在未回答）", file: "js/chat.js", needle: "deskWriteAck(key, JSON.stringify(arr), function () { if (tries < 3) setTimeout(attempt, 1500); });" },

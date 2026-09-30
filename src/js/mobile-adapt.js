@@ -1203,7 +1203,7 @@
         lockDocScroll();
         try { _phone.style.minHeight = '0'; } catch (e) {} // v3.15.x：同 syncIosKb，防 min-height 钳制
         _phone.style.alignSelf = 'flex-start';
-        _setPhoneH(ph, 'prov'); // v3.26.x：改走唯一写入口
+        _setPhoneH(ph + _kbGapPx(), 'prov'); // v3.26.x：改走唯一写入口；#1472：保底停靠叠加键盘间隙轴（默认 0＝逐位不变）
         kbDockPanels();
         syncModalKbDock(); // #255：同 syncIosKb，弹窗切顶对齐
         pinScrollTop();
@@ -1522,7 +1522,7 @@
         try { syncSafeBottom(); } catch (e) {}
       };
       // #1463：键盘间隙轴改动即时生效（面板拖动 → 重跑 iOS 键盘停靠链）
-      window.__mochiKbReconNow = function () { try { syncIosKb(); } catch (eKG) {} };
+      window.__mochiKbReconNow = function () { try { if (_iProv && !_kbActive) { _iProvDock(); return; } syncIosKb(); } catch (eKG) {} }; // #1472：保底态拖轴当场重停靠
       // 键盘是否仍有实测证据（供常驻自愈复用，判据与 syncIosKb 一致）
       function _kbNowLike() {
         try {
@@ -2576,6 +2576,7 @@
           _aProv = true;
           try { syncSafeBottomA(); } catch (eSBP) {} // FIX 2026-09-15 #530：推定停靠同样按键盘在场归零
           _aPhone.style.alignSelf = 'flex-start';
+          ph = Math.max(240, Math.min(ph + _aKbGap(), base - 40)); // #1472：保底停靠同样叠加键盘间隙轴（默认 0＝逐位不变）
           if (_aPhone.style.height !== ph + 'px') _aPhone.style.height = ph + 'px';
           kbDockPanels();
           try { window.scrollTo(0, 0); } catch (e) {}
@@ -2626,7 +2627,7 @@
           } catch (eR) {}
           return '';
         }
-        try { window.__mochiKbReconNow = function () { try { _aDockRecon(); } catch (eRN) {} }; } catch (eRNE) {}
+        try { window.__mochiKbReconNow = function () { try { if (_aProv && !_aKb && !_aClosing) { _aProvDock(); return; } _aDockRecon(); } catch (eRN) {} }; } catch (eRNE) {} // #1472：保底态拖轴当场重停靠（会话中边拖边看）
         // #1463 取证：键盘停靠现场自动快照——诊断页一点输入框就失焦收键盘，「键盘在场时
         // 量一量」靠人手点诊断永远拍不到（GT7/K80 两份诊断单都是键盘收起态、几何全对）。
         // 会话期每个几何变化拍存 window.__mochiKbSnap（最近一次）与 __mochiKbSnaps（环形
@@ -2667,7 +2668,7 @@
                   var kbH = Math.round((vk.boundingRect && vk.boundingRect.height) || 0);
                   if (kbH < 80) return;
                   var b2 = Math.min(_aH, _aIH);
-                  var ph2 = Math.max(240, Math.min(b2 - Math.max(kbH, 40), b2 - 40));
+                  var ph2 = Math.max(240, Math.min(b2 - Math.max(kbH, 40) + _aKbGap(), b2 - 40)); // #1472：实测尺停靠同样叠加键盘间隙轴（默认 0＝逐位不变）
                   if (_aPhone.style.height !== ph2 + 'px') _aPhone.style.height = ph2 + 'px';
                 } catch (eG) {}
               });
