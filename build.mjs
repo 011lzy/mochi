@@ -6217,6 +6217,7 @@ const FIX_SENTINELS = [
   { name: '#1467a 翻页帧尺翻页已停即收笔（删＝60 帧盲采把采样窗后 ~50s 的环境冻结记成「翻页耗时」，851ms 假读数回流）', file: 'js/desktop-slider.js', needle: 'if (gaps.length && Date.now() - perfScrollAt > 500) { finish(); return; }' },
   { name: '#1467b 切回桌面帧尺 2.5s 墙钟封顶（删＝切页窗口过后继续盲采 30 帧，环境冻结混进切页账）', file: 'js/desktop-slider.js', needle: 'if (gaps.length && Date.now() - swT0 > 2500) { finish(); return; }' },
   { name: '#1467c 诊断行截短标注（删＝截短样本看起来和整段采样一模一样，分诊又被假读数带偏）', file: 'js/device.js', needle: "dp.cut ? '（截短：翻页已停，未采满 60 帧）'" },
+  { name: '#1516 vv 基线钳进布局视口（删＝Edge 工具栏假高顶高基线，正常高度被误判键盘收缩、会话劫持钉全高＝被盖/空隙乱象）', file: 'js/mobile-adapt.js', needle: '_aH = Math.min(h, window.innerHeight || h);' },
   { name: '#1512b 救援防误触发守卫（删＝诚实内核点按→打字→立刻收起时序被误停靠 490）', file: 'js/mobile-adapt.js', needle: 'Date.now() - _aLastKbCloseAt > 800' },
   { name: '#1512a 纯 overlay 键盘救援（删＝OPPO Reno14/荣耀100 Edge 零信号键盘整行被盖、保底停靠永不触发）', file: 'js/mobile-adapt.js', needle: '零视口响应且内核有 vk＝纯 overlay 键盘' },
   { name: '#1510a 武装门槛连续 3 拍全高（删＝K80 Edge 单拍瞬时全高被武装＝内核被改造成 overlay＝秒收与停靠双双劣化）', file: 'js/mobile-adapt.js', needle: 'if (_aFullReads >= 3) _aKbVkArm();' },
