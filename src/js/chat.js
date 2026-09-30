@@ -7554,6 +7554,21 @@ function chatDeskInboxMerge(forPrefix) {
     }).catch(function () { consume([]); });
   } catch (e) {}
 }
+// FIX 2026-09-30 #1441c：进场「要不要重读库」的第三条证据＝本文档之外的同源上下文写过这一桌的聊天。
+// #1441a 把「在桌面待够 8 秒」从判据里摘掉以后，这一路不能靠时间冒充：localStorage 的 storage 事件只在
+// **别的**同源文档里派发（写入方自己收不到），正是「外部落过笔」的直接读数——命中本命名空间的聊天键就
+// 记一笔账，下一趟进场照旧真读、读完销账。零机型／零 UA 分支；不轮询、不新增定时器（#1318 口径），
+// 只在浏览器已经推给我们的这一发事件上盖章。
+let chatXtxWriteSeen = false;
+window.addEventListener('storage', function (e) {
+try {
+const k = e && e.key ? String(e.key) : '';
+const pre = window.activePrefix();
+if (!k || !pre) return;
+if (k === pre + ':chat-msgs' || k === pre + ':chat-desk-inbox' || k === pre + ':chat-tail' || k.indexOf('chat-blk') >= 0) chatXtxWriteSeen = true;
+} catch (err) {}
+});
+window.chatXtxWriteSeenForDebug = function () { return chatXtxWriteSeen; }; // 只读：供 verify 脚本判「这一发证据有没有被消费掉」
 window.chatAppendToDeskMsg = function (cid, text, opts) {
 opts = opts || {};
 const cur = window.__activeCid || 'default';
@@ -9694,7 +9709,33 @@ chatEnterPaintThen(function () {
 // v3.28.x：进入聊天页即按需取回字卡库（冷启动挂起大键）——专属字卡优先（回复池主源），
 // 公用随后；配合 replyOnce 内的等待，避免首条/持续回复落兜底卡。
 try { if (window.hydrateLibScopes) window.hydrateLibScopes(['own', 'public']); } catch (e) {}
-loadMsgs();
+// FIX 2026-09-30 #1441（红米 K80 Chrome 实报「退出聊天页面回到桌面，再回聊天页面，来回切换时聊天页面
+// 的数据总是会重新加载并闪屏」，用户明说其他设备型号也有出现、点名不要覆盖式修补）：这一发 loadMsgs
+// 过去只由 IDB_RELOAD_MIN_GAP(8s) 时间闸决定读不读——「在桌面待够 8 秒」被当成了「库里可能比内存新」
+// 的证据。可页内切页本身不是外部写入面：桌面期 TA 的新消息本来就进 msgs；真后台回场另有 #967／#1067／
+// #1294 三条各自挂 forceIdb 的路；切联系人与大历史未预读会把 authLoadedPrefix 归位。于是对「历史很大」
+// 的存档，这一发恒等于每次进场重新起一轮读库（本机实测：在桌面停 12 秒再进＝4 发 idbGet，读库期间
+// chatAuthPending 就是屏上那条「正在加载聊天记录」），读完的合并收尾还可能再画一遍＝用户所见「数据重新
+// 加载＋整屏闪」。
+// 判据换成四条现成事实，任何一条成立就照旧真读：① 本命名空间权威从未落定（authLoadedPrefix 不匹配＝
+// 冷启动／切联系人／大历史懒读那一路，#951「未预读就是诚实反馈」的边界一字不动）；② 内存里还没有这一桌
+// 的历史（msgs 空＝屏上本来就没东西，读它零代价，绝不许「静默不读」把空屏坐实——verify-chat-entry-load-window
+// 从旁路灌库测的正是这一支）；③ 本文档之外的同源上下文写过这一桌的聊天（storage 事件，见 chatXtxWriteSeen：
+// 浏览器只在**别的**同源文档里派发，写入方自己收不到＝规范行为、与机型无关）；④ 跨桌面中转箱有货（#1200，
+// 同步可读的小键，排空它必须走权威落定那一段）。四条都不成立＝屏上就是这一桌的权威窗，不必再读。
+// 零机型／零 UA 分支：只问这四件事实，不问停留了多久，更不问浏览器是谁家的。
+let csAuthHere = false;
+try { csAuthHere = authLoadedPrefix === window.activePrefix() && msgs.length > 0 && !chatXtxWriteSeen; } catch (e) {}
+if (!csAuthHere) { chatXtxWriteSeen = false; loadMsgs(); } // 起读＝消费掉这一发证据：一趟只认一次，读完由权威落定那一段重新记账
+else {
+let csInboxHas = true; // 量不动＝保守起读（不把「读不到」当成「没有」）
+try {
+const csRawInbox = localStorage.getItem(window.activePrefix() + ':chat-desk-inbox');
+csInboxHas = false;
+if (csRawInbox) { const csArrInbox = JSON.parse(csRawInbox); csInboxHas = Array.isArray(csArrInbox) ? csArrInbox.length > 0 : csRawInbox.length > 2; }
+} catch (e) { csInboxHas = true; }
+if (csInboxHas) loadMsgs();
+}
 // v3.26.x #220 聊天重开不闪：屏上消息区仍与当前 msgs 同窗同貌（同桌面、同条数、
 // 渲染后归一化没改过窗口内容、窗口未裁剪——顶部上翻裁剪后 renderStart>0 不满足）
 // 时，重复进入聊天页不再整窗重建 200 气泡（img 全部重新解码=肉眼跳动，小米15Pro

@@ -6202,6 +6202,13 @@ const FIX_SENTINELS = [
   { name: '#1477d normCell 无 ts 存量改盖自身事件时间（删＝每次首遇跳到数组末尾的漂移驱动回归，#407 同族）', file: 'js/chat.js', needle: 'if (!r.ts) { r.ts = (r.rpTs || r.askTs || r.surveyTs || r.dAt) || Date.now(); c = true; }' },
   { name: "#1477e msgKeyOf 拼卡片身份字段＋时间同链（删＝同毫秒同侧两张红包分不开／盖章后 data-mk 失效）", file: 'js/chat.js', needle: "String(rec.text || '').slice(0, 80) + chatRecCardExtra(rec);" },
   { name: '#1477f 待领取侧判据与「联系人 发出」渲染对齐（删＝side 缺失历史卡显示可领、点了一样「等待TA领取」自相矛盾）', file: 'js/chat.js', needle: "return rec.side === 'out' ? (window.taFit ? window.taFit('待TA领取') : '待TA领取') : '待领取';" },
+  // ==== 2026-09-30 #1441 红米 K80 Chrome 实报「退出聊天页面回到桌面，再回聊天页面，来回切换时聊天数据总是重新加载并闪屏」（作者明说其他设备型号也有出现、点名不要覆盖式修补）====
+  // 根因：enterChat 那一发 loadMsgs 读不读只由 IDB_RELOAD_MIN_GAP(8s) 时间闸决定——「在桌面待够 8 秒」被当成库里比内存新的证据；页内切页不是外部写入面（TA 的新消息本就进 msgs、真后台回场有 #967/#1067/#1294 三支自带 forceIdb、切联系人与大历史未预读会把 authLoadedPrefix 归位），于是历史很大那一档每趟白起一轮读库＝进度条挂上来、合并收尾还可能再画一遍。
+  // 修法＝起读只由四条现成事实支配（①本桌权威未落定 ②内存里还没有这一桌 ③别的同源文档写过＝storage 事件 ④跨桌面中转箱有货），任一成立照旧真读。零机型／零 UA 分支、不轮询不新增定时器。
+  { name: '#1441a 进场的权威重读改问四件事实（退回无条件 loadMsgs＝每次停留超 8s 都白起一轮读库，聊天页每次回来先挂进度条）', file: 'js/chat.js', needle: 'csAuthHere = authLoadedPrefix === window.activePrefix() && msgs.length > 0 && !chatXtxWriteSeen;' },
+  { name: '#1441b 中转箱有货＝起读的第二条证据（删＝屏上凭据再对也不读库，#1200 那批的中转箱静默滞留）', file: 'js/chat.js', needle: "const csRawInbox = localStorage.getItem(window.activePrefix() + ':chat-desk-inbox');" },
+  { name: '#1441c 跨上下文写入用 storage 事件记账（删＝#1441a 摘掉时间闸后，另一个标签页/窗口落的聊天永远追不回来）', file: 'js/chat.js', needle: "k === pre + ':chat-msgs' || k === pre + ':chat-desk-inbox' || k === pre + ':chat-tail'" },
+  { name: '#1441d 起读时把这发证据消费掉（不销账＝此后每一趟都要重读，白起轮子换个形式回来）', file: 'js/chat.js', needle: 'if (!csAuthHere) { chatXtxWriteSeen = false; loadMsgs(); }' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

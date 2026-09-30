@@ -3007,7 +3007,9 @@ const rpCard = e.target.closest('.msg-rp-card');
 if (!rpCard) return;
 const rpItem = rpCard.closest('.msg-rp');
 if (!rpItem || rpItem.dataset.idx === undefined) return;
-const rpHitD = msgRecFromEl(rpItem); // #1477：下标快路径＋data-mk 身份校正（msgs 画后重排＝旧下标读错条）
+const rpShownDEl = rpItem.querySelector('.msg-rp-status');
+const rpShownD = rpShownDEl ? rpShownDEl.textContent : '';
+const rpHitD = msgRecFromEl(rpItem, function (m) { return rpStatusText(m) === rpShownD; }); // #1477：下标快路径＋data-mk 身份校正；同身份多份取与显示一致那份
 if (!rpHitD) return;
 const rpRec = rpHitD.rec;
 if (!rpRec || rpRec.special !== 'redpacket' || (rpRec.rpStatus || 'pending') !== 'pending' || rpRec.side === 'out') return;
@@ -3079,7 +3081,9 @@ if (rpPressSuppressClick) { rpPressSuppressClick = false; return; }
 e.stopPropagation();
 const rpItem = rpCard.closest('.msg-rp');
 if (!rpItem || rpItem.dataset.idx === undefined) return;
-const rpHit = msgRecFromEl(rpItem); // #1477：同长按分支——旧下标会把同屏别的消息当成这张卡
+const rpShownEl = rpItem.querySelector('.msg-rp-status');
+const rpShown = rpShownEl ? rpShownEl.textContent : '';
+const rpHit = msgRecFromEl(rpItem, function (m) { return rpStatusText(m) === rpShown; }); // #1477：旧下标会把同屏别的消息当成这张卡；同身份多份时取「与卡片显示一致」那份
 if (!rpHit) return;
 const rpIdx = rpHit.idx;
 const rpRec = rpHit.rec;
@@ -4187,16 +4191,25 @@ function msgKeyOf(rec) {
 if (!rec) return '';
 return msgRecTsOf(rec) + '|' + (rec.side || '') + '|' + (rec.type || '') + '|' + String(rec.text || '').slice(0, 80) + chatRecCardExtra(rec);
 }
-function msgRecFromEl(item) {
+function msgRecFromEl(item, prefer) {
 if (!item || item.dataset.idx === undefined) return null;
 const _i = Number(item.dataset.idx);
 const _mk = item.dataset.mk || '';
 let rec = (_i >= 0 && _i < msgs.length) ? msgs[_i] : null;
-if (rec && _mk && msgKeyOf(rec) === _mk) return { rec: rec, idx: _i };
+const okFast = !!(rec && _mk && msgKeyOf(rec) === _mk);
+if (okFast && typeof prefer !== 'function') return { rec: rec, idx: _i };
 if (_mk) {
-const j = msgs.findIndex(mkMsg => msgKeyOf(mkMsg) === _mk);
+let best = -1, first = -1;
+for (let j = 0; j < msgs.length; j++) {
+const m = msgs[j];
+if (!m || msgKeyOf(m) !== _mk) continue;
+if (first < 0) first = j;
+if (typeof prefer === 'function' && prefer(m)) { best = j; break; }
+}
+const j = (best >= 0) ? best : first;
 if (j >= 0) { item.dataset.idx = String(j); return { rec: msgs[j], idx: j }; }
 }
+if (okFast) return { rec: rec, idx: _i };
 return rec ? { rec: rec, idx: _i } : null;
 }
 function surveyCardHtml(rec) {
@@ -5579,6 +5592,16 @@ consume(Array.isArray(a) ? a : []);
 }).catch(function () { consume([]); });
 } catch (e) {}
 }
+let chatXtxWriteSeen = false;
+window.addEventListener('storage', function (e) {
+try {
+const k = e && e.key ? String(e.key) : '';
+const pre = window.activePrefix();
+if (!k || !pre) return;
+if (k === pre + ':chat-msgs' || k === pre + ':chat-desk-inbox' || k === pre + ':chat-tail' || k.indexOf('chat-blk') >= 0) chatXtxWriteSeen = true;
+} catch (err) {}
+});
+window.chatXtxWriteSeenForDebug = function () { return chatXtxWriteSeen; }; // 只读：供 verify 脚本判「这一发证据有没有被消费掉」
 window.chatAppendToDeskMsg = function (cid, text, opts) {
 opts = opts || {};
 const cur = window.__activeCid || 'default';
@@ -7192,7 +7215,18 @@ updateChatLoading(); // #703：先于 loadMsgs 置位——loadMsgs 里同步 pa
 scrollChatBottom();
 chatEnterPaintThen(function () {
 try { if (window.hydrateLibScopes) window.hydrateLibScopes(['own', 'public']); } catch (e) {}
-loadMsgs();
+let csAuthHere = false;
+try { csAuthHere = authLoadedPrefix === window.activePrefix() && msgs.length > 0 && !chatXtxWriteSeen; } catch (e) {}
+if (!csAuthHere) { chatXtxWriteSeen = false; loadMsgs(); } // 起读＝消费掉这一发证据：一趟只认一次，读完由权威落定那一段重新记账
+else {
+let csInboxHas = true; // 量不动＝保守起读（不把「读不到」当成「没有」）
+try {
+const csRawInbox = localStorage.getItem(window.activePrefix() + ':chat-desk-inbox');
+csInboxHas = false;
+if (csRawInbox) { const csArrInbox = JSON.parse(csRawInbox); csInboxHas = Array.isArray(csArrInbox) ? csArrInbox.length > 0 : csRawInbox.length > 2; }
+} catch (e) { csInboxHas = true; }
+if (csInboxHas) loadMsgs();
+}
 if (inplacePatchIfSameWindow()) { chatRebuilding = false; updateChatLoading(); } // #841j：同窗补丁命中＝零重建无空窗，就地交回标志（不等 renderWindow 接手）
 else renderWindow(false, true);
 scrollToBottom();
