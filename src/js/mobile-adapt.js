@@ -1860,6 +1860,11 @@
         // 探测的基准（返回键/手势收键盘时焦点保留、focusout 不来，#89 的 _aClosing
         // 闸门挂不上，收起动画每帧仍跑强制布局读取致灰块几秒才收，见 syncAndroidKb）
         var _aPrevH = 0;
+        // #1481：会话内「双稳态读数」过滤——GT7 Edge 实证（键盘期快照 kb=1/vvH=640/ph=640）：会话开着时
+        // 内核把可视视口瞬时弹回全高，钉高/对账照单全收＝输入栏整行沉回键盘下（遮挡），读数缩回又贴回
+        // （空白）＝两态反复横跳。_aKbStableH=本会话最后一次「真实收缩」读数（h<_aH-60）；_aFullSince=
+        // 读到全高的起始时刻，持续 ≥800ms 才判真收键盘（瞬时毛刺不缩会话、不写全高）。
+        var _aKbStableH = 0, _aFullSince = 0;
         // FIX 2026-09-10 #267：浏览器「平移/滚动露焦点」量的实测值。荣耀 X50 自带浏览器
         //（HonorBrowser/Chrome116，多机型同族）键盘弹出时把视觉视口【平移】让焦点露出，
         // 而 visualViewport.height 不缩（同一会话诊断现场 664 与 254 两种读数交替出现）→
@@ -2427,7 +2432,7 @@
           // 变化/回基准即解除，见函数头）。
           var open = (!_aVvStale && !_aKbMute && h < _aH - 60 && _focNow); // 可视高度明显变小 = 键盘弹出（#236：残留读数闩抑制纯 vv 信号；真键盘不受影响——inner 同缩走原判/交互与回基准解锁；#479：必然伴随文本聚焦）
           if (!open && h > _aH) _aH = h; // 无键盘时更新基准，地址栏变化不误判
-          if (open && !_aKb) { _aClosing = false; _aKb = true; _aVvShrunkSeen = true; _aKbAt = Date.now(); _aPhone.style.alignSelf = 'flex-start'; kbDockPanels(); _aProvClear(); } _aKbSnapOpen = true; // #1463：本拍钉高落定后留证
+          if (open && !_aKb) { _aClosing = false; _aKb = true; _aVvShrunkSeen = true; _aKbAt = Date.now(); _aKbStableH = 0; _aFullSince = 0; _aPhone.style.alignSelf = 'flex-start'; kbDockPanels(); _aProvClear(); } _aKbSnapOpen = true; // #1463：本拍钉高落定后留证
           if (!open && _aKb) {
             // v3.27.x：键盘收起——动画期 visualViewport 还没回到无键盘基准（_aH）时，
             // 不要提前把 .phone 撑回全高 + 面板摘停靠。否则键盘收起动画中途就恢复：
@@ -2443,8 +2448,11 @@
               if (_aPhone.style.height !== h + 'px') _aPhone.style.height = h + 'px';
               return;
             }
+            if (!_aFullSince) _aFullSince = Date.now();
+            if (Date.now() - _aFullSince < 800) { var _hHold = Math.round(_aKbStableH) || Math.round(_aVV.height || 0); if (_hHold > 0 && _aPhone.style.height !== _hHold + 'px') _aPhone.style.height = _hHold + 'px'; return; } // #1481：全高毛刺未持续 800ms＝顶住会话稳态高度，不缩会话不写全高
             _aKb = false;
             _aClosing = false;
+            _aKbStableH = 0; _aFullSince = 0;
             _aPhone.style.height = '';
             _aPhone.style.alignSelf = '';
             // v3.29.x（#141）：收起瞬间把基准钳回布局视口全高——键盘期 _aH 可能被
@@ -2526,7 +2534,10 @@
                 // v3.27.x：收起也等 vv 回到基准附近（≤12px）再复原，避免动画期
                 // 提前把 .phone 撑回全高导致面板/输入行下沉跳变（与 syncAndroidKb 同判据）
                 if (_aVV.height >= _aH - 12) {
+                  if (!_aFullSince) _aFullSince = Date.now();
+                  if (Date.now() - _aFullSince < 800) return; // #1481：毛刺顶住（下拍再查），持续 800ms 才真复原
                   _aKb = false;
+                  _aKbStableH = 0; _aFullSince = 0;
                   _aClosing = false;
                   _aPhone.style.height = '';
                   _aPhone.style.alignSelf = '';
@@ -2601,10 +2612,20 @@
         // 微滚/取整噪声不误伤）。kbgap 默认 0＝三项全 0，钉高与修前逐字一致。
         var _aDockFix = 0;
         function _aKbGap() { var a = window.__mochiScreenAdj; return a ? Math.max(-40, Math.min(40, Math.round(+a.kbgap || 0))) : 0; }
+        // #1481：会话内取「稳态收缩高度」——真实收缩读数照采照用并记为稳态；全高/回弹读数不采用，
+        // 返回上一份稳态值（毛刺顶住），同时给 _aFullSince 起计时（收键盘迟滞的尺）。
+        function _aKbFeedH() {
+          var cur = Math.round(_aVV.height || 0);
+          if (!_aKb || _aClosing) return cur;
+          if (cur < _aH - 60) { _aKbStableH = cur; _aFullSince = 0; return cur; }
+          if (!_aFullSince) _aFullSince = Date.now();
+          return Math.round(_aKbStableH) || cur;
+        }
         function _aPinHeight() {
           try {
             if (!_aKb || _aClosing || !_aVV || !_aPhone) return;
-            var want = Math.round(_aVV.height || 0) + _aKbGap() + Math.round(_aDockFix);
+            var _hv = _aKbFeedH(); // #1481：会话内不信瞬时全高读数
+            var want = _hv + _aKbGap() + Math.round(_aDockFix);
             if (want > 0 && _aPhone.style.height !== want + 'px') _aPhone.style.height = want + 'px';
           } catch (ePH) {}
         }
@@ -2612,9 +2633,10 @@
           try {
             if (!_aKb || _aClosing || !_aVV || !_aPhone) return '';
             var o = Math.round(_aVV.offsetTop || 0);
-            var visB = o + Math.round(_aVV.height || 0);
+            var _hv = _aKbFeedH();
+            var visB = o + _hv;
             var pb = Math.round(_aPhone.getBoundingClientRect().bottom);
-            var want = Math.round(_aVV.height || 0) + _aKbGap() + Math.round(_aDockFix);
+            var want = _hv + _aKbGap() + Math.round(_aDockFix);
             var cur = parseInt(_aPhone.style.height, 10) || 0;
             if (Math.abs(cur - want) > 2) { _aPinHeight(); return 'repin'; } // 钉高未落到当前目标（轴刚改/上一拍刚记账）：先落笔，下一拍再量真残差
             var err = (visB + _aKbGap()) - pb;
