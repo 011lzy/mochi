@@ -131,9 +131,9 @@ console.log('\n== S 源码静态：贴贴弹窗不自动关＋挂起重投 ==');
     if (c !== 1) dumb.push([e.name.slice(0, 7), c]);
   }
   ok('S26b 二十条针各自在自己文件里恰好命中一次（哑哨兵＝闸门瞎掉，比缺针更坏）', entries.length === 20 && dumb.length === 0, dumb);
-  ok('S27 文案面同步：功能大全两行主页条目＋跨桌面查岗功能说明＋开屏公告新章（末章仍是后台通知）',
+  ok('S27 文案面同步：功能大全两行主页条目＋跨桌面查岗功能说明（#1502 起开屏公告不再复述该章，改判「不得回流」）',
     srcHub.includes('联系人跨桌面查岗（含错过未回应的）') && srcIr.includes('快回来回应，TA 会等你几分钟') &&
-    srcNotice.includes('关于查岗与贴贴：主页多了三栏记录') &&
+    srcNotice.indexOf('关于查岗与贴贴：主页多了三栏记录') < 0 &&
     (() => { try { const d = JSON.parse(srcNotice); return /关于后台通知相关设置/.test(d.sections[d.sections.length - 1].h); } catch (e) { return false; } })());
   // #1416 那族口径：整栏 innerHTML 重画的列表必须把月块开合态交给 mochiHistFold 的模块级 map，
   // 且每张列表一枚自己的前缀——不写 key 就全站的月块共用 'hist'，在查岗栏展开「8 月」会顺手掀开别栏。

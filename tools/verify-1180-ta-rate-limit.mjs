@@ -38,8 +38,8 @@ ok(rs.includes("'rl-en': 0, 'rl-win': 5, 'rl-max': 15,"), 'S5 三个键进 DEFAU
 ok((rs.match(/'rc-en', 'rl-en', 'fish-en'/g) || []).length === 3, 'S6 rl-en 同步进三处通用开关列表（回显/绑定/回填）', '实数=' + (rs.match(/'rc-en', 'rl-en', 'fish-en'/g) || []).length);
 ok(tpl.includes('id="rl-en"') && tpl.includes('data-k="rl-win"') && tpl.includes('data-k="rl-max"'), 'S7 设置页「总量限流」组三行在位');
 ok(tpl.includes('想让上面这些一起被管住，打开本面板下方「总量限流」'), 'S8「为什么比设的还多」那条说明指向限流出口（#869 同族）');
-ok(tpl.includes('>关于 TA 发消息太多（「回复条数」为什么管不住，以及新增的总量限流）</p>'), 'S9 开屏公告（离线兜底源）新增该章');
-ok(nz.includes('"h": "关于 TA 发消息太多'), 'S10 在线权威源 notice.json 同口径一份（两份必须同改）');
+ok(tpl.includes('关于 TA 发消息太多（「回复条数」为什么管不住，以及新增的总量限流）</p>'), 'S9 开屏公告（离线兜底源）新增该章（#1502 起目录统一编号，判据去前导「>」＝对「N、」前缀不敏感）');
+ok(nz.includes('关于 TA 发消息太多（「回复条数」为什么管不住，以及新增的总量限流）"'), 'S10 在线权威源 notice.json 同口径一份（两份必须同改；#1502 起同前）');
 ok(fh.includes("n: 'TA 消息限流（总量限流）'") && fh.includes("n: '为什么 TA 发的比「回复条数」还多'"), 'S11 功能大全两条目（功能＋解释都能被搜到）');
 
 // ---- B 行为 ----

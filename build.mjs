@@ -392,6 +392,13 @@ console.log('已复制 PWA 文件 → ' + pwaFiles.join(', ') + '（sw 缓存版
 // （防止并行会话/旧缓冲把已移除的代码改回来）。
 // 维护：新增关键修复时在此登记一行 { name, file, needle }（needle 为产物中的特征串）。
 const FIX_SENTINELS = [
+  // ==== 2026-09-30 #1502 作者直派「11、自定义字卡全量导入导出／关于「多选题」／16、关于查岗与贴贴 放在功能的使用说明里有就行，不需要在公告里；13、关于使用过程中的更新提醒 删掉」——四章两源同批下线（内容本身在功能使用处各有落点：字卡库「自定义字卡·全量导出/导入」入口、问卷设置页题干说明、主页三栏查岗/贴贴记录、设置→版本与更新）====
+  { name: '#1502a 在线源不得再有「自定义字卡全量导入导出」章（回流＝开屏公告又复述功能说明）', file: 'pwa/notice.json', needle: '"自定义字卡全量导入导出"', absent: true },
+  { name: '#1502b 在线源不得再有「关于使用过程中的更新提醒」章（作者直派删；更新口径走 设置→版本与更新 与开屏版本条）', file: 'pwa/notice.json', needle: '"关于使用过程中的更新提醒"', absent: true },
+  { name: '#1502c 在线源不得再有「关于「多选题」」章（回流＝与问卷设置页说明两份口径并存）', file: 'pwa/notice.json', needle: '"关于「多选题」（问问TA 与批量问卷）"', absent: true },
+  { name: '#1502d 在线源不得再有「关于查岗与贴贴」章（回流＝#1435 的主页三栏记录被公告复述）', file: 'pwa/notice.json', needle: '"关于查岗与贴贴：主页多了三栏记录，两种弹窗都会等你"', absent: true },
+  { name: '#1502e 离线兜底同批下线四章之一（章标题回流＝断网用户又看到公告复述功能说明）', file: 'template.html', needle: '自定义字卡全量导入导出</p>', absent: true },
+  { name: '#1502f 离线兜底同批下线四章之二（查岗与贴贴章标题回流）', file: 'template.html', needle: '关于查岗与贴贴：主页多了三栏记录', absent: true },
   { name: '#1500a 公告目录统一编号（作者直派「中文数字都删掉换阿拉伯数字、格式要统一」）：在线权威源首章＝「1、网站公告 · 关于转载与二次创作」（回退中文序号＝联网用户开屏目录又变「有的有数字有的没有」）', file: 'pwa/notice.json', needle: '"h": "1、网站公告 · 关于转载与二次创作"' },
   { name: '#1500b 删除型：在线源不得再出现中文序号章标题（「"h": "一、」形态回流＝目录编号两套并存）', file: 'pwa/notice.json', needle: '"h": "一、', absent: true },
   { name: '#1500c 离线兜底同口径（模板首章＝「1、网站公告 · 关于转载与二次创作」；只改在线源＝断网/弱网用户仍看中文序号）', file: 'template.html', needle: '<p class="splash-sec">1、网站公告 · 关于转载与二次创作</p>' },
@@ -6081,7 +6088,7 @@ const FIX_SENTINELS = [
   { name: '#1480l 限选卡提示语直接说「最多选 N 个」（删＝卡上不说、勾到第三个才被拦，人不知道是规则不是故障）', file: 'js/chat.js', needle: "? '最多选 ' + rec.askMultiMax + ' 个，选完点「提交」'" },
   { name: '#1480m 尾日志压缩字段表带上 askMultiMax（删＝尾巴日志回放出的限选卡丢了按题上限，跨桌面/回收恢复后闸失效）', file: 'js/chat.js', needle: "'askType', 'askMultiMax', 'deskCk'" },
   { name: '#1480n 问卷格式说明写出按题限选写法（删＝页面上没有任何一处教「（多选·最多2）」，功能等于不存在）', file: 'template.html', needle: "个别题想另限就写成「（多选·最多2）」" },
-  { name: '#1480o 开屏公告章同步按题限选文案（权威源 notice.json；删＝在线公告与页面说明各说各话）', file: 'pwa/notice.json', needle: "想按题限个数就写成「（多选·最多2）」" },
+  { name: '#1480o 「按题限选」文案随 #1502 章下线、落点回到问卷设置页说明（删＝功能说明也没了，用户无处得知「（多选·最多2）」写法）', file: 'template.html', needle: '也可写「（多选·最多2）」给这一题单独限个数' },
   { name: '#1419a 输入栏三枚开关型按钮的补算挂在存储自愈广播上（删＝库里新值追平了、屏上仍按被回滚的旧值画，一加 12/多机型「改完重开回原样」复发）', file: 'js/chat.js', needle: "document.addEventListener('mochi-wrj-heal', syncInputBarSwitches);" },
   { name: '#1419b 输入栏按钮位置重排挂在存储自愈广播上（删＝自定义排列刷新重开恢复原样，而存档里明明已是自定义那一份）', file: 'js/chat.js', needle: "document.addEventListener('mochi-wrj-heal', applyInputBtnOrder);" },
   { name: '#1419c 聊天设置「输入栏按钮位置」行内回显跟随存储自愈（删＝输入栏已按自定义序排好、那一行还写着默认排列）', file: 'js/chat-settings.js', needle: "document.addEventListener('mochi-wrj-heal', () => { inputOrderSync(); if (inputOrderPanelOpen()) renderInputOrderPanel(); });" },

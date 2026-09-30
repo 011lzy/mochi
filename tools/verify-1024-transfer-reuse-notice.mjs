@@ -112,7 +112,7 @@ const r = await page.evaluate((title) => {
     ncharsFirst: nchars(first ? first.textContent : ''),
   };
 }, TITLE);
-ok(r.chapterCount >= 20, '第一页公告章节数 ≥ 20（#1500 起离线兜底补齐缺章＝在线源 20 章）', r.chapterCount);
+ok(r.chapterCount >= 16, '第一页公告章节数 ≥ 16（#1502 起删去四章功能说明型章节＝在线源 16 章）', r.chapterCount);
 ok(r.firstTitle === NUM + TITLE, '渲染后首章就是该公告（第一眼可见）', r.firstTitle);
 ok(r.firstHasAll, '首章七段原文（首句 + 四条 + 侵权声明）全部渲染到位');
 ok(r.tocHasIt, '目录里能跳转到该章', r.tocCount + ' 章');
