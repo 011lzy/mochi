@@ -1864,7 +1864,7 @@
         // 内核把可视视口瞬时弹回全高，钉高/对账照单全收＝输入栏整行沉回键盘下（遮挡），读数缩回又贴回
         // （空白）＝两态反复横跳。_aKbStableH=本会话最后一次「真实收缩」读数（h<_aH-60）；_aFullSince=
         // 读到全高的起始时刻，持续 ≥800ms 才判真收键盘（瞬时毛刺不缩会话、不写全高）。
-        var _aKbStableH = 0, _aFullSince = 0;
+        var _aKbStableH = 0, _aFullSince = 0, _aVkHonest = false, _aVkH = -1;
         // FIX 2026-09-10 #267：浏览器「平移/滚动露焦点」量的实测值。荣耀 X50 自带浏览器
         //（HonorBrowser/Chrome116，多机型同族）键盘弹出时把视觉视口【平移】让焦点露出，
         // 而 visualViewport.height 不缩（同一会话诊断现场 664 与 254 两种读数交替出现）→
@@ -2448,11 +2448,12 @@
               if (_aPhone.style.height !== h + 'px') _aPhone.style.height = h + 'px';
               return;
             }
+            if (!_aVkHonest && _focNow) _aKbVkArm(); // #1484：overlay 签名（回弹全高且仍聚焦）＝武装实测尺
             if (!_aFullSince) _aFullSince = Date.now();
-            if (Date.now() - _aFullSince < 800) { var _hHold = Math.round(_aKbStableH) || Math.round(_aVV.height || 0); if (_hHold > 0 && _aPhone.style.height !== _hHold + 'px') _aPhone.style.height = _hHold + 'px'; return; } // #1481：全高毛刺未持续 800ms＝顶住会话稳态高度，不缩会话不写全高
+            if (Date.now() - _aFullSince < 800) { var _hHold = Math.round(_aKbStableH) || Math.round(_aVV.height || 0); if (_hHold > 0 && _aPhone.style.height !== _hHold + 'px') _aPhone.style.height = _hHold + 'px'; return; } // #1481：毛刺顶住（#1484：实测尺在场时 _aKbStableH 由实测持续更新，实测归零走 _aFullSince=1 即时复原） // #1481：全高毛刺未持续 800ms＝顶住会话稳态高度，不缩会话不写全高
             _aKb = false;
             _aClosing = false;
-            _aKbStableH = 0; _aFullSince = 0;
+            _aKbStableH = 0; _aFullSince = 0; try { if (_aVkHonest) { _aVkHonest = false; _aVkH = -1; var _vkR = navigator.virtualKeyboard; if (_vkR) _vkR.overlaysContent = false; } } catch (eVD) {} // #1484：解除武装还原内核默认
             _aPhone.style.height = '';
             _aPhone.style.alignSelf = '';
             // v3.29.x（#141）：收起瞬间把基准钳回布局视口全高——键盘期 _aH 可能被
@@ -2536,6 +2537,7 @@
                 if (_aVV.height >= _aH - 12) {
                   if (!_aFullSince) _aFullSince = Date.now();
                   if (Date.now() - _aFullSince < 800) return; // #1481：毛刺顶住（下拍再查），持续 800ms 才真复原
+                  _aKbStableH = 0; _aFullSince = 0; try { if (_aVkHonest) { _aVkHonest = false; _aVkH = -1; var _vkR2 = navigator.virtualKeyboard; if (_vkR2) _vkR2.overlaysContent = false; } } catch (eVD2) {}
                   _aKb = false;
                   _aKbStableH = 0; _aFullSince = 0;
                   _aClosing = false;
@@ -2617,9 +2619,31 @@
         function _aKbFeedH() {
           var cur = Math.round(_aVV.height || 0);
           if (!_aKb || _aClosing) return cur;
+          if (_aVkHonest && _aVkH >= 80) { var _mv = Math.max(240, Math.min(_aH, window.innerHeight || _aH) - _aVkH); _aKbStableH = _mv; _aFullSince = 0; return _mv; } // #1484：overlay 会话用 VirtualKeyboard 实测高度
           if (cur < _aH - 60) { _aKbStableH = cur; _aFullSince = 0; return cur; }
           if (!_aFullSince) _aFullSince = Date.now();
           return Math.round(_aKbStableH) || cur;
+        }
+        // #1484：overlay 会话实测尺——签名（会话中回弹全高且仍聚焦）出现时武装 VirtualKeyboard：
+        // GT7 Edge 153 实证只在弹出瞬时报一次收缩、随后全高覆盖＝收键盘/工具栏伸缩全无几何信号，
+        // 时间 fuse 只能猜（猜久＝「关闭回弹很慢不及时」，猜短＝反复横跳）。overlaysContent 后
+        // boundingRect 连续实测：≥80px 照实测钉高（随工具栏伸缩实时跟随）；<80px＝键盘真收，
+        // _aFullSince 置 1（越过迟滞）＝下一拍立即复原，回弹及时。会话收口解除武装还原内核默认。
+        function _aKbVkArm() {
+          try {
+            var vk = navigator.virtualKeyboard;
+            if (!vk || _aVkHonest) return;
+            _aVkHonest = true;
+            try { vk.overlaysContent = true; } catch (eOC) {}
+            vk.addEventListener('geometrychange', function () {
+              try {
+                if (!_aKb) return;
+                _aVkH = Math.round((vk.boundingRect && vk.boundingRect.height) || 0);
+                if (_aVkH >= 80) { _aKbStableH = Math.max(240, Math.min(_aH, window.innerHeight || _aH) - _aVkH); _aFullSince = 0; _aPinHeight(); }
+                else if (_aVkH < 80 && !_aFullSince) _aFullSince = 1;
+              } catch (eG) {}
+            });
+          } catch (eV) {}
         }
         function _aPinHeight() {
           try {

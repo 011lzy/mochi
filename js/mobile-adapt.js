@@ -1046,7 +1046,7 @@ var _aVvShrunkSeen = false;
 var _aLastAct = Date.now();
 var _aLastVVH = 0;
 var _aPrevH = 0;
-var _aKbStableH = 0, _aFullSince = 0;
+var _aKbStableH = 0, _aFullSince = 0, _aVkHonest = false, _aVkH = -1;
 var _aPanSeen = 0, _aPanSeenAt = 0;
 var _aBurstUntil = 0;
 var _aFullIH = Math.max(window.innerHeight || 0, Math.round(_aVV.height || 0));
@@ -1353,11 +1353,12 @@ _aClosing = true;
 if (_aPhone.style.height !== h + 'px') _aPhone.style.height = h + 'px';
 return;
 }
+if (!_aVkHonest && _focNow) _aKbVkArm(); // #1484：overlay 签名（回弹全高且仍聚焦）＝武装实测尺
 if (!_aFullSince) _aFullSince = Date.now();
-if (Date.now() - _aFullSince < 800) { var _hHold = Math.round(_aKbStableH) || Math.round(_aVV.height || 0); if (_hHold > 0 && _aPhone.style.height !== _hHold + 'px') _aPhone.style.height = _hHold + 'px'; return; } // #1481：全高毛刺未持续 800ms＝顶住会话稳态高度，不缩会话不写全高
+if (Date.now() - _aFullSince < 800) { var _hHold = Math.round(_aKbStableH) || Math.round(_aVV.height || 0); if (_hHold > 0 && _aPhone.style.height !== _hHold + 'px') _aPhone.style.height = _hHold + 'px'; return; } // #1481：毛刺顶住（#1484：实测尺在场时 _aKbStableH 由实测持续更新，实测归零走 _aFullSince=1 即时复原） // #1481：全高毛刺未持续 800ms＝顶住会话稳态高度，不缩会话不写全高
 _aKb = false;
 _aClosing = false;
-_aKbStableH = 0; _aFullSince = 0;
+_aKbStableH = 0; _aFullSince = 0; try { if (_aVkHonest) { _aVkHonest = false; _aVkH = -1; var _vkR = navigator.virtualKeyboard; if (_vkR) _vkR.overlaysContent = false; } } catch (eVD) {} // #1484：解除武装还原内核默认
 _aPhone.style.height = '';
 _aPhone.style.alignSelf = '';
 if (_aH < window.innerHeight - 12) _aH = window.innerHeight;
@@ -1401,6 +1402,7 @@ _aProvClear();
 if (_aVV.height >= _aH - 12) {
 if (!_aFullSince) _aFullSince = Date.now();
 if (Date.now() - _aFullSince < 800) return; // #1481：毛刺顶住（下拍再查），持续 800ms 才真复原
+_aKbStableH = 0; _aFullSince = 0; try { if (_aVkHonest) { _aVkHonest = false; _aVkH = -1; var _vkR2 = navigator.virtualKeyboard; if (_vkR2) _vkR2.overlaysContent = false; } } catch (eVD2) {}
 _aKb = false;
 _aKbStableH = 0; _aFullSince = 0;
 _aClosing = false;
@@ -1442,9 +1444,26 @@ function _aKbGap() { var a = window.__mochiScreenAdj; return a ? Math.max(-40, M
 function _aKbFeedH() {
 var cur = Math.round(_aVV.height || 0);
 if (!_aKb || _aClosing) return cur;
+if (_aVkHonest && _aVkH >= 80) { var _mv = Math.max(240, Math.min(_aH, window.innerHeight || _aH) - _aVkH); _aKbStableH = _mv; _aFullSince = 0; return _mv; } // #1484：overlay 会话用 VirtualKeyboard 实测高度
 if (cur < _aH - 60) { _aKbStableH = cur; _aFullSince = 0; return cur; }
 if (!_aFullSince) _aFullSince = Date.now();
 return Math.round(_aKbStableH) || cur;
+}
+function _aKbVkArm() {
+try {
+var vk = navigator.virtualKeyboard;
+if (!vk || _aVkHonest) return;
+_aVkHonest = true;
+try { vk.overlaysContent = true; } catch (eOC) {}
+vk.addEventListener('geometrychange', function () {
+try {
+if (!_aKb) return;
+_aVkH = Math.round((vk.boundingRect && vk.boundingRect.height) || 0);
+if (_aVkH >= 80) { _aKbStableH = Math.max(240, Math.min(_aH, window.innerHeight || _aH) - _aVkH); _aFullSince = 0; _aPinHeight(); }
+else if (_aVkH < 80 && !_aFullSince) _aFullSince = 1;
+} catch (eG) {}
+});
+} catch (eV) {}
 }
 function _aPinHeight() {
 try {
