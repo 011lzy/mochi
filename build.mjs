@@ -6226,6 +6226,7 @@ const FIX_SENTINELS = [
   { name: '#1511a 保存前读数闸（删＝「保存设置」又把没读全的屏面值整包顶库：保存了刷新又回默认/旧值＝#1342 美化方案同族在回复设置页复发）', file: 'js/reply-settings.js', needle: 'function replyKeyUnvouched(k) {' },
   { name: '#1511b 整包保存 stepper 路接闸（删＝步进值绕过读数闸直接落笔，冷读默认值顶掉库里真值）', file: 'js/reply-settings.js', needle: 'if (replyKeyUnvouched(k)) { skipped.push(k); return; }' },
   { name: '#1511c 整包保存开关路接闸（删＝开关值绕过读数闸直接落笔，回填未落定窗口整页顶回默认）', file: 'js/reply-settings.js', needle: 'if (replyKeyUnvouched(k)) { if (skipped.indexOf(k) < 0) skipped.push(k); return; }' },
+  { name: '#1514a 回复速度最长上限 6000 秒（改回 120＝作者直派「最久可以设置6000秒」失效，联系人聊天回复速度又只能设到两分钟）', file: 'index.html', needle: 'data-k="rs-max" data-min="2" data-max="6000"' },
   { name: '#1506a 点消息区＝收口意图（删＝收起后空白要等超时才消，点消息列表不能立刻回底）', file: 'js/mobile-adapt.js', needle: "_aKbCloseNow('tap-out')" },
   { name: '#1506b 收口公共体＋取证（删＝收口路径无读数，慢收口无法归因）', file: 'js/mobile-adapt.js', needle: "window.__mochiKbClose = { path: path, sinceKey: Date.now() - _aUserTypos, at: Date.now() };" },
   { name: '#1506c 诊断打印收口取证行（删＝远程只能靠猜）', file: 'index.html', needle: '键盘收口取证=' },
