@@ -1116,7 +1116,7 @@ patched = patchChangedInPlace(normChangedIdxs, renderStart);
 }
 if (!patched) {
 renderWindow(false, true);
-scrollChatBottom();
+if (chatPinnedBottom) scrollChatBottom(); // #1491h 用户已接管滚动＝归一化回退整窗后不替他贴底
 }
 } else if (changed && changedHi >= renderStart) {
 windowStale = true;
@@ -3294,9 +3294,9 @@ let chatWinRingProgPx = 0;
 function chatWinRingSnap() {
 return { lo: renderStart, hi: renderEnd, n: msgs.length, rn: windowRenderedN, stale: windowStale ? 1 : 0 };
 }
-function chatWinRingMark(kind, lo, hi) {
+function chatWinRingMark(kind, lo, hi, w) {
 try {
-chatWinRingArr.push({ t: Date.now(), k: kind, lo: lo, hi: hi });
+chatWinRingArr.push({ t: Date.now(), k: kind, lo: lo, hi: hi, w: w });
 if (chatWinRingArr.length > 24) chatWinRingArr.shift();
 } catch (e) {}
 }
@@ -3396,7 +3396,13 @@ try { if (!keepScroll && window.__mochiPhase) window.__mochiPhase('chat-renderWi
 chatRebuilding = false; // #841e：新一轮渲染先复位空窗标志（被作废的旧分帧轮不得把进度条留在屏上）
 const prevTop = keepScroll ? body.scrollTop : 0;
 const prevHeight = keepScroll ? body.scrollHeight : 0;
-if (clampTop || renderStart >= len) renderStart = Math.max(0, len - RENDER_MAX);
+if (renderStart >= len) renderStart = Math.max(0, len - RENDER_MAX); // #1004 起点越界＝空窗防护，与钉住态无关
+else if (clampTop) {
+const _rwN = body.querySelectorAll('.msg[data-idx]');
+const _rwFirst = _rwN.length ? Number(_rwN[0].dataset.idx) : -1;
+const _rwLast = _rwN.length ? Number(_rwN[_rwN.length - 1].dataset.idx) : -1;
+if (!(_rwFirst === renderStart && _rwLast >= len - 1)) renderStart = Math.max(0, len - RENDER_MAX);
+}
 const start = Math.min(renderStart, len);
 renderEnd = len; // 整窗重建渲染到最新，窗口终点复位（裁剪状态随之清空）
 windowRenderedN = len;
@@ -7054,9 +7060,9 @@ chatResumeReconcileArm(awaitLongAway);
 if (chatResumeRepinT) clearTimeout(chatResumeRepinT);
 chatResumeRepinT = setTimeout(function () {
 chatResumeRepinT = null;
-if (!chatVisible() || !chatPinnedBottom || batchRendering) return; // 回场期用户已翻页/已解钉＝不抢
-chatResumeRealign(); // #978：回场贴底改「几何落定后同值重落一枪」——350ms 当场裸写正打在回场几何恢复风暴中段＝撕裂源
-chatEntrySettle(); // #930 保留：迟到长高（懒加载图/字体回填）当帧回钉
+if (!chatVisible() || !chatPinnedBottom) return; // 回场期用户已翻页/已解钉＝不抢
+chatResumeRealign('repin350'); // #978：回场贴底改「几何落定后同值重落一枪」——350ms 当场裸写正打在回场几何恢复风暴中段＝撕裂源
+if (!batchRendering) chatEntrySettle(); // #930 保留：迟到长高（懒加载图/字体回填）当帧回钉；构建在飞时不当场抢——分帧收尾 finishSwap 自会调（#841b）
 }, 350);
 }
 let _rcTimer = null;
@@ -7103,7 +7109,7 @@ try {
 if (!chatVisible() || !chatPinnedBottom) return; // #162
 if (batchRendering && !chatPumpStalled()) return; // 换装期不写 DOM（泵确实还在推进＝让路）
 if (batchRendering) chatPumpRescue('resume-heal'); // 停滞泵接管：先把那一轮已经构建好的部分换装落屏
-if (batchRendering) return; // 接管没成（收尾自身抛）＝维持旧行为，本轮不写 DOM
+if (batchRendering) { chatResumeRealign('heal-stall'); return; } // 接管没成（收尾自身抛）＝本轮不写 DOM（旧行为）；#1476 补一条：贴底枪照挂——realign 静默闸含 !batchRendering，泵被 #1313 看门狗接管收装后它自己写，卡死则到死线放弃，两侧都不越权
 const len = msgs.length;
 if (!len) return;
 let lastIdx = -1;
@@ -7112,30 +7118,36 @@ for (let i = kids.length - 1; i >= 0; i--) {
 const v = kids[i] && kids[i].dataset ? parseInt(kids[i].dataset.idx, 10) : NaN;
 if (isFinite(v)) { lastIdx = v; break; }
 }
-if (lastIdx >= len - 1 && !windowStale) return; // 屏上尾部＝权威尾部且无作废标记＝什么都不做
+if (lastIdx >= len - 1 && !windowStale) { chatResumeRealign('heal-even'); return; } // #1476：屏上已追平＝只差滚动对齐——旧形态在这里直接 return，#1202 吞掉的贴底枪（350ms 撞 batchRendering）自此再无补口，#978 撕裂态停留到刷新；同值重落健康态零副作用
 chatSettleHoldArm(); // #1010：补画期间视口媒体解码由进度条兜住
 if (windowStale || lastIdx < 0 || len - 1 - lastIdx > LOAD_STEP) renderWindow(false, true); // 空屏／整窗落后一大截／凭据作废＝整窗重建（与「长离场视同重新进聊天」同语义）
 else loadNewerIncremental(len); // 只差尾部几条＝#918 幂等增量补尾，不闪
 scrollChatBottom();
 chatSettleHoldSettle();
-chatResumeRealign(); // 补画改了几何＝交回 #978 落定闸同值重落一枪
+chatResumeRealign('heal-draw'); // 补画改了几何＝交回 #978 落定闸同值重落一枪
 chatEntrySettle(); // #841h：迟到长高当帧回钉
 } catch (e) {}
 }
 let _rsResumeT = null;
 let _rsResumeDeadline = 0;
-function chatResumeRealign() {
+let _rsResumeWhy = ''; // #1476：挂枪来源（repin350/heal-even/heal-stall/heal-draw），随取证环落诊断单
+function chatResumeRealign(why) {
 if (_rsResumeT) return; // 已有一枪在膛：由它负责复查，不重复排队
-_rsResumeDeadline = Date.now() + 3000;
+_rsResumeWhy = why || '';
+_rsResumeDeadline = Date.now() + 8000; // #1476：3s→8s 与 chatEntrySettle/#841h 同级——回场几何风暴＋大历史媒体解码可拖过 3s（#841h 实证解码 2s+），死线内放弃＝撕裂态再无救兵；轮询零几何读（chatRepinQuietEnough 只看时间戳与标志），多等的只有成本
 _rsResumeT = setTimeout(chatResumeRealignStep, 120);
 }
 function chatResumeRealignStep() {
 _rsResumeT = null;
 const now = Date.now();
-if (!chatVisible()) return;
-if (!chatPinnedBottom) return; // #162：回场期用户已翻历史＝绝不拽底
-if (!chatRepinQuietEnough(now)) { if (now < _rsResumeDeadline) _rsResumeT = setTimeout(chatResumeRealignStep, 120); return; }
-if (chatPinnedBottom) scrollChatBottom(); // 同值重落：健康态重写同一个值；撕裂态＝强制内核滚动树重对齐
+const _rk = (k) => { try { const cb = document.getElementById('chat-body'); chatWinRingMark(k, cb ? cb.scrollTop : 0, cb ? chatScrollMax() : 0, _rsResumeWhy); } catch (e) {} };
+if (!chatVisible()) { _rk('realign-drop'); return; }
+if (!chatPinnedBottom) { _rk('realign-drop'); return; } // #162：回场期用户已翻历史＝绝不拽底
+if (!chatRepinQuietEnough(now)) {
+if (now < _rsResumeDeadline) { _rsResumeT = setTimeout(chatResumeRealignStep, 120); return; }
+_rk('realign-miss'); return; // #1476：死线放弃＝这一枪彻底丢了，留证
+}
+if (chatPinnedBottom) { scrollChatBottom(); _rk('realign'); } // 同值重落：健康态重写同一个值；撕裂态＝强制内核滚动树重对齐
 }
 document.addEventListener('visibilitychange', function () {
 if (document.visibilityState === 'hidden') { chatHiddenAt = Date.now(); if (chatResumeRepinT) { clearTimeout(chatResumeRepinT); chatResumeRepinT = null; } }
@@ -9776,17 +9788,18 @@ const isVc = typeof r.txt === 'string' && /\|\|\|(?:data:audio\/|@@m:[0-9a-f]{32
 const label = isVc ? ('[语音] ' + r.txt.split('|||')[0]) : (isImg ? '[图片]' : (r.txt.length > 60 ? r.txt.slice(0, 60) + '…' : r.txt));
 const who = r.m.side === 'out' ? myName : partnerName;
 const time = r.m.ts ? fmtSearchTime(r.m.ts) : '';
-html += '<div class="tc-listitem" data-sidx="' + r.i + '"><div class="tc-li-top"><span class="tc-li-q">' + who + '：' + (isImg ? '[图片]' : (q ? hl(label) : esc(label))) + '</span><span class="tc-li-time">' + time + '</span></div></div>';
+html += '<div class="tc-listitem" data-sidx="' + r.i + '" data-smk="' + attrEsc(msgKeyOf(r.m)) + '"><div class="tc-li-top"><span class="tc-li-q">' + who + '：' + (isImg ? '[图片]' : (q ? hl(label) : esc(label))) + '</span><span class="tc-li-time">' + time + '</span></div></div>';
 });
 if (results.length > 80) html += '<div class="ta-empty">还有 ' + (results.length - 80) + ' 条…</div>';
 chatSearchResults.innerHTML = html;
 chatSearchResults.querySelectorAll('.tc-listitem').forEach(el => {
 el.addEventListener('click', () => {
 const idx = Number(el.dataset.sidx);
+const jk = el.dataset.smk || ''; // #1491：跳转带身份锚（扫描与点击之间数组若又位移过＝按锚校正真下标）
 closeChatSearch();
 try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch (e) {}
 requestAnimationFrame(() => requestAnimationFrame(() => {
-if (!jumpToMsg(idx)) body.scrollTop = body.scrollHeight;
+if (!jumpToMsg(idx, jk)) body.scrollTop = body.scrollHeight; // #1491：带锚校正后仍找不到＝真的没有这一条，才回底
 }));
 });
 });
@@ -10427,7 +10440,7 @@ if (!rec || !rec.quote) return -1;
 const qs = rec.qside || 'out';
 if (typeof rec.qidx === 'number' && rec.qidx >= 0 && rec.qidx < selfIdx) {
 const t = msgs[rec.qidx];
-if (t && !t.retracted && t.side === qs) return rec.qidx;
+if (t && !t.retracted && t.side === qs && quoteEq(rec.quote, quoteSnapOf(t))) return rec.qidx;
 }
 for (let i = selfIdx - 1; i >= 0; i--) {
 const m = msgs[i];
@@ -10436,8 +10449,28 @@ if (quoteEq(rec.quote, quoteSnapOf(m))) return i;
 }
 return -1;
 }
-function jumpToMsg(idx) {
+function quoteScanOpen() {
+try {
+if (!chatRebased && chatColdHead.length) return false; // 已取回未并入＝并完就有答案，不算没取回
+if (!chatColdDone) return true;
+const led = chatLedger[window.activePrefix()] || 0;
+return led > msgs.length;
+} catch (e) { return false; }
+}
+function jumpToMsg(idx, key) {
+if (key) {
+const at = (idx >= 0 && idx < msgs.length) ? msgs[idx] : null;
+if (!at || msgKeyOf(at) !== key) {
+let found = -1;
+for (let i = 0; i < msgs.length; i++) { if (msgs[i] && msgKeyOf(msgs[i]) === key) { found = i; break; } }
+if (found >= 0) idx = found;
+}
+}
 let target = body.querySelector('.msg[data-idx="' + idx + '"]');
+if (key && target && target.dataset.mk && target.dataset.mk !== msgKeyOf(msgs[idx])) {
+try { renderWindow(true, false); } catch (e) {}
+target = body.querySelector('.msg[data-idx="' + idx + '"]');
+}
 if (!target) {
 if (idx < renderStart) {
 renderStart = Math.max(0, idx - JUMP_VIEW);
@@ -10463,8 +10496,18 @@ const qb = e.target.closest('.msg-quote');
 if (!qb) return;
 const item = qb.closest('.msg');
 if (!item || item.dataset.idx === undefined) return;
-const tIdx = resolveQuoteTarget(Number(item.dataset.idx));
-if (tIdx < 0 || !jumpToMsg(tIdx)) toast('未找到原消息');
+if (!chatRebased && chatColdHead.length) { try { chatRebaseCold(); } catch (err) {} }
+const qIdxNow = Number(item.dataset.idx);
+const qRec = msgs[qIdxNow];
+const qTarget = resolveQuoteTarget(qIdxNow);
+if (qTarget >= 0 && jumpToMsg(qTarget, qTarget < msgs.length && msgs[qTarget] ? msgKeyOf(msgs[qTarget]) : '')) return;
+if (qTarget < 0 && quoteScanOpen() && qRec && !qRec._quoteHunted) {
+try { if (qRec) qRec._quoteHunted = 1; } catch (e) {}
+try { chatColdEnsureHydrated(); } catch (e) {}
+toast('更早的记录还在取回，取回后再点一次');
+return;
+}
+toast('未找到原消息');
 });
 }
 if (body) {

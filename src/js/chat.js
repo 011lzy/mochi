@@ -1539,7 +1539,11 @@ function runDeferredNormalization() {
     }
     if (!patched) {
     renderWindow(false, true);
-    scrollChatBottom();
+    // FIX 2026-09-30 #1491：这一支的「整窗重建＋无条件贴底」是弹回当前页的第二发（诊断单里那 6 次
+    //   prog 位移就落在跳转之后的重画里）。归一化改的是数据、不是用户意图：用户已经解钉在看历史时，
+    //   重画完不该替他滚回底部。判据只取 chatPinnedBottom 这一个当场事实，钉住态（用户就在最新一条
+    //   附近／自己刚发了消息）行为逐字不变。零机型／零 UA 分支。
+    if (chatPinnedBottom) scrollChatBottom(); // #1491h 用户已接管滚动＝归一化回退整窗后不替他贴底
     }
     } else if (changed && changedHi >= renderStart) {
     windowStale = true;
@@ -4522,9 +4526,9 @@ let chatWinRingProgPx = 0;
 function chatWinRingSnap() {
 return { lo: renderStart, hi: renderEnd, n: msgs.length, rn: windowRenderedN, stale: windowStale ? 1 : 0 };
 }
-function chatWinRingMark(kind, lo, hi) {
+function chatWinRingMark(kind, lo, hi, w) {
 try {
-chatWinRingArr.push({ t: Date.now(), k: kind, lo: lo, hi: hi });
+chatWinRingArr.push({ t: Date.now(), k: kind, lo: lo, hi: hi, w: w });
 if (chatWinRingArr.length > 24) chatWinRingArr.shift();
 } catch (e) {}
 }
@@ -4671,7 +4675,26 @@ const prevHeight = keepScroll ? body.scrollHeight : 0;
 // msgs=[] 但 renderStart 不跟着复位）、合并/归一化把 msgs 缩短、任何缩表路径都可能。短离场回场、
 // 换时间样式（chatReRenderTime）这类 keepScroll 轮不会重算 renderStart，正是最常撞上的一枪。
 // 修法：起点越界时按「最新 RENDER_MAX 条」重开窗口（与 clampTop 同语义），空窗不可能发生。
-if (clampTop || renderStart >= len) renderStart = Math.max(0, len - RENDER_MAX);
+// FIX 2026-09-30 #1491（作者实报「搜索消息不能定位原消息位置，马上直接弹回当前页面」）：这一句的本义
+//   ＝「把窗口按到最新一段」，而回场补画／权威合并／归一化回退／红包状态流转都拿 renderWindow(clampTop)
+//   当「重画」用——于是「重画一遍」和「把用户正在看的那一段搬走」被混成了同一发。解钉态（用户自己接管
+//   了滚动，含 #334 跳转刚解的那颗钉）下按到尾部＝屏上整段历史被换成最新 200 条，加上调用方紧随的那发
+//   scrollChatBottom＝所见「点了一下又被弹回来」。铁证＝诊断单取证环 6×[prog@7140~8257]（跳转确实成功、
+//   窗口就停在那儿、滚动被反复写回底部）而「此刻画 8059–8263」＝len−RENDER_MAX。
+//   修法＝按当场事实分流，零机型／零 UA 分支：
+//   ① 起点越界（#1004 空窗防护）照旧按到尾部段——起点已经在数组之外，没有「当前窗口」可言；
+//   ② 屏上此刻画的条数正好等于 renderStart..len（＝原地重画既不多画一条也不少画一条）时保持原窗口，
+//      用户看到的就是他刚定位的那一段；
+//   ③ 其余（刚清空、切桌面、首渲前、屏上与窗口本来不符）照旧按到尾部段，规模语义一字不变——
+//      结构判据（首枚 data-idx＝窗口起点、末枚＝最新一条）同时挡住了「renderStart=0 而屏上只有一窗」
+//      被放大成整史铺开的事故；且不像「数 children」那样把日期分隔线算进来（真机天天一枚＝永不相等）。
+if (renderStart >= len) renderStart = Math.max(0, len - RENDER_MAX); // #1004 起点越界＝空窗防护，与钉住态无关
+else if (clampTop) {
+const _rwN = body.querySelectorAll('.msg[data-idx]');
+const _rwFirst = _rwN.length ? Number(_rwN[0].dataset.idx) : -1;
+const _rwLast = _rwN.length ? Number(_rwN[_rwN.length - 1].dataset.idx) : -1;
+if (!(_rwFirst === renderStart && _rwLast >= len - 1)) renderStart = Math.max(0, len - RENDER_MAX);
+}
 const start = Math.min(renderStart, len);
 renderEnd = len; // 整窗重建渲染到最新，窗口终点复位（裁剪状态随之清空）
 // v3.26.x #220：登记「屏上由哪份 msgs 渲染」——非整窗路径（增量追加/裁剪）不更新
@@ -9452,9 +9475,14 @@ chatResumeReconcileArm(awaitLongAway);
 if (chatResumeRepinT) clearTimeout(chatResumeRepinT);
 chatResumeRepinT = setTimeout(function () {
 chatResumeRepinT = null;
-if (!chatVisible() || !chatPinnedBottom || batchRendering) return; // 回场期用户已翻页/已解钉＝不抢
-chatResumeRealign(); // #978：回场贴底改「几何落定后同值重落一枪」——350ms 当场裸写正打在回场几何恢复风暴中段＝撕裂源
-chatEntrySettle(); // #930 保留：迟到长高（懒加载图/字体回填）当帧回钉
+if (!chatVisible() || !chatPinnedBottom) return; // 回场期用户已翻页/已解钉＝不抢
+// FIX 2026-09-30 #1476（用户第五次复报同一症状「挂后台回来聊天不贴底、下半空白、要刷新才恢复」；#1202
+// 的注释原话「重读＋贴底一起作废」只修了一半——重读搬进了复核状态机，贴底这一枪仍是一次性闸口，被这里的
+// batchRendering 早退吞掉后同一次离场再无第二次 visibilitychange＝无人再挂）。修法＝batchRendering 不再是
+// 丢枪理由：chatResumeRealign 自带静默轮询（chatRepinQuietEnough 含 !batchRendering），构建在飞时挂枪等它清，
+// 清掉＋几何静默后照写；真写永远发生在静默后＝健康态重写同值零副作用，撕裂态＝#871 同值重落强制内核重对齐。
+chatResumeRealign('repin350'); // #978：回场贴底改「几何落定后同值重落一枪」——350ms 当场裸写正打在回场几何恢复风暴中段＝撕裂源
+if (!batchRendering) chatEntrySettle(); // #930 保留：迟到长高（懒加载图/字体回填）当帧回钉；构建在飞时不当场抢——分帧收尾 finishSwap 自会调（#841b）
 }, 350);
 }
 let _rcTimer = null;
@@ -9522,7 +9550,7 @@ if (!chatVisible() || !chatPinnedBottom) return; // #162
 // 接管失败才维持旧行为。健康的分帧轮（一秒内还在动）照旧让路，#162／换装期不写 DOM 的契约零改动。
 if (batchRendering && !chatPumpStalled()) return; // 换装期不写 DOM（泵确实还在推进＝让路）
 if (batchRendering) chatPumpRescue('resume-heal'); // 停滞泵接管：先把那一轮已经构建好的部分换装落屏
-if (batchRendering) return; // 接管没成（收尾自身抛）＝维持旧行为，本轮不写 DOM
+if (batchRendering) { chatResumeRealign('heal-stall'); return; } // 接管没成（收尾自身抛）＝本轮不写 DOM（旧行为）；#1476 补一条：贴底枪照挂——realign 静默闸含 !batchRendering，泵被 #1313 看门狗接管收装后它自己写，卡死则到死线放弃，两侧都不越权
 const len = msgs.length;
 if (!len) return;
 let lastIdx = -1;
@@ -9531,13 +9559,13 @@ for (let i = kids.length - 1; i >= 0; i--) {
 const v = kids[i] && kids[i].dataset ? parseInt(kids[i].dataset.idx, 10) : NaN;
 if (isFinite(v)) { lastIdx = v; break; }
 }
-if (lastIdx >= len - 1 && !windowStale) return; // 屏上尾部＝权威尾部且无作废标记＝什么都不做
+if (lastIdx >= len - 1 && !windowStale) { chatResumeRealign('heal-even'); return; } // #1476：屏上已追平＝只差滚动对齐——旧形态在这里直接 return，#1202 吞掉的贴底枪（350ms 撞 batchRendering）自此再无补口，#978 撕裂态停留到刷新；同值重落健康态零副作用
 chatSettleHoldArm(); // #1010：补画期间视口媒体解码由进度条兜住
 if (windowStale || lastIdx < 0 || len - 1 - lastIdx > LOAD_STEP) renderWindow(false, true); // 空屏／整窗落后一大截／凭据作废＝整窗重建（与「长离场视同重新进聊天」同语义）
 else loadNewerIncremental(len); // 只差尾部几条＝#918 幂等增量补尾，不闪
 scrollChatBottom();
 chatSettleHoldSettle();
-chatResumeRealign(); // 补画改了几何＝交回 #978 落定闸同值重落一枪
+chatResumeRealign('heal-draw'); // 补画改了几何＝交回 #978 落定闸同值重落一枪
 chatEntrySettle(); // #841h：迟到长高当帧回钉
 } catch (e) {}
 }
@@ -9553,18 +9581,26 @@ chatEntrySettle(); // #841h：迟到长高当帧回钉
 // 回场只写一枪。#162（解钉态不拽底）、#416（≤8px 语义）零改动。纯时序判据、零机型分支。
 let _rsResumeT = null;
 let _rsResumeDeadline = 0;
-function chatResumeRealign() {
+let _rsResumeWhy = ''; // #1476：挂枪来源（repin350/heal-even/heal-stall/heal-draw），随取证环落诊断单
+function chatResumeRealign(why) {
 if (_rsResumeT) return; // 已有一枪在膛：由它负责复查，不重复排队
-_rsResumeDeadline = Date.now() + 3000;
+_rsResumeWhy = why || '';
+_rsResumeDeadline = Date.now() + 8000; // #1476：3s→8s 与 chatEntrySettle/#841h 同级——回场几何风暴＋大历史媒体解码可拖过 3s（#841h 实证解码 2s+），死线内放弃＝撕裂态再无救兵；轮询零几何读（chatRepinQuietEnough 只看时间戳与标志），多等的只有成本
 _rsResumeT = setTimeout(chatResumeRealignStep, 120);
 }
 function chatResumeRealignStep() {
 _rsResumeT = null;
 const now = Date.now();
-if (!chatVisible()) return;
-if (!chatPinnedBottom) return; // #162：回场期用户已翻历史＝绝不拽底
-if (!chatRepinQuietEnough(now)) { if (now < _rsResumeDeadline) _rsResumeT = setTimeout(chatResumeRealignStep, 120); return; }
-if (chatPinnedBottom) scrollChatBottom(); // 同值重落：健康态重写同一个值；撕裂态＝强制内核滚动树重对齐
+// #1476 取证：挂了枪却没写成＝三种去向各留一条（离场/解钉是正常语义，死线放弃才是丢枪），下份诊断单
+// 直接可见「枪挂了没、写了没、怎么没的」——本症状五连报靠的正是「无头模拟不出真机形态」，留证不再盲猜
+const _rk = (k) => { try { const cb = document.getElementById('chat-body'); chatWinRingMark(k, cb ? cb.scrollTop : 0, cb ? chatScrollMax() : 0, _rsResumeWhy); } catch (e) {} };
+if (!chatVisible()) { _rk('realign-drop'); return; }
+if (!chatPinnedBottom) { _rk('realign-drop'); return; } // #162：回场期用户已翻历史＝绝不拽底
+if (!chatRepinQuietEnough(now)) {
+if (now < _rsResumeDeadline) { _rsResumeT = setTimeout(chatResumeRealignStep, 120); return; }
+_rk('realign-miss'); return; // #1476：死线放弃＝这一枪彻底丢了，留证
+}
+if (chatPinnedBottom) { scrollChatBottom(); _rk('realign'); } // 同值重落：健康态重写同一个值；撕裂态＝强制内核滚动树重对齐
 }
 document.addEventListener('visibilitychange', function () {
 if (document.visibilityState === 'hidden') { chatHiddenAt = Date.now(); if (chatResumeRepinT) { clearTimeout(chatResumeRepinT); chatResumeRepinT = null; } }
@@ -12527,18 +12563,19 @@ const isVc = typeof r.txt === 'string' && /\|\|\|(?:data:audio\/|@@m:[0-9a-f]{32
 const label = isVc ? ('[语音] ' + r.txt.split('|||')[0]) : (isImg ? '[图片]' : (r.txt.length > 60 ? r.txt.slice(0, 60) + '…' : r.txt));
 const who = r.m.side === 'out' ? myName : partnerName;
 const time = r.m.ts ? fmtSearchTime(r.m.ts) : '';
-html += '<div class="tc-listitem" data-sidx="' + r.i + '"><div class="tc-li-top"><span class="tc-li-q">' + who + '：' + (isImg ? '[图片]' : (q ? hl(label) : esc(label))) + '</span><span class="tc-li-time">' + time + '</span></div></div>';
+html += '<div class="tc-listitem" data-sidx="' + r.i + '" data-smk="' + attrEsc(msgKeyOf(r.m)) + '"><div class="tc-li-top"><span class="tc-li-q">' + who + '：' + (isImg ? '[图片]' : (q ? hl(label) : esc(label))) + '</span><span class="tc-li-time">' + time + '</span></div></div>';
 });
 if (results.length > 80) html += '<div class="ta-empty">还有 ' + (results.length - 80) + ' 条…</div>';
 chatSearchResults.innerHTML = html;
 chatSearchResults.querySelectorAll('.tc-listitem').forEach(el => {
 el.addEventListener('click', () => {
 const idx = Number(el.dataset.sidx);
+const jk = el.dataset.smk || ''; // #1491：跳转带身份锚（扫描与点击之间数组若又位移过＝按锚校正真下标）
 closeChatSearch();
 // FIX 2026-09-11 #331：搜索时输入框持有焦点＝软键盘展开，点结果先收键盘、等面板关闭/失焦落定再起跳（部分内核在 visualViewport 回弹窗口期会取消 smooth 滚动）
 try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch (e) {}
 requestAnimationFrame(() => requestAnimationFrame(() => {
-if (!jumpToMsg(idx)) body.scrollTop = body.scrollHeight;
+if (!jumpToMsg(idx, jk)) body.scrollTop = body.scrollHeight; // #1491：带锚校正后仍找不到＝真的没有这一条，才回底
 }));
 });
 });
@@ -13275,7 +13312,12 @@ if (!rec || !rec.quote) return -1;
 const qs = rec.qside || 'out';
 if (typeof rec.qidx === 'number' && rec.qidx >= 0 && rec.qidx < selfIdx) {
 const t = msgs[rec.qidx];
-if (t && !t.retracted && t.side === qs) return rec.qidx;
+// FIX 2026-09-30 #1491：qidx 是「按下引用那会儿的数组坐标」落库的，而数组会在屏外整体位移
+//   （chatRebaseCold 并冷头＝全体 +n；权威合并／尾巴回放的中段插删同理）。旧快路径只比 side ⇒
+//   位移后 qidx 命中同侧的别条消息，判据全过、画面跳到八竿子打不着的一条＝作者实报「点击引用的
+//   消息有一部分无法到达原位置」。快路径必须把引用快照一起核掉，不符就交给下面的内容扫描。
+//   零机型／零 UA 分支：只问「这一格是不是那条」。
+if (t && !t.retracted && t.side === qs && quoteEq(rec.quote, quoteSnapOf(t))) return rec.qidx;
 }
 for (let i = selfIdx - 1; i >= 0; i--) {
 const m = msgs[i];
@@ -13284,8 +13326,35 @@ if (quoteEq(rec.quote, quoteSnapOf(m))) return i;
 }
 return -1;
 }
-function jumpToMsg(idx) {
+// FIX 2026-09-30 #1491：内容扫描只看得见内存这一段；冷头还没取回时「找不到」＝「读不到」，不是
+//   「那条没说过」。判据取两个当场事实（与 #1360 搜索那一路同口径）：头块尚未全部取回、或条数账本
+//   比内存多。零机型／零 UA 分支。
+function quoteScanOpen() {
+try {
+if (!chatRebased && chatColdHead.length) return false; // 已取回未并入＝并完就有答案，不算没取回
+if (!chatColdDone) return true;
+const led = chatLedger[window.activePrefix()] || 0;
+return led > msgs.length;
+} catch (e) { return false; }
+}
+function jumpToMsg(idx, key) {
+// FIX 2026-09-30 #1491：下标→节点这一跳也认身份锚（#1477 红包那条链已证同一族：坐标会过期）。
+//   解析完到真跳之间数组若又并过冷头／回放过，data-idx 指向的可能是别条记录＝「跳到了但不是那条」。
+//   带 key 时先核数组那一头，不符按锚反查真下标；再核节点画的那一头（data-mk＝渲染期身份锚 #491），
+//   不符＝屏上这一段落后于数据，原地重画一次当前窗口后按新下标再取。反查也无＝保守回退旧下标语义。
+if (key) {
+const at = (idx >= 0 && idx < msgs.length) ? msgs[idx] : null;
+if (!at || msgKeyOf(at) !== key) {
+let found = -1;
+for (let i = 0; i < msgs.length; i++) { if (msgs[i] && msgKeyOf(msgs[i]) === key) { found = i; break; } }
+if (found >= 0) idx = found;
+}
+}
 let target = body.querySelector('.msg[data-idx="' + idx + '"]');
+if (key && target && target.dataset.mk && target.dataset.mk !== msgKeyOf(msgs[idx])) {
+try { renderWindow(true, false); } catch (e) {}
+target = body.querySelector('.msg[data-idx="' + idx + '"]');
+}
 if (!target) {
 if (idx < renderStart) {
 renderStart = Math.max(0, idx - JUMP_VIEW);
@@ -13314,8 +13383,23 @@ const qb = e.target.closest('.msg-quote');
 if (!qb) return;
 const item = qb.closest('.msg');
 if (!item || item.dataset.idx === undefined) return;
-const tIdx = resolveQuoteTarget(Number(item.dataset.idx));
-if (tIdx < 0 || !jumpToMsg(tIdx)) toast('未找到原消息');
+// FIX 2026-09-30 #1491：目标可能住在「已取回但还没并入内存的冷头」里（记录确实在、往上翻就看到）。
+//   先按 #1360 搜索那一路的现成口径并入（chatRebaseCold 同步搬窗口与 DOM 的 data-idx，被点的 item 也跟着搬，
+//   所以并完必须重新读 item.dataset.idx），再解析。作者实报「显示未找到原消息，但上翻其实原消息是在的」＝
+//   旧写法只扫内存这一截。零机型／零 UA 分支。
+if (!chatRebased && chatColdHead.length) { try { chatRebaseCold(); } catch (err) {} }
+const qIdxNow = Number(item.dataset.idx);
+const qRec = msgs[qIdxNow];
+const qTarget = resolveQuoteTarget(qIdxNow);
+if (qTarget >= 0 && jumpToMsg(qTarget, qTarget < msgs.length && msgs[qTarget] ? msgKeyOf(msgs[qTarget]) : '')) return;
+// 跳不到＝「读不到」还是「没有」两句分开说（#1360 同口径），不再一律「未找到原消息」
+if (qTarget < 0 && quoteScanOpen() && qRec && !qRec._quoteHunted) {
+try { if (qRec) qRec._quoteHunted = 1; } catch (e) {}
+try { chatColdEnsureHydrated(); } catch (e) {}
+toast('更早的记录还在取回，取回后再点一次');
+return;
+}
+toast('未找到原消息');
 });
 }
 if (body) {

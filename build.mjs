@@ -4820,11 +4820,13 @@ const FIX_SENTINELS = [
   { name: '#1001c 设置行红条写明「开着保活/通知不会在后台自动换新版」（删＝用户把「不自动更新」当更新坏了）', file: 'template.html', needle: '开着「后台保活」或「后台通知」时，页面不会在后台自动换新版' },
   { name: '#1001d 功能说明保活胶囊补同章（删＝只在一处口径，用户翻功能说明看不到）', file: 'js/settings-help.js', needle: '【开着保活时不会在后台自动换新版】' },
   { name: '#1001e 使用说明「前提 2 · 通知权限」补权限待决口径（删＝与 #988 起「开关保持开启」的实际行为不符）', file: 'template.html', needle: '如果你还没在弹窗里做出选择（弹窗挂着没点、或直接切走了），开关会保持开启并提示你去允许' },
-  { name: '#978a 回场重对齐入口（删＝回场贴底退回一次性裸写，撕裂态永修不回）', file: 'js/chat.js', needle: 'function chatResumeRealign() {' },
+  // #1476 重锚：函数签名加 why 参数（挂枪来源 repin350/heal-even/heal-stall/heal-draw 随取证环落诊断单），旧形态 `function chatResumeRealign() {` 随之退役
+  { name: '#978a 回场重对齐入口（删＝回场贴底退回一次性裸写，撕裂态永修不回）', file: 'js/chat.js', needle: 'function chatResumeRealign(why) {' },
   { name: '#978b 回场重对齐落定枪（删＝几何风暴中途写 scrollTop，撕裂源回归）', file: 'js/chat.js', needle: 'function chatResumeRealignStep() {' },
-  { name: '#978c 回场落定后无条件同值重落（删＝健康态/撕裂态都不再重对齐）', file: 'js/chat.js', needle: 'if (chatPinnedBottom) scrollChatBottom(); // 同值重落' },
+  // #1476 重锚：写点并入取证留痕 _rk('realign')（#1466 取证环，健康态零开销），旧单句形态退役
+  { name: '#978c 回场落定后无条件同值重落（删＝健康态/撕裂态都不再重对齐）', file: 'js/chat.js', needle: "if (chatPinnedBottom) { scrollChatBottom(); _rk('realign'); } // 同值重落" },
   { name: '#978d 旧「回场 350ms 当场裸写」已拆（删除型）', file: 'js/chat.js', absent: true, needle: 'if (chatScrollMax() - body.scrollTop > 8) { scrollChatBottom(); chatEntrySettle(); }' },
-  { name: '#1004b 渲染窗起点越界按最新 RENDER_MAX 重开（删＝窗口起点 ≥ 长度时整页空白无提示）', file: 'js/chat.js', needle: 'if (clampTop || renderStart >= len) renderStart = Math.max(0, len - RENDER_MAX);' },
+  { name: '#1004b 渲染窗起点越界按最新 RENDER_MAX 重开（删＝窗口起点 ≥ 长度时整页空白无提示）#1491 同名重锚：该行拆成越界一支＋保窗一支，越界语义逐字保留', file: 'js/chat.js', needle: 'if (renderStart >= len) renderStart = Math.max(0, len - RENDER_MAX);' },
   { name: '#1004c 构建期迟到消息换装后按到达顺序补挂（退回写进 fragment＝新消息埋进窗口中间/随作废轮丢条）', file: 'js/chat.js', needle: 'if (myDefer.q.length) {\nfor (let q = 0; q < myDefer.q.length; q++) body.appendChild(myDefer.q[q]);' },
   { name: '#1004e 记录位空洞自愈（删＝被跳过的下标不再重画，空洞永留）', file: 'js/chat.js', needle: 'function armWindowHoleHeal(idxs) {' },
   { name: '#1008a 桌面边看边调抽屉标题行可拖动（删＝退回 #562 只留声明、grip 纯装饰的「拖不动」态，用户实报面）', file: 'js/personalize.js', needle: 'beautyDockBot = Math.max(0, Math.min(Math.round(window.innerHeight * 0.6), Math.round(sb + sy - e.clientY)));' },
@@ -5022,7 +5024,8 @@ const FIX_SENTINELS = [
   // ==== 2026-09-24 #1202 用户实报「把浏览器放在后台一段时间再切回来，聊天里新的聊天消息无法显示」＝#1067 上线后仍复发（明说多机型同现）。零机型分支取证（tools/verify-1202-resume-reconcile.mjs，纯 HEAD 红侧）：#1067 那一发挂在 chatResumeRepin 的 350ms 一次性回调里，回调开头 `|| batchRendering) return;` 撞上后台冻结/深度节流留下的那半轮 renderWindow 分帧构建＝重读连同贴底一起作废，而 chatResumeRepinT 已清空、同一次离场不会有第二次 visibilitychange ⇒ 零补口，障碍清除后权威键读取次数实测 = 0、新消息 20s 内永不上屏。第二面：读库真跑成时若撞上回场几何风暴，loadMsgs 收尾只置 windowStale＝消息进内存、屏上不画，此后无任何重画入口。修法＝一次性一枪换成「等障碍清 → forceIdb 真读一发 → 等落地 → 屏/模型一致性复核」的有界状态机（250ms 步进／6s 死线／三通道去重），并补 mochi-fg-resume 第三报到路（只发 focus 不发 visibilitychange 的内核）。#1067「短离场≤60s 零重读」、#162、#416、#930、#978 契约零改动 ====
   { name: '#1202a 长离场改为挂有界复核闸（删＝回场复核整轮没人开，#1067 那一发重新变成一次性子弹）', file: 'js/chat.js', needle: 'chatResumeReconcileArm(awaitLongAway);' },
   { name: '#1202b 复核②真读一发权威前先记落地凭据（删＝无法确认这发读库是否落地就往下走，读侧竞态回来）', file: 'js/chat.js', needle: '_rcReadAt = lastIdbLoadAt;' },
-  { name: '#1202c ④屏/模型一致性复核：已追平且无作废标记才零动作（删＝要么每次都整窗重建＝回场闪屏复发，要么 windowStale/落后一大截永不再画＝「切回来才加载」复发）', file: 'js/chat.js', needle: 'if (lastIdx >= len - 1 && !windowStale) return;' },
+  // #1476 重锚：已追平分支补贴底枪后 return（旧裸 return＝#1202 吞掉的贴底枪再无补口，撕裂态停留到刷新）
+  { name: '#1202c ④屏/模型一致性复核：已追平且无作废标记才零动作（删＝要么每次都整窗重建＝回场闪屏复发，要么 windowStale/落后一大截永不再画＝「切回来才加载」复发）', file: 'js/chat.js', needle: "if (lastIdx >= len - 1 && !windowStale) { chatResumeRealign('heal-even'); return; }" },
   { name: '#1202d mochi-fg-resume 第三报到路（删＝只发 focus 不发 visibilitychange 的内核整条回场闸都不跑，多机型同现的那一半症状无解）', file: 'js/chat.js', needle: 'chatResumeReconcileArm(window.bgLateCatchup(CHAT_RESUME_FRESH_MS) === true);' },
   { name: '#1294a 回场复核①构建在飞只让路到软死线、到点仍开权威重读（删回旧形态＝解冻风暴拖过 6s 时整发掉弹，后台落库的新消息永不上屏、只有刷新/重进才画＝红米K80 Chrome 第三次复报的根因）', file: 'js/chat.js', needle: 'if (batchRendering && !overdue) { _rcTimer = setTimeout(chatResumeReconcileStep, 250); return; }' },
   { name: '#1294b 软死线到点但读库链仍在飞＝按硬顶有界续期（删回旧形态＝大历史十几秒真读撞 6s 死线，④拿旧模型复核出「已追平」假绿后无主）', file: 'js/chat.js', needle: '_lmChainBusy === window.activePrefix() && now < _rcArmAt + CHAT_RESUME_RECONCILE_HARD_MS' },
@@ -6359,6 +6362,21 @@ const FIX_SENTINELS = [
   { name: '#1493h 情话存档面板（删＝quote-history 整本仍然无列表可看可删）', file: 'js/records.js', needle: 'function renderQuotePanel()' },
   { name: '#1493i 情话每日追加闸（删＝存档大键化后冷读 unshift 顶掉整本）', file: 'js/personalize.js', needle: "if (!window.xyBigWriteHold || !window.xyBigWriteHold(store, 'quote-history')) {" },
   { name: '#1493j 情话存档入口进记录页 tab（删＝整本依旧无处可看）', file: 'index.html', needle: 'data-htab="quotes"' },
+  // ==== 2026-09-30 #1491 iPhone 12 Pro／iOS 17.1.1 主屏幕实报三条（搜索点结果弹回当前页／引用跳不到或谎称未找到／整屏发黑要刷新）====
+  // 跳转链的下标寻址与「解钉态整窗重画」两处收口；#1476 同批重放（其四针见下方 #1476a~d）。
+  { name: '#1491a 解钉态整窗重画按「屏上此刻画的条数」原地保窗（删＝搜索/引用跳转后被合并或归一化换走画面＝弹回当前页）', file: 'js/chat.js', needle: 'if (!(_rwFirst === renderStart && _rwLast >= len - 1)) renderStart = Math.max(0, len - RENDER_MAX);' },
+  { name: '#1491h 归一化回退整窗后只在钉住态补那一发贴底（删＝用户在看历史时被无条件拽回底部）', file: 'js/chat.js', needle: 'if (chatPinnedBottom) scrollChatBottom(); // #1491h' },
+  { name: '#1491b 引用下标快路径必须连引用快照一起核（删＝坐标位移后同侧命中别条消息＝跳到别处）', file: 'js/chat.js', needle: 'if (t && !t.retracted && t.side === qs && quoteEq(rec.quote, quoteSnapOf(t))) return rec.qidx;' },
+  { name: '#1491c 跳转函数带身份锚位（删＝下标过期无从校正，#1477 同一族在跳转链上复发）', file: 'js/chat.js', needle: 'function jumpToMsg(idx, key) {' },
+  { name: '#1491d 节点身份不符时原地重画一次再取（删＝data-idx 命中但画的是别条记录＝跳到了但不是那条）', file: 'js/chat.js', needle: 'if (key && target && target.dataset.mk && target.dataset.mk !== msgKeyOf(msgs[idx])) {' },
+  { name: '#1491e 搜索结果携带渲染期身份锚（删＝扫描与点击之间数组并过冷头＝下标指向别条）', file: 'js/chat.js', needle: 'attrEsc(msgKeyOf(r.m))' },
+  { name: '#1491f 引用点击先并已取回的冷头（删＝目标住在冷头＝谎称「未找到原消息」而记录确实在）', file: 'js/chat.js', needle: 'if (!chatRebased && chatColdHead.length) { try { chatRebaseCold(); } catch (err) {} }' },
+  { name: '#1491g 冷头未取回时如实说还在取回并补一脚（删＝把「读不到」报成「没有」，#1360 同族在引用链上漏收）', file: 'js/chat.js', needle: "toast('更早的记录还在取回，取回后再点一次');" },
+  /* ==== 2026-09-30 #1476 「挂后台回来聊天不贴底、下半空白、要刷新才恢复」第五次复报（#978/#1202/#1294/#1313 同族续课）＝回场贴底枪 chatResumeRealign 三处丢失口收口：① 350ms 回调的 batchRendering 早退吞枪（#1202 只搬走了重读子弹）；② 枪挂上后 3s 死线，回场几何风暴＋大历史媒体解码可拖过 3s（#841h 实证解码 2s+）＝放弃；③ heal「屏上已追平」分支裸 return＝最需要贴底枪的时刻反而不补。撕裂态 scrollTop 读数假绿（写其实落了，只有滚动树/绘制错位）⇒ #706 看门狗判据永久失明 ⇒ 三处叠加后无任何救兵，唯一出口是刷新。修法＝batchRendering 不再吞枪（realign 自带静默轮询，含 !batchRendering，清了就写；真写永远发生在静默后）、heal 两个早退分支补枪、死线 3s→8s（与 chatEntrySettle/#841h 同级，宽死线只有成本没有撕裂风险）、取证留痕（realign/realign-miss/realign-drop 三去向带挂枪来源进 __chatWinRing＝#1466 环，下份诊断单直接可见「枪挂了没、写了没、怎么没的」）。零机型/零 UA 分支。验证：tools/verify-1476-resume-realign-gun.mjs（A/B 同尺）。 ==== */
+  { name: '#1476a 350ms 回调不再拿 batchRendering 吞枪（删＝真机回场构建在飞时贴底枪被吞且同次离场无人再挂＝#978 撕裂态停留到刷新）', file: 'js/chat.js', needle: 'if (!batchRendering) chatEntrySettle(); // #930' },
+  { name: '#1476b heal「已追平」分支补贴底枪（删＝#1202 吞掉的枪再无补口，屏上追平却停在上半屏＝本症状主体）', file: 'js/chat.js', needle: "{ chatResumeRealign('heal-even'); return; }" },
+  { name: '#1476c 回场贴底枪死线 8s（改回 3s＝回场风暴+大历史解码拖过死线即放弃，撕裂态再无救兵）', file: 'js/chat.js', needle: '_rsResumeDeadline = Date.now() + 8000' },
+  { name: '#1476d 贴底枪三去向取证留痕（删＝下份诊断单又只剩「没贴底」没有「枪去哪了」，五连报的盲猜循环再来一轮）', file: 'js/chat.js', needle: "_rk('realign')" },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
