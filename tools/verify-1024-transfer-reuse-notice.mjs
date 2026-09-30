@@ -71,7 +71,9 @@ RULES.forEach((r, i) => ok(tpl.indexOf('<p class="splash-bullet">' + r + '</p>')
 ok(tpl.indexOf('<p class="splash-item splash-hl">' + TAIL + '</p>') >= 0, '兜底侵权声明（高亮）在位');
 ok(tpl.indexOf('<div class="splash-summary"') < 0, '静态兜底的「必读摘要」块已随 #1216 整块撤除（复活＝与开屏最顶必读卡组两份口径各说各话；哨兵 #1216a/#613 同判）');
 ok((tpl.match(/<p class="splash-sec">网站公告 · 关于转载与二次创作<\/p>/g) || []).length === 1, '转载章标题在静态兜底里恰好一处（.splash-sec 唯一，摘要撤除后不存在第二份复述）');
-ok(tpl.indexOf('<p class="splash-sec">互助群公告</p>') >= 0, '互助群公告章仍在（只插入、未替换）');
+// #1498（2026-09-30 作者直派「把公告里的【互助群公告】相关内容删掉」）：该章两源整块下线，本行由「章仍在」改口为
+//   「章不得回流」——原先它证的是「只插入、未替换」，那层意思现由上方第 64 行（四、许可章仍在）＋第 73 行（转载章唯一）承担。
+ok(tpl.indexOf('<p class="splash-sec">互助群公告</p>') < 0, '#1498 起「互助群公告」章保持删除（回流＝把整章带回开屏，与线上 notice.json 分叉）');
 const o = (tpl.match(/<!--/g) || []).length, c = (tpl.match(/-->/g) || []).length;
 ok(o === c, 'HTML 注释配平（未闭合注释会连锁打碎 .phone 结构，#301）', o + '/' + c);
 

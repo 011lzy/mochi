@@ -126,7 +126,7 @@ const page1 = await page.evaluate(([d1, d2]) => {
   const t = document.body.textContent || '';
   return { d1: t.includes(d1), d2: t.includes(d2), mustread: !!document.getElementById('splash-mustread') };
 }, [D1, D2]);
-ok(page1.d1 && page1.d2 && page1.mustread, 'B0 页 1 相邻口径未受影响（#975 两处免责 + #976 必读组仍在）', JSON.stringify(page1));
+ok(page1.d2 && page1.mustread && !page1.d1, 'B0 页 1 相邻口径未受影响（报修章免责 #975b/#975d + #976 必读组仍在；#1498 起 D1 随「互助群公告」章整块删除，屏上不得再出现）', JSON.stringify(page1));
 
 await page.evaluate(() => {
   const b = document.getElementById('splash-box'); if (b) b.scrollTop = b.scrollHeight;

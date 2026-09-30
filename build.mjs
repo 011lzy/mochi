@@ -1110,8 +1110,8 @@ const FIX_SENTINELS = [
   { name: '#621 clock.js 合并卡按 keys 拼接正文（删＝正文退回只取单字段，署名段丢失）', file: 'js/clock.js', needle: 'function barText(bar) {' },
   { name: '#621 clock.js BARS 单卡双权威字段（keys alert+alert2；删＝署名段不回填）', file: 'js/clock.js', needle: "keys: ['alert', 'alert2']" },
   // ==== 2026-09-16 #620 开屏公告去重 + 口径统一（用户：公告重复多、作者决定月底解散）====
-  { name: '#620a 开屏口径·互助群月底解散（notice 线上生效源）', file: 'pwa/notice.json', needle: '互助群月底解散' },
-  { name: '#620b 开屏口径·群即将解散（template 离线兜底）', file: 'template.html', needle: '群即将解散：' },
+  // #620a／#620b 退役（2026-09-30 #1499 作者直派「把公告里的【互助群公告】相关内容删掉」）：两条锚钉的正文
+  //   随「互助群公告」章整块删除；这章不得被带回来，改由删除型哨兵 #1499a／#1499b 把守。
   { name: '#620c 作者公告页不再重复「关于二级密码」卡（absent；已并入主公告）', file: 'template.html', needle: '>关于二级密码<', absent: true },
   { name: '#620d 作者公告页不再重复「关于二传和二改」卡（absent；已并入主公告）', file: 'template.html', needle: '>关于二传和二改<', absent: true },
   { name: '#154 朋友圈评论「我的表情包」与聊天面板同源·暴露chat最新内存副本（IDB权威自愈，修store层旧LS快照/大键挂起导致的两侧不同步）', file: 'js/chat.js', needle: 'window.getMyEmojiGroups = function () { return myGroups || []; };' },
@@ -4649,9 +4649,9 @@ const FIX_SENTINELS = [
   { name: '#973b 红卡红色警示形态（删/改回灰底灰条＝最顶端这张卡退回普通卡，不再显眼）', file: 'css/base.css', needle: 'background:#fdecec; border-left:4px solid #d23430; border-radius:12px; text-align:left;' },
   { name: '#973c 红卡暗色主题（删＝暗色下红卡按亮底深红字渲染，字看不清）', file: 'css/base.css', needle: '[data-theme="dark"] .splash-bigwarn {' },
   { name: '#973d 必读摘要同口径一条（在线 notice.json 会用 summary 整段替换静态列表，静态兜底丢了＝离线看到的是旧口径摘要）', file: 'template.html', needle: '【本站内容非常多，不适用建议不使用】', absent: true }, // #1216 摘要块整块撤除＝转删除型（同口径正文仍在开屏最顶红卡）
-  { name: '#975a 互助群公告章「问 AI」免责·在线权威源（删＝用户直派的「AI 会出错会骗人请自行甄别」口径从联网用户开屏消失）', file: 'pwa/notice.json', needle: '「可以问 AI」只是使用建议：实际问题时去问 AI' },
-  { name: '#975b 报修章「问 AI」免责·在线权威源（删＝报修章只剩「比作者回复快」却看不到甄别提醒，同口径仅剩互助群章一处）', file: 'pwa/notice.json', needle: '注意：AI 的回答无法保证 100% 正确——AI 也会出错和骗人，请自行甄别。' },
-  { name: '#975c 互助群公告章「问 AI」免责·离线兜底（删＝断网/弱网用户看到的开屏没有该免责条）', file: 'template.html', needle: '也无法保证 100% 正确——AI 也会出错和骗人，请自行甄别。</p>' },
+  // #975a／#975c 退役（2026-09-30 #1499 同上：两条锚钉的免责条住在「互助群公告」章内，随章整块删除）。
+  //   口径未失：报修章 #975b／#975d 与第二页强制公告 note #975e 三处仍在；该章不得复活由 #1499a／#1499b 把守。
+  { name: '#975b 报修章「问 AI」免责·在线权威源（删＝AI 也会出错和骗人的甄别提醒从联网用户开屏消失；#1499 起在线开屏仅剩这一处免责条）', file: 'pwa/notice.json', needle: '注意：AI 的回答无法保证 100% 正确——AI 也会出错和骗人，请自行甄别。' },
   { name: '#975d 报修章「问 AI」免责·离线兜底（删＝断网/弱网用户在报修章看不到甄别提醒）', file: 'template.html', needle: '注意：AI 的回答无法保证 100% 正确——AI 也会出错和骗人，请自行甄别。</p>' },
   { name: '#975e 第二页强制公告底部 note 补「让 AI 修 / 问 AI」免责（删＝进入前最后一屏只有 AI 建议、没有甄别提醒）', file: 'template.html', needle: 'AI 给的答案请自行甄别。</div>' },
   { name: '#977a 保活两条硬限制红条挂在行下（删＝设置页看不到「占音频截断/挂久失效重开」提醒）', file: 'index.html', needle: 'id="bg-keep-sub"' },
@@ -5149,7 +5149,7 @@ const FIX_SENTINELS = [
   { name: '#1215d 维护投入的可核对说法在位（删＝那句「七百多次部署＋库里也有上传记录」被剪，停更说明失去唯一的凭据指向）', file: 'template.html', needle: '如果不信，github 库里也有代码上传的记录。' },
   { name: '#1215e 自修报障四要素格式在位（删＝报给 AI 的格式约定丢，AI 侧拿不到可定位信息＝白问一轮）', file: 'template.html', needle: '【设备型号 + 浏览器 + 问题 + 设备诊断 docx】' },
   { name: '#1215f 「只讲操作流程、不讲角色名」的提醒在位（删＝读者照旧把梦角名字丢给 AI，报修无效）', file: 'template.html', needle: '要说你的操作流程和哪个功能异常' },
-  { name: '#1215g 停更后口径收口句在位（删＝与页 1／互助群公告的「月底停更、不处理任何事务、代码一直开源」脱节）', file: 'template.html', needle: '月底后永久停更，不处理任何事务' },
+  { name: '#1215g 停更后口径收口句在位（删＝与页 1／停更公告的「月底停更、不处理任何事务、代码一直开源」脱节；#1499 起「互助群公告」章已删，此处即该口径仅剩的落点）', file: 'template.html', needle: '月底后永久停更，不处理任何事务' },
   { name: '#1215h 页 2「更早的公告」折叠块锚点（#1215b：删＝默认展开的只剩全部七张卡＝用户要的「其他折叠起来」被撤销；针只证块在，「默认收起」由 verify-1215 的 S12（静态精确标签）＋B4（无头实测 checkVisibility）断言）', file: 'template.html', needle: 'id="splash-mandatory-older"' },
   /* ==== 2026-09-25 #1216（用户直派四件事：①开屏四张横幅卡「公告已精简／停更公告／安卓自带浏览器／iPhone 添加到主屏幕」的文案要放进开屏第一页的目录；②#916「建议都把本站添加到主屏幕＋配合三点」那条也进目录；③删「关于反馈与建议」小节与「关于数据丢失」一行；④「必读摘要删掉，这些内容在开屏最顶已经有了」）：
      必读摘要在两份源（静态 template + 在线 notice.json 的 summary）同批撤除，summary 置空数组即不渲染（clock.js 判 length 才建块）；被摘掉的七支针一律**转删除型重锚**（名字与 needle 逐字不动，只加 absent: true）——摘要里任一行被复活时各自报红，不退役、不缩尺（#1214 口径）。
@@ -6383,6 +6383,11 @@ const FIX_SENTINELS = [
   { name: '#1476b heal「已追平」分支补贴底枪（删＝#1202 吞掉的枪再无补口，屏上追平却停在上半屏＝本症状主体）', file: 'js/chat.js', needle: "{ chatResumeRealign('heal-even'); return; }" },
   { name: '#1476c 回场贴底枪死线 8s（改回 3s＝回场风暴+大历史解码拖过死线即放弃，撕裂态再无救兵）', file: 'js/chat.js', needle: '_rsResumeDeadline = Date.now() + 8000' },
   { name: '#1476d 贴底枪三去向取证留痕（删＝下份诊断单又只剩「没贴底」没有「枪去哪了」，五连报的盲猜循环再来一轮）', file: 'js/chat.js', needle: "_rk('realign')" },
+  /* ==== 2026-09-30 #1499 作者直派「把公告里的【互助群公告】相关内容删掉」：整章「两源同批」下线——线上权威源 src/pwa/notice.json ＋ 离线兜底 src/template.html（该章含「群即将解散」「禁公屏梦」两个子块，一并删除），并同批清掉 设置 → 关于 两个弹窗里的「互助群月底解散」（版本与更新／联系作者 · 反馈）。同批退役四条旧锚（#620a／#620b／#975a／#975c，锚钉正文随章消失），#975 的「问 AI 自行甄别」口径未失（#975b／#975d／#975e 仍在）。
+     ⚠ 下述三条为「删除型」哨兵：本仓主树工作树长期挂着 template.html／notice.json 的陈旧缓冲回写（内容比 HEAD 旧），谁按工作树整文件构建都会把这章带回开屏——回归＝用户看得见的开屏又出现该章。 ==== */
+  { name: '#1499a 开屏「互助群公告」章保持删除·notice 线上源（回归＝陈旧缓冲回写把整章带回联网用户的开屏）', file: 'pwa/notice.json', needle: '互助群', absent: true },
+  { name: '#1499b 开屏「互助群公告」章保持删除·template 离线兜底（回归＝断网/弱网用户又看到该章）', file: 'template.html', needle: '互助群公告</p>', absent: true },
+  { name: '#1499c 设置→关于两处提及保持清空（回归＝「版本与更新」「联系作者 / 反馈」又冒出「互助群月底解散」）', file: 'js/personalize.js', needle: '互助群月底解散', absent: true },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
