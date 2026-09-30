@@ -5389,6 +5389,9 @@ const FIX_SENTINELS = [
   { name: "#1219b 快照对贴纸的 dataURL src 一并剥（漏剥＝巨型载荷原样留在剥图快照里，快照被体积预算裁成空表的那一发由它撑起来，纯 HEAD 实测 snapLen=2）", file: "js/feed.js", needle: "if (!isSnapPayload(s.src)) { acc.push(s); return acc; }" },
   { name: "#1219c 贴纸写入接上媒体池令牌升级（池确认落盘才让引用落库、失败原样退回内联＝旧行为不更坏；删这条＝贴纸继续把 16 万字符塞进权威键，一发顶过大键线、LS 副本被剥）", file: "js/feed.js", needle: "function feedStickerTokUpgrade(pid, rec) {" },
   { name: "#1219d 合并时贴纸走并集（整组覆盖＝权威侧或快照侧任一侧把自己的格子抹掉，剥空的那格盖掉带载荷的那格；纯 HEAD 实测两侧各 1 格时合出来 stkImg=0）", file: "js/feed.js", needle: "out.stickers = stkUnion;" },
+  // ==== 2026-09-30 #1479 朋友圈贴纸去 5 张上限（作者直派「无限制」）：旧实现 addFeedSticker 对我贴与 TA 回贴两路各有一道「每条动态至多 5 张」的顶帽，第 6 张弹 toast 静默拒贴；#1219 后图片贴纸写入已接媒体池令牌化（44 字符引用）＋emoji 贴纸本就零载荷，多张不再顶爆权威键 feed-posts，帽失去存在依据。修＝两路守卫整行拆除＋功能介绍文案改「张数不限制」。验证 tools/verify-1479-feed-sticker-unlimited.mjs（无头 Playwright 真点贴纸面板连贴 7 张＋TA 回贴越 5 断言） ====
+  { name: "#1479a 删除型：每条动态贴纸数顶帽不得回流（回流＝贴第 6 张弹「最多 5 张」toast 静默拒贴，作者直派的无限制被悄悄收回）", file: "js/feed.js", needle: "stickers.length >= 5", absent: true },
+  { name: "#1479b 功能介绍文案随批改口径（改回「最多 5 张」＝文案重新说谎）", file: "template.html", needle: "选表情包贴到照片上（张数不限制，自己贴的可点撤回）" },
   { name: "#1219e 同格认人用 ts+身份+落点+emoji、认别串刻意不含 src，载荷择优取带得回图的那一版（把 src 放进 key 会让同一格算两格＝贴纸翻倍；删这行＝剥空侧照样盖回）", file: "js/feed.js", needle: "if (!prev.src && s.src) prev.src = s.src;" },
   { name: '#1311a 桌面结构观察只对「真换了节点」强制重扫（改成恒 true＝音乐/时钟每 500ms 写 textContent 把 #1201 那把按页记忆化整层绕过，每半秒一次全量走树＝perfcheck 里 desk-guard ×59 紧邻前台冻结；改成恒 false＝组件增删后照抄旧裁决，#989/#1013 复发）', file: 'js/desktop-slider.js', needle: 'new MutationObserver((muts) => pageScrollGuard.later(400, !textOnlyChurn(muts)))' },
   { name: '#1311b 纯文本滴答的判据＝这一批变异里有没有非文本节点（只问「动没动结构」、不问「是哪个组件」＝零组件名白名单分支；删掉＝退化成逐个点名，下一个每半秒重写自己读数的控件又来一遍）', file: 'js/desktop-slider.js', needle: 'if (m.addedNodes[j].nodeType !== 3) return false;' },

@@ -1467,7 +1467,6 @@ const list = load();
 const p = list.find(x => x.id === pid);
 if (!p) { toast('这条动态不存在了'); return; }
 p.stickers = Array.isArray(p.stickers) ? p.stickers : [];
-if (p.stickers.length >= 5) { toast('这条动态上贴纸够多啦（最多 5 张）'); return; }
 const pos = (st && Number.isFinite(Number(st.x)) && Number.isFinite(Number(st.y)))
 ? { x: Math.min(92, Math.max(0, Math.round(Number(st.x)))), y: Math.min(92, Math.max(0, Math.round(Number(st.y)))) }
 : feedRandStickerPos();
@@ -1484,7 +1483,6 @@ const l2 = load();
 const p2 = l2.find(x => x.id === pid);
 if (!p2) return;
 p2.stickers = Array.isArray(p2.stickers) ? p2.stickers : [];
-if (p2.stickers.length >= 5) return;
 const taSt = feedTaPickSticker();
 const pos2 = feedRandStickerPos();
 const nm = p2.taName || taFeedNameFor(cid);
