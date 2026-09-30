@@ -6423,6 +6423,8 @@ const FIX_SENTINELS = [
   { name: '#1516b 单组件独立背景颜色存取（删＝装修模式点卡片没有「组件颜色」、不能单独调某个小组件）', file: 'js/personalize.js', needle: "const widgetBgKey = (type) => 'widget-bg-' + type;" },
   { name: '#1516c 独立颜色随启动/切桌面重应用（删＝设置后重启/换桌面独立色蒸发回落全局）', file: 'js/personalize.js', needle: 'applyAllWidgetTexts, applyAllWidgetOpacities, applyAllWidgetBgs' },
   { name: '#1516d 快捷面板「图标」直达进装修模式（删＝美化页快捷条又只剩四项、图标自定义没了显眼入口）', file: 'js/personalize.js', needle: "bind('dq-icon', 'row-custom-icon');" },
+  // ==== 2026-09-30 #1517 修复 #1516 二次撞号与覆盖：并行 vv 基线钳批（17dff8a，同为 #1516 号）落库瞬间被本会话小组件批（6c6eaa0）以 84bd5c2 旧底 build.mjs/index.html 覆盖，其哨兵登记被抹（src/js/mobile-adapt.js 修复本体未在覆盖路径、仍在库）＝当日同型第四例。本批：①取 17dff8a 原行补回登记表；②产物由合并 src（6c6eaa0 全量＝小组件批＋vv 钳批）重出，双方改动共存。 ====
+  { name: '#1516 vv 基线钳进布局视口（删＝Edge 工具栏假高顶高基线，正常高度被误判键盘收缩、会话劫持钉全高＝被盖/空隙乱象）', file: 'js/mobile-adapt.js', needle: '_aH = Math.min(h, window.innerHeight || h);' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
