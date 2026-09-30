@@ -5,8 +5,7 @@
 //   （2026.09.12 / 2026.09.14），用户把那一页当成「开屏公告」、拿那两个日期去凑 6 位密码，两个入口都卡住。
 //   本批把全部入口的提示改成：答案在开屏<b>第一页</b>的章节里（第一页顶部有「目录」可逐章翻），
 //   并明写不是<b>第二页</b>「进入前 · 作者必读公告」上的那两个日期；同时每处都点明「二级验证密码」与
-//   「暗号」的关系（#812 起曾同码互指；#1485 起 2026-09-30 用户直派分码——两串分开：暗号 990815
-//   只管跳过问答、二级验证密码 995180（99＋生日倒写）只管解锁字卡锁，文案改「不是同一个」）。
+//   「暗号」是同一串 6 位数字（两个入口都用它）。
 // 断言：
 //  S 组＝源码/产物锚（红侧必红）：旧口径消失（删除型）／静态兜底锁卡 tip＋clock＋applock 三处新口径／
 //       （#1216 起「必读摘要」整块撤除：原判摘要的第 4 条与 S7 的 notice 侧计数改判「摘要里没有」，
@@ -85,12 +84,12 @@ check('S7a 旧那句「排除第二页日期」在四个源里归零（2026-09-2
 check('S7b 每个入口都写明「第一页的章节目录里和第二页最顶那张时间线卡都写着」（clock 3 / applock 3 定点；摘要侧随底本有无，取区间）',
   page2Hits.clock === 3 && page2Hits.applock === 3 && page2Hits.template >= 2 && page2Hits.notice <= 1,
   JSON.stringify(page2Hits));
-check('S8 密码与暗号互指仍在（#1485 起改「不是同一个」分码口径：暗号只管跳问答、本卡解锁用倒写串）',
-  clockSrc.includes('这个密码与开屏问答页的「暗号」不是同一个（两串分开）：暗号＝99＋生日原样 4 位、只管跳过问答；解锁这张卡用本条这一串（99＋生日倒写 4 位）') &&
-  appSrc.includes('这个暗号与开屏公告区「防未成年人·内置字卡锁定」卡上的「二级验证密码」不是同一个，是分开的两串数字') &&
-  tpl.includes('解锁用的密码与开屏问答页的「暗号」不是同一个'));
-check('S9 使用说明两处「忘记密码」也补了同一指路（#1485 分码推导口径）',
-  count(tpl, '暗号与二级验证密码都从开屏<b>第一页</b>章节里的那串日期推出来') === 2);
+check('S8 密码与暗号互指仍在（同一串 6 位数字，两个入口都用它）',
+  clockSrc.includes('这个密码与开屏问答页的「暗号」是同一个（同一串 6 位数字）：在开屏问答页点「输暗号跳过问答」用的也是它。') &&
+  appSrc.includes('这个暗号与开屏公告区「防未成年人·内置字卡锁定」卡的二级验证密码是同一个') &&
+  tpl.includes('解锁用的密码与开屏问答页的「暗号」是同一个'));
+check('S9 使用说明两处「忘记密码」也补了同一指路',
+  count(tpl, '暗号／二级验证密码的答案在开屏<b>第一页</b>的章节里') === 2);
 
 const sentIds = ['#1000a', '#1000b', '#1000c', '#1000d', '#1000e', '#1000f', '#1000g', '#1000h'];
 const missSent = sentIds.filter((id) => buildSrc.indexOf("name: '" + id + ' ') < 0);
@@ -147,8 +146,8 @@ const tip = await page.evaluate(() => {
   const t = document.getElementById('splash-cardlock-tip');
   return t ? t.textContent : '';
 });
-check('B1 开屏锁卡 tip 渲染出来就带指路（第一页章节 + 两页都写着 + 分码口径）',
-  tip.includes('开屏第一页的章节目录里') && tip.includes('第二页最顶那张时间线卡都写着') && tip.includes('「暗号」不是同一个'),
+check('B1 开屏锁卡 tip 渲染出来就带指路（第一页章节 + 两页都写着 + 两个入口同码）',
+  tip.includes('开屏第一页的章节目录里') && tip.includes('第二页最顶那张时间线卡都写着') && tip.includes('「暗号」是同一个'),
   tip.slice(0, 46));
 
 const summary = await page.evaluate(() => {
@@ -183,8 +182,8 @@ const modal = await page.evaluate(() => {
   const mask = document.getElementById('modal-mask');
   return { text: st && !st.hidden ? st.textContent : '', open: !!mask && !mask.hidden };
 });
-check('B5 点「输入密码解锁」弹窗带指路（第一页章节＋两页都写着＋分码口径）',
-  modal.open && modal.text.includes('开屏第一页的章节目录里') && modal.text.includes('第二页最顶那张时间线卡都写着') && modal.text.includes('「暗号」不是同一个'),
+check('B5 点「输入密码解锁」弹窗带指路（第一页章节＋两页都写着＋与暗号同码）',
+  modal.open && modal.text.includes('开屏第一页的章节目录里') && modal.text.includes('第二页最顶那张时间线卡都写着') && modal.text.includes('「暗号」是同一个'),
   modal.text.slice(0, 46));
 await page.evaluate(() => {
   const inp = document.getElementById('modal-input');

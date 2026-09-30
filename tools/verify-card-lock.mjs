@@ -38,6 +38,10 @@ async function ev(expr){ try{ const r=await cdp('Runtime.evaluate',{expression:e
 await cdpConnect();
 await cdp('Page.enable'); await cdp('Runtime.enable');
 await cdp('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:2,mobile:true});
+// #1497 夹具：新文档种子脚本——在应用脚本前落 storage-guide 已读旗标＋备份提醒当日戳，
+// 防「本次更新已修好」引导与备份提醒两个常驻弹窗在长跑中段抢 #modal-mask（应用脚本加载
+// 时就读旗标，尺子里途补种管不住它自己的 4s 兜底定时器）。
+await cdp('Page.addScriptToEvaluateOnNewDocument',{source:"try{localStorage.setItem('xy-home-v2:storage-guide-shown','1250');localStorage.setItem('xy-home-v2:__last-backup-remind',String(Date.now()));}catch(e){}"});
 await cdp('Page.navigate',{url:baseUrl+'/index.html'});
 await sleep(3500);
 const results=[];
@@ -53,6 +57,9 @@ check('锁定 getDefaultCardGroups(main)=0', await ev("(window.getDefaultCardGro
 check('锁定 getLibPool(fish) 空', await ev("(window.getLibPool('fish','摸鱼浮字')||[]).length===0")===true);
 check('锁定 getPool 无预设兜底（text 空或全自建）', await ev("(function(){var p=window.getPool();return p.text.length===0;})()")===true);
 check('锁定 quoteSpellPick 存在（quote-spell 未坏）', await ev('typeof window.quoteSpellPick==="function"')===true);
+// #1497 夹具：种 storage-guide 已读旗标（LS+IDB），防「本次更新已修好」引导弹窗在长跑中段抢 #modal-mask
+await ev("(function(){try{localStorage.setItem('xy-home-v2:storage-guide-shown','1250');localStorage.setItem('xy-home-v2:__last-backup-remind',String(Date.now()));}catch(e){}if(window.idbSet){window.idbSet('xy-home-v2:storage-guide-shown','1250');window.idbSet('xy-home-v2:__last-backup-remind',String(Date.now()));}return true;})()");
+await sleep(600);
 // 3) 解锁交互：错密码 stay+hint；对密码→state 写验证通过
 await ev("document.querySelector('#splash-cardlock-actions .cardlock-btn').click()");
 await sleep(600);
@@ -62,11 +69,11 @@ await ev("(function(){var i=document.getElementById('modal-input')||(document.qu
 await sleep(600);
 check('错密码：弹窗未关（stay）', await ev("(function(){var m=document.getElementById('modal-mask');return m&&!m.hidden;})()")===true);
 check('错密码：提示文案在', await ev("(function(){var s=document.getElementById('modal-static');return s&&!s.hidden&&s.textContent.indexOf('密码不对')>-1;})()")===true);
-await ev("(function(){var i=document.getElementById('modal-input')||(document.querySelector('.modal-input')||{});if(i){i.value='995180';}var b=document.getElementById('modal-ok')||(document.querySelector('#modal-mask .modal-btn, #modal-mask button'));if(b)b.click();return true;})()");
+await ev("(function(){var i=document.getElementById('modal-input')||(document.querySelector('.modal-input')||{});if(i){i.value='990815';}var b=document.getElementById('modal-ok')||(document.querySelector('#modal-mask .modal-btn, #modal-mask button'));if(b)b.click();return true;})()");
 await sleep(400);
 check('对密码：localStorage 写 open', await ev("(function(){try{return localStorage.getItem('xy-home-v2:cardlock-state')==='open';}catch(e){return false;}})()")===true);
 // 4) 解锁后闸开（不等待 reload）：直接调 API 验证
-await ev("window.cardLockTryUnlock('995180')");
+await ev("window.cardLockTryUnlock('990815')");
 await sleep(400); // 解锁事件异步重建分组池，等一帧避免竞态闪断
 check('解锁后 getDefaultCardGroups(main)>0', await ev("(window.getDefaultCardGroups('main')||[]).length>0")===true);
 check('解锁后 getLibPool(fish) 非空', await ev("(window.getLibPool('fish','摸鱼浮字')||[]).length>0")===true);
@@ -97,12 +104,12 @@ await ev("window.cardLockCustomCount=function(){return 500;};window.__cardLockTe
 await sleep(900);
 check('锁定+500卡：不弹强制弹窗', await ev("(function(){var m=document.getElementById('modal-mask');return !m||m.hidden;})()")===true);
 // 恢复真实计数(0)，解锁后再触发不应弹
-await ev("delete window.cardLockCustomCount;window.cardLockTryUnlock('995180')");
+await ev("delete window.cardLockCustomCount;window.cardLockTryUnlock('990815')");
 await sleep(400);
 check('解锁后 getDefaultCardGroups(main)>0', await ev("(window.getDefaultCardGroups('main')||[]).length>0")===true);
 await ev("window.__cardLockTest.fire()");
 await sleep(900);
-check('已解锁：不弹强制弹窗', await ev("(function(){var m=document.getElementById('modal-mask');return !m||m.hidden;})()")===true);
+check('已解锁：不弹强制弹窗', await ev("(function(){var m=document.getElementById('modal-mask'),st=document.getElementById('modal-static');return (!m||m.hidden)?true:'VIS:'+((st&&st.textContent)||'').slice(0,40)+'|open:'+window.cardLockOpen();})()")===true, String(await ev("(function(){var m=document.getElementById('modal-mask'),st=document.getElementById('modal-static');return (!m||m.hidden)?'hidden':'VIS:'+((st&&st.textContent)||'').slice(0,40)+'|open:'+window.cardLockOpen();})()")));
 await ev("window.cardLockRelock()");
 // 7) #470 进入流程不再抛 maybeCardLockReminder ReferenceError（clock.js 两 IIFE 作用域修复；
 //    删 mount/删守卫调用/改回直呼函数名都会令下列断言转红）

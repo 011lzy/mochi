@@ -89,7 +89,7 @@ check('A0.1 LS setItem 已被配额满拦截', qok === 'QuotaExceededError', qok
 check('A1 初始为锁定态', (await page.evaluate('window.cardLockOpen()')) === false);
 check('A1.1 落库确认接口已挂载', await page.evaluate('typeof window.cardLockConfirmPersisted === "function"'));
 
-const ur = await page.evaluate("(function(){ try { return window.cardLockTryUnlock('995180'); } catch (e) { return { ok:false, msg:'throw:'+e.message }; } })()");
+const ur = await page.evaluate("(function(){ try { return window.cardLockTryUnlock('990815'); } catch (e) { return { ok:false, msg:'throw:'+e.message }; } })()");
 check('A2 解锁接口返回成功', ur && ur.ok === true, JSON.stringify(ur));
 check('A3 解锁后本会话立即可见', (await page.evaluate('window.cardLockOpen()')) === true);
 
@@ -117,9 +117,9 @@ check('A6 IDB 写标记已落库', typeof idbMark === 'number' && idbMark > 0, J
 await page.reload({ waitUntil: 'load', timeout: 25000 }).catch(() => {});
 await waitDataReady();
 
-check('B1 刷新后 cardLockOpen()=true（不回锁）', (await page.evaluate('window.cardLockOpen()')) === true);
+check('B1 #1497 每次加载重新上锁：刷新后回到锁定（解锁态只活本页生命周期）', (await page.evaluate('window.cardLockOpen()')) === false);
 const lockUi1 = await page.evaluate("(function(){ const a=document.getElementById('splash-cardlock-actions'); if(!a) return '(no card)'; const btn=a.querySelector('.cardlock-btn'); return btn ? btn.textContent : '(no btn)'; })()");
-check('B2 开屏锁卡显示已解锁（重新上锁按钮）', lockUi1 === '重新上锁', JSON.stringify(lockUi1));
+check('B2 #1497 开屏锁卡回到锁定入口（输入密码解锁）', lockUi1 === '输入密码解锁', JSON.stringify(lockUi1));
 
 // ---------- 会话 C：重锁 → 落库确认 → 刷新后恢复锁定（未成年人保护方向同样不丢） ----------
 const rr = await page.evaluate("(function(){ try { window.cardLockRelock(); return window.cardLockOpen() === false; } catch (e) { return 'throw:' + e.message; } })()");

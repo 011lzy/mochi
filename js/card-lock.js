@@ -3,9 +3,8 @@
 window.mochiPresetSizeTip = '字卡太多不用全开：「默认聊天字卡」和「聊天默认字卡·词典」都是很大的池子（词典还含扩展常用词，是数量最多的一类）。抽卡按分组随机，字卡多 ≠ 回复更好用——量太大反而更容易抽到生僻、重复或不合适的内容。如果你不常用词典拼字 / 拼句玩法，建议把词典关掉：到「字卡库 → 聊天默认字卡·词典」页点「使用的全部关闭」，或按分组「整组停用」、逐张关闭，只留常用的语录。关闭不影响其他任何功能，需要时随时可以再打开。';
 const GNS = 'xy-home-v2';
 const STATE_SHORT = 'cardlock-state';
-const LS_KEY = 'xy-home-v2:cardlock-state'; // 'locked' | 'open'
-const PW_HASH = '1062906492'; // FNV-1a 32bit('mochi#995180')——盐前置，纯数字散列串不易反推
-const PW_VER = '2';
+const LS_KEY = 'xy-home-v2:cardlock-state'; // 'locked' | 'open'（#1497 起仅作诊断留痕）
+const PW_HASH = '4240701628';
 function normCode(v) {
 return String(v == null ? '' : v)
 .replace(/\s+/g, '')
@@ -16,33 +15,21 @@ let h = 0x811c9dc5;
 for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = (h * 0x01000193) >>> 0; }
 return String(h >>> 0);
 }
-function stGetK(key) {
+function stGet() {
 try {
 if (window.xyStore) {
-const v = window.xyStore(GNS).get(key);
+const v = window.xyStore(GNS).get(STATE_SHORT);
 if (v !== null && v !== undefined) return v;
 }
 } catch (e) {}
-try { return localStorage.getItem(GNS + ':' + key); } catch (e) { return null; }
+try { return localStorage.getItem(LS_KEY); } catch (e) { return null; }
 }
-function stSetK(key, v) {
-try { if (window.xyStore) { window.xyStore(GNS).set(key, v); return; } } catch (e) {}
-try { localStorage.setItem(GNS + ':' + key, v); } catch (e) {}
+function stSet(v) {
+try { if (window.xyStore) { window.xyStore(GNS).set(STATE_SHORT, v); return; } } catch (e) {}
+try { localStorage.setItem(LS_KEY, v); } catch (e) {}
 }
-function stGet() { return stGetK(STATE_SHORT); }
-function stSet(v) { stSetK(STATE_SHORT, v); }
-function isOpen() { try { return stGet() === 'open' && pwverOk; } catch (e) { return false; } }
-let pwverOk = (function () { try { return stGetK('cardlock-pwver') === PW_VER; } catch (e) { return false; } })();
-(function pwverProbe() {
-try {
-if (pwverOk || !window.idbGet) return;
-window.idbGet(GNS + ':cardlock-pwver').then(function (v) {
-if (v !== PW_VER || pwverOk) return;   // IDB 也没有戳＝旧码时代/新装 → 保持锁定，不写任何键
-pwverOk = true;
-if (isOpen()) document.dispatchEvent(new Event('mochi-cardlock-open'));
-}).catch(function () {});
-} catch (e) {}
-})();
+let sessionOpen = false;
+function isOpen() { try { return sessionOpen; } catch (e) { return false; } }
 (function healMigrated() {
 try {
 if (localStorage.getItem(LS_KEY)) return;
@@ -76,9 +63,8 @@ const now = Date.now();
 if (now < failUntil) return { ok: false, msg: '尝试太频繁，请 ' + Math.ceil((failUntil - now) / 1000) + ' 秒后再试' };
 if (fnv1a('mochi#' + normCode(pw)) === PW_HASH) {
 fails = 0;
+sessionOpen = true;   // #1497 会话闸放行：只活本页生命周期
 stSet('open');
-stSetK('cardlock-pwver', PW_VER);   // #1495 解锁即盖当前版本戳＝版本闸放行本码时代的常开
-pwverOk = true;
 lastOpen = true;
 document.dispatchEvent(new Event('mochi-cardlock-open'));
 return { ok: true };
@@ -88,6 +74,7 @@ if (fails >= 5) { failUntil = now + 60000; fails = 0; return { ok: false, msg: '
 return { ok: false, msg: '密码不对（还剩 ' + (5 - fails) + ' 次机会）' };
 };
 window.cardLockRelock = function () {
+sessionOpen = false;
 stSet('locked');
 lastOpen = false;
 document.dispatchEvent(new Event('mochi-cardlock-locked'));

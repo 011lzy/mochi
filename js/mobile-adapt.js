@@ -527,7 +527,7 @@ if (_phone.style.height && Math.abs((isNaN(cur) ? nh + 99 : cur) - nh) < 6) retu
 if (_phone.style.height !== nh + 'px') _phone.style.height = nh + 'px';
 } catch (e) {}
 }
-function _kbGapPx() { var a = window.__mochiScreenAdj; var v = a ? Math.round(+a.kbgap || 0) : 0; return v > 80 ? 80 : (v < -80 ? -80 : v); }
+function _kbGapPx() { var a = window.__mochiScreenAdj; var v = a ? Math.round(+a.kbgap || 0) : 0; return v > 40 ? 40 : (v < -40 ? -40 : v); }
 var _textFocused = null;
 var _focLostAt = 0;
 var _iFocusAt = 0, _iProv = false, _iIH = window.innerHeight;
@@ -1355,7 +1355,7 @@ return;
 }
 if (!_aVkHonest && _focNow) _aKbVkArm(); // #1484：overlay 签名（回弹全高且仍聚焦）＝武装实测尺
 if (!_aFullSince) _aFullSince = Date.now();
-if (_focNow && (Date.now() - _aFullSince < 800 || (_aVkHonest && _aVkH >= 80 && Date.now() - _aLastAct < 1200))) { var _hHold = Math.round(_aKbStableH) + _aKbGap() || Math.round(_aVV.height || 0); if (_hHold > 0 && _aPhone.style.height !== _hHold + 'px') _aPhone.style.height = _hHold + 'px'; return; } // #1492：打字中才顶住＋顶住含轴值（无vk翻毛内核靠 800ms；vk 在场＝打字窗口 1.2s；停手＞1.2s 或失焦＝放行回底 // #1481：毛刺顶住（#1484：实测尺在场时 _aKbStableH 由实测持续更新，实测归零走 _aFullSince=1 即时复原） // #1481：全高毛刺未持续 800ms＝顶住会话稳态高度，不缩会话不写全高
+if (Date.now() - _aFullSince < 800 || (_aVkHonest && _aVkH >= 80)) { var _hHold = Math.round(_aKbStableH) || Math.round(_aVV.height || 0); if (_hHold > 0 && _aPhone.style.height !== _hHold + 'px') _aPhone.style.height = _hHold + 'px'; return; } // #1481：毛刺顶住（#1484：实测尺在场时 _aKbStableH 由实测持续更新，实测归零走 _aFullSince=1 即时复原） // #1481：全高毛刺未持续 800ms＝顶住会话稳态高度，不缩会话不写全高
 _aKb = false;
 _aClosing = false;
 _aKbStableH = 0; _aFullSince = 0; try { if (_aVkHonest) { _aVkHonest = false; _aVkH = -1; var _vkR = navigator.virtualKeyboard; if (_vkR) _vkR.overlaysContent = false; } } catch (eVD) {} // #1484：解除武装还原内核默认
@@ -1401,7 +1401,7 @@ _aProvClear();
 } else if (_aKb) {
 if (_aVV.height >= _aH - 12) {
 if (!_aFullSince) _aFullSince = Date.now();
-if (_focNow && (Date.now() - _aFullSince < 800 || (_aVkHonest && _aVkH >= 80 && Date.now() - _aLastAct < 1200))) return; // #1492：打字中才顶住；停手＞1.2s 或失焦＝放行回底（收起空白数秒回归根除）
+if (Date.now() - _aFullSince < 800 || (_aVkHonest && _aVkH >= 80)) return; // #1481/#1484：毛刺顶住＋实测键盘在场（≥80px）必顶住＝两态横跳根除
 _aKbStableH = 0; _aFullSince = 0; try { if (_aVkHonest) { _aVkHonest = false; _aVkH = -1; var _vkR2 = navigator.virtualKeyboard; if (_vkR2) _vkR2.overlaysContent = false; } } catch (eVD2) {}
 _aKb = false;
 _aKbStableH = 0; _aFullSince = 0;
@@ -1440,7 +1440,7 @@ _aProvVkRuler(base); // #337：Chromium 悬浮键盘改用 VirtualKeyboard 实�
 _aKbSnap("prov"); // #1463：盲猜停靠也留现场（后续实测尺/对账读数进诊断）
 }
 var _aDockFix = 0;
-function _aKbGap() { var a = window.__mochiScreenAdj; return a ? Math.max(-80, Math.min(80, Math.round(+a.kbgap || 0))) : 0; }
+function _aKbGap() { var a = window.__mochiScreenAdj; return a ? Math.max(-40, Math.min(40, Math.round(+a.kbgap || 0))) : 0; }
 function _aKbFeedH() {
 var cur = Math.round(_aVV.height || 0);
 if (!_aKb || _aClosing) return cur;
@@ -2058,7 +2058,7 @@ lastHeal: his
 var PFX = 'xy-home-v2:';
 var GROOT = 'xy-home-v2';
 var KEYS = { top: 'screen-adj-top', bottom: 'screen-adj-bottom', h: 'screen-adj-h', desk: 'screen-adj-desk', shift: 'screen-adj-shift', text: 'screen-adj-text', side: 'screen-adj-side', kbgap: 'screen-adj-kbgap' };
-var RANGE = { top: [-80, 80], bottom: [-80, 80], h: [-80, 80], desk: [-60, 60], shift: [-60, 60], text: [0, 12], side: [0, 12], kbgap: [-80, 80] };
+var RANGE = { top: [-80, 80], bottom: [-80, 80], h: [-80, 80], desk: [-60, 60], shift: [-60, 60], text: [0, 12], side: [0, 12], kbgap: [-40, 40] };
 function loadAdj(k) {
 var raw = null;
 try { if (window.xyStore) raw = window.xyStore(GROOT).get(KEYS[k]); } catch (e) {}

@@ -2031,7 +2031,7 @@
         // FIX 2026-09-13 #404（米15夸克报障）：cardlock-state 是全局根键（无 per-cid 段），
         //   per-cid 探针会读成 xy-home-v2:<cid>:cardlock-state 恒缺失，二级密码解锁丢失类
         //   报障无法判读。单独走根键探针（LS/读取/IDB 三层同款）。
-        const ROOT_KEYS = ['cardlock-state', 'cardlock-pwver'];
+        const ROOT_KEYS = ['cardlock-state'];
         const lines = ['开关持久化体检（当前桌面 ' + cid + '；\'1\'=开 \'0\'=关 缺失=默认值）：'];
         let probe = 'LS 写探针：正常';
         try {
