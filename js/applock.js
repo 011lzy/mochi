@@ -61,6 +61,11 @@ function setEn(v) { gSet(K_EN, v ? '1' : '0'); }
 function savePin(pin) { gSet(K_PIN, h53(pin)); }
 function saveQa(q, h) { gSet(K_QA, JSON.stringify({ q: String(q), h: String(h) })); }
 const QA_SKIP_CODE = '990815';
+function normCode(v) {
+return String(v == null ? '' : v)
+.replace(/\s+/g, '')
+.replace(/[０-９]/g, function (d) { return String.fromCharCode(d.charCodeAt(0) - 65248); });
+}
 const DEFAULT_QA = [
 { q: 'mj 是什么意思？（提示：答案为【两个字】）', a: '梦角' },
 { q: '是否已知晓：全站为随机代码运行，不含任何 AI，请不要添加负面字卡吓唬自己？（提示：答案为【一个字】）', a: '是' }
@@ -337,7 +342,7 @@ textAsk({
 title: '输暗号关闭应用锁', sub: '本机未设安全问题，无法用问答重置。机主可输入暗号直接关闭应用锁。暗号一共 6 位数字：前两位是 99，后 4 位是 mochi 字卡生日的字面数字（把生日日期原样写成 4 位数），生日就在开屏第一页的章节目录里（点开第一页顶部的「目录」，逐章翻一下就能找到）；第一页的章节目录里和第二页最顶那张时间线卡都写着——日期一直是很简单的字面意思，不是隐藏答案；开屏最底下的部署时间不算：',
 placeholder: '暗号', maxlen: 12, okLabel: '关闭应用锁', cancelLabel: '返回',
 onSubmit: function (v) {
-if (String(v || '').trim() === QA_SKIP_CODE) { setEn(false); sessMark(); toast('应用锁已关闭'); maskEl().hidden = true; if (after) after(); }
+if (normCode(v) === QA_SKIP_CODE) { setEn(false); sessMark(); toast('应用锁已关闭'); maskEl().hidden = true; if (after) after(); }
 else { const inp = document.getElementById('applock-txt'); if (inp) inp.value = ''; showErr('暗号不对'); }
 },
 onCancel: onBack
@@ -440,10 +445,10 @@ onLink: function (act) { if (act === 'skipqa') qaSkipAsk(items, i, afterAll); }
 }
 function qaSkipAsk(items, i, afterAll) {
 textAsk({
-title: '跳过开屏问答', sub: '暗号一共 6 位数字：前两位是 99，后 4 位是 mochi 字卡生日的字面数字（把生日日期原样写成 4 位数）。mochi 字卡的生日写在开屏第一页的章节目录里（点开第一页顶部的「目录」逐章翻一下就能找到）——第一页的章节目录里和第二页最顶那张时间线卡都写着——日期一直是很简单的字面意思，不是隐藏答案；开屏最底下的部署时间不算（那只是用来判断有没有更新到新版本）。输入暗号后，这台设备以后每次打开都不再问答（不再显示问答层）。警告：一旦有人把密码二传（告诉别人），发现后密码就会被重新设置，请不要外传。不输入暗号也不影响正常使用。这个暗号与开屏公告区「防未成年人·内置字卡锁定」卡的二级验证密码是同一个（同一串 6 位数字）：在那张卡点「输入密码解锁」用的也是它。',
+title: '跳过开屏问答', sub: '暗号一共 6 位数字：前两位是 99，后 4 位是 mochi 字卡生日的字面数字（把生日日期原样写成 4 位数）。mochi 字卡的生日写在开屏第一页的章节目录里（点开第一页顶部的「目录」逐章翻一下就能找到）——第一页的章节目录里和第二页最顶那张时间线卡都写着——日期一直是很简单的字面意思，不是隐藏答案；开屏最底下的部署时间不算（那只是用来判断有没有更新到新版本）。输入暗号后，这台设备以后每次打开都不再问答（不再显示问答层）。警告：一旦有人把密码二传（告诉别人），发现后密码就会被重新设置，请不要外传。不输入暗号也不影响正常使用。注意：这个暗号与开屏公告区「防未成年人·内置字卡锁定」卡上的「二级验证密码」不是同一个，是分开的两串数字：暗号（本条这串）只管跳过问答；解锁那张卡要用它说明文字里的另一串（99＋生日倒写 4 位）。',
 placeholder: '输暗号', maxlen: 12, okLabel: '确定', cancelLabel: '返回',
 onSubmit: function (v) {
-if (String(v || '').trim() === QA_SKIP_CODE) {
+if (normCode(v) === QA_SKIP_CODE) {
 qaSkipSet(true);
 toast('已跳过：本机以后不再问答');
 qaAsk(items, items.length, afterAll);   // 直接进下一层（密码锁 或 解锁完成）
@@ -564,7 +569,7 @@ textAsk({
 title: '验证身份', sub: '本机未设数字密码，请输入开屏问答的暗号继续。暗号一共 6 位数字：前两位是 99，后 4 位是 mochi 字卡生日的字面数字（把生日日期原样写成 4 位数），生日就在开屏第一页的章节目录里（点开第一页顶部的「目录」，逐章翻一下就能找到）；第一页的章节目录里和第二页最顶那张时间线卡都写着——日期一直是很简单的字面意思，不是隐藏答案；开屏最底下的部署时间不算：',
 placeholder: '暗号', maxlen: 12, okLabel: '确定', cancelLabel: '取消',
 onSubmit: function (v) {
-if (String(v || '').trim() === QA_SKIP_CODE) { next(); }
+if (normCode(v) === QA_SKIP_CODE) { next(); }
 else {
 const inp = document.getElementById('applock-txt'); if (inp) inp.value = '';
 showErr('暗号不对');

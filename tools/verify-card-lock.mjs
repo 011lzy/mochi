@@ -62,11 +62,11 @@ await ev("(function(){var i=document.getElementById('modal-input')||(document.qu
 await sleep(600);
 check('错密码：弹窗未关（stay）', await ev("(function(){var m=document.getElementById('modal-mask');return m&&!m.hidden;})()")===true);
 check('错密码：提示文案在', await ev("(function(){var s=document.getElementById('modal-static');return s&&!s.hidden&&s.textContent.indexOf('密码不对')>-1;})()")===true);
-await ev("(function(){var i=document.getElementById('modal-input')||(document.querySelector('.modal-input')||{});if(i){i.value='990815';}var b=document.getElementById('modal-ok')||(document.querySelector('#modal-mask .modal-btn, #modal-mask button'));if(b)b.click();return true;})()");
+await ev("(function(){var i=document.getElementById('modal-input')||(document.querySelector('.modal-input')||{});if(i){i.value='995180';}var b=document.getElementById('modal-ok')||(document.querySelector('#modal-mask .modal-btn, #modal-mask button'));if(b)b.click();return true;})()");
 await sleep(400);
 check('对密码：localStorage 写 open', await ev("(function(){try{return localStorage.getItem('xy-home-v2:cardlock-state')==='open';}catch(e){return false;}})()")===true);
 // 4) 解锁后闸开（不等待 reload）：直接调 API 验证
-await ev("window.cardLockTryUnlock('990815')");
+await ev("window.cardLockTryUnlock('995180')");
 await sleep(400); // 解锁事件异步重建分组池，等一帧避免竞态闪断
 check('解锁后 getDefaultCardGroups(main)>0', await ev("(window.getDefaultCardGroups('main')||[]).length>0")===true);
 check('解锁后 getLibPool(fish) 非空', await ev("(window.getLibPool('fish','摸鱼浮字')||[]).length>0")===true);
@@ -97,7 +97,7 @@ await ev("window.cardLockCustomCount=function(){return 500;};window.__cardLockTe
 await sleep(900);
 check('锁定+500卡：不弹强制弹窗', await ev("(function(){var m=document.getElementById('modal-mask');return !m||m.hidden;})()")===true);
 // 恢复真实计数(0)，解锁后再触发不应弹
-await ev("delete window.cardLockCustomCount;window.cardLockTryUnlock('990815')");
+await ev("delete window.cardLockCustomCount;window.cardLockTryUnlock('995180')");
 await sleep(400);
 check('解锁后 getDefaultCardGroups(main)>0', await ev("(window.getDefaultCardGroups('main')||[]).length>0")===true);
 await ev("window.__cardLockTest.fire()");

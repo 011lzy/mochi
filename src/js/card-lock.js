@@ -3,7 +3,8 @@
 //   ① 默认全锁——所有系统预设字卡（main/kaomoji/emoji/dict/interact/period/fish…全部分类）
 //      视为不存在，回复池、字卡库、词典拼字、各功能同源池一律取不到；用户自建字卡不受影响。
 //   ② 开屏解锁——开屏公告区出现「防未成年人·内置字卡锁定」卡，点「输入密码解锁」弹
-//      openModal 输入框，输对密码（990815）才放行并刷新页面生效；输错提示剩余次数并节流。
+//      openModal 输入框，输对密码（#1495 起 995180＝99＋生日倒写，与问答暗号 990815 分开）才放行
+//      并刷新页面生效；输错提示剩余次数并节流。
 //   ③ 持久化 + 可重锁——解锁状态存全局根键（per-cid 无关），解锁后卡变「已解锁」可一键
 //      重新上锁；想改密码只能改本文件重新部署（源码不存明文，只存散列）。
 // 存储约定：纯本地无后端；密码不存明文——存 FNV-1a 32 位散列（防顺手翻源码/存储看到），
@@ -25,8 +26,21 @@
   const GNS = 'xy-home-v2';
   const STATE_SHORT = 'cardlock-state';
   const LS_KEY = 'xy-home-v2:cardlock-state'; // 'locked' | 'open'
-  // FNV-1a 32bit('mochi#990815')——盐前置，纯数字散列串不易反推常见日期格式
-  const PW_HASH = '4240701628';
+  // #1495 分码（2026-09-30 用户直派「现在是和暗号一起解锁了……这个要分开啊」）：二级验证密码
+  //   不再与开屏问答暗号（applock QA_SKIP_CODE='990815'＝99＋生日原样 4 位）同串——本锁密码
+  //   ＝99＋生日 4 位倒写（'995180'），推导原料同章但两串互不相通；跳过开屏问答不解锁本锁。
+  //   换码即换锁：PW_VER 未达当前值的机器一次性回 locked（见 relockOnCodeChange），旧码时代
+  //   的解锁态不跨换码延续。以后再换码：改 PW_HASH（fnv1a('mochi#新码')）＋PW_VER 升一位即可。
+  const PW_HASH = '1062906492'; // FNV-1a 32bit('mochi#995180')——盐前置，纯数字散列串不易反推
+  const PW_VER = '2';
+  // #1495 全角/夹空白归一化：部分输入法与内核把数字打成全角（９９５１８０）或数字间夹空白
+  //   （99 5180），原样过散列必败＝「输对了密码却解锁不了」的多机型报障直因。判据只取字符
+  //   形态（空白集＋全角数字区），零机型／零 UA 分支。applock 暗号三入口同款同判据。
+  function normCode(v) {
+    return String(v == null ? '' : v)
+      .replace(/\s+/g, '')
+      .replace(/[０-９]/g, function (d) { return String.fromCharCode(d.charCodeAt(0) - 65248); });
+  }
   function fnv1a(s) {
     let h = 0x811c9dc5;
     for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = (h * 0x01000193) >>> 0; }
@@ -34,20 +48,44 @@
   }
   // #389 状态读写统一走 xyStore（内存缓存 + LS 快照 + __wr-journal + IDB + 标记五件套）；
   // xyStore 不在（理论不会：idb.js 先于本文件加载）才退回裸 LS，保持老行为可用。
-  function stGet() {
+  // #1495：泛化出 stGetK/stSetK——换码版本戳（cardlock-pwver）同走全局根键五件套。
+  function stGetK(key) {
     try {
       if (window.xyStore) {
-        const v = window.xyStore(GNS).get(STATE_SHORT);
+        const v = window.xyStore(GNS).get(key);
         if (v !== null && v !== undefined) return v;
       }
     } catch (e) {}
-    try { return localStorage.getItem(LS_KEY); } catch (e) { return null; }
+    try { return localStorage.getItem(GNS + ':' + key); } catch (e) { return null; }
   }
-  function stSet(v) {
-    try { if (window.xyStore) { window.xyStore(GNS).set(STATE_SHORT, v); return; } } catch (e) {}
-    try { localStorage.setItem(LS_KEY, v); } catch (e) {}
+  function stSetK(key, v) {
+    try { if (window.xyStore) { window.xyStore(GNS).set(key, v); return; } } catch (e) {}
+    try { localStorage.setItem(GNS + ':' + key, v); } catch (e) {}
   }
-  function isOpen() { try { return stGet() === 'open'; } catch (e) { return false; } }
+  function stGet() { return stGetK(STATE_SHORT); }
+  function stSet(v) { stSetK(STATE_SHORT, v); }
+  // #1495 版本闸：存储 open 且 版本戳＝当前 PW_VER 才算解锁——旧码（990815＝暗号）时代
+  //   解锁过的机器，库里的 'open' 因无戳而闸门不认＝虚拟重锁，必须用新码重输一次。
+  function isOpen() { try { return stGet() === 'open' && pwverOk; } catch (e) { return false; } }
+  // #1495 换码版本闸（虚拟重锁，零写入）：isOpen ＝ 存储是 open 且 版本戳＝当前 PW_VER。
+  //   旧码（＝暗号 990815）时代解锁过的机器：库里的 'open' 保留但闸门不认＝等效重锁，必须用
+  //   新码重输一次（「重新输入解锁」就此恢复）；用新码解锁成功时补盖版本戳，此后照旧常开。
+  //   为什么不启动期直接改写状态键：idbRestore 的 retainValue／wrj 自愈按「IDB 有标记的权威值」
+  //   回填（verify-cardlock-quota-persist 家族），启动早期写 'locked' 会和回填竞态被 'open' 盖回
+  //   ＝重锁静默失效；读侧闸门不写任何键，与恢复机制零交集。配额满家族（LS 快照写不进、IDB
+  //   唯一凭证）：同步读不到戳时先按锁定渲染，异步问一次 IDB，有戳则翻正并补发
+  //   mochi-cardlock-open 让已渲染的锁卡自己重同步（#389/#404 解锁态晚到同款）。
+  let pwverOk = (function () { try { return stGetK('cardlock-pwver') === PW_VER; } catch (e) { return false; } })();
+  (function pwverProbe() {
+    try {
+      if (pwverOk || !window.idbGet) return;
+      window.idbGet(GNS + ':cardlock-pwver').then(function (v) {
+        if (v !== PW_VER || pwverOk) return;   // IDB 也没有戳＝旧码时代/新装 → 保持锁定，不写任何键
+        pwverOk = true;
+        if (isOpen()) document.dispatchEvent(new Event('mochi-cardlock-open'));
+      }).catch(function () {});
+    } catch (e) {}
+  })();
   // 存量自愈：修复前解锁过的用户，状态键已被 contacts.js migrateLegacy 搬进
   // default 命名空间（xy-home-v2:default:cardlock-state）并删了根键——启动时把它
   // 搬回根键，解锁不用重输。EXCLUDE 收口后不会再产生新的搬移。
@@ -89,14 +127,16 @@
       }
     } catch (e) {}
   });
-  // 散列带盐校验（输错 5 次锁输入 60 秒，防小孩连试）
+  // 散列带盐校验（输错 5 次锁输入 60 秒，防小孩连试）；比对前 normCode 归一（#1495 全角/夹空白）
   let fails = 0, failUntil = 0;
   window.cardLockTryUnlock = function (pw) {
     const now = Date.now();
     if (now < failUntil) return { ok: false, msg: '尝试太频繁，请 ' + Math.ceil((failUntil - now) / 1000) + ' 秒后再试' };
-    if (fnv1a('mochi#' + String(pw == null ? '' : pw)) === PW_HASH) {
+    if (fnv1a('mochi#' + normCode(pw)) === PW_HASH) {
       fails = 0;
       stSet('open');
+      stSetK('cardlock-pwver', PW_VER);   // #1495 解锁即盖当前版本戳＝版本闸放行本码时代的常开
+      pwverOk = true;
       lastOpen = true;
       document.dispatchEvent(new Event('mochi-cardlock-open'));
       return { ok: true };

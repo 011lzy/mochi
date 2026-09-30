@@ -44,6 +44,7 @@ const EXCLUDE = ['contacts', 'active-contact', 'feed-posts', 'migrated-v1', 'js-
 'applock-en', 'applock-pin', 'applock-qa',
 'applock-qa-en', 'applock-qalist', 'applock-qaskip',
 'cardlock-state',
+'cardlock-pwver',
 'cs-font',
 'sfx-unified',
 'entry-cjian-first', 'entry-default-contact', 'entry-show-list',

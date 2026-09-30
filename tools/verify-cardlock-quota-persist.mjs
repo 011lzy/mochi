@@ -89,7 +89,7 @@ check('A0.1 LS setItem 已被配额满拦截', qok === 'QuotaExceededError', qok
 check('A1 初始为锁定态', (await page.evaluate('window.cardLockOpen()')) === false);
 check('A1.1 落库确认接口已挂载', await page.evaluate('typeof window.cardLockConfirmPersisted === "function"'));
 
-const ur = await page.evaluate("(function(){ try { return window.cardLockTryUnlock('990815'); } catch (e) { return { ok:false, msg:'throw:'+e.message }; } })()");
+const ur = await page.evaluate("(function(){ try { return window.cardLockTryUnlock('995180'); } catch (e) { return { ok:false, msg:'throw:'+e.message }; } })()");
 check('A2 解锁接口返回成功', ur && ur.ok === true, JSON.stringify(ur));
 check('A3 解锁后本会话立即可见', (await page.evaluate('window.cardLockOpen()')) === true);
 

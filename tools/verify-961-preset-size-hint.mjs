@@ -145,7 +145,7 @@ await sleep(500);
 check('B2b 错密码 stay（弹窗未关）+ 提示文案',
   await ev('(function(){var m=document.getElementById("modal-mask"),s=document.getElementById("modal-static");return !!m&&!m.hidden&&!!s&&!s.hidden&&s.textContent.indexOf("密码不对")>-1;})()') === true);
 await ev('window.__m961mark="A";');
-await ev('(function(){var i=document.getElementById("modal-input");if(i)i.value="990815";var b=document.getElementById("modal-ok");if(b)b.click();return true;})()');
+await ev('(function(){var i=document.getElementById("modal-input");if(i)i.value="995180";var b=document.getElementById("modal-ok");if(b)b.click();return true;})()');
 await sleep(1200);
 const noticeTitle = 'String((function(){var t=document.querySelector(".modal-t")||document.querySelector("#modal-mask .modal-title");return t?t.textContent:"";})())';
 const noticeStatic = 'String((function(){var s=document.getElementById("modal-static");return s?s.textContent:"";})())';
