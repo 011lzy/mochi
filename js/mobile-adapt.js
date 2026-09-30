@@ -1353,9 +1353,8 @@ _aClosing = true;
 if (_aPhone.style.height !== h + 'px') _aPhone.style.height = h + 'px';
 return;
 }
-if (!_aVkHonest && _focNow) _aKbVkArm(); // #1484：overlay 签名（回弹全高且仍聚焦）＝武装实测尺
 if (!_aFullSince) _aFullSince = Date.now();
-if (_focNow && (Date.now() - _aFullSince < 800 && !(_aVkHonest && _aVkH >= 0 && _aVkH < 80)) || (_aVkHonest && _aVkH >= 80 && Date.now() - _aUserTypos < 650)) { var _hHold = Math.round(_aKbStableH) + _aKbGap() || Math.round(_aVV.height || 0); if (_hHold > 0 && _aPhone.style.height !== _hHold + 'px') _aPhone.style.height = _hHold + 'px'; return; } // #1492：打字中才顶住＋顶住含轴值（无vk翻毛内核靠 800ms；vk 在场＝打字窗口 1.2s；停手＞1.2s 或失焦＝放行回底 // #1481：毛刺顶住（#1484：实测尺在场时 _aKbStableH 由实测持续更新，实测归零走 _aFullSince=1 即时复原） // #1481：全高毛刺未持续 800ms＝顶住会话稳态高度，不缩会话不写全高
+if (_focNow && ((_aVkHonest && ((Date.now() - _aFullSince < 800 && !(_aVkHonest && _aVkH >= 0 && _aVkH < 80)) || (_aVkH >= 80 && Date.now() - _aUserTypos < 650))) || (!_aVkHonest && Date.now() - _aUserTypos < 300))) { if (!_aVkHonest) _aKbVkArm(); var _hHold = Math.round(_aKbStableH) + _aKbGap() || Math.round(_aVV.height || 0); if (_hHold > 0 && _aPhone.style.height !== _hHold + 'px') _aPhone.style.height = _hHold + 'px'; return; } // #1492：打字中才顶住＋顶住含轴值（无vk翻毛内核靠 800ms；vk 在场＝打字窗口 1.2s；停手＞1.2s 或失焦＝放行回底 // #1481：毛刺顶住（#1484：实测尺在场时 _aKbStableH 由实测持续更新，实测归零走 _aFullSince=1 即时复原） // #1481：全高毛刺未持续 800ms＝顶住会话稳态高度，不缩会话不写全高
 _aKbCloseNow('gate'); // #1506：收口公共体（含取证）
 return;
 _aPhone.style.height = '';
@@ -1400,7 +1399,7 @@ _aProvClear();
 } else if (_aKb) {
 if (_aVV.height >= _aH - 12) {
 if (!_aFullSince) _aFullSince = Date.now();
-if (_focNow && (Date.now() - _aFullSince < 800 && !(_aVkHonest && _aVkH >= 0 && _aVkH < 80)) || (_aVkHonest && _aVkH >= 80 && Date.now() - _aUserTypos < 650)) return; // #1492：打字中才顶住；停手＞1.2s 或失焦＝放行回底（收起空白数秒回归根除）
+if (_focNow && ((_aVkHonest && ((Date.now() - _aFullSince < 800 && !(_aVkHonest && _aVkH >= 0 && _aVkH < 80)) || (_aVkH >= 80 && Date.now() - _aUserTypos < 650))) || (!_aVkHonest && Date.now() - _aUserTypos < 300))) return; // #1492：打字中才顶住；停手＞1.2s 或失焦＝放行回底（收起空白数秒回归根除）
 _aKbCloseNow('watch'); return;
 _aKb = false;
 _aKbStableH = 0; _aFullSince = 0;
@@ -1710,13 +1709,7 @@ setTimeout(_aProvCheck, 900);
 setTimeout(function () {
 if (!_aKb) return;
 if (_aVV.height >= _aH - 60) {
-_aKb = false;
-_aClosing = false;
-_aPhone.style.height = '';
-_aPhone.style.alignSelf = '';
-_aPanComp();
-kbUndockPanels();
-return;
+_aKbCloseNow('blur'); return;
 }
 if (!_lostText) return;
 if (_aIsText(document.activeElement)) return;
