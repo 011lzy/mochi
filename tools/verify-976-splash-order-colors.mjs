@@ -212,7 +212,7 @@ ok(s.noHOverflow, 'S15 新布局未把开屏撑出横向溢出');
 //   判据取结构：摘要块不存在 ＋ 目录里能翻到那四章（在线 notice.json 与静态兜底两份同标题，renderNotice 覆盖后仍成立）。
 ok(s.texts.summary === '', 'S15b 必读摘要块已整块撤除（用户原话「这些内容在开屏最顶已经有了」；复活＝与顶卡两份口径各说各话）', '摘要文本长 ' + (s.texts.summary || '').length);
 ['停更公告 · 2026年9月底后永久停更', '公告已精简 · 大量使用说明已移到「设置 → 关于」', '浏览器兼容提醒（安卓用户必读）', 'iPhone 用户必读：把本站「添加到主屏幕」再用'].forEach(function (t) {
-  ok(s.texts.secs.some(function (x) { return x.indexOf(t) === 0; }), 'S15c 目录里有章「' + t.slice(0, 18) + '」（#1216 四张横幅卡进目录）', JSON.stringify(s.texts.secs.slice(0, 6)));
+  ok(s.texts.secs.some(function (x) { return x.replace(/^\d+、/, '').indexOf(t) === 0; }), 'S15c 目录里有章「' + t.slice(0, 18) + '」（#1216 四张横幅卡进目录）', JSON.stringify(s.texts.secs.slice(0, 6))); // #1500 目录统一编号：比对前剥掉「N、」前缀，对编号变化不敏感
 });
 
 // 暗色主题：红/橙/琥珀三色各自换到暗色值（不得有块退回无色/透明）

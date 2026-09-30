@@ -392,6 +392,10 @@ console.log('已复制 PWA 文件 → ' + pwaFiles.join(', ') + '（sw 缓存版
 // （防止并行会话/旧缓冲把已移除的代码改回来）。
 // 维护：新增关键修复时在此登记一行 { name, file, needle }（needle 为产物中的特征串）。
 const FIX_SENTINELS = [
+  { name: '#1500a 公告目录统一编号（作者直派「中文数字都删掉换阿拉伯数字、格式要统一」）：在线权威源首章＝「1、网站公告 · 关于转载与二次创作」（回退中文序号＝联网用户开屏目录又变「有的有数字有的没有」）', file: 'pwa/notice.json', needle: '"h": "1、网站公告 · 关于转载与二次创作"' },
+  { name: '#1500b 删除型：在线源不得再出现中文序号章标题（「"h": "一、」形态回流＝目录编号两套并存）', file: 'pwa/notice.json', needle: '"h": "一、', absent: true },
+  { name: '#1500c 离线兜底同口径（模板首章＝「1、网站公告 · 关于转载与二次创作」；只改在线源＝断网/弱网用户仍看中文序号）', file: 'template.html', needle: '<p class="splash-sec">1、网站公告 · 关于转载与二次创作</p>' },
+  { name: '#1500d 删除型：离线兜底不得再有中文序号章标题（回流＝两份目录分叉）', file: 'template.html', needle: '<p class="splash-sec">一、', absent: true },
   { name: '#1469a 未就绪那一支暂存也落账（删＝保险丝放行前页面被回收，那一封又只剩内存）', file: 'js/mail.js', needle: "mailHoldSave(mailPending, cid); // #1469a" },
   { name: '#1469b 残缺读数那一支暂存落账＝LS 整域写不进的机器上那一封唯一能活过页面回收的路', file: 'js/mail.js', needle: "mailHoldSave(mailPending, cid); // #1469b" },
   { name: '#1469c 权威整包落盘后「对账才销账」（无条件 remove 两头落空；不销会把已删的带回来）', file: 'js/mail.js', needle: "mailHoldReconcile(cid, list); // #1469c" },
@@ -4739,10 +4743,10 @@ const FIX_SENTINELS = [
   //   下面 a~d 四条的名字按已入库形态保持短名（#1214 缩尺体检按「名字集合」比对，名字带注解后缀会被判「丢名」）；各条原「删＝…」注解挪到这里：
   //   a 删＝联网用户开屏看不到这章，「二改不要公开云存储」口径整条落空；b 退回三点＝联网用户的二改要求缺「不要公开云存储」；
   //   c 同 b，针钉正文本体而非标题；d 删＝断网/弱网用户看不到，两源分叉。
-  { name: '#1449a 开屏「关于云存储」章·在线权威源', file: 'pwa/notice.json', needle: '"关于云存储（本站没有云存储，二改请不要公开云存储）"' },
+  { name: '#1449a 开屏「关于云存储」章·在线权威源（#1500 起目录统一编号，needle 去前导引号＝对齐「17、关于云存储」形态仍命中）', file: 'pwa/notice.json', needle: '关于云存储（本站没有云存储，二改请不要公开云存储）"' },
   { name: '#1449b 二传二改说明升为四点·在线权威源', file: 'pwa/notice.json', needle: '"h": "二传二改说明（只有四点要求）："' },
   { name: '#1449c 第四条正文·在线权威源', file: 'pwa/notice.json', needle: '四、二改可以自加云存储，但请不要公开云存储' },
-  { name: '#1449d 「关于云存储」章·离线兜底静态 DOM', file: 'template.html', needle: '<p class="splash-sec">关于云存储（本站没有云存储，二改请不要公开云存储）</p>' },
+  { name: '#1449d 「关于云存储」章·离线兜底静态 DOM', file: 'template.html', needle: '关于云存储（本站没有云存储，二改请不要公开云存储）</p>' }, // #1500 目录统一编号：needle 去标签前缀＝对编号不敏感,
   { name: '#1449e 二传二改说明标题升为四点·离线兜底', file: 'template.html', needle: '<p class="splash-sub">二传二改说明（只有四点要求）：</p>' },
   { name: '#1449f 第四条·离线兜底（开屏章内）', file: 'template.html', needle: '四、二改可以自加云存储，但请不要公开云存储</b>——本站的存储都保存在个人设备本地' },
   { name: '#1449g 第四条·设置 → 关于「二传与二改说明」卡', file: 'template.html', needle: '四、二改可以自加云存储，但请不要公开云存储</b>——这个网站的存储都是保存在个人设备本地的' },
@@ -4750,7 +4754,7 @@ const FIX_SENTINELS = [
   { name: '#1373b 停更后的使用建议卡在（删＝作者定稿那段建议从产物里消失）', file: 'index.html', needle: 'id="splash-mandatory-usage-advice"' },
   { name: '#1373c 删除型：旧的「排除第二页日期」句式不得回流静态兜底（回流＝与第二页顶上写着的答案自相矛盾）', file: 'index.html', needle: '不是第二页「进入前 · 作者必读公告」上那两个日期', absent: true },
   { name: '#1373d 删除型：密码侧运行时文案不得退回只指第一页（同 #1373c，针在 clock 那三处入口上）', file: 'js/clock.js', needle: '不是第二页「进入前 · 作者必读公告」上那两个日期，也不是开屏最底下的部署时间', absent: true },
-  { name: '#1392a 开屏第二章章名改到「关于 Bug 与设备适配」（改回带报修的旧名＝停更后仍挂报修口径）', file: 'index.html', needle: '二、关于 Bug 与设备适配' },
+  { name: '#1392a 开屏第二章章名改到「关于 Bug 与设备适配」（改回带报修的旧名＝停更后仍挂报修口径）', file: 'index.html', needle: '7、关于 Bug 与设备适配' }, // #1500 目录统一编号（该章原为「二、」，现「7、」）,
   { name: '#1392b 删除型：报修格式那一组不得回流开屏（回流＝月底停更后仍邀请人来报修）', file: 'index.html', needle: '报修格式', absent: true },
   { name: '#1392c 删除型：诊断族文案不得退回「发给开发者」（工具本体不动，只禁邀请措辞）', file: 'index.html', needle: '发给开发者', absent: true },
   { name: '#1388a 停更时间线卡末段那句文字内容未逐一核对的免责语在（删＝作者要补的那半句从产物消失，而卡片 id 仍在→#1373a 抓不住）', file: 'index.html', needle: '网站内所有文字内容并未一一' },
@@ -4960,8 +4964,8 @@ const FIX_SENTINELS = [
   { name: '#1152d 群聊自建字卡分池走同一判据（只改单聊＝群里同款句子被断开）', file: 'js/group-chat.js', needle: "window.chatIsBracketedKaomojiCard ? window.chatIsBracketedKaomojiCard(c) :" },
   { name: '#1152e 群聊默认字卡兜底同判据（同上，另一条入池路径）', file: 'js/group-chat.js', needle: "window.chatIsBracketedKaomojiCard ? window.chatIsBracketedKaomojiCard(card) :" },
   { name: '#1191a 括号判据的「空括号壳」排除闸（删掉＝「()」「（）」又被判成颜文字卡、被 #1051 的硬换行接在文字卡后面单独成一行）', file: 'js/chat.js', needle: "!CHAT_BRACKET_SHELL_RE.test(c) &&" },
-  { name: '#1060a 开屏公告末章「关于后台通知相关设置」（用户直派放公告最后；删＝后台通知的设置/排障口径在开屏消失）', file: 'template.html', needle: '>关于后台通知相关设置（怎么开、收不到怎么办）</p>' },
-  { name: '#1060b 在线权威源同口径一条（删＝联网用户看不到该章，只剩余离线兜底）', file: 'pwa/notice.json', needle: '"h": "关于后台通知相关设置（怎么开、收不到怎么办）"' },
+  { name: '#1060a 开屏公告末章「关于后台通知相关设置」（用户直派放公告最后；删＝后台通知的设置/排障口径在开屏消失）', file: 'template.html', needle: '关于后台通知相关设置（怎么开、收不到怎么办）</p>' }, // #1500 同前,
+  { name: '#1060b 在线权威源同口径一条（删＝联网用户看不到该章，只剩余离线兜底）', file: 'pwa/notice.json', needle: '关于后台通知相关设置（怎么开、收不到怎么办）"' }, // #1500 目录统一编号后标题＝「20、关于后台通知相关设置…」
   { name: '#1059a 通知逐条弹（关闭去重）开关行在位（删＝用户点名的「多条消息都要看到弹窗」没有入口）', file: 'template.html', needle: 'id="bg-notify-nodedup"' },
   { name: '#1059b 开关打开时跳过内容类去重三闸（删＝打开也不逐条弹；消息身份重放闸 #780 不受影响）', file: 'js/bg-keep.js', needle: 'if (!force && !bgNoDedup() && (notifiedDup(nkey) || seenDup(nkey)))' },
   { name: '#1059c 开关按手势绑定并落全局键（删＝开关点了没反应/跨桌面不生效）', file: 'js/bg-keep.js', needle: "gSet('bg-notify-nodedup', '1')" },
@@ -4992,8 +4996,8 @@ const FIX_SENTINELS = [
   { name: '#1180e 限流三个键的默认值行（不登记＝rl-en 永不进 getCfg，开关初值恒空、rl-win/rl-max 读不到兜底值）', file: 'js/reply-settings.js', needle: "'rl-en': 0, 'rl-win': 5, 'rl-max': 15," },
   { name: '#1180f 回复设置·聊天「总量限流」开关行在位（删掉＝用户没有入口打开本功能，功能等于不存在）', file: 'template.html', needle: 'id="rl-en"' },
   { name: '#1180g 「为什么比设的还多」说明指向限流出口（删掉＝用户读完仍不知道只有总量限流能管住这些额外多发，#869 同族报障复发）', file: 'template.html', needle: '想让上面这些一起被管住，打开本面板下方「总量限流」' },
-  { name: '#1180h 开屏公告新增「关于 TA 发消息太多」一章（离线兜底源；删＝用户找不到「回复条数管不住这些」的官方解释）', file: 'template.html', needle: '>关于 TA 发消息太多（「回复条数」为什么管不住，以及新增的总量限流）</p>' },
-  { name: '#1180i 在线权威源同口径一章（删＝联网用户只看到旧章节，两份必须同改）', file: 'pwa/notice.json', needle: '"h": "关于 TA 发消息太多' },
+  { name: '#1180h 开屏公告新增「关于 TA 发消息太多」一章（离线兜底源；删＝用户找不到「回复条数管不住这些」的官方解释）', file: 'template.html', needle: '关于 TA 发消息太多（「回复条数」为什么管不住，以及新增的总量限流）</p>' }, // #1500 同前,
+  { name: '#1180i 在线权威源同口径一章（删＝联网用户只看到旧章节，两份必须同改）', file: 'pwa/notice.json', needle: '关于 TA 发消息太多（「回复条数」为什么管不住，以及新增的总量限流）"' }, // #1500 目录统一编号后标题＝「14、关于 TA 发消息太多…」
   // ==== 2026-09-27 #1341 复核 #1180 四处口径（用户「帮我检查这个功能有没有用、会不会导致无法正常聊天」→「同意，按建议修复这四个问题」）：
   //      ① 限流与 #1015 夜间闸的豁免位拆成两把钥匙（旧写法共用 nightAllow＝带它的 TA 自发内容既不占额度也拦不住，与设置页文案不符）；
   //      ② 额度满时仍给「你刚说过的那句话」留一条保底回应（旧行为＝只剩已读回执＝用户视角「发消息给已读不回」）；
@@ -5155,10 +5159,10 @@ const FIX_SENTINELS = [
      必读摘要在两份源（静态 template + 在线 notice.json 的 summary）同批撤除，summary 置空数组即不渲染（clock.js 判 length 才建块）；被摘掉的七支针一律**转删除型重锚**（名字与 needle 逐字不动，只加 absent: true）——摘要里任一行被复活时各自报红，不退役、不缩尺（#1214 口径）。
      下面九针把「新的落点」钉住：目录新增两章与并入 iPhone 章的条目按「两份逐字一致」的既有铁律各钉静态/在线两针。零机型／零 UA 分支＝纯文案与位置。 ==== */
   { name: '#1216a 必读摘要整块撤除·静态兜底勿复活（复＝与开屏最顶必读卡组两份口径分叉——用户 2026-09-25 直派「这些内容在开屏最顶已经有了」）', file: 'template.html', needle: '<div class="splash-summary">', absent: true },
-  { name: '#1216b 停更公告进目录章节·静态兜底（删＝断网用户只剩顶部红卡，目录里查不到停更三条）', file: 'template.html', needle: '<p class="splash-sec">停更公告 · 2026年9月底后永久停更</p>' },
-  { name: '#1216c 停更公告进目录章节·在线权威源（删＝联网用户目录少一章，与静态两份分叉）', file: 'pwa/notice.json', needle: '"h": "停更公告 · 2026年9月底后永久停更"' },
-  { name: '#1216d 「公告已精简」进目录章节·静态兜底（删＝顶部指引条只有一句话，目录里无处看三条明细）', file: 'template.html', needle: '<p class="splash-sec">公告已精简 · 大量使用说明已移到「设置 → 关于」</p>' },
-  { name: '#1216e 同章·在线权威源（删＝联网用户目录少这一章）', file: 'pwa/notice.json', needle: '"h": "公告已精简 · 大量使用说明已移到「设置 → 关于」"' },
+  { name: '#1216b 停更公告进目录章节·静态兜底（删＝断网用户只剩顶部红卡，目录里查不到停更三条）', file: 'template.html', needle: '停更公告 · 2026年9月底后永久停更</p>' }, // #1500 同前,
+  { name: '#1216c 停更公告进目录章节·在线权威源（删＝联网用户目录少一章，与静态两份分叉）', file: 'pwa/notice.json', needle: '停更公告 · 2026年9月底后永久停更"' }, // #1500 同前,
+  { name: '#1216d 「公告已精简」进目录章节·静态兜底（删＝顶部指引条只有一句话，目录里无处看三条明细）', file: 'template.html', needle: '公告已精简 · 大量使用说明已移到「设置 → 关于」</p>' }, // #1500 同前,
+  { name: '#1216e 同章·在线权威源（删＝联网用户目录少这一章）', file: 'pwa/notice.json', needle: '公告已精简 · 大量使用说明已移到「设置 → 关于」"' }, // #1500 同前,
   { name: '#1216f 「建议都把本站添加到主屏幕」并进 iPhone 章·静态兜底（删＝摘要已撤、目录也没有＝这条彻底没了）', file: 'template.html', needle: '<p class="splash-bullet">不只 iPhone：建议都把本站「添加到主屏幕」用（iPhone：Safari 底部分享按钮' },
   { name: '#1216g 同条·在线权威源（删＝只读在线公告的用户目录里少这句）', file: 'pwa/notice.json', needle: '"不只 iPhone：建议都把本站「添加到主屏幕」用（iPhone：Safari 底部分享按钮' },
   { name: '#1216h 「再配合三点」并进 iPhone 章·静态兜底（删＝三条操作指引随摘要一起消失＝用户按不到做任何改善）', file: 'template.html', needle: '<p class="splash-bullet">再配合三点：①给手机留几个 GB 空闲存储；②别点 Safari 的「清除历史记录与网站数据」；③导出的备份文件存多处（微信/云盘/文件各留一份）。' },

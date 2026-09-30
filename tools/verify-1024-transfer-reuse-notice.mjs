@@ -37,6 +37,8 @@ const ok = (c, n, x) => { if (c) { pass++; console.log('  ✓ ' + n); } else { f
 
 // ===== 用户原文（逐字；改文案必须连本脚本一起改）=====
 const TITLE = '网站公告 · 关于转载与二次创作';
+// #1500（2026-09-30 作者直派「公告目录里的中文数字都删掉换阿拉伯数字，格式要统一」）：两源章标题统一编号
+const NUM = '1、';
 const LEAD = '本网站所有字卡内容遵循「开放二传二改」原则，欢迎分享与再创作。但请遵守以下要求：';
 const RULES = [
   '转载或二传链接，必须保留作者署名（言序）；',
@@ -51,7 +53,7 @@ let j = null;
 try { j = JSON.parse(readFileSync(join(root, 'src/pwa/notice.json'), 'utf8')); } catch (e) {}
 ok(!!j, 'notice.json 可解析');
 const s0 = j && Array.isArray(j.sections) ? j.sections[0] : null;
-ok(!!s0 && s0.h === TITLE, '首章标题＝网站公告 · 关于转载与二次创作', s0 && s0.h);
+ok(!!s0 && s0.h === NUM + TITLE, '首章标题＝1、网站公告 · 关于转载与二次创作', s0 && s0.h);
 const flat = s0 && Array.isArray(s0.p) ? s0.p.map((x) => (x && typeof x === 'object' ? (x.b !== undefined ? x.b : x.hl) : x)) : [];
 ok(flat[0] === LEAD, '首句＝开放二传二改原则 + 请遵守以下要求（逐字）', flat[0]);
 RULES.forEach((r, i) => ok(flat[i + 1] === r, '第 ' + (i + 1) + ' 条要求逐字在位', flat[i + 1]));
@@ -60,17 +62,17 @@ ok(!!s0 && Array.isArray(s0.p) && s0.p[5] && s0.p[5].hl === TAIL, '侵权声明�
 // v8.44 #1216（2026-09-25 用户直派「必读摘要删掉，这些内容在开屏最顶已经有了」）：summary 整段清空，
 //   原「摘要新增转载高亮条 / 第一条未被顶掉」两条判据改口为「summary 已空」＋「转载章仍在首位」（本章即落点）。
 ok(!!j && Array.isArray(j.summary) && j.summary.length === 0, '在线 summary 已随 #1216 整段清空（残留一条＝联网用户仍看到半块摘要，与静态兜底两份分叉）', JSON.stringify(j.summary || null).slice(0, 40));
-ok(!!j && j.sections.length >= 12 && j.sections[0].h === TITLE, '转载公告落在线首章（摘要撤除后它才是唯一落点）', j && j.sections.length + ' 章');
-ok(!!j && (j.sections.find((x) => String(x.h).indexOf('四、许可') === 0) || {}).h !== undefined, '四、许可 · 署名 · 灵感来源 章仍在（未被我方替换/删除）');
+ok(!!j && j.sections.length >= 12 && j.sections[0].h === NUM + TITLE, '转载公告落在线首章（摘要撤除后它才是唯一落点）', j && j.sections.length + ' 章');
+ok(!!j && (j.sections.find((x) => String(x.h).indexOf('9、许可') === 0) || {}).h !== undefined, '9、许可 · 署名 · 灵感来源 章仍在（未被我方替换/删除）');
 
 console.log('\n== B 离线兜底 src/template.html ==');
 const tpl = readFileSync(join(root, 'src/template.html'), 'utf8');
-ok(tpl.indexOf('<p class="splash-sec">' + TITLE + '</p>') >= 0, '兜底章节标题在位');
+ok(tpl.indexOf('<p class="splash-sec">' + NUM + TITLE + '</p>') >= 0, '兜底章节标题在位');
 ok(tpl.indexOf('<p class="splash-item">' + LEAD + '</p>') >= 0, '兜底首句在位');
 RULES.forEach((r, i) => ok(tpl.indexOf('<p class="splash-bullet">' + r + '</p>') >= 0, '兜底第 ' + (i + 1) + ' 条要求在位'));
 ok(tpl.indexOf('<p class="splash-item splash-hl">' + TAIL + '</p>') >= 0, '兜底侵权声明（高亮）在位');
 ok(tpl.indexOf('<div class="splash-summary"') < 0, '静态兜底的「必读摘要」块已随 #1216 整块撤除（复活＝与开屏最顶必读卡组两份口径各说各话；哨兵 #1216a/#613 同判）');
-ok((tpl.match(/<p class="splash-sec">网站公告 · 关于转载与二次创作<\/p>/g) || []).length === 1, '转载章标题在静态兜底里恰好一处（.splash-sec 唯一，摘要撤除后不存在第二份复述）');
+ok((tpl.match(/<p class="splash-sec">1、网站公告 · 关于转载与二次创作<\/p>/g) || []).length === 1, '转载章标题在静态兜底里恰好一处（.splash-sec 唯一，摘要撤除后不存在第二份复述）');
 // #1498（2026-09-30 作者直派「把公告里的【互助群公告】相关内容删掉」）：该章两源整块下线，本行由「章仍在」改口为
 //   「章不得回流」——原先它证的是「只插入、未替换」，那层意思现由上方第 64 行（四、许可章仍在）＋第 73 行（转载章唯一）承担。
 ok(tpl.indexOf('<p class="splash-sec">互助群公告</p>') < 0, '#1498 起「互助群公告」章保持删除（回流＝把整章带回开屏，与线上 notice.json 分叉）');
@@ -110,14 +112,14 @@ const r = await page.evaluate((title) => {
     ncharsFirst: nchars(first ? first.textContent : ''),
   };
 }, TITLE);
-ok(r.chapterCount >= 12, '第一页公告章节数 ≥ 12（#1024 起 12，#1216 又并进四章＝在线源现 16）', r.chapterCount);
-ok(r.firstTitle === TITLE, '渲染后首章就是该公告（第一眼可见）', r.firstTitle);
+ok(r.chapterCount >= 20, '第一页公告章节数 ≥ 20（#1500 起离线兜底补齐缺章＝在线源 20 章）', r.chapterCount);
+ok(r.firstTitle === NUM + TITLE, '渲染后首章就是该公告（第一眼可见）', r.firstTitle);
 ok(r.firstHasAll, '首章七段原文（首句 + 四条 + 侵权声明）全部渲染到位');
 ok(r.tocHasIt, '目录里能跳转到该章', r.tocCount + ' 章');
 ok(!r.hasSummaryEl, '必读摘要块已整块撤除（#1216 用户直派；渲染侧也不该再出现 .splash-summary）');
 ok(r.noticeHasTail, '侵权声明在页面上可见');
 ok(r.keepDisclaimer, '免责声明卡的 18 周岁红线未被覆盖（摘要撤除后它的权威落点＝开屏必读卡组 .splash-disclaimer，只增不改）');
-ok(r.keepPermit, '四、许可章的原文仍在（未被新增章替换）');
+ok(r.keepPermit, '9、许可章的原文仍在（未被新增章替换）');
 ok(errs.length === 0, '全程无未捕获 JS 异常', errs.slice(0, 3));
 await browser.close();
 srv.close();

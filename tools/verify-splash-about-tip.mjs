@@ -49,7 +49,7 @@ ok(countOf(build, '#864a') === 1 && countOf(build, '#864b') === 1, 'S3d 哨兵�
 ok(tpl.includes('id="about-storage-note"') && ['lose', 'perm', 'incog', 'backup', 'bug'].every((k) => tpl.includes('id="row-faq-st-' + k + '"')), 'S4 指向的「设置 → 关于 · 数据与存储（重要）」5 行确实在位（指引条不指向空气）');
 // 在线公告侧（notice.json 覆盖链路）同样指向关于。v8.44 #1216（2026-09-25 用户直派）把「必读摘要」整块撤除，
 // 这条口径的在线落点随之改为目录里的「公告已精简」章——判据从 summary[0] 平移到该章正文，指向性不变。
-const slimSec = ((notice && notice.sections) || []).find((x) => String(x.h).indexOf('公告已精简') === 0);
+const slimSec = ((notice && notice.sections) || []).find((x) => String(x.h).replace(/^\d+、/, '').indexOf('公告已精简') === 0); // #1500 目录统一编号：比对前剥掉「N、」前缀，对编号变化不敏感
 const slimTxt = slimSec ? JSON.stringify(slimSec.p || '') : '';
 ok(Array.isArray(notice.summary) && notice.summary.length === 0, 'S5a 在线 summary 已随 #1216 清空（残留＝联网用户仍看到半块摘要，与静态兜底分叉）');
 ok(!!slimSec && slimTxt.includes('设置 → 关于'), 'S5 在线公告「公告已精简」章同样指向设置→关于（摘要撤除后它是唯一在线落点）', slimTxt.slice(0, 40));

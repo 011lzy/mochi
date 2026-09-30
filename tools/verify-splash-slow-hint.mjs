@@ -183,7 +183,7 @@ try {
   const HLLINE = '开屏 / 打开时偶尔慢几秒是正常的，不是 bug';
   ok('#974 屏上无该章：目录里查不到这枚章标题', !!(place && !place.heads.some((h) => h.indexOf('开屏偶尔慢一下') >= 0)), place && place.heads);
   ok('#974 屏上必读摘要里也无该高亮条', !!(place && place.inSummary === false), place);
-  ok('该章也没被挪去 Bug 章（二、关于 Bug、报修与适配）', !!(place && place.bugHasIt === false), place);
+  ok('该章也没被挪去 Bug 章（7、关于 Bug 与设备适配）', !!(place && place.bugHasIt === false), place);
   ok('#974 公告正文无该章残留（该章独有的句子都不得再出现）', !!(domText && domText.indexOf('先把结论说在前面') < 0 && domText.indexOf('整站代码') < 0 && domText.indexOf('重开等于从头再读一遍') < 0));
   ok('只删这一章：目录仍有其它章节（没把目录清空）', !!(place && place.heads.length >= 3), place && place.heads.length);
 
@@ -194,7 +194,7 @@ try {
   ok('#974 在线源：摘要里无该高亮条', !!(noticeSrc && srcJson.indexOf(HLLINE) < 0));
   ok('#974 在线源：正文无该章独有的句子残留', !!(noticeSrc && srcJson.indexOf('先把结论说在前面') < 0 && srcJson.indexOf('重开等于从头再读一遍') < 0));
   ok('在线源目录首位已顺延（默认展开不落在已删章的空位上）', !!(noticeSrc && noticeSrc.sections && noticeSrc.sections[0] && noticeSrc.sections[0].h !== TITLE), noticeSrc && noticeSrc.sections && noticeSrc.sections[0] && noticeSrc.sections[0].h);
-  const bugSec = noticeSrc && noticeSrc.sections && noticeSrc.sections.find((x) => String(x.h).indexOf('二、') === 0);
+  const bugSec = noticeSrc && noticeSrc.sections && noticeSrc.sections.find((x) => String(x.h).indexOf('7、关于 Bug') === 0); // #1500 目录统一编号后该章＝「7、关于 Bug 与设备适配」
   ok('在线源：Bug 章本来就没有该解释块（删除没留半截）', !!bugSec && JSON.stringify(bugSec).indexOf('开屏偶尔慢') < 0);
   let tplSrc = '';
   try { tplSrc = readFileSync(join(root, 'src/template.html'), 'utf8'); } catch (e) {}

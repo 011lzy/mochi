@@ -67,7 +67,7 @@ const probe = () => page.evaluate(() => {
   const hls = Array.from(document.querySelectorAll('.splash-summary .splash-hl')).map((p) => p.textContent || '');
   const secTitles = Array.from(document.querySelectorAll('.splash-sec-wrap > .splash-sec')).map((e) => norm(e.textContent));
   const secBodies = Array.from(document.querySelectorAll('.splash-sec-wrap')).map((w) => norm(w.textContent));
-  const secOf = function (t) { var i = secTitles.findIndex(function (x) { return x.indexOf(t) === 0; }); return i < 0 ? '' : secBodies[i]; };
+  const secOf = function (t) { var i = secTitles.findIndex(function (x) { return x.replace(/^\d+、/, '').indexOf(t) === 0; }); return i < 0 ? '' : secBodies[i]; }; // #1500 目录统一编号：比对前剥掉「N、」前缀，对编号变化不敏感
   return {
     noSummary: !document.querySelector('.splash-summary'),
     secTitles: secTitles,
@@ -174,7 +174,7 @@ ok(after.hasCard && after.firstChild && after.beforeBrand, 'B3 开屏回填与 5
 const json = JSON.parse(readFileSync(join(root, 'notice.json'), 'utf8'));
 ok(Array.isArray(json.summary) && json.summary.length === 0, 'S23 notice.json summary 已整段清空（#1216 与静态摘要块同批撤除；两份不同步＝联网/断网用户看到的开屏各不相同）', JSON.stringify(json.summary));
 const jsec = json.sections || [];
-const jt = (t) => (jsec.find((x) => String(x.h).indexOf(t) === 0) || { p: [] }).p.map((x) => (typeof x === 'string' ? x : x.b || x.hl || x.h || '')).join(' ');
+const jt = (t) => (jsec.find((x) => String(x.h).replace(/^\d+、/, '').indexOf(t) === 0) || { p: [] }).p.map((x) => (typeof x === 'string' ? x : x.b || x.hl || x.h || '')).join(' ');
 ok(/有问题先去那里找答案|先去「关于」找答案|数据与存储/.test(jt('公告已精简')), 'S24 在线「公告已精简」章同口径（哨兵 #1216e）', jt('公告已精简').slice(0, 40));
 ok(/永久停更/.test(jt('停更公告')) && /拿代码给 AI 调/.test(jt('停更公告')), 'S24b 在线「停更公告」章三条齐全（哨兵 #1216c）', jt('停更公告').slice(0, 40));
 ok(/添加到主屏幕/.test(jt('iPhone 用户必读')) && /给手机留几个 GB 空闲存储/.test(jt('iPhone 用户必读')), 'S24c #916「建议都装主屏幕＋配合三点」并进在线 iPhone 章（哨兵 #1216g/#1216i）', jt('iPhone 用户必读').slice(0, 40));
