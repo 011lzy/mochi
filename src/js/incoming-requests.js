@@ -128,9 +128,10 @@
     return DMODES.quiet;
   }
 
-  // ---- 夜间模式（全局根键，全桌面通；默认关闭） ----
+  // ---- 夜间免打扰模式（全局根键，全桌面通；默认关闭） ----
   // 开启后，仅在 22:00–07:00 时段内生效：联系人不再主动发消息 / 主动打电话，
   // 其他桌面也不再跨桌面查岗 / 跨桌面来电。时段外行为完全不变。
+  // 存储键保留旧名 night-mode-en：换键会把存量用户的开关读成「关闭」。
   const NIGHT_KEY = 'night-mode-en';
   const NIGHT_FROM = 22;   // 含 22:00
   const NIGHT_TO = 7;      // 不含 07:00
@@ -216,11 +217,11 @@
     });
     // 跨桌面查岗/来电频率模式（三档全局预设，插在跨桌面开关之后）
     addFreqModeRow();
-    // 夜间模式总开关（插在频率行之后，作用于本页开关之外的联系人主动消息/来电）
+    // 夜间免打扰模式总开关（插在频率行之后，作用于本页开关之外的联系人主动消息/来电）
     addNightModeRow();
   })();
 
-  // 夜间模式开关行：开启后 22:00–7:00 静默联系人主动消息/来电 + 跨桌面查岗/来电。
+  // 夜间免打扰模式开关行：开启后 22:00–7:00 静默联系人主动消息/来电 + 跨桌面查岗/来电。
   // 副标题实时回显「是否落在夜间时段」，每分钟刷新一次。
   function nightStatusText() {
     if (!nightModeEn()) return '关闭 · 开启后 22:00–7:00 生效';
@@ -239,7 +240,7 @@
       // data-setdesc 同时把说明并进设置页搜索素材（#573），搜「勿扰/静默」也能找到本行。
       row.innerHTML =
         '<div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/><path d="M17 4v3M15.5 5.5h3"/></svg></div>' +
-        '<div class="txt">夜间模式<span class="tag" id="sf-night-mode-tag" data-setdesc="#sf-night-mode-row" role="button" tabindex="0" aria-haspopup="dialog">功能说明</span><span class="sub" id="sf-night-mode-sub"></span></div>' +
+        '<div class="txt">夜间免打扰模式<span class="tag" id="sf-night-mode-tag" data-setdesc="#sf-night-mode-row" role="button" tabindex="0" aria-haspopup="dialog">功能说明</span><span class="sub" id="sf-night-mode-sub"></span></div>' +
         '<label class="toggle"><input type="checkbox" id="sf-night-mode"><span class="tk"></span></label>';
       anchor.parentNode.insertBefore(row, anchor.nextSibling);
       const input = row.querySelector('input');
@@ -255,7 +256,7 @@
         window.setNightModeEn(input.checked);
         sync();
         if (typeof window.toast === 'function') {
-          window.toast(input.checked ? '夜间模式已开启：22:00–7:00 联系人不再主动打扰' : '夜间模式已关闭：恢复联系人主动消息/来电');
+          window.toast(input.checked ? '夜间免打扰模式已开启：22:00–7:00 联系人不再主动打扰' : '夜间免打扰模式已关闭：恢复联系人主动消息/来电');
         }
       });
       document.addEventListener('contact-switched', sync);
@@ -765,9 +766,9 @@
       ticks++;
       reconcileLiveModals();
       // #1435：先把后台挂起的跨桌面查岗收尾（重投或记错过）——放在夜间/锁屏那几道闸之前，
-      // 否则「夜间模式开着」会让一条已在等的查岗永远挂在 pending 里不回账。
+      // 否则「夜间免打扰开着」会让一条已在等的查岗永远挂在 pending 里不回账。
       resumeHeldCheckins();
-      // 夜间模式：整个时段内暂停一切跨桌面打扰（查岗/求聊天/来电），时段外行为不变
+      // 夜间免打扰：整个时段内暂停一切跨桌面打扰（查岗/求聊天/来电），时段外行为不变
       if (window.nightModeActive && window.nightModeActive()) return;
       // v3.26.x #264：锁屏期整轮不掷（弹窗会压在锁底下）；打字期不掷也不计数（IME 组合
       // 中的文字会被抢焦点丢掉）；已有浮层先让路，最多让 BUSY_ESCAPE 轮后照投。

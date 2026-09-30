@@ -36,7 +36,7 @@
   function getLib() { try { return JSON.parse(store.get('avatar-lib') || '[]'); } catch (e) { return []; } }
   function saveLib(list) { store.set('avatar-lib', JSON.stringify(list)); }
   function getEnabled() { const v = store.get('avatar-lib-enabled'); return v === null ? true : v === '1'; }
-  // #876 夜间静默：换头像/换昵称定时器夜间不触发（此前这四个 60s 轮询完全不受夜间模式约束，
+  // #876 夜间静默：换头像/换昵称定时器夜间不触发（此前这四个 60s 轮询完全不受夜间免打扰约束，
   // 是用户报「开了夜间模式挂后台睡觉还在发」的最大来源）。守卫放在周期推进（写 last/next）
   // 之前：被拦的当次不推进周期，7:00 后下一个 60 秒轮询照常补发，不丢不堆积。
   // 主路径读 window.nightModeActive（incoming-requests.js 定义，单一事实源）；兜底直读全局

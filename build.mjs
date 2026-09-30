@@ -531,7 +531,8 @@ const FIX_SENTINELS = [
   { name: '夜间模式暂停联系人主动发消息（删掉＝夜里 TA 照常主动发消息，gate 失效）', file: 'js/chat.js', needle: "if (window.nightModeActive && window.nightModeActive()) { try { console.log('[mochi-auto] night mode, skip'); } catch(e){} return; }" },
   { name: '夜间模式暂停联系人主动打电话（删掉＝夜里 TA 照常来电；多行锚点绑在「夜间判定紧接 currentCall 判定」这一处）', file: 'js/call.js', needle: 'if (window.nightModeActive && window.nightModeActive()) return;\nif (currentCall) return;' },
   { name: '#659 夜间模式行「功能说明」胶囊（删掉＝设置里夜间模式行又只剩一句状态小字，看不到作用/默认/生效机制/影响范围）', file: 'js/incoming-requests.js', needle: 'class="tag" id="sf-night-mode-tag" data-setdesc="#sf-night-mode-row"' },
-  { name: '#659 夜间模式说明文案登记（删掉＝点胶囊无弹窗、说明里的「勿扰/静默」等词也搜不到本行）', file: 'js/settings-help.js', needle: "{ sel: '#sf-night-mode-row', name: '夜间模式'" },
+  // #1470 重锚（同名换 needle，不算缩尺）：设置里这行开关由「夜间模式」更名「夜间免打扰模式」，说明标题随新名走；旧 needle 在新形态下必然消失，不重锚则构建被缺针闸拦下。行上「功能说明」胶囊那根（同批 #659）钉的是 id/属性，不受改名影响。
+  { name: '#659 夜间模式说明文案登记（删掉＝点胶囊无弹窗、说明里的「勿扰/静默」等词也搜不到本行）', file: 'js/settings-help.js', needle: "{ sel: '#sf-night-mode-row', name: '夜间免打扰模式'" },
   { name: '#642a 字体上传存「全局唯一份+轻量引用」@@font:<hash>（改回整份 dataURL 直写＝同字体 N 桌面存 N 份，用户报「3个桌面同一字体存3份内存炸了」复发）', file: 'js/chat-settings.js', needle: "s.set(FONT_KEY, '@@font:' + h)" },
   { name: '#642b 字体引用异步补读（删掉＝大键在 IDB/被 OOM 预算 defer 时引用展开为空，字体刷新后丢）', file: 'js/chat-settings.js', needle: "'xy-home-v2:font-blob-' + hash" },
   { name: '#642c migrateLegacy 按前缀挡 font-blob-* 全局键（漏挡＝每次刷新被当旧顶层键迁进 default 并删根键，全部桌面字体丢失）', file: 'js/contacts.js', needle: "if (r.indexOf('font-blob-') === 0) return true;" },

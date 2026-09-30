@@ -165,7 +165,7 @@ row.className = 'set-row';
 row.id = 'sf-night-mode-row';
 row.innerHTML =
 '<div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/><path d="M17 4v3M15.5 5.5h3"/></svg></div>' +
-'<div class="txt">夜间模式<span class="tag" id="sf-night-mode-tag" data-setdesc="#sf-night-mode-row" role="button" tabindex="0" aria-haspopup="dialog">功能说明</span><span class="sub" id="sf-night-mode-sub"></span></div>' +
+'<div class="txt">夜间免打扰模式<span class="tag" id="sf-night-mode-tag" data-setdesc="#sf-night-mode-row" role="button" tabindex="0" aria-haspopup="dialog">功能说明</span><span class="sub" id="sf-night-mode-sub"></span></div>' +
 '<label class="toggle"><input type="checkbox" id="sf-night-mode"><span class="tk"></span></label>';
 anchor.parentNode.insertBefore(row, anchor.nextSibling);
 const input = row.querySelector('input');
@@ -181,7 +181,7 @@ if (input.checked === nightModeEn()) return;
 window.setNightModeEn(input.checked);
 sync();
 if (typeof window.toast === 'function') {
-window.toast(input.checked ? '夜间模式已开启：22:00–7:00 联系人不再主动打扰' : '夜间模式已关闭：恢复联系人主动消息/来电');
+window.toast(input.checked ? '夜间免打扰模式已开启：22:00–7:00 联系人不再主动打扰' : '夜间免打扰模式已关闭：恢复联系人主动消息/来电');
 }
 });
 document.addEventListener('contact-switched', sync);

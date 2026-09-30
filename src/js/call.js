@@ -935,7 +935,7 @@
   // 必须补首发；前台响铃已写 msg=true 则不重复）。currentCall.sysMsg 续传给再次切后台的挂起。
   function incomingCall(isReplay, msgWritten) {
     if (currentCall) return;
-    // 夜间模式：兜住所有直达来电入口（含跨桌面接听、响铃挂起恢复），时段内一律不响铃
+    // 夜间免打扰：兜住所有直达来电入口（含跨桌面接听、响铃挂起恢复），时段内一律不响铃
     if (window.nightModeActive && window.nightModeActive()) return;
     // #651：预览中的弹窗立即让位给真实来电（不拆拦截层，接听/拒绝会点不到）
     closeCallPreview();
@@ -1222,7 +1222,7 @@
   function callLast() { const v = parseInt(store.get('records-call-last'), 10); return isNaN(v) ? 0 : v; }
   function maybeIncoming() {
     try {
-      // 夜间模式（设置里开启后 22:00–7:00 生效）：联系人不再主动打电话
+      // 夜间免打扰（设置里开启后 22:00–7:00 生效）：联系人不再主动打电话
       if (window.nightModeActive && window.nightModeActive()) return;
       if (currentCall) return;
       const now = Date.now();
