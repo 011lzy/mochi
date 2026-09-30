@@ -110,6 +110,17 @@ if (window.mochiTapOn && window.mochiTapOn(el, fn)) return;
 el.addEventListener('click', fn);
 }
 let cardLockFixTimer = null;
+document.addEventListener('click', function (e) {
+try {
+const t = e.target;
+if (!t || !t.closest) return;
+const btn = t.closest('.cardlock-btn');
+if (!btn || !btn.closest('#splash-cardlock-actions')) return;
+const mk = document.getElementById('modal-mask');
+if (mk && !mk.hidden) return;   // 已有弹窗在前：不叠加
+if (String(btn.textContent || '').indexOf('输入密码解锁') === 0) promptCardUnlock();
+} catch (err) {}
+}, true);
 let cardLockMissMsg = '';
 function cardLockReady() { return !!(window.cardLockTryUnlock && window.openModal); }
 function cardLockMissingNote(miss, okState) {
@@ -180,6 +191,11 @@ if (cardLockMissMsg && !cardLockReady()) state.textContent = cardLockMissMsg;
 function promptCardUnlock(okState) {
 const miss = !window.cardLockTryUnlock ? 'js/card-lock.js' : (!window.openModal ? 'js/personalize.js' : '');
 if (miss) { cardLockMissingNote(miss, okState); return; }
+const exMask = document.getElementById('modal-mask');
+if (exMask && !exMask.hidden) {
+const ti = exMask.querySelector('.modal-t') || exMask.querySelector('.modal-title');
+if (ti && String(ti.textContent || '').indexOf('二级验证') === 0) return;
+}
 const splash = document.getElementById('splash');
 const mask = document.getElementById('modal-mask');
 const splashVisible = splash && !splash.classList.contains('hide');

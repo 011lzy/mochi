@@ -142,6 +142,21 @@
     el.addEventListener('click', fn);
   }
   let cardLockFixTimer = null;
+  // #1503 委托兜底（作者报「开屏点了【输入密码解锁】不弹窗、进主页后才出现」）：部分内核整卡
+  //   重渲/吞 click 时，按钮自身的监听可能失效或晚到——点击事件仍会冒泡到 document，按目标
+  //   认领（谁在位谁响应），保证「点【输入密码解锁】当场弹二级验证输入框」。promptCardUnlock
+  //   内置防重入（已开的二级验证弹窗直接跳过），与本按钮自身监听双路径不叠加。
+  document.addEventListener('click', function (e) {
+    try {
+      const t = e.target;
+      if (!t || !t.closest) return;
+      const btn = t.closest('.cardlock-btn');
+      if (!btn || !btn.closest('#splash-cardlock-actions')) return;
+      const mk = document.getElementById('modal-mask');
+      if (mk && !mk.hidden) return;   // 已有弹窗在前：不叠加
+      if (String(btn.textContent || '').indexOf('输入密码解锁') === 0) promptCardUnlock();
+    } catch (err) {}
+  }, true);
   // 缺件真话要有「留底」：setupCardLockCard 是 actions.innerHTML='' 整卡重渲染，远程公告回写
   // （clock.js 顶部 fetch 落地后 run() 补刷）等会把刚写上的那句抹掉——无头实测点完 0.8s 后状态行
   // 又是空的，用户看到的仍是一句「点了没反应」。留底在组件补齐前由每次重渲染自己补回。
@@ -237,6 +252,12 @@
     //   现在把「缺的是哪件」写在卡上，并在件到位后自己重渲整卡。
     const miss = !window.cardLockTryUnlock ? 'js/card-lock.js' : (!window.openModal ? 'js/personalize.js' : '');
     if (miss) { cardLockMissingNote(miss, okState); return; }
+    // #1503 防重入：委托兜底与按钮自身监听双路径都可能到这——二级验证输入框已在前时不重复渲染
+    const exMask = document.getElementById('modal-mask');
+    if (exMask && !exMask.hidden) {
+      const ti = exMask.querySelector('.modal-t') || exMask.querySelector('.modal-title');
+      if (ti && String(ti.textContent || '').indexOf('二级验证') === 0) return;
+    }
     const splash = document.getElementById('splash');
     const mask = document.getElementById('modal-mask');
     const splashVisible = splash && !splash.classList.contains('hide');

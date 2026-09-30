@@ -478,21 +478,54 @@
   }
   function qaAsk(items, i, afterAll) {
     if (i >= items.length) { if (afterAll) afterAll(); return; }
-    const it = items[i];
-    textAsk({
-      title: '开屏问答 ' + (i + 1) + '/' + items.length,
-      sub: it.q,
-      placeholder: '输入答案', okLabel: (i + 1 >= items.length ? '进入' : '下一题'), cancel: false,
-      links: [{ act: 'skipqa', label: '输暗号跳过问答（本机永久）' }],
-      onSubmit: function (v) {
-        if (qaAnswerOk(v, it.h)) { qaAsk(items, i + 1, afterAll); }
-        else {
-          const inp = document.getElementById('applock-txt'); if (inp) inp.value = '';
-          showErr('答案不对，再想想～');
-        }
-      },
-      onLink: function (act) { if (act === 'skipqa') qaSkipAsk(items, i, afterAll); }
+    // #1503（作者口径「问答弹窗 2 个问题显得弹窗太多……做成公告的第三页内容」）：问答渲染从
+    //   两连弹窗改为一页公告式问答页——复用 .splash-mandatory 公告视觉（铺在 applock 遮罩里，
+    //   即「公告第三页」的观感），两题同页、一次提交、答错点名哪题；「输暗号跳过」仍在页上
+    //   （自愿点开才弹暗号输入）。门槛语义零变化：每次加载都问、答对/输暗号才放行。
+    const mask = maskEl();
+    mask.hidden = false;
+    let rows = '';
+    items.forEach(function (it, idx) {
+      rows += '<div style="margin:14px 0 0;text-align:left">' +
+        '<div class="splash-mandatory-sub" style="margin:0 0 6px;text-align:left;letter-spacing:0">' + (idx + 1) + '、' + it.q + '</div>' +
+        '<input class="applock-txt" type="text" id="qa-ans-' + idx + '" maxlength="60" placeholder="输入答案（原样输入，区分大小写）" autocomplete="off" style="width:100%">' +
+        '</div>';
     });
+    mask.innerHTML = '<div class="splash-mandatory">' +
+      '<div class="splash-mandatory-scroll">' +
+      '<div class="splash-mandatory-head">' +
+      '<div class="splash-mandatory-title">开屏问答 · 进入前请作答</div>' +
+      '<div class="splash-mandatory-sub">本站禁止未满 18 周岁的未成年人使用；两题都答对才能进入。本机每次打开都会问答；输暗号可永久跳过问答层。</div>' +
+      '</div>' + rows +
+      '<div class="applock-err" id="applock-err" style="text-align:left;margin-top:10px"></div>' +
+      '<div style="margin-top:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
+      '<button class="applock-ok" id="qa-page-ok" type="button" data-submit="1">提交答案</button>' +
+      '<button type="button" data-link="skipqa" id="qa-skip-link" style="background:transparent;border:none;color:var(--muted,#999);font-size:11px;text-decoration:underline;padding:6px;cursor:pointer">输暗号跳过问答（本机永久）</button>' +
+      '</div>' +
+      '</div></div>';
+    const submit = function () {
+      let firstBad = -1;
+      items.forEach(function (it, idx) {
+        const inp = document.getElementById('qa-ans-' + idx);
+        const v = inp ? inp.value : '';
+        if (!qaAnswerOk(v, it.h)) { if (firstBad < 0) firstBad = idx; if (inp) inp.value = ''; }
+      });
+      const errEl = document.getElementById('applock-err');
+      if (firstBad >= 0) {
+        if (errEl) errEl.textContent = '第 ' + (firstBad + 1) + ' 题答案不对，再想想～（两题都要答对才能进入）';
+        return;
+      }
+      if (errEl) errEl.textContent = '';
+      if (afterAll) afterAll();
+    };
+    const okBtn = document.getElementById('qa-page-ok');
+    if (okBtn) okBtn.addEventListener('click', submit);
+    items.forEach(function (it, idx) {
+      const inp = document.getElementById('qa-ans-' + idx);
+      if (inp) inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); submit(); } });
+    });
+    const skip = document.getElementById('qa-skip-link');
+    if (skip) skip.addEventListener('click', function () { qaSkipAsk(items, 0, afterAll); });
   }
   // #998 跳过开屏问答的暗号口径同前（第一页章节指路＋不是第二页日期）。
   // #812：sub 末尾补「与锁卡二级验证密码同码」互指说明——本暗号与 card-lock 解锁码同为 990815，
