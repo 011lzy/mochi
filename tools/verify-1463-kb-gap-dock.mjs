@@ -201,7 +201,7 @@ check('B6 快照环形留存（≥2 条：会话期＋close）', r && r.snaps >=
 await evalJs("(function(){try{window.mochiOpenScreenAdj();}catch(e){}return 1;})()");
 await sleep(600);
 r = await evalJs("(function(){var s=document.querySelector('[data-adj-slider=\"kbgap\"]');var v=document.querySelector('[data-adj-val=\"kbgap\"]');return {has:!!s,min:s?s.min:null,max:s?s.max:null,val:v?v.textContent:null};})()");
-check('C7 面板渲染 kbgap 滑杆（min=-40 max=40、当前值 0）', r && r.has && r.min === '-40' && r.max === '40' && (r.val === '0' || r.val === '0px'), r);
+check('C7 面板渲染 kbgap 滑杆（min=-80 max=80、当前值 0；量程 ±40→±80 见 #1487f/g 与 #1497）', r && r.has && r.min === '-80' && r.max === '80' && (r.val === '0' || r.val === '0px'), r);
 await evalJs("(function(){var b=document.querySelector('#screen-adj-panel .awk-done, #screen-adj-panel button');if(b)b.click();return 1;})()");
 
 // ---- 零异常 ----
