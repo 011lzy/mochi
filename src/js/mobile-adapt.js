@@ -1864,7 +1864,7 @@
         // 内核把可视视口瞬时弹回全高，钉高/对账照单全收＝输入栏整行沉回键盘下（遮挡），读数缩回又贴回
         // （空白）＝两态反复横跳。_aKbStableH=本会话最后一次「真实收缩」读数（h<_aH-60）；_aFullSince=
         // 读到全高的起始时刻，持续 ≥800ms 才判真收键盘（瞬时毛刺不缩会话、不写全高）。
-        var _aKbStableH = 0, _aFullSince = 0, _aVkHonest = false, _aVkH = -1;
+        var _aKbStableH = 0, _aFullSince = 0, _aVkHonest = false, _aVkH = -1, _aFullReads = 0;
         // FIX 2026-09-10 #267：浏览器「平移/滚动露焦点」量的实测值。荣耀 X50 自带浏览器
         //（HonorBrowser/Chrome116，多机型同族）键盘弹出时把视觉视口【平移】让焦点露出，
         // 而 visualViewport.height 不缩（同一会话诊断现场 664 与 254 两种读数交替出现）→
@@ -2450,7 +2450,7 @@
             }
             // #1508：武装只在下方「顶住成立」分支内做（诚实收起不再顺手武装、不污染 overlaysContent）
             if (!_aFullSince) _aFullSince = Date.now();
-            if (_focNow && ((_aVkHonest && ((Date.now() - _aFullSince < 800 && !(_aVkHonest && _aVkH >= 0 && _aVkH < 80)) || (_aVkH >= 80 && Date.now() - _aUserTypos < 650))) || (!_aVkHonest && Date.now() - _aUserTypos < 300))) { if (!_aVkHonest) _aKbVkArm(); var _hHold = Math.round(_aKbStableH) + _aKbGap() || Math.round(_aVV.height || 0); if (_hHold > 0 && _aPhone.style.height !== _hHold + 'px') _aPhone.style.height = _hHold + 'px'; return; } // #1492：打字中才顶住＋顶住含轴值（无vk翻毛内核靠 800ms；vk 在场＝打字窗口 1.2s；停手＞1.2s 或失焦＝放行回底 // #1481：毛刺顶住（#1484：实测尺在场时 _aKbStableH 由实测持续更新，实测归零走 _aFullSince=1 即时复原） // #1481：全高毛刺未持续 800ms＝顶住会话稳态高度，不缩会话不写全高
+            if (_focNow && ((_aVkHonest && ((Date.now() - _aFullSince < 800 && !(_aVkHonest && _aVkH >= 0 && _aVkH < 80)) || (_aVkH >= 80 && Date.now() - _aUserTypos < 650))) || (!_aVkHonest && Date.now() - _aUserTypos < 300))) { if (!_aVkHonest) { _aFullReads++; if (_aFullReads >= 3) _aKbVkArm(); } /* #1510 连续3拍全高才武装 */ var _hHold = Math.round(_aKbStableH) + _aKbGap() || Math.round(_aVV.height || 0); if (_hHold > 0 && _aPhone.style.height !== _hHold + 'px') _aPhone.style.height = _hHold + 'px'; return; } // #1492：打字中才顶住＋顶住含轴值（无vk翻毛内核靠 800ms；vk 在场＝打字窗口 1.2s；停手＞1.2s 或失焦＝放行回底 // #1481：毛刺顶住（#1484：实测尺在场时 _aKbStableH 由实测持续更新，实测归零走 _aFullSince=1 即时复原） // #1481：全高毛刺未持续 800ms＝顶住会话稳态高度，不缩会话不写全高
             _aKbCloseNow('gate'); // #1506：收口公共体（含取证）
             return;
             _aPhone.style.height = '';
@@ -2619,7 +2619,7 @@
           var cur = Math.round(_aVV.height || 0);
           if (!_aKb || _aClosing) return cur;
           if (_aVkHonest && _aVkH >= 80) { var _mv = Math.max(240, Math.min(_aH, window.innerHeight || _aH) - _aVkH); _aKbStableH = _mv; _aFullSince = 0; return _mv; } // #1484：overlay 会话用 VirtualKeyboard 实测高度
-          if (cur < _aH - 60) { _aKbStableH = cur; _aFullSince = 0; return cur; }
+          if (cur < _aH - 60) { _aKbStableH = cur; _aFullSince = 0; _aFullReads = 0; return cur; }
           if (!_aFullSince) _aFullSince = Date.now();
           return Math.round(_aKbStableH) || cur;
         }

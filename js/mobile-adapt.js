@@ -1046,7 +1046,7 @@ var _aVvShrunkSeen = false;
 var _aLastAct = Date.now();
 var _aLastVVH = 0;
 var _aPrevH = 0;
-var _aKbStableH = 0, _aFullSince = 0, _aVkHonest = false, _aVkH = -1;
+var _aKbStableH = 0, _aFullSince = 0, _aVkHonest = false, _aVkH = -1, _aFullReads = 0;
 var _aPanSeen = 0, _aPanSeenAt = 0;
 var _aBurstUntil = 0;
 var _aFullIH = Math.max(window.innerHeight || 0, Math.round(_aVV.height || 0));
@@ -1354,7 +1354,7 @@ if (_aPhone.style.height !== h + 'px') _aPhone.style.height = h + 'px';
 return;
 }
 if (!_aFullSince) _aFullSince = Date.now();
-if (_focNow && ((_aVkHonest && ((Date.now() - _aFullSince < 800 && !(_aVkHonest && _aVkH >= 0 && _aVkH < 80)) || (_aVkH >= 80 && Date.now() - _aUserTypos < 650))) || (!_aVkHonest && Date.now() - _aUserTypos < 300))) { if (!_aVkHonest) _aKbVkArm(); var _hHold = Math.round(_aKbStableH) + _aKbGap() || Math.round(_aVV.height || 0); if (_hHold > 0 && _aPhone.style.height !== _hHold + 'px') _aPhone.style.height = _hHold + 'px'; return; } // #1492：打字中才顶住＋顶住含轴值（无vk翻毛内核靠 800ms；vk 在场＝打字窗口 1.2s；停手＞1.2s 或失焦＝放行回底 // #1481：毛刺顶住（#1484：实测尺在场时 _aKbStableH 由实测持续更新，实测归零走 _aFullSince=1 即时复原） // #1481：全高毛刺未持续 800ms＝顶住会话稳态高度，不缩会话不写全高
+if (_focNow && ((_aVkHonest && ((Date.now() - _aFullSince < 800 && !(_aVkHonest && _aVkH >= 0 && _aVkH < 80)) || (_aVkH >= 80 && Date.now() - _aUserTypos < 650))) || (!_aVkHonest && Date.now() - _aUserTypos < 300))) { if (!_aVkHonest) { _aFullReads++; if (_aFullReads >= 3) _aKbVkArm(); } /* #1510 连续3拍全高才武装 */ var _hHold = Math.round(_aKbStableH) + _aKbGap() || Math.round(_aVV.height || 0); if (_hHold > 0 && _aPhone.style.height !== _hHold + 'px') _aPhone.style.height = _hHold + 'px'; return; } // #1492：打字中才顶住＋顶住含轴值（无vk翻毛内核靠 800ms；vk 在场＝打字窗口 1.2s；停手＞1.2s 或失焦＝放行回底 // #1481：毛刺顶住（#1484：实测尺在场时 _aKbStableH 由实测持续更新，实测归零走 _aFullSince=1 即时复原） // #1481：全高毛刺未持续 800ms＝顶住会话稳态高度，不缩会话不写全高
 _aKbCloseNow('gate'); // #1506：收口公共体（含取证）
 return;
 _aPhone.style.height = '';
@@ -1443,7 +1443,7 @@ function _aKbFeedH() {
 var cur = Math.round(_aVV.height || 0);
 if (!_aKb || _aClosing) return cur;
 if (_aVkHonest && _aVkH >= 80) { var _mv = Math.max(240, Math.min(_aH, window.innerHeight || _aH) - _aVkH); _aKbStableH = _mv; _aFullSince = 0; return _mv; } // #1484：overlay 会话用 VirtualKeyboard 实测高度
-if (cur < _aH - 60) { _aKbStableH = cur; _aFullSince = 0; return cur; }
+if (cur < _aH - 60) { _aKbStableH = cur; _aFullSince = 0; _aFullReads = 0; return cur; }
 if (!_aFullSince) _aFullSince = Date.now();
 return Math.round(_aKbStableH) || cur;
 }

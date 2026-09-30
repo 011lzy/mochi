@@ -23,9 +23,9 @@ function check(desc, ok, detail) {
 function rd(p) { try { return readFileSync(join(root, p), 'utf8'); } catch (e) { return ''; } }
 const jsMA = rd('js/mobile-adapt.js');
 const jsPe = rd('js/personalize.js');
-check('S1 诚实内核收起即收·主链（删＝800ms 窗一刀切＝秒收回归）', jsMA.includes('(!_aVkHonest && Date.now() - _aUserTypos < 300))) { if (!_aVkHonest) _aKbVkArm(); var _hHold'));
+check('S1 诚实内核收起即收·主链（删＝800ms 窗一刀切＝秒收回归）', jsMA.includes('(!_aVkHonest && Date.now() - _aUserTypos < 300))) { if (!_aVkHonest) { _aFullReads++'));
 check('S2 诚实内核轮询腿同秒收', jsMA.includes('(!_aVkHonest && Date.now() - _aUserTypos < 300))) return;'));
-check('S3 武装只在顶住成立时（诚实收起不被污染）', jsMA.includes('if (!_aVkHonest) _aKbVkArm();'));
+check('S3 武装只在顶住成立时（诚实收起不被污染）', jsMA.includes('if (_aFullReads >= 3) _aKbVkArm();'));
 check('S4 轴量程 ±80·安卓消费钳', jsMA.includes('return a ? Math.max(-80, Math.min(80, Math.round(+a.kbgap || 0))) : 0;'));
 check('S5 轴 ±80 面板仍在', jsPe.includes('min: -80, max: 80,'));
 
