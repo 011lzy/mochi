@@ -2450,7 +2450,7 @@
             }
             if (!_aVkHonest && _focNow) _aKbVkArm(); // #1484：overlay 签名（回弹全高且仍聚焦）＝武装实测尺
             if (!_aFullSince) _aFullSince = Date.now();
-            if (Date.now() - _aFullSince < 800) { var _hHold = Math.round(_aKbStableH) || Math.round(_aVV.height || 0); if (_hHold > 0 && _aPhone.style.height !== _hHold + 'px') _aPhone.style.height = _hHold + 'px'; return; } // #1481：毛刺顶住（#1484：实测尺在场时 _aKbStableH 由实测持续更新，实测归零走 _aFullSince=1 即时复原） // #1481：全高毛刺未持续 800ms＝顶住会话稳态高度，不缩会话不写全高
+            if (Date.now() - _aFullSince < 800 || (_aVkHonest && _aVkH >= 80)) { var _hHold = Math.round(_aKbStableH) || Math.round(_aVV.height || 0); if (_hHold > 0 && _aPhone.style.height !== _hHold + 'px') _aPhone.style.height = _hHold + 'px'; return; } // #1481：毛刺顶住（#1484：实测尺在场时 _aKbStableH 由实测持续更新，实测归零走 _aFullSince=1 即时复原） // #1481：全高毛刺未持续 800ms＝顶住会话稳态高度，不缩会话不写全高
             _aKb = false;
             _aClosing = false;
             _aKbStableH = 0; _aFullSince = 0; try { if (_aVkHonest) { _aVkHonest = false; _aVkH = -1; var _vkR = navigator.virtualKeyboard; if (_vkR) _vkR.overlaysContent = false; } } catch (eVD) {} // #1484：解除武装还原内核默认
@@ -2536,7 +2536,7 @@
                 // 提前把 .phone 撑回全高导致面板/输入行下沉跳变（与 syncAndroidKb 同判据）
                 if (_aVV.height >= _aH - 12) {
                   if (!_aFullSince) _aFullSince = Date.now();
-                  if (Date.now() - _aFullSince < 800) return; // #1481：毛刺顶住（下拍再查），持续 800ms 才真复原
+                  if (Date.now() - _aFullSince < 800 || (_aVkHonest && _aVkH >= 80)) return; // #1481/#1484：毛刺顶住＋实测键盘在场（≥80px）必顶住＝两态横跳根除
                   _aKbStableH = 0; _aFullSince = 0; try { if (_aVkHonest) { _aVkHonest = false; _aVkH = -1; var _vkR2 = navigator.virtualKeyboard; if (_vkR2) _vkR2.overlaysContent = false; } } catch (eVD2) {}
                   _aKb = false;
                   _aKbStableH = 0; _aFullSince = 0;

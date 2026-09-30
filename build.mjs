@@ -6213,6 +6213,8 @@ const FIX_SENTINELS = [
   { name: '#1467a 翻页帧尺翻页已停即收笔（删＝60 帧盲采把采样窗后 ~50s 的环境冻结记成「翻页耗时」，851ms 假读数回流）', file: 'js/desktop-slider.js', needle: 'if (gaps.length && Date.now() - perfScrollAt > 500) { finish(); return; }' },
   { name: '#1467b 切回桌面帧尺 2.5s 墙钟封顶（删＝切页窗口过后继续盲采 30 帧，环境冻结混进切页账）', file: 'js/desktop-slider.js', needle: 'if (gaps.length && Date.now() - swT0 > 2500) { finish(); return; }' },
   { name: '#1467c 诊断行截短标注（删＝截短样本看起来和整段采样一模一样，分诊又被假读数带偏）', file: 'js/device.js', needle: "dp.cut ? '（截短：翻页已停，未采满 60 帧）'" },
+  { name: '#1486a 实测在场必顶住·主链（删＝GT7 两态横跳复发：实测 355 在场仍被 800ms 迟滞拆会话）', file: 'js/mobile-adapt.js', needle: '(_aVkHonest && _aVkH >= 80)) { var _hHold' },
+  { name: '#1486b 实测在场必顶住·轮询腿（删＝横跳从轮询腿复发）', file: 'js/mobile-adapt.js', needle: '(_aVkHonest && _aVkH >= 80)) return;' },
   { name: '#1484a overlay 会话实测高度取值口（删＝GT7 类内核继续猜，停靠不准）', file: 'js/mobile-adapt.js', needle: '_aKbStableH = _mv; _aFullSince = 0; return _mv;' },
   { name: '#1484b overlay 签名武装实测尺（删＝回弹全高且仍聚焦时不启用 VirtualKeyboard）', file: 'js/mobile-adapt.js', needle: '_aVkHonest = true;' },
   { name: '#1484c 实测归零即时真收信号（删＝关闭回弹拖 800ms 不及时）', file: 'js/mobile-adapt.js', needle: 'if (_aVkH < 80 && !_aFullSince) _aFullSince = 1;' },
@@ -6223,7 +6225,7 @@ const FIX_SENTINELS = [
   { name: '#1481b 钉高改用稳态高度（删＝会话期瞬时全高读数被照写，键盘盖住输入栏）', file: 'js/mobile-adapt.js', needle: 'var _hv = _aKbFeedH(); // #1481' },
   { name: '#1481c 对账同用稳态高度（删＝对账环把毛刺全高读数当真残差，两态反复横跳）', file: 'js/mobile-adapt.js', needle: 'var visB = o + _hv;' },
   { name: '#1481d 会话期全高毛刺顶住（删＝收键盘毛刺直接拆会话，两态反复横跳复发）', file: 'js/mobile-adapt.js', needle: 'var _hHold = Math.round(_aKbStableH)' },
-  { name: '#1481e 250ms 轮询复原同样过迟滞（删＝毛刺从轮询腿把会话拆掉，回到反复横跳）', file: 'js/mobile-adapt.js', needle: 'if (Date.now() - _aFullSince < 800) return;' },
+  { name: '#1481e 250ms 轮询复原同样过迟滞（删＝毛刺从轮询腿把会话拆掉，回到反复横跳）', file: 'js/mobile-adapt.js', needle: 'if (Date.now() - _aFullSince < 800 || (_aVkHonest && _aVkH >= 80)) return;' },
   { name: '#1481f 诊断打印键盘期快照环（删＝双稳态毛刺序列拍不进诊断单，取证盲）', file: 'js/device.js', needle: '键盘期快照环=' },
   // ==== 2026-09-30 #1483 字卡库【公用/专属】导出数据缺「梦角自由造句」栏、导入数据解析面只认 7 聊天分类（作者直派「导入数据和导出数据不包括【梦角自由造句】这个tag里的字卡，帮我全部检查修复」）。#353 起 mjfree 卡就在公用/专属两库（管理页 tab＋dream-free 自动入库），导出弹窗 EXPORT_CATS 却没这栏＝造句卡永远导不出；导入侧 applyImportData 只解析 7 类＝功能/造句卡导回来静默丢弃（v3.32.x 起就能导出的 13 功能分类同样进不来，纯功能文件还误报「文件里没有可导入的字卡」）====
   { name: '#1483a 导出弹窗补「梦角自由造句」分类（删＝两库造句卡永远导不出去，作者点名的症状本体）', file: 'js/chatcard.js', needle: "['mjfree', '梦角自由造句']" },
