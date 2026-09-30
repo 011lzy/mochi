@@ -80,43 +80,11 @@ check('解锁后 getLibPool(fish) 非空', await ev("(window.getLibPool('fish','
 // 5) 重锁
 await ev("window.cardLockRelock()");
 check('重锁后分组回空', await ev("(window.getDefaultCardGroups('main')||[]).length===0")===true);
-// 6) 进入应用后的强制弹窗提醒（#XXX）：仅「锁定 且 自定义字卡总数<500」才弹；≥500 不弹；
-//    已解锁不弹；pill「输入密码解锁」就地拉出二级验证弹窗
-await ev("window.cardLockRelock()"); // 确保回到锁定态
-// 模拟已进入应用（开屏已 hide）+ 数据就绪（冷启动回填后 __mochiDataReady=true）；默认自定义字卡=0
-await ev("document.getElementById('splash').classList.add('hide');window.__mochiDataReady=true;");
-await ev("window.__cardLockTest&&window.__cardLockTest.fire()");
-await sleep(900);
-check('锁定+0卡：强制弹窗打开（modal-mask 显示）', await ev("(function(){var m=document.getElementById('modal-mask');return m&&!m.hidden;})()")===true);
-check('锁定+0卡：弹窗标题为「系统字卡未解锁」', await ev("(function(){var t=document.querySelector('.modal-t')||document.querySelector('#modal-mask .modal-title');if(!t)return false;return String(t.textContent).indexOf('系统字卡未解锁')>-1;})()")===true);
-check('锁定+0卡：弹窗含锁定影响面长文案', await ev("(function(){var s=document.getElementById('modal-static');return s&&!s.hidden&&s.textContent.indexOf('面向未成年人')>-1&&s.textContent.indexOf('默认聊天字卡')>-1;})()")===true);
-check('锁定+0卡：弹窗确定按钮文案为「知道了」', await ev("(function(){var b=document.getElementById('modal-ok')||(document.querySelector('#modal-mask .modal-btn')||{});return b&&String(b.textContent)=='知道了';})()")===true);
-check('锁定+0卡：弹窗含「输入密码解锁」pill', await ev("(function(){var bs=document.querySelectorAll('#modal-mask .modal-pills .pill');for(var i=0;i<bs.length;i++){if(String(bs[i].textContent).indexOf('输入密码解锁')>-1)return true;}return false;})()")===true);
-// 点 pill → 就地带出二级验证弹窗
-await ev("(function(){var bs=document.querySelectorAll('#modal-mask .modal-pills .pill');for(var i=0;i<bs.length;i++){if(String(bs[i].textContent).indexOf('输入密码解锁')>-1){bs[i].click();break;}}return true;})()");
-await sleep(600);
-check('pill 就地带出二级验证弹窗', await ev("(function(){var s=document.getElementById('modal-static');return s&&!s.hidden&&s.textContent.indexOf('字卡生日')>-1&&s.textContent.indexOf('前两位是 99')>-1;})()")===true);
-// 关掉二级验证弹窗
-await ev("(function(){var b=document.getElementById('modal-cancel');if(b)b.click();return true;})()");
-await sleep(200);
-// 锁定 + 500 卡（stub 计数到阈值）：不应弹
-await ev("window.cardLockCustomCount=function(){return 500;};window.__cardLockTest.fire();");
-await sleep(900);
-check('锁定+500卡：不弹强制弹窗', await ev("(function(){var m=document.getElementById('modal-mask');return !m||m.hidden;})()")===true);
-// 恢复真实计数(0)，解锁后再触发不应弹
-await ev("delete window.cardLockCustomCount;window.cardLockTryUnlock('990815')");
-await sleep(400);
-check('解锁后 getDefaultCardGroups(main)>0', await ev("(window.getDefaultCardGroups('main')||[]).length>0")===true);
-await ev("window.__cardLockTest.fire()");
-await sleep(900);
-check('已解锁：不弹强制弹窗', await ev("(function(){var m=document.getElementById('modal-mask'),st=document.getElementById('modal-static');return (!m||m.hidden)?true:'VIS:'+((st&&st.textContent)||'').slice(0,40)+'|open:'+window.cardLockOpen();})()")===true, String(await ev("(function(){var m=document.getElementById('modal-mask'),st=document.getElementById('modal-static');return (!m||m.hidden)?'hidden':'VIS:'+((st&&st.textContent)||'').slice(0,40)+'|open:'+window.cardLockOpen();})()")));
-await ev("window.cardLockRelock()");
-// 7) #470 进入流程不再抛 maybeCardLockReminder ReferenceError（clock.js 两 IIFE 作用域修复；
-//    删 mount/删守卫调用/改回直呼函数名都会令下列断言转红）
+// 6) #1498（作者口径「二级密码不要弹窗啊，就放在开屏爱点不点」）：进入应用强制提醒弹窗整段摘除——
+//    函数/挂载/测试钩都不存在；二级密码唯一解锁入口＝开屏锁卡（自愿点击）。
+check('#1498 强制提醒已摘除（运行时未挂载）', await ev('typeof window.maybeCardLockReminder==="undefined"')===true);
 const clockSrc = readFileSync(join(root, 'src', 'js', 'clock.js'), 'utf8');
-check('src 守卫调用在位（finishEnter 改过 window 挂载调用）', clockSrc.indexOf('if (window.maybeCardLockReminder) window.maybeCardLockReminder();') > -1);
-check('src 挂载行在位（window.maybeCardLockReminder 导出）', clockSrc.indexOf('window.maybeCardLockReminder = maybeCardLockReminder;') > -1);
-check('运行时 window.maybeCardLockReminder 已挂载可调', await ev('typeof window.maybeCardLockReminder === "function"') === true);
+check('#1498 源无强制提醒残留', clockSrc.indexOf('maybeCardLockReminder')===-1 && clockSrc.indexOf('CARD_LOCK_REMIND')===-1);
 console.log('== 结果: ' + results.filter(Boolean).length + '/' + results.length + ' ==');
 try { ws.close(); } catch(e){}
 try { chrome.kill(); } catch(e){}

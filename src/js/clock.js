@@ -264,53 +264,10 @@
       }
     }, { inputmode: 'numeric', placeholder: '输入二级验证密码', staticText: '密码一共 6 位数字：前两位是 99，后 4 位是 mochi 字卡生日的字面数字（把生日日期原样写成 4 位数），生日就在开屏第一页的章节目录里（点开顶部的「目录」逐章翻一下就能找到）——第一页的章节目录里和第二页最顶那张时间线卡都写着——日期一直是很简单的字面意思，不是隐藏答案；开屏最底下的部署时间不算（那只是用来判断有没有更新到新版本）。解开密码请勿二传（不要告诉别人），一旦有人二传，密码就会被重新设置。这个密码与开屏问答页的「暗号」是同一个（同一串 6 位数字）：在开屏问答页点「输暗号跳过问答」用的也是它。' });
   }
-  // #XXX 强制弹窗提醒：进入应用后系统内置字卡仍锁定（未输二级密码）时，每次打开应用弹一次
-  // （本加载仅一次）。可点「知道了」关闭继续用（不输密码也能正常使用全部功能），也可就地
-  // 「输入密码解锁」——进入应用后开屏锁卡已不可见，此处为应用内唯一解锁入口，删除则锁定用户
-  // 进入后无法再解锁、只能重进开屏。文案与开屏锁卡 tip / 字卡库锁提示同义。
-  // #998 进入后提醒弹窗：用户已在应用内，口径改为「回开屏第一页的章节里找」＋不是第二页日期。
-  const CARD_LOCK_REMIND = '系统字卡未解锁，请自行添加字卡使用。联系人无法使用字卡，不是bug，是系统字卡锁了。\n其实从内测开始就说明过需要自行添加字卡使用，系统内置字卡只是附带功能。\n\n系统内置字卡已全部锁定，这是面向未成年人的保护措施，不是 bug。锁定影响：默认聊天字卡、词典（含词典拼字）、其他系统预设互动字卡全部停用；你自建的字卡与情绪 / 心意 / 意图字卡不受影响。豁免说明（#499）：聊天情绪字卡、TA 的心情、聊天回应字卡这三大互动链不受锁定影响，未解锁也照常触发与抽取。所以若发现「某功能开关都开了却没效果」，先看是不是锁定中。不输密码也能正常使用全部功能，密码只管两件事：解锁系统内置字卡、跳过开屏的 2 个问答。注意：锁定时若自定义字卡（含 mj 字卡）一张都没添加，回复会更单薄（情绪/回应字卡仍在，但少了系统预设内容），自己在自定义字卡里添加几张即可。密码一共 6 位数字：前两位是 99，后 4 位是 mochi 字卡生日的字面数字（把生日日期原样写成 4 位数），要回开屏第一页的章节里找（第一页顶部有「目录」，点开逐章翻一下就能找到）——第一页的章节目录里和第二页最顶那张时间线卡都写着——日期一直是很简单的字面意思，不是隐藏答案；开屏最底下的部署时间不算（那只是用来判断有没有更新到新版本）。这个密码与开屏问答页的「暗号」是同一个。解开密码请勿二传（不要告诉别人），一旦有人二传，密码就会被重新设置。';
-  let cardRemindShown = false;
-  // 次数口径：自定义字卡总数（含日 0）=当前桌面专属库 + 公用库里用户自建的全部字卡（不含系统
-  // 预设/词典），见 chatcard.js cardLockCustomCount。数据就绪前 ownPoolRaw 可能读不到字卡库
-  // （IDB 回填/冷启动晚于开屏进入）→ 会误判成 0 弹错提醒；数到卡即可信，数到 0 需等
-  // __mochiDataReady / mochi-restore-done 再确认（确实没加才弹），否则先不动（-1=待定）。
-  function trustedCustomCount() {
-    let n = 0;
-    try { n = (window.cardLockCustomCount ? window.cardLockCustomCount() : 0); } catch (e) { n = 0; }
-    if (n > 0) return n;
-    if (window.__mochiDataReady) return n; // 已就绪且数到 0 → 可信（确实没加自定义字卡）
-    return -1;                             // 未就绪且暂数不到 → 本加载稍后由 restore-done 再判
-  }
-  function maybeCardLockReminder() {
-    if (cardRemindShown) return;
-    if (!window.cardLockOpen || window.cardLockOpen()) return; // 未锁定 / 已解锁：不弹
-    if (!window.openModal) return;
-    const splash = document.getElementById('splash');
-    if (splash && !splash.classList.contains('hide')) return; // 开屏尚未进入：不弹（开屏有解锁卡）
-    const n = trustedCustomCount();
-    if (n < 0) return;    // 数据未就绪：等 restore-done 触发的下一次判定
-    if (n >= 500) return; // 自定义字卡已 ≥500：不缺卡，不弹
-    cardRemindShown = true;   // 本加载只弹一次
-    // 让开屏后的问答门 / 应用锁（applock 遮罩层级更高）先就位再弹，避免与之抢层级
-    setTimeout(function () {
-      const ctl = window.openModal('系统字卡未解锁', '', function (v) {
-        if (v === 'unlock') promptCardUnlock(); // 就地解锁；其余（点「知道了」）直接关闭
-      }, { noInput: true, big: true, staticText: CARD_LOCK_REMIND, pillSubmit: true, pills: [{ label: '输入密码解锁', value: 'unlock' }] });
-      if (ctl && ctl.okText) ctl.okText('知道了');
-    }, 600);
-  }
-  // 冷启动回填完成后重判一次（开屏进入先于数据就绪时，卡片计数可能暂为 0，靠它兜底）
-  document.addEventListener('mochi-restore-done', maybeCardLockReminder);
-  // 无头验证专用入口（仅 tools/verify-card-lock.mjs 使用）：fire 重置“本加载已弹”标记后触发
-  // 一次强制弹窗（锁定态且自定义字卡<500 才真弹）。与 applock 的 __applockQaTest 同一类测试后门。
-  window.__cardLockTest = {
-    fire: function () { cardRemindShown = false; maybeCardLockReminder(); }
-  };
-  // 修复 2026-09-14 #470：本提醒函数定义在本 IIFE（防骗声明段）作用域内，开屏进入流程
-  // （下方另一 IIFE 的 finishEnter）直呼函数名必抛 ReferenceError——线上多机型每次进入
-  // 报错且提醒从未弹出。挂到 window 供 finishEnter 以守卫方式调用；其余逻辑不动。
-  window.maybeCardLockReminder = maybeCardLockReminder;
+  // #1498（2026-09-30 作者口径「二级密码不要弹窗啊，就放在开屏爱点不点」）：进入应用的强制
+  //   提醒弹窗（含其长文案与测试钩）整段摘除。
+  //   二级密码唯一解锁入口＝开屏公告区那张锁卡（自愿点击）；锁定只影响系统预设字卡可用与否，
+  //   不弹窗不打扰。会话闸见 card-lock.js（每次加载从锁定开始）。
   // FIX 2026-09-13 #389：解锁态可能「晚到」——card-lock.js 走 xyStore 后，杀进程回滚的
   // 解锁状态由 wrj 自愈链（mochi-wrj-heal）异步修回并补发 mochi-cardlock-open/-locked。
   // 开屏锁卡此前只在首屏渲染一次，晚到的解锁会一直显示「输入密码解锁」假象，这里监听
@@ -546,11 +503,8 @@
         }, 1500);
       }
     } catch (e) {}
-    // 进入完成且系统字卡仍锁定时，强制弹窗提醒（每次打开应用一次）
-    // 修复 2026-09-14 #470：maybeCardLockReminder 定义于另一 IIFE 作用域，此处直呼函数名
-    // 在线上必抛 ReferenceError（每次进入 uncaught、提醒永远不弹，多机型同报）；
-    // 改走 window 挂载 + 守卫调用，缺失/异常都不阻断进入。
-    try { if (window.maybeCardLockReminder) window.maybeCardLockReminder(); } catch (e) {}
+    // #1498：进入应用的二级密码强制提醒弹窗已按作者口径整段摘除（「就放在开屏爱点不点」），
+    // 进入流程不再触发任何字卡锁弹窗；原 #470 守卫调用随弹窗一并退役。
     // #646：进入桌面入口流程——默认进入的桌面 / 打开时先进入此间（两项设置均默认关闭）。
     // 放在数据已就绪的进入收尾处；缺失或异常都不阻断进入。
     try { if (window.mochiContactEntryFlow) window.mochiContactEntryFlow(); } catch (e) {}

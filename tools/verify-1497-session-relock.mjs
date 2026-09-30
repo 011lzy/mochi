@@ -26,7 +26,7 @@ const prodIndex = readFileSync(join(root, 'index.html'), 'utf8');
 
 check('S1 源 card-lock 同码散列＋会话闸＋归一化（无 pwver 残留）', srcLock.includes("'4240701628'") && srcLock.includes('let sessionOpen = false') && srcLock.includes("fnv1a('mochi#' + normCode(pw))") && !srcLock.includes('1062906492') && !srcLock.includes('pwverOk'));
 check('S2 产物 js/card-lock.js 同步（外置件不落库＝线上没这批）', prodLock.includes("'4240701628'") && prodLock.includes('let sessionOpen = false'));
-check('S3 clock 解锁就地生效（无刷新死循环）＋同码口径还原', srcClock.includes("okState.textContent = '验证通过'") && !srcClock.includes('验证通过，页面即将刷新') && !srcClock.includes('不是同一个') && (srcClock.match(/是同一个/g) || []).length >= 3);
+check('S3 clock 解锁就地生效（无刷新死循环）＋同码口径还原（#1501 起提醒面摘除＝是同一个 计 2）', srcClock.includes("okState.textContent = '验证通过'") && !srcClock.includes('验证通过，页面即将刷新') && !srcClock.includes('不是同一个') && (srcClock.match(/是同一个/g) || []).length >= 2);
 check('S4 applock 三入口归一化在位＋同码尾句还原', (srcApplock.match(/normCode\(v\) === QA_SKIP_CODE/g) || []).length === 3 && srcApplock.includes('卡的二级验证密码是同一个（同一串 6 位数字）'));
 check('S5 index.html 同码还原（旧分码句与 995180 绝迹）', prodIndex.includes('是同一个（同一串 6 位数字') && !prodIndex.includes('不是同一个') && !prodIndex.includes('995180'));
 

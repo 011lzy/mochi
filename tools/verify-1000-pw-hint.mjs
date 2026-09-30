@@ -61,10 +61,10 @@ check('S4 摘要撤除后暗号指路的落点＝锁卡静态 tip ＋ clock/appl
   count(tpl, '生日写在开屏第一页的章节目录里——点开第一页顶部的「目录」') === 0 &&
   count(noticeSrc, '生日写在开屏第一页的章节目录里——点开第一页顶部的「目录」') === 0 &&
   count(clockSrc, '生日写在开屏第一页的章节目录里') === 1 && count(appSrc, '生日写在开屏第一页的章节目录里') === 1);
-check('S5 clock.js 三处口径各就位（锁定态 tip / 解锁弹窗 / 进入后提醒）',
+check('S5 clock.js 两处口径各就位（锁定态 tip / 解锁弹窗；#1501 起进入后提醒弹窗已整段摘除）',
   clockSrc.includes('生日写在开屏第一页的章节目录里（点开第一页顶部的「目录」逐章翻一下就能找到）') &&
   clockSrc.includes('生日就在开屏第一页的章节目录里（点开顶部的「目录」逐章翻一下就能找到）') &&
-  clockSrc.includes('要回开屏第一页的章节里找'));
+  clockSrc.indexOf('要回开屏第一页的章节里找') === -1);
 check('S6 applock.js 三处口径各就位（跳过问答 / 输暗号关应用锁 / 验证身份）',
   appSrc.includes('mochi 字卡的生日写在开屏第一页的章节目录里（点开第一页顶部的「目录」逐章翻一下就能找到）') &&
   count(appSrc, '生日就在开屏第一页的章节目录里（点开第一页顶部的「目录」，逐章翻一下就能找到）；') === 2);
@@ -81,8 +81,8 @@ const exclHits = { template: count(tpl, OLD_EXCL), notice: count(noticeSrc, OLD_
 check('S7a 旧那句「排除第二页日期」在四个源里归零（2026-09-28 换口径：时间线卡上了第二页顶，这句会变成误导）',
   exclHits.template === 0 && exclHits.notice === 0 && exclHits.clock === 0 && exclHits.applock === 0,
   JSON.stringify(exclHits));
-check('S7b 每个入口都写明「第一页的章节目录里和第二页最顶那张时间线卡都写着」（clock 3 / applock 3 定点；摘要侧随底本有无，取区间）',
-  page2Hits.clock === 3 && page2Hits.applock === 3 && page2Hits.template >= 2 && page2Hits.notice <= 1,
+check('S7b 每个入口都写明「第一页的章节目录里和第二页最顶那张时间线卡都写着」（#1501 起提醒面摘除＝clock 2 / applock 3 定点；摘要侧随底本有无，取区间）',
+  page2Hits.clock === 2 && page2Hits.applock === 3 && page2Hits.template >= 2 && page2Hits.notice <= 1,
   JSON.stringify(page2Hits));
 check('S8 密码与暗号互指仍在（同一串 6 位数字，两个入口都用它）',
   clockSrc.includes('这个密码与开屏问答页的「暗号」是同一个（同一串 6 位数字）：在开屏问答页点「输暗号跳过问答」用的也是它。') &&
@@ -91,14 +91,13 @@ check('S8 密码与暗号互指仍在（同一串 6 位数字，两个入口都�
 check('S9 使用说明两处「忘记密码」也补了同一指路',
   count(tpl, '暗号／二级验证密码的答案在开屏<b>第一页</b>的章节里') === 2);
 
-const sentIds = ['#1000a', '#1000b', '#1000c', '#1000d', '#1000e', '#1000f', '#1000g', '#1000h'];
+const sentIds = ['#1000a', '#1000b', '#1000c', '#1000e', '#1000f', '#1000g', '#1000h']; // #1000d 随 #1501 退役（进入后提醒弹窗整段摘除，见 FIX-REGRESSION #1501）
 const missSent = sentIds.filter((id) => buildSrc.indexOf("name: '" + id + ' ') < 0);
-check('S10 八条哨兵 #1000a~h 全部登记', missSent.length === 0, missSent.join(','));
+check('S10 哨兵 #1000a~h 登记（#1000d 随 #1501 退役除外）', missSent.length === 0, missSent.join(','));
 // 哑哨兵体检：needle 必须在各自登记 file 内唯一（多条共用同一 needle 会被构建体检点名）
 const uniq = [
   ['index.html', '答案就在开屏第一页的章节目录里'],
   ['js/clock.js', '生日写在开屏第一页的章节目录里（点开第一页顶部的「目录」逐章翻一下就能找到）'],
-  ['js/clock.js', '要回开屏第一页的章节里找'],
   ['js/applock.js', 'mochi 字卡的生日写在开屏第一页的章节目录里']
 ];
 const uniqBad = uniq.filter(([f, n]) => count(read(f), n) !== 1).map(([f, n]) => f + ' :: ' + n.slice(0, 20));

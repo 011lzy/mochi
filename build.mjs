@@ -1820,9 +1820,6 @@ const FIX_SENTINELS = [
   { name: '#392 词典页提示条锚点（删则提示无处渲染）', file: 'template.html', needle: 'id="dict-lock-hint"' },
   { name: '#392 回复设置自检首闸人话文案（改回「二级锁未解锁」则因果又看不懂）', file: 'js/reply-settings.js', needle: '锁定中·词典被锁停' },
   { name: '#392 开屏锁卡 tip 锁定影响面清单（删则不知道锁定停用了哪些字卡）', file: 'js/clock.js', needle: '锁定影响：默认聊天字卡、词典（含词典拼字）' },
-  // ==== 2026-09-14 进入应用后强制弹窗提醒：系统字卡未解锁（未输二级密码）时每次打开应用弹一次长文案，可「知道了」关闭、可就地「输入密码解锁」（进入后开屏锁卡不可见，此为首要应用内解锁入口）====
-  { name: '强制弹窗提醒·锁定文案（删则进入应用后不知道字卡为何不可用、也不知应用内可解锁）', file: 'js/clock.js', needle: '系统字卡未解锁，请自行添加字卡使用' },
-  { name: '强制弹窗提醒·应用内解锁接线（promptCardUnlock 删则「输入密码解锁」pill 失效=锁定用户进入后无法就地解锁）', file: 'js/clock.js', needle: "v === 'unlock') promptCardUnlock();" },
   // ==== 2026-09-13 #394 全面体检第二批——#391 之后全库复扫「含 ||| 守卫 / 裸 escTxtBr 渲染」所有站点，又抓 9 处：词典语录抽卡池两条、漂流瓶候选池、统计页卡集+消息账+悬浮伴侣话术、词典词条录入校验、聊天 parts 文本/引用块/收藏文本、群聊文本气泡/引用/撤回段（渲染端统一走 #385 mochiInlineTextHtml 助手）====
   { name: '#394 词典语录抽卡池剔令牌（删则词典拼字直出令牌串）', file: 'js/quote-spell.js', needle: 'mochiMediaIsToken(q)) return false' },
   { name: '#394 词典抽卡混入 getPool.text 二次校验剔令牌', file: 'js/quote-spell.js', needle: 'mochiMediaIsToken(s)) return false' },
@@ -2275,11 +2272,8 @@ const FIX_SENTINELS = [
 { name: '#459 一键优化实时进度浮层（perf-heal-bar 阶段+百分比由 prog 驱动；删则优化期间回到干等无声＝大库设备观感「点了没用」）', file: 'js/personalize.js', needle: "bar.id = 'perf-heal-bar';" },
 { name: '#459 prog 进度管道接通（showProg 传入 mochiPerfHeal；删则进度浮层停摆不更新＝进度功能失效）', file: 'js/personalize.js', needle: 'window.mochiPerfHeal(showProg)' },
 { name: '#459 mochiPerfHeal 进度回调骨架（step 归一封装 prog，取回/预热各阶段推进度；删则调用侧拿到不到任何进度）', file: 'js/storage-slim.js', needle: 'const step = function (pct, label)' },
-// ==== 2026-09-14 #470 「maybeCardLockReminder is not defined 每次进入 uncaught + 字卡锁提醒永不弹出」多机型
 //      （clock.js 两处 IIFE：提醒函数定义在防骗声明段 IIFE，finishEnter 在另一 IIFE 直呼函数名——
-//      函数声明不会跨 IIFE 泄漏，线上每次点「我已阅读并确认进入」必抛 ReferenceError；
 //      修复：挂 window.maybeCardLockReminder + finishEnter 守卫调用，零机型分支零逻辑改动）====
-{ name: '#470 进入流程调用字卡锁提醒改守卫（window.maybeCardLockReminder 挂载 + finishEnter 守卫调用；删守卫/改回直呼函数名＝ReferenceError 与提醒失效双复发）', file: 'js/clock.js', needle: 'if (window.maybeCardLockReminder) window.maybeCardLockReminder();' },
 // ==== 2026-09-15 #486 深色模式白底漏网全量收口（用户报「深色下还有很多颜色是白色导致看不见」，多机型同报；
 //      tools/verify-dark-audit.mjs 135 步全量审计实测 60 处真问题，修复后 0；本批 src 随 140950a 上车，此处补登记哨兵）====
 { name: '#486 深色开关选中态滑块改深色（选中轨道是浅色 var(--ink)，滑块仍 #f0f0f0＝白滑块白轨道看不出开没开）', file: 'css/dark.css', needle: '[data-theme="dark"] .toggle input:checked + .tk::before { background:#111111; }' },
@@ -4729,7 +4723,6 @@ const FIX_SENTINELS = [
   { name: '#1000a 开屏锁卡静态兜底提示明确指路第一页章节（删/回退成「答案就在开屏里可以找到」＝用户又去第二页公告的日期里猜）', file: 'index.html', needle: '答案就在开屏第一页的章节目录里' },
   { name: '#1000b 必读摘要高亮条指路第一页章节＋排除第二页日期（删＝摘要退回只说「开屏目录」、第二页日期误导复发）', file: 'index.html', needle: '生日写在开屏第一页的章节目录里——点开第一页顶部的「目录」', absent: true }, // #1216 摘要块整块撤除＝转删除型（暗号口径仍在锁卡 tip 与「许可」章）
   { name: '#1000c 锁定态 tip 的密码指路口径（删＝开屏锁卡又只说「开屏公告的目录」，用户分不清是哪个公告）', file: 'js/clock.js', needle: '生日写在开屏第一页的章节目录里（点开第一页顶部的「目录」逐章翻一下就能找到）' },
-  { name: '#1000d 进入后提醒弹窗按「在应用内」改写指路（删＝应用内提醒只在讲公式，用户不知道要回开屏第一页找）', file: 'js/clock.js', needle: '要回开屏第一页的章节里找' },
   { name: '#1000e 暗号入口（跳过开屏问答）指路口径', file: 'js/applock.js', needle: 'mochi 字卡的生日写在开屏第一页的章节目录里' },
   { name: '#1000f 摘要高亮条·在线权威源同口径（联网用户开屏生效的那份）', file: 'pwa/notice.json', needle: '不是第二页「进入前 · 作者必读公告」上那两个日期，也不是最底下的部署时间', absent: true }, // #1216 summary 整段清空＝转删除型
   { name: '#1000g 删除型：暗号提示不得退回把答案指向「开屏公告」（第二页公告标题正是「作者必读公告」，用户会去那儿找日期）', file: 'js/applock.js', needle: '生日写在开屏公告的目录里，不是开屏最底下的部署时间', absent: true },
@@ -6241,6 +6234,7 @@ const FIX_SENTINELS = [
   { name: '#1497d 解锁即会话放行（删＝输对密码也解不开）', file: 'js/card-lock.js', needle: 'sessionOpen = true' },
   { name: '#1497e 暗号通路归一化（删＝跳问答/关应用锁/管理验证三入口全角输入照旧解不开）', file: 'js/applock.js', needle: 'function normCode(v) {' },
   { name: '#1497f 解锁就地生效不刷新（删/改回解锁后 reload＝会话闸下解锁即被打回锁定死循环）', file: 'js/clock.js', needle: "okState.textContent = '验证通过'" },
+  { name: '#1501a 进入应用二级密码强制提醒弹窗已摘除（删除型；回流＝作者口径「就放在开屏爱点不点」被推翻）', file: 'js/clock.js', needle: 'maybeCardLockReminder', absent: true },
   // ==== 2026-09-30 #1498 「禁止使用的字卡」对部分使用方无效（荣耀畅玩40 Plus／夸克实报，明说其他机型同现·要求不要覆盖修改引发跨机型回归）： ====
   // 逐张关闭/整组停用要被所有使用方认账——原先 getLibPool 只「取组」不过闸（8 个游戏/拍卖模块与 chat/ta-ask 两处裸抽）；
   // 各功能「过闸后为空 ⇒ 回落内置兜底」而兜底与数据组逐字同文（花园 7/7、喝水 6/6）；gift-shop 直读数据零闸。
