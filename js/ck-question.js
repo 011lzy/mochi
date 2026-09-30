@@ -142,6 +142,7 @@ return changed;
 function ckLoad() {
 let d = null;
 try { d = JSON.parse(store.get(KEY) || 'null'); } catch (e) { d = null; }
+if (!d) { try { if (store.awaitingBigKey && store.awaitingBigKey(KEY)) store.requestBigKey(KEY); } catch (e0) {} }
 if (!d || typeof d !== 'object' || Array.isArray(d)) d = {};
 if (!d.settings || typeof d.settings !== 'object') d.settings = {};
 if (d.settings.useDefault === undefined) d.settings.useDefault = true;
@@ -181,7 +182,10 @@ if (ckMerge(d)) { try { s.set(KEY, JSON.stringify(d)); } catch (e) {} }
 if (!Array.isArray(d.groups)) d.groups = [];
 return d;
 }
-function ckSave(d) { try { store.set(KEY, JSON.stringify(d)); } catch (e) {} }
+function ckSave(d) {
+if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, KEY, '查岗问题库')) return;
+try { store.set(KEY, JSON.stringify(d)); } catch (e) {}
+}
 function pgCatOff(ns, cat) { return !!(window.presetGroup && window.presetGroup.isOff(ns, cat || 'daily')); }
 function pickQ() {
 const d = ckLoad();

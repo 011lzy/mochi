@@ -543,7 +543,16 @@ function ckList(k, def) {
 // v3.6.x：寻踪系统预设字卡单卡开关——逐张开启/关闭（关闭后寻踪不再抽取该条）
 // #1315：整类停用叠在同一出口上（共用件 window.presetGroup，键 pg-groups-off；本页三类 place/action/msg
 //   就是三个「分组」）——genCheckin 与页面列表都走这个判据，无需逐处加分支；逐张开关存值一字不动。
-function isCkCardOff(k, x) { return store.get('ck-off-' + k + ':' + x) === '1' || !!(window.presetGroup && window.presetGroup.isOff('cck', k)); }
+// #1519：这两个开关（逐张 ck-off-*／整组停用 cck）都只在**系统预设**列表里写，判据却原样作用在
+//   抽取时的整个池上——于是「整组停用『地点』」把用户自己添加的地点/做的事/说的话一起关光
+//   （作者实报「关闭系统预设字卡的某个分组会把自建字卡也关掉」，多机型同现＝纯行为口径）；
+//   逐张那条按文案存键，连同文的自建卡也被顺手关掉。口径收口＝**预设开关只管预设卡**：判据先问
+//   「这张是不是预设卡」（DEF 文本命中），自建卡只由它自己的分组与删除管，与预设开关互不相干。
+const CK_DEF_LIST = { place: DEF_PLACES, action: DEF_ACTIONS, msg: DEF_CHECK_MSGS };
+function isCkCardOff(k, x) {
+  if (CK_DEF_LIST[k].indexOf(x) < 0) return false; // #1519a：不是预设卡 ⇒ 预设开关一律不认
+  return store.get('ck-off-' + k + ':' + x) === '1' || !!(window.presetGroup && window.presetGroup.isOff('cck', k));
+}
 function setCkCardOff(k, x, off) { store.set('ck-off-' + k + ':' + x, off ? '1' : '0'); }
 // v3.27.x #823：寻踪总开关（per-cid 键 checkin-en，从未写过＝默认开启）。关闭＝日常侧全静：
 // 不自动生成日常、不往聊天推任何寻踪消息、不落新记录，聊天「更多功能」寻踪／点 TA 头像的寻踪

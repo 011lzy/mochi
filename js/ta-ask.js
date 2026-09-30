@@ -531,6 +531,7 @@ return changed;
 function taAskLoad() {
 let d = null;
 try { d = JSON.parse(store.get(KEY) || 'null'); } catch (e) { d = null; }
+if (!d) { try { if (store.awaitingBigKey && store.awaitingBigKey(KEY)) store.requestBigKey(KEY); } catch (e0) {} }
 if (!d || typeof d !== 'object' || Array.isArray(d)) d = {};
 if (!d.settings || typeof d.settings !== 'object') d.settings = { enabled: true, prob: 5, popupProb: 70 };
 if (d.settings.useDefault === undefined) d.settings.useDefault = true;
@@ -553,6 +554,7 @@ if (!Array.isArray(d.groups)) d.groups = [];
 return d;
 }
 function taAskSave(d) {
+if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, KEY, 'TA 的提问题库')) return;
 try { store.set(KEY, JSON.stringify(d)); } catch (e) {}
 }
 function askDeadlineMs(d) {

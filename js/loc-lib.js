@@ -48,6 +48,7 @@ return [];
 }
 function saveCustom(list) {
 const arr = (list || []).map(x => typeof x === 'string' ? { t: x } : x).filter(x => x && x.t != null);
+if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, CUSTOM_KEY, '位置卡库')) return;
 store.set(CUSTOM_KEY, JSON.stringify(arr));
 try { if (window.idbSet) window.idbSet(window.activePrefix() + ':' + CUSTOM_KEY, JSON.stringify(arr)); } catch (e) {}
 }

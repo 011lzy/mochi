@@ -4261,7 +4261,12 @@
     return map;
   }
   window.getCustomFuncCards = function (cat) {
-    if (CC_FUNC_KEYS.indexOf(cat) < 0) return [];
+    // #1519b：13 类功能字卡（摸鱼/吃饭/喝水/花园/同频/伸手/互动回应/音乐…）的自建卡读的是同一个
+    //   cc-groups 大键（实测单键 153MB 级），而取池口此前从不请库取回——聊天回复池三个 getter 都走
+    //   maybeHydrateReplyPool，只有这条路没有 ⇒ 切一次后台后直接进花园/摸鱼这类页面触发抽取，
+    //   自建功能卡静默缺席（回落预设池），直到某次聊天回复或打开字卡库才回来（#1485 feed 池/
+    //   #1513 寻踪同族）。同一钩子、零机型分支。
+    maybeHydrateReplyPool(); if (CC_FUNC_KEYS.indexOf(cat) < 0) return []; // 取回钩与功能池守卫同行（哨兵锚）
     const out = ownFuncMap()[cat].slice();
     try {
       const pg = filterGroupsByOff(pubGroupsRaw(), 'public');

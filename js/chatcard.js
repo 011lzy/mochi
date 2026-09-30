@@ -3367,7 +3367,7 @@ ccFuncOwnSrc = raw;
 return map;
 }
 window.getCustomFuncCards = function (cat) {
-if (CC_FUNC_KEYS.indexOf(cat) < 0) return [];
+maybeHydrateReplyPool(); if (CC_FUNC_KEYS.indexOf(cat) < 0) return []; // 取回钩与功能池守卫同行（哨兵锚）
 const out = ownFuncMap()[cat].slice();
 try {
 const pg = filterGroupsByOff(pubGroupsRaw(), 'public');

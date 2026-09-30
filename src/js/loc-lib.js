@@ -63,6 +63,9 @@
   function saveCustom(list) {
     // 兼容字符串数组（位置面板旧逻辑直接传 ['xxx']）→ 统一转对象数组存储
     const arr = (list || []).map(x => typeof x === 'string' ? { t: x } : x).filter(x => x && x.t != null);
+    // #1519：我的添加（整包读-改-写）。库读不全时把空/半份表整包写回＝自定义位置卡被清空，
+    //   判据与文案同 ta-ask（xyBigWriteBlocked 拦下时照实 toast、绝不落笔；回填后再点一次即可）
+    if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, CUSTOM_KEY, '位置卡库')) return;
     store.set(CUSTOM_KEY, JSON.stringify(arr));
     try { if (window.idbSet) window.idbSet(window.activePrefix() + ':' + CUSTOM_KEY, JSON.stringify(arr)); } catch (e) {}
   }

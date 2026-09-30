@@ -687,6 +687,10 @@
   function taAskLoad() {
     let d = null;
     try { d = JSON.parse(store.get(KEY) || 'null'); } catch (e) { d = null; }
+    // #1519：读空但库里本该有＝大键没读全（IDB-only 题库切后台/回填未到），当场请库取回一次
+    // （#1349a 单次飞行闸）。这一拍仍按旧形状走（播种纯预设题库只在内存里，isNew 守卫不写盘），
+    // 下一拍自然读到权威值——写侧由 taAskSave 的闸兜住，这一发错拍不会落进库里。
+    if (!d) { try { if (store.awaitingBigKey && store.awaitingBigKey(KEY)) store.requestBigKey(KEY); } catch (e0) {} }
     if (!d || typeof d !== 'object' || Array.isArray(d)) d = {};
     // v3.5.33：设置（启用/概率/自动弹窗）
     // v3.13.x：默认触发概率 10 → 5（互动卡整体降频第二轮，配合全局闸门）
@@ -718,6 +722,12 @@
     return d;
   }
   function taAskSave(d) {
+    // #1519：题库整包写（管理页任何开关/增删都经这里）＝读-改-写。题库被批量导入撑过 200KB
+    // ＝IDB-only 大键，切一次后台或回填未到时 taAskLoad() 读空会临时播种纯预设题库；此刻把
+    // 「纯预设＋本次改动」整包写回＝库里自定义题被清空（作者报障同型：保存后自己的题没了）。
+    // 判据用数据层那把唯一的尺 xyBigWriteBlocked（#1342d awaitingBigKey 五格证据，含回填未落定），
+    // 拦下时照实 toast、绝不落笔；等库回填后再点一次即可（#1342「不把闸变成新的存不进去」）。
+    if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, KEY, 'TA 的提问题库')) return;
     try { store.set(KEY, JSON.stringify(d)); } catch (e) {}
   }
 

@@ -165,6 +165,9 @@
   function ckLoad() {
     let d = null;
     try { d = JSON.parse(store.get(KEY) || 'null'); } catch (e) { d = null; }
+    // #1519：读空但库里本该有＝大键没读全，当场请库取回一次（#1349a 单次飞行闸）；这一拍仍按旧形状
+    //   走（播种纯预设只在内存里，isNew 守卫不写盘），下一拍读到权威值
+    if (!d) { try { if (store.awaitingBigKey && store.awaitingBigKey(KEY)) store.requestBigKey(KEY); } catch (e0) {} }
     if (!d || typeof d !== 'object' || Array.isArray(d)) d = {};
     if (!d.settings || typeof d.settings !== 'object') d.settings = {};
     // 是否使用系统预设问题（默认开启；关闭后只抽用户添加的）
@@ -208,7 +211,12 @@
     if (!Array.isArray(d.groups)) d.groups = [];
     return d;
   }
-  function ckSave(d) { try { store.set(KEY, JSON.stringify(d)); } catch (e) {} }
+  // #1519：查岗题库整包写＝读-改-写。大键没读全时把「纯预设＋本次改动」写回＝自定义题被清空，
+  //   判据与文案同 ta-ask（xyBigWriteBlocked 拦下时照实 toast、绝不落笔；回填后再点一次即可）
+  function ckSave(d) {
+    if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, KEY, '查岗问题库')) return;
+    try { store.set(KEY, JSON.stringify(d)); } catch (e) {}
+  }
 
   // ---------- 抽题：已启用池内随机，避免与上一题相同 ----------
   // #1315：整类停用（共用件 window.presetGroup，键 pg-groups-off）——只闸系统预设题，

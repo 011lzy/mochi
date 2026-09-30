@@ -63,6 +63,7 @@ return changed;
 function tiLoad() {
 let d = null;
 try { d = JSON.parse(store.get(KEY) || 'null'); } catch (e) { d = null; }
+if (!d) { try { if (store.awaitingBigKey && store.awaitingBigKey(KEY)) store.requestBigKey(KEY); } catch (e0) {} }
 if (!d || typeof d !== 'object' || Array.isArray(d)) d = {};
 if (!d.settings || typeof d.settings !== 'object') d.settings = {};
 if (d.settings.useDefault === undefined) d.settings.useDefault = true;
@@ -81,7 +82,10 @@ if (tiMerge(d)) { try { store.set(KEY, JSON.stringify(d)); } catch (e) {} }
 if (!Array.isArray(d.groups)) d.groups = [];
 return d;
 }
-function tiSave(d) { try { store.set(KEY, JSON.stringify(d)); } catch (e) {} }
+function tiSave(d) {
+if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, KEY, '邀请字卡库')) return;
+try { store.set(KEY, JSON.stringify(d)); } catch (e) {}
+}
 function pickFrom(pool, lastId) {
 if (!pool || !pool.length) return null;
 let list = pool;

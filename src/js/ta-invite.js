@@ -80,6 +80,9 @@
   function tiLoad() {
     let d = null;
     try { d = JSON.parse(store.get(KEY) || 'null'); } catch (e) { d = null; }
+    // #1519：读空但库里本该有＝大键没读全，当场请库取回一次（#1349a 单次飞行闸）；这一拍仍按旧形状
+    //   走（播种纯预设只在内存里，isNew 守卫不写盘），下一拍读到权威值
+    if (!d) { try { if (store.awaitingBigKey && store.awaitingBigKey(KEY)) store.requestBigKey(KEY); } catch (e0) {} }
     if (!d || typeof d !== 'object' || Array.isArray(d)) d = {};
     if (!d.settings || typeof d.settings !== 'object') d.settings = {};
     if (d.settings.useDefault === undefined) d.settings.useDefault = true;
@@ -99,7 +102,12 @@
     if (!Array.isArray(d.groups)) d.groups = [];
     return d;
   }
-  function tiSave(d) { try { store.set(KEY, JSON.stringify(d)); } catch (e) {} }
+  // #1519：邀请字卡库整包写＝读-改-写。大键没读全时把「纯预设＋本次改动」写回＝自定义内容被清空，
+  //   判据与文案同 ta-ask（xyBigWriteBlocked 拦下时照实 toast、绝不落笔；回填后再点一次即可）
+  function tiSave(d) {
+    if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, KEY, '邀请字卡库')) return;
+    try { store.set(KEY, JSON.stringify(d)); } catch (e) {}
+  }
 
   // ---------- 抽取 ----------
   // 池内随机并避免连抽同一张
