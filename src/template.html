@@ -4916,6 +4916,8 @@
         <button class="fav-tab" data-htab="cuddle">邀请贴贴</button>
         <!-- v3.26.x：占卜记录（占卜页抽牌选了对象，牌面与解读存入该联系人桌面 records-divine） -->
         <button class="fav-tab" data-htab="divine">占卜记录</button>
+        <!-- #1493：情话存档（quote-history 每天一条的整本，按月折叠＋单条删除） -->
+        <button class="fav-tab" data-htab="quotes">情话存档</button>
       </div>
       <div class="cal-scroll">
         <div class="cal-card glass" data-hpanel="av">
@@ -4976,6 +4978,11 @@
         <div class="cal-card glass" data-hpanel="divine" hidden>
           <div class="cal-card-title">占卜记录</div>
           <div id="home-divine"></div>
+        </div>
+        <!-- #1493：情话存档列表 -->
+        <div class="cal-card glass" data-hpanel="quotes" hidden>
+          <div class="cal-card-title">情话存档</div>
+          <div id="home-quotes"></div>
         </div>
       </div>
     </div>

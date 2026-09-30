@@ -7364,11 +7364,13 @@ el.style.fontSize = fs + 'px';
 }
 });
 try {
+if (!window.xyBigWriteHold || !window.xyBigWriteHold(store, 'quote-history')) {
 const today = fishToday();
 const list = JSON.parse(store.get('quote-history') || '[]');
 if (!list.length || list[0].date !== today) {
 list.unshift({ date: today, text: text, ts: Date.now() });
 store.set('quote-history', JSON.stringify(list));
+}
 }
 } catch (e) {}
 }

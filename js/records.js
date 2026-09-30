@@ -111,10 +111,43 @@ window.__renderHomeCoin = function () {
 if (htab === 'coinearn') renderCoinPanel('earn');
 else if (htab === 'coinask') renderCoinPanel('ask');
 };
+function renderQuotePanel() {
+const el = document.getElementById('home-quotes');
+if (!el) return;
+const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+let list = [];
+try { list = JSON.parse(store.get('quote-history') || '[]'); } catch (e) { list = []; }
+if (!Array.isArray(list)) list = [];
+const items = list.map((x) => ({ ts: Number(x.ts) || 0, html:
+'<div class="tc-listitem"><div class="tc-li-top"><span class="tc-li-q">💬 ' + esc(x.text || '') + '</span><span class="tc-li-time">' + esc(x.date || '') + '</span>' + window.mochiHistDel('q|' + (Number(x.ts) || 0) + '|' + String(x.date || ''), '情话存档 · ' + esc(x.date || '')) + '</div></div>'
+}));
+el.innerHTML = window.mochiHistFold(items, {
+key: 'records-quotes',
+empty: recEmpty('<div class="ta-empty">暂无情话存档（主页「今日情话」每天会自动存一条）</div>'),
+todayEmpty: '<div class="dc-h-day-empty">今天的情话在主页卡上</div>'
+});
+window.mochiHistDelBind(el, {
+title: '删除这条情话存档？',
+onDel: function (k) {
+const p = String(k).split('|');
+const ts = Number(p[1]) || 0, date = p.slice(2).join('|');
+let arr = [];
+try { arr = JSON.parse(store.get('quote-history') || '[]'); } catch (e) { arr = []; }
+if (!Array.isArray(arr)) arr = [];
+const i = arr.findIndex(function (x) { return x && (Number(x.ts) || 0) === ts && String(x.date || '') === date; });
+if (i < 0) { if (typeof window.toast === 'function') window.toast('这条已经变了，没有删掉任何内容'); return; }
+if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, 'quote-history', '情话存档')) return;
+arr.splice(i, 1);
+try { store.set('quote-history', JSON.stringify(arr)); } catch (e) {}
+renderQuotePanel();
+if (typeof window.toast === 'function') window.toast('已删除这条情话存档');
+}
+});
+}
 function caresLoad() {
 try { return JSON.parse(store.get('records-care') || '[]'); } catch (e) { return []; }
 }
-function caresSave(list) { store.set('records-care', JSON.stringify(list.slice(0, 100))); }
+function caresSave(list) { if (window.xyBigWriteHold && window.xyBigWriteHold(store, 'records-care')) return; store.set('records-care', JSON.stringify(list)); } // #1493 作者「要保存所有记录」＝拆掉 100 条封顶；读不全先让路
 window.addCareRecord = function (kind, text, ts) {
 const list = caresLoad();
 list.unshift({ kind: kind, text: text || '', ts: ts || Date.now() });
@@ -125,11 +158,12 @@ if (hp && !hp.hidden && (htab === 'care' || (htab === 'xck' && kind === 'desk-ch
 window.addCareRecordFor = function (cid, kind, text, ts, res) {
 try {
 const s = (cid && window.storeFor) ? window.storeFor(cid) : store;
+if (window.xyBigWriteHold && window.xyBigWriteHold(s, 'records-care')) return; // #1493 读不全先让路（错过的跨桌面查岗唯一留痕，更不许顶库）
 let list = [];
 try { list = JSON.parse(s.get('records-care') || '[]'); } catch (e) { list = []; }
 if (!Array.isArray(list)) list = [];
 list.unshift({ kind: kind, text: text || '', ts: ts || Date.now(), res: res || '' });
-s.set('records-care', JSON.stringify(list.slice(0, 100)));
+s.set('records-care', JSON.stringify(list)); // #1493 拆封顶（错过未回应只落这里＝唯一留痕，不许裁）
 if (cid === (window.__activeCid || 'default')) {
 const hp = document.getElementById('page-home');
 if (hp && !hp.hidden && htab === 'xck') renderXckPanel();
@@ -183,7 +217,7 @@ const name = dispName();
 const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 const KIND_ICON = { period: '🌸', sym: '💊', water: '💧', eat: '🍚', pomo: '🍅' }; // #1474 加 sym
 const rows = [];
-caresLoad().forEach(r => { if (r.kind === 'pomo') rows.push({ icon: '🍅', main: '番茄钟陪伴', sub: fmtDT(r.ts), ts: r.ts }); });
+caresLoad().forEach(r => { if (r.kind === 'pomo') rows.push({ icon: '🍅', main: '番茄钟陪伴', sub: fmtDT(r.ts), ts: r.ts, del: window.mochiHistDel('p|' + (Number(r.ts) || 0), '番茄钟陪伴 · ' + fmtDT(r.ts)) }); }); // #1493 自有数组行可单删（聊天回溯行仍不动＝删原文回聊天页）
 let msgs = [];
 try { msgs = (window.getChatMsgs ? window.getChatMsgs() : JSON.parse(store.get('chat-msgs') || '[]')); } catch (e) {}
 (msgs || []).forEach(m => {
@@ -197,9 +231,24 @@ else if (tag === '吃饭提醒') rows.push({ icon: KIND_ICON.eat, main: '提醒�
 });
 if (!rows.length) { el.innerHTML = recEmpty('<div class="ta-empty">暂无联系人的关心记录（TA 会提醒你喝水吃饭、关心经期与症状、陪你专注；查岗看「联系人对我查岗」与「联系人跨桌面查岗」两栏）</div>'); return; }
 rows.sort((a, b) => (b.ts || 0) - (a.ts || 0));
-el.innerHTML = window.mochiHistFold(rows.map(r => ({ ts: Number(r.ts) || 0, html: '<div class="tc-listitem"><div class="tc-li-top"><span class="tc-li-q">' + r.icon + ' ' + r.main + '</span><span class="tc-li-time">' + r.sub + '</span></div></div>' })), {
+el.innerHTML = window.mochiHistFold(rows.map(r => ({ ts: Number(r.ts) || 0, html: '<div class="tc-listitem"><div class="tc-li-top"><span class="tc-li-q">' + r.icon + ' ' + r.main + '</span><span class="tc-li-time">' + r.sub + '</span>' + (r.del || '') + '</div></div>' })), {
 key: 'records-care',
 todayEmpty: '<div class="dc-h-day-empty">今天暂无关心记录</div>'
+});
+window.mochiHistDelBind(el, {
+title: '删除这条番茄陪伴记录？',
+onDel: function (k) {
+if (String(k).indexOf('p|') !== 0) return;
+const ts = Number(String(k).slice(2)) || 0;
+const arr = caresLoad();
+const i = arr.findIndex(function (x) { return x && x.kind === 'pomo' && (Number(x.ts) || 0) === ts; });
+if (i < 0) { if (typeof window.toast === 'function') window.toast('这条已经变了，没有删掉任何内容'); return; }
+if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, 'records-care', '关心记录')) return;
+arr.splice(i, 1);
+caresSave(arr);
+render();
+if (typeof window.toast === 'function') window.toast('已删除这条番茄陪伴记录');
+}
 });
 }
 function renderCkPanel() {
@@ -464,6 +513,9 @@ renderCuddlePanel();
 }
 if (showOnly === 'divine') {
 renderDivinePanel();
+}
+if (showOnly === 'quotes') {
+renderQuotePanel();
 }
 if (showOnly === 'av') {
 const avEl = document.getElementById('home-av');

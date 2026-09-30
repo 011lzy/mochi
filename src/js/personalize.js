@@ -9129,12 +9129,15 @@ try {
       }
     });
     // 今日情话存档：每天一条，全部历史保存在主页（同一天不重复）
+    // #1493：读不全先让路（quote-history 大键化后冷读空＝拿空档 unshift 会把整本存档顶掉；今天这句主页照常显示）
     try {
-      const today = fishToday();
-      const list = JSON.parse(store.get('quote-history') || '[]');
-      if (!list.length || list[0].date !== today) {
-        list.unshift({ date: today, text: text, ts: Date.now() });
-        store.set('quote-history', JSON.stringify(list));
+      if (!window.xyBigWriteHold || !window.xyBigWriteHold(store, 'quote-history')) {
+        const today = fishToday();
+        const list = JSON.parse(store.get('quote-history') || '[]');
+        if (!list.length || list[0].date !== today) {
+          list.unshift({ date: today, text: text, ts: Date.now() });
+          store.set('quote-history', JSON.stringify(list));
+        }
       }
     } catch (e) {}
   }

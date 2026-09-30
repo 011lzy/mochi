@@ -641,7 +641,8 @@ function renderCheckinHistory() {
   }
   // #1403：作者「用户又不一定要保存那么多记录」——折叠之外还要能按条删。只删选中那一条，
   // 不做整表清空、也不靠封顶裁条；写回与新增同一条路（store.set ＋ idbSet 双写当前桌面键）
-  function delCheckinHistory(key) {
+  function delCheckinHistory(key) { if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, 'checkin-history', '寻踪记录')) return; // #1493 删除也是读改写：读不全先按住
+
     let h = [];
     try { h = JSON.parse(store.get('checkin-history') || '[]'); } catch (e) { return; }
     const i = parseInt(String(key).replace(/^i/, ''), 10);
@@ -785,7 +786,8 @@ function renderCheckinHistory() {
     if (msg) msg.textContent = ck.msg || '';
     if (status) status.textContent = name + ' 的日常';
   }
-  function recordCheckin(ck) {
+  function recordCheckin(ck) { if (window.xyBigWriteHold && window.xyBigWriteHold(store, 'checkin-history')) return; // #1493 读不全先让路（#1403 已给这页折叠＋单删，这里补大键化后的顶库闸）
+
     // v3.6.x：undefined 字段不写入记录（JSON.stringify 自动丢弃 undefined 键）
     const entry = { t: fmtTime(Date.now()), place: ck.place, action: ck.action, msg: ck.msg, ts: Date.now() };
     try {
@@ -1655,7 +1657,8 @@ if (ckRefresh) {
   function saveCur(v) { store.set('loc-current', v ? JSON.stringify(v) : ''); }
 
   function loadHist() { try { return JSON.parse(store.get('loc-history') || '[]'); } catch (e) { return []; } }
-  function saveHist(list) {
+  function saveHist(list) { if (window.xyBigWriteHold && window.xyBigWriteHold(store, 'loc-history')) return; // #1493 读不全先让路：这一格大键化后冷读空＝拿空账追加＝顶掉整本位置历史
+
     const s = JSON.stringify(list);
     store.set('loc-history', s);
     try { if (window.idbSet) window.idbSet(window.activePrefix() + ':loc-history', s); } catch (e) {}
@@ -1871,7 +1874,7 @@ if (ckRefresh) {
       html += '<div class="loc-timeline">' + dayHist.map(h => {
         const tag = LOC_LABEL[h.type] || '';
         const auto = h.auto ? '<span class="loc-tl-auto">TA</span>' : '';
-        return '<div class="loc-tl-item"><span class="loc-tl-time">' + fmtT(h.ts) + '</span><span class="loc-tl-text">' + esc(h.text) + '</span><span class="loc-tl-tag">' + esc(tag) + '</span>' + auto + '</div>';
+        return '<div class="loc-tl-item"><span class="loc-tl-time">' + fmtT(h.ts) + '</span><span class="loc-tl-text">' + esc(h.text) + '</span><span class="loc-tl-tag">' + esc(tag) + '</span>' + auto + window.mochiHistDel('k|' + (Number(h.ts) || 0) + '|' + esc(h.text), (LOC_LABEL[h.type] || '位置卡') + ' · ' + esc(h.text)) + '</div>'; // #1493 单条删除
       }).join('') + '</div>';
       html += '<div class="loc-day-count">共 ' + dayHist.length + ' 条</div>';
     } else {
@@ -1894,6 +1897,22 @@ if (ckRefresh) {
     html += '<button class="loc-ask-btn" id="loc-ask-btn">问 TA 一声「你在哪？」</button>';
 
     body.innerHTML = html;
+    // #1493：时间线单条删除（身份＝ts+原文，写回按值认；认不到就如实说没删，宁可不删不删错）
+    window.mochiHistDelBind(body, {
+      title: '删除这条位置记录？',
+      onDel: function (k) {
+        const p = String(k).split('|');
+        const ts = Number(p[1]) || 0, tx = p.slice(2).join('|');
+        const arr = loadHist();
+        const i = arr.findIndex(function (x) { return x && (Number(x.ts) || 0) === ts && String(x.text || '') === tx; });
+        if (i < 0) { if (typeof window.toast === 'function') window.toast('这条已经变了，没有删掉任何内容'); return; }
+        if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, 'loc-history', '位置记录')) return;
+        arr.splice(i, 1);
+        saveHist(arr);
+        renderLocPanel();
+        if (typeof window.toast === 'function') window.toast('已删除这条位置记录');
+      }
+    });
 
     const askBtn = document.getElementById('loc-ask-btn');
     if (askBtn) askBtn.addEventListener('click', askWhere);

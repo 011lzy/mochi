@@ -549,7 +549,7 @@ todayEmpty: '<div class="dc-h-day-empty">今天暂无寻踪记录</div>'
 });
 } catch (e) {}
 }
-function delCheckinHistory(key) {
+function delCheckinHistory(key) { if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, 'checkin-history', '寻踪记录')) return; // #1493 删除也是读改写：读不全先按住
 let h = [];
 try { h = JSON.parse(store.get('checkin-history') || '[]'); } catch (e) { return; }
 const i = parseInt(String(key).replace(/^i/, ''), 10);
@@ -674,7 +674,7 @@ if (action) action.textContent = ck.action || '';
 if (msg) msg.textContent = ck.msg || '';
 if (status) status.textContent = name + ' 的日常';
 }
-function recordCheckin(ck) {
+function recordCheckin(ck) { if (window.xyBigWriteHold && window.xyBigWriteHold(store, 'checkin-history')) return; // #1493 读不全先让路（#1403 已给这页折叠＋单删，这里补大键化后的顶库闸）
 const entry = { t: fmtTime(Date.now()), place: ck.place, action: ck.action, msg: ck.msg, ts: Date.now() };
 try {
 const h = JSON.parse(store.get('checkin-history') || '[]');
@@ -1431,7 +1431,7 @@ const EGG_COOLDOWN = 7 * 24 * 3600 * 1000;
 function loadCur() { try { return JSON.parse(store.get('loc-current') || 'null'); } catch (e) { return null; } }
 function saveCur(v) { store.set('loc-current', v ? JSON.stringify(v) : ''); }
 function loadHist() { try { return JSON.parse(store.get('loc-history') || '[]'); } catch (e) { return []; } }
-function saveHist(list) {
+function saveHist(list) { if (window.xyBigWriteHold && window.xyBigWriteHold(store, 'loc-history')) return; // #1493 读不全先让路：这一格大键化后冷读空＝拿空账追加＝顶掉整本位置历史
 const s = JSON.stringify(list);
 store.set('loc-history', s);
 try { if (window.idbSet) window.idbSet(window.activePrefix() + ':loc-history', s); } catch (e) {}
@@ -1607,7 +1607,7 @@ if (dayHist.length) {
 html += '<div class="loc-timeline">' + dayHist.map(h => {
 const tag = LOC_LABEL[h.type] || '';
 const auto = h.auto ? '<span class="loc-tl-auto">TA</span>' : '';
-return '<div class="loc-tl-item"><span class="loc-tl-time">' + fmtT(h.ts) + '</span><span class="loc-tl-text">' + esc(h.text) + '</span><span class="loc-tl-tag">' + esc(tag) + '</span>' + auto + '</div>';
+return '<div class="loc-tl-item"><span class="loc-tl-time">' + fmtT(h.ts) + '</span><span class="loc-tl-text">' + esc(h.text) + '</span><span class="loc-tl-tag">' + esc(tag) + '</span>' + auto + window.mochiHistDel('k|' + (Number(h.ts) || 0) + '|' + esc(h.text), (LOC_LABEL[h.type] || '位置卡') + ' · ' + esc(h.text)) + '</div>'; // #1493 单条删除
 }).join('') + '</div>';
 html += '<div class="loc-day-count">共 ' + dayHist.length + ' 条</div>';
 } else {
@@ -1623,6 +1623,21 @@ html += '<div class="set-group glass" style="margin:14px 2px 0">'
 + '<div class="gs-sub" style="padding:0 2px 10px">TA 自动换位：开启后每 2～6 小时随机换一次位置（关掉后到点也不换；「问 TA 一声」不受影响）。换位内容 70% 是陪伴卡（在你身边／一直没走远等），30% 从字卡库启用的位置卡里随机；每次换位都会记进「位置时间线」，换位内容与上一次不同时才算「换了位置」才弹提醒。<br>换位提醒弹窗：TA 自动换位置时顶部弹的黑色轻提示。<br>换位发到聊天：关掉后 TA 自动换位只记进「位置时间线」，不再发进聊天记录。<br>方位感知的【感知一下】：点了就先让 TA 当场换一次位置、再按新位置报方位，不用等那发 2～6 小时（不用打开任何开关，点了就是换）；它不受「TA 自动换位」总开关与夜间静默管（那两枚管的是 TA 自己到点来打扰），发进聊天与弹提醒仍照上面两枚开关。</div>';
 html += '<button class="loc-ask-btn" id="loc-ask-btn">问 TA 一声「你在哪？」</button>';
 body.innerHTML = html;
+window.mochiHistDelBind(body, {
+title: '删除这条位置记录？',
+onDel: function (k) {
+const p = String(k).split('|');
+const ts = Number(p[1]) || 0, tx = p.slice(2).join('|');
+const arr = loadHist();
+const i = arr.findIndex(function (x) { return x && (Number(x.ts) || 0) === ts && String(x.text || '') === tx; });
+if (i < 0) { if (typeof window.toast === 'function') window.toast('这条已经变了，没有删掉任何内容'); return; }
+if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, 'loc-history', '位置记录')) return;
+arr.splice(i, 1);
+saveHist(arr);
+renderLocPanel();
+if (typeof window.toast === 'function') window.toast('已删除这条位置记录');
+}
+});
 const askBtn = document.getElementById('loc-ask-btn');
 if (askBtn) askBtn.addEventListener('click', askWhere);
 const bindLocTg = function (id, key) {

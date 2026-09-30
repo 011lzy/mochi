@@ -6349,6 +6349,16 @@ const FIX_SENTINELS = [
   { name: '#1487c 语音波形条同口径（钉回 var(--ink) 或白＝浅色气泡上波形隐形复发）', file: 'css/chat-main.css', needle: 'width:3px; border-radius:2px; background:currentColor; opacity:.45;' },
   { name: '#1487d out 侧不再钉死白色（回流＝作者报障原文：白气泡上只剩「语音 2″」四个字）', file: 'css/chat-main.css', needle: '.msg-out .msg-voice-play { color:inherit; }' },
   { name: '#1487e 深色模式那份钉色兜底已退役（回流＝深色主题＋浅色气泡又把钮刷回浅色＝又隐形）', file: 'css/dark.css', needle: '[data-theme="dark"] .msg-voice-play { background:var(--dark-card)', absent: true },
+  { name: '#1493a 定位时间线单条删除（删＝位置历史只能整页看，作者「能单独删除数据」落空）', file: 'js/p2-features.js', needle: 'window.mochiHistDelBind(body, {' },
+  { name: '#1493b 位置历史写路闸（删＝大键化后冷读空时追加把整本顶掉）', file: 'js/p2-features.js', needle: "function saveHist(list) { if (window.xyBigWriteHold && window.xyBigWriteHold(store, 'loc-history')) return;" },
+  { name: '#1493c 查岗记录追加闸（删＝同上，#1403 的折叠＋单删会被一发空读整包顶掉）', file: 'js/p2-features.js', needle: "function recordCheckin(ck) { if (window.xyBigWriteHold && window.xyBigWriteHold(store, 'checkin-history')) return;" },
+  { name: '#1493d 查岗记录删除闸（删＝删除也是读改写，读不全时删一条＝把没读回来的一起抹掉）', file: 'js/p2-features.js', needle: "function delCheckinHistory(key) { if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, 'checkin-history', '寻踪记录')) return;" },
+  { name: '#1493e 关心记录拆 100 条封顶＋写路闸（删＝错过的跨桌面查岗唯一留痕被静默裁掉，作者「要保存所有记录」落空）', file: 'js/records.js', needle: "function caresSave(list) { if (window.xyBigWriteHold && window.xyBigWriteHold(store, 'records-care')) return; store.set('records-care', JSON.stringify(list)); }" },
+  { name: '#1493f 跨桌面查岗落账拆封顶（删＝addCareRecordFor 那条路还在 slice(0,100)）', file: 'js/records.js', needle: "s.set('records-care', JSON.stringify(list)); // #1493 拆封顶" },
+  { name: '#1493g 关心栏番茄行单删委托（删＝自有数组行「能单独删除」落空）', file: 'js/records.js', needle: "title: '删除这条番茄陪伴记录？'," },
+  { name: '#1493h 情话存档面板（删＝quote-history 整本仍然无列表可看可删）', file: 'js/records.js', needle: 'function renderQuotePanel()' },
+  { name: '#1493i 情话每日追加闸（删＝存档大键化后冷读 unshift 顶掉整本）', file: 'js/personalize.js', needle: "if (!window.xyBigWriteHold || !window.xyBigWriteHold(store, 'quote-history')) {" },
+  { name: '#1493j 情话存档入口进记录页 tab（删＝整本依旧无处可看）', file: 'index.html', needle: 'data-htab="quotes"' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

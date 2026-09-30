@@ -139,12 +139,48 @@
     if (htab === 'coinearn') renderCoinPanel('earn');
     else if (htab === 'coinask') renderCoinPanel('ask');
   };
+  // ---- #1493 情话存档（quote-history 每天一条，此前只在日历按天可查；这里给整本一个折叠列表＋单条删除） ----
+  // 只认 {date,text,ts}；删除按 ts+date 认条（认不到宁可说不删）；写路接 #1488 同款闸
+  function renderQuotePanel() {
+    const el = document.getElementById('home-quotes');
+    if (!el) return;
+    const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    let list = [];
+    try { list = JSON.parse(store.get('quote-history') || '[]'); } catch (e) { list = []; }
+    if (!Array.isArray(list)) list = [];
+    const items = list.map((x) => ({ ts: Number(x.ts) || 0, html:
+      '<div class="tc-listitem"><div class="tc-li-top"><span class="tc-li-q">💬 ' + esc(x.text || '') + '</span><span class="tc-li-time">' + esc(x.date || '') + '</span>' + window.mochiHistDel('q|' + (Number(x.ts) || 0) + '|' + String(x.date || ''), '情话存档 · ' + esc(x.date || '')) + '</div></div>'
+    }));
+    el.innerHTML = window.mochiHistFold(items, {
+      key: 'records-quotes',
+      empty: recEmpty('<div class="ta-empty">暂无情话存档（主页「今日情话」每天会自动存一条）</div>'),
+      todayEmpty: '<div class="dc-h-day-empty">今天的情话在主页卡上</div>'
+    });
+    window.mochiHistDelBind(el, {
+      title: '删除这条情话存档？',
+      onDel: function (k) {
+        const p = String(k).split('|');
+        const ts = Number(p[1]) || 0, date = p.slice(2).join('|');
+        let arr = [];
+        try { arr = JSON.parse(store.get('quote-history') || '[]'); } catch (e) { arr = []; }
+        if (!Array.isArray(arr)) arr = [];
+        const i = arr.findIndex(function (x) { return x && (Number(x.ts) || 0) === ts && String(x.date || '') === date; });
+        if (i < 0) { if (typeof window.toast === 'function') window.toast('这条已经变了，没有删掉任何内容'); return; }
+        if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, 'quote-history', '情话存档')) return;
+        arr.splice(i, 1);
+        try { store.set('quote-history', JSON.stringify(arr)); } catch (e) {}
+        renderQuotePanel();
+        if (typeof window.toast === 'function') window.toast('已删除这条情话存档');
+      }
+    });
+  }
+
   // ---- 联系人的关心/提醒记录（v3.16.x：查岗 / 经期关心 / 喝水提醒 / 吃饭提醒 / 番茄陪伴） ----
   // 事件低频、按联系人桌面隔离；番茄陪伴只记时间不记内容
   function caresLoad() {
     try { return JSON.parse(store.get('records-care') || '[]'); } catch (e) { return []; }
   }
-  function caresSave(list) { store.set('records-care', JSON.stringify(list.slice(0, 100))); }
+  function caresSave(list) { if (window.xyBigWriteHold && window.xyBigWriteHold(store, 'records-care')) return; store.set('records-care', JSON.stringify(list)); } // #1493 作者「要保存所有记录」＝拆掉 100 条封顶；读不全先让路
   // kind: checkin=查岗 / period=经期关心 / water=喝水提醒 / eat=吃饭提醒 / pomo=番茄陪伴
   // v3.17.x：desk-checkin=桌面查岗（跨桌面「来消息」触发的查岗，记到【该联系人自己桌面】的
   // records-care）。#1435 起这一类不再在「TA的关心」里出现，改由主页「联系人跨桌面查岗」一栏
@@ -164,11 +200,12 @@
   window.addCareRecordFor = function (cid, kind, text, ts, res) {
     try {
       const s = (cid && window.storeFor) ? window.storeFor(cid) : store;
+      if (window.xyBigWriteHold && window.xyBigWriteHold(s, 'records-care')) return; // #1493 读不全先让路（错过的跨桌面查岗唯一留痕，更不许顶库）
       let list = [];
       try { list = JSON.parse(s.get('records-care') || '[]'); } catch (e) { list = []; }
       if (!Array.isArray(list)) list = [];
       list.unshift({ kind: kind, text: text || '', ts: ts || Date.now(), res: res || '' });
-      s.set('records-care', JSON.stringify(list.slice(0, 100)));
+      s.set('records-care', JSON.stringify(list)); // #1493 拆封顶（错过未回应只落这里＝唯一留痕，不许裁）
       // 记录落在【那个联系人自己的桌面】；只有它正是当前桌面、且主页停在这两栏之一时才重画
       if (cid === (window.__activeCid || 'default')) {
         const hp = document.getElementById('page-home');
@@ -232,7 +269,7 @@
     const KIND_ICON = { period: '🌸', sym: '💊', water: '💧', eat: '🍚', pomo: '🍅' }; // #1474 加 sym
     const rows = [];
     // 1) 番茄陪伴：records-care 里的 pomo 记录（只记时间）
-    caresLoad().forEach(r => { if (r.kind === 'pomo') rows.push({ icon: '🍅', main: '番茄钟陪伴', sub: fmtDT(r.ts), ts: r.ts }); });
+    caresLoad().forEach(r => { if (r.kind === 'pomo') rows.push({ icon: '🍅', main: '番茄钟陪伴', sub: fmtDT(r.ts), ts: r.ts, del: window.mochiHistDel('p|' + (Number(r.ts) || 0), '番茄钟陪伴 · ' + fmtDT(r.ts)) }); }); // #1493 自有数组行可单删（聊天回溯行仍不动＝删原文回聊天页）
     // 2) 经期 / 喝水 / 吃饭：从聊天记录的 mood tag 回溯
     // #1435（作者「移出来，各归各 tab」）：这一栏原有的两类查岗行不再在这儿现算——
     //  · 本桌面的查岗卡 → 主页「联系人对我查岗」（renderCkPanel）
@@ -259,9 +296,25 @@
     // 限制（chat.js 的 del 分支），从汇总页绕过它＝造出第二份真相与「删了又回来」的新竞态。
     // 所以这一栏的职责是「看全」，要清就回那条消息所在的地方清；能按条删的都是本站自己的数组
     // （寻踪记录、摸鱼/打工值、心意柜、提问记录五档、#1435 的邀请贴贴）。
-    el.innerHTML = window.mochiHistFold(rows.map(r => ({ ts: Number(r.ts) || 0, html: '<div class="tc-listitem"><div class="tc-li-top"><span class="tc-li-q">' + r.icon + ' ' + r.main + '</span><span class="tc-li-time">' + r.sub + '</span></div></div>' })), {
+    el.innerHTML = window.mochiHistFold(rows.map(r => ({ ts: Number(r.ts) || 0, html: '<div class="tc-listitem"><div class="tc-li-top"><span class="tc-li-q">' + r.icon + ' ' + r.main + '</span><span class="tc-li-time">' + r.sub + '</span>' + (r.del || '') + '</div></div>' })), {
       key: 'records-care',
       todayEmpty: '<div class="dc-h-day-empty">今天暂无关心记录</div>'
+    });
+    // #1493：只有自有数组行（番茄陪伴）挂着删除件；委托按前缀认（聊天回溯行没有删除件，天然不进这条）
+    window.mochiHistDelBind(el, {
+      title: '删除这条番茄陪伴记录？',
+      onDel: function (k) {
+        if (String(k).indexOf('p|') !== 0) return;
+        const ts = Number(String(k).slice(2)) || 0;
+        const arr = caresLoad();
+        const i = arr.findIndex(function (x) { return x && x.kind === 'pomo' && (Number(x.ts) || 0) === ts; });
+        if (i < 0) { if (typeof window.toast === 'function') window.toast('这条已经变了，没有删掉任何内容'); return; }
+        if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(store, 'records-care', '关心记录')) return;
+        arr.splice(i, 1);
+        caresSave(arr);
+        render();
+        if (typeof window.toast === 'function') window.toast('已删除这条番茄陪伴记录');
+      }
     });
   }
   // ---- 联系人对我查岗（#1435：从「TA的关心」搬出来单列）----
@@ -582,6 +635,10 @@
     // 占卜记录（v3.26.x：抽牌选了对象，存该联系人桌面 records-divine）
     if (showOnly === 'divine') {
       renderDivinePanel();
+    }
+    // #1493：情话存档（quote-history 每天一条的整本列表）
+    if (showOnly === 'quotes') {
+      renderQuotePanel();
     }
     // 换头像记录（全部事件：直接换 / 邀请同意 / 邀请拒绝 / 我手动更换）
     if (showOnly === 'av') {
