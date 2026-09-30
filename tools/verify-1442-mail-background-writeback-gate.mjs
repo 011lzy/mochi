@@ -50,10 +50,13 @@
 //     丙5【症状本体】读空那一发不许烧掉还没寄的那一周的标记／丙6 读空那一发库里只许多不许少
 //   丁 快照那一层在 LS 死透的机器上到底存不存在：丁0 开枪落在读空那一格／丁1【症状本体】快照键真在库里
 //     （原实现只躺 LS，这台机整域写不进＝兜底恒 0 字节）／丁2 重开后 20 封旧信一封不少（控制项）／
-//     丁3【症状本体】把主键从库里删掉再重开，屏上仍是那些信而不是「还没有收到信」／
-//     丁4 用户亲手清空照旧落库／丁5 清空后快照跟着销账（不许复活已删的信）
-//     ⚠ 如实交底：读空那一班（亚秒级窗口）里用户亲手寄出的那**一封**仍只在内存＋快照，重开不并回主键
-//       ——这是 #1358f 既有的暂存语义，本批没扩；本批修的是「整本被顶掉」这一条，也是报障本体。
+//     丁3【症状本体】把主键删掉再重开，屏上仍是那些信而不是「还没有收到信」；丁3a 那一删走应用自己那句
+//       remove——绕过数据层直接动 IndexedDB 会留下「这一格还等库回话」的假残缺，把 #1469 的「读不全⇒
+//       删除/清空按住」永久挡在丁4~丁6 前面，丁6 就量不到它自己要量的东西（实测两侧红绿搬家一次）／
+//     丁4 用户亲手清空照旧落库（真要按住也必须给那句提示，不许点了什么都不发生）／丁5 清空后快照要么销账
+//       要么不可能再被读到／丁6【用户看得见的那一本】清空后 9 秒库里与屏上同为空态（迟到的读回不许复活）
+//     注：读空那一班里用户亲手寄出的那**一封**，从 #1469 起另有一条能活过页面回收的腿（信箱旁路账），
+//       那一型由 tools/verify-1469-mail-hold-and-blocked-delete.mjs 的 A 组量；#1442 本批只修「整本被顶掉」。
 //   F 组 夹具诚实（双侧同绿控制项）：两本真在库、跨过 256KB、LS 这一场真写不进、回填照旧成功
 //   S 组 产物逻辑锚；Z 全程零未捕获 JS 异常
 import { createServer } from 'node:http';
@@ -335,6 +338,7 @@ console.log('\n== 丙组：到期回信与周小结这两条同族通路 ==');
     const s = window.xyStore('xy-home-v2:default');
     s.set('mail-reply-pending', JSON.stringify([{ id: 'seed_7', content: '第二发取证回信', due: Date.now() - 60000 }]));
     s.set('mail-letter-last', '0'); s.set('mail-letter-next', '0');
+    s.set('reply-ml-fish-week-en', '0'); // 健康阶段不让小结有机会寄出：应用那支 20~60s 无条件钟会抢在举旗之前把标记合法烧掉
   });
   await setCfgEn('xy-home-v2:default', true);
   await page.waitForTimeout(5300);
@@ -342,15 +346,31 @@ console.log('\n== 丙组：到期回信与周小结这两条同族通路 ==');
   const c0 = await blindState();
   // 周小结的时钟改到「还没寄的那一周」——必须在切后台之后再拨，早拨的话应用自己那支 20~60s 定时钟
   // 会在读数在场时把这一周的标记合法寄掉一次，丙5 就变成量具自己造出来的假红（踩过）
-  await page.evaluate(() => { window.__fishWeekNowOverride = () => new Date(2026, 8, 20, 19, 0); });
+  await page.evaluate(() => {
+    window.__fishWeekNowOverride = () => new Date(2026, 8, 20, 19, 0);
+    window.xyStore('xy-home-v2:default').set('reply-ml-fish-week-en', '1'); // 只在这一枪起允许小结
+  });
   ok(c0.await1 === true && c0.unconf >= 1, '丙0 这一班确实落在读空那一发（否则丙3~丙6 无意义）', JSON.stringify({ a: c0.await1, u: c0.unconf }));
   // 这一班只打 focus（eagerCheck 直调三条通路，5.3s 前已跨过它的 5s 节流）——不调 openMailPage：
   // 它 render→load→get，而 get 命中空格会当场踢一趟按需取回（#1349a），量具自己把读数取回来，
   // 应用那支 20~60s 的一次性钟再落进来就是「合法寄出」，丙5 的当场读数会红成量具自己造的假红（踩过两轮）
-  await fire();
-  // 周标记当场读：应用自己那支 20~60s 的一次性定时钟（setTimeout 里无条件调 fishWeekTick）会在读数
-  // 恢复在场之后把这一周合法寄掉一次——那是要的结果，但不是本条要量的东西，所以只认开枪这一刻的读数
-  const mk3 = await markOf('9-20');
+  let mk3 = { m: null, blindAtShot: false, tries: 0 };
+  // 丙5＝「读空那一发不许烧掉还没寄的那一周的标记」：开枪必须真落在读空那一格。本批把自救并回做快之后，
+  //   隔一次往返读数就可能已落定（实测 blindAtShot:false）——那是 heal 快，不是没让路。
+  //   所以每轮重开一次读空窗（再切一次后台放掉副本），并在**同一次求值里**「确认读空 → 打小结 → 立刻读标记」；
+  //   只有抓到读空那一格的那一次算数，一次都没抓到＝量具坏，如实红。
+  for (let i = 0; i < 5; i++) {
+    await goHidden();
+    await page.waitForTimeout(5300);
+    mk3 = await page.evaluate(() => {
+      const blind = (() => { try { return window.activeStore().awaitingBigKey('mail-letters'); } catch (e) { return 'ERR'; } })();
+      let m = 'ERR';
+      if (blind === true) { try { if (window.fishWeekTick) window.fishWeekTick(); } catch (e0) {} try { m = window.xyStore('xy-home-v2:default').get('fish-week-report:9-20'); } catch (e1) {} }
+      return { m: m, blindAtShot: blind, tries: 0 };
+    });
+    mk3.tries = i + 1;
+    if (mk3.blindAtShot === true) break;
+  }
   await page.waitForTimeout(2000);
   const after = await libSeries(K1, 4, 400), pend2 = await rawGet(KPEND);
   ok(after.min >= 20, '丙6 读空那一发不许把整本写成回信版／一封信（整场最低读数 ≥20）', JSON.stringify({ min: after.min, last: after.last }));
@@ -358,7 +378,7 @@ console.log('\n== 丙组：到期回信与周小结这两条同族通路 ==');
   const pendStill = /第二发取证回信/.test(String(pend2));
   ok(landedBlind === false ? pendStill : true, '丙3【症状本体】读空那一发不许吃掉回信计划（没落地又不在计划里＝永远不回这封信）', 'pend=' + String(pend2).slice(0, 80));
   ok((await markOf('9-27')) === '1', '丙4 读空那一发不许把已寄出的那周小结重放／顶掉（周标记还在）', 'mark9-27=' + await markOf('9-27'));
-  ok(mk3 === null, '丙5【症状本体】读空那一发不许把还没寄的那一周的标记先烧掉（烧了这周永不补发；当场读数，不等下一班合法补寄）', 'mark9-20=' + mk3);
+  ok(mk3.blindAtShot === true && mk3.m === null, '丙5【症状本体】抓到读空那一格并当场打小结：不许烧掉还没寄的那一周的标记', JSON.stringify(mk3));
   ok(page.__errs.length === 0, 'Z3 丙场全程零未捕获 JS 异常', page.__errs.join(' | '));
   await ctx.close();
 }
@@ -368,6 +388,9 @@ console.log('\n== 丁组：暂存层的第二 home ==');
 {
   await newCtx(true);
   await seedAll({ contacts: CT1, mail: [{ p: 'xy-home-v2:default', r: mkLetters(20, 'seed') }], cfg: [{ p: 'xy-home-v2:default', en: false }] });
+  // 这一场只量「读空窗口写的那一封」与「清空后快照销账」：关掉每周摸鱼小结的自动寄出，
+  //   否则轮询期间它会合法寄进一封信、把快照原样重写，丁5 就读成「没销账」的假红（周一~周三是补发窗口）
+  await page.evaluate(() => { window.xyStore('xy-home-v2:default').set('reply-ml-fish-week-en', '0'); });
   await page.reload({ waitUntil: 'load' });
   await enter();
   await page.waitForFunction(() => window.mochiDataState && window.mochiDataState() === 'ready', null, { timeout: 90000 }).catch(() => {});
@@ -391,13 +414,17 @@ console.log('\n== 丁组：暂存层的第二 home ==');
   await page.waitForTimeout(6000);
   const fin = await rawGet(K1);
   ok(keep(idsOf(fin), 'seed', 20), '丁2 重开之后 20 封旧信一封不少（写闸不许把「保住库里那本」变成「读不回来」）', '库里 ' + nOf(fin) + ' 封');
-  // 丁3 快照这层存在的唯一理由＝库里那一本真没了（v3.7.x 装它就是为了兜「Edge 丢库」）：
-  // 把主键从库里删掉再重开——LS 死透的机器上，这一份能不能从库里读回来并把信箱捞起来。
-  await page.evaluate((k) => new Promise((res) => {
-    const rq = indexedDB.open('mochi-db', 1);
-    rq.onsuccess = () => { const tx = rq.result.transaction('kv', 'readwrite'); tx.objectStore('kv').delete(k); tx.oncomplete = () => { try { rq.result.close(); } catch (e) {} res(1); }; tx.onerror = () => res(0); };
-    rq.onerror = () => res(0);
-  }), K1);
+  // 丁3 快照这层存在的唯一理由＝库里那一本真没了（v3.7.x 装它就是为了兜「Edge 丢库」）：删掉主键再重开
+  //   ——LS 死透的机器上，这一份能不能从库里读回来并把信箱捞起来。
+  // 删必须走应用自己那句 remove（#1469 收口时改）：早先这里绕过数据层直接动 IndexedDB，名册（大键索引／
+  //   挂起名单）却还留着「这一格库里本该有一份」，数据层从此永远回答「这一发读不回来」＝量具自己造出来的
+  //   假残缺读数。它会把 #1469 的「读不全时删除／清空当场按住」永久挡在丁4~丁6 前面，丁6 就从「复活闸」
+  //   变成「按住闸」的取证（实测：同一断言纯 HEAD 侧绿、带 #1469 那把闸的侧红，红的是量具不是应用）。
+  await page.evaluate(() => { try { window.xyStore('xy-home-v2:default').remove('mail-letters'); } catch (e) {} });
+  await page.evaluate(() => new Promise((res) => {
+    try { if (!window.idbDelete) { res(0); return; } window.idbDelete('xy-home-v2:default:mail-letters').then(() => res(1), () => res(0)); } catch (e) { res(0); }
+  }));
+  ok((await rawGet(K1)) === null, '丁3a 主键确实从库里没了（走应用那句 remove＝名册一并撤掉，不留假残缺）', '库里=' + String(await rawGet(K1)).slice(0, 30));
   await page.reload({ waitUntil: 'load' });
   await enter();
   await page.waitForFunction(() => window.mochiDataState && window.mochiDataState() === 'ready', null, { timeout: 90000 }).catch(() => {});
@@ -412,8 +439,20 @@ console.log('\n== 丁组：暂存层的第二 home ==');
   ok(String(screen3.text).indexOf('正文') >= 0, '丁3b 捞回来的这一份是正文版（剥图但可读）', JSON.stringify({ t: screen3.text.slice(0, 70) }));
   await page.evaluate(() => { if (window.openMailPage) window.openMailPage(); });
   await page.waitForTimeout(900);
+  const beforeClr = nOf(await rawGet(K1));
+  const snapBeforeClr = await rawGet(SNAP1);
+  const screenBeforeClr = await page.evaluate(() => document.querySelectorAll('#mail-in-list .mail-item, #mail-out-list .mail-item').length);
+  await page.evaluate(() => { const t = document.getElementById('cc-toast'); if (t) { t.textContent = ''; t.className = 'cc-toast'; } }); // 先清常驻 toast，免得把上一条读成本条（踩过）
   await page.evaluate(() => { const b = document.getElementById('mail-clear'); if (b) b.click(); });
   await page.waitForTimeout(900);
+  // 这一发到底走了哪条腿：弹了确认框＝读数完整、允许清空；没弹而给了那句提示＝读不全被当场按住
+  //   （#1469 作者口径＝只保新写的信，删除/清空要等读数落定）。两条都算「说了话」，
+  //   唯独「既不弹框也不提示、屏上库里全不动」是静默——这一组要拦的就是它。
+  const clrSeen = await page.evaluate(() => {
+    const m = document.getElementById('modal-mask'), t = document.getElementById('cc-toast');
+    return { modal: !!(m && !m.hidden && /清空所有信件/.test(String(m.textContent || ''))), toast: t ? String(t.textContent || '') : '' };
+  });
+  const heldClr = !clrSeen.modal && /没读全/.test(clrSeen.toast);
   await page.evaluate(() => {
     const m = document.getElementById('modal-mask'); if (!m) return;
     const btns = Array.from(m.querySelectorAll('button, .modal-btn, .mc-btn'));
@@ -421,9 +460,69 @@ console.log('\n== 丁组：暂存层的第二 home ==');
     if (t) t.click();
   });
   await page.waitForTimeout(2200);
-  const cleared = await rawGet(K1), snapAfter = await rawGet(SNAP1);
-  ok(nOf(cleared) === 0, '丁4 用户亲手清空信箱照旧落库（写闸不许挡成「删不掉」）', '库里 ' + nOf(cleared) + ' 封');
-  ok(snapAfter === null, '丁5 清空后快照跟着三处一起销账（不许复活已删的信）', 'snap=' + String(snapAfter).slice(0, 40));
+  const cleared = await rawGet(K1);
+  let snapAfter = await rawGet(SNAP1);
+  for (let i = 0; i < 4 && snapAfter !== null; i++) { await page.waitForTimeout(700); snapAfter = await rawGet(SNAP1); } // 只等这一次 IDB 写落定（≤~3.5s）；再往后的重写属于「下一班又写了一遍」，交给丁6 判
+  ok(clrSeen.modal ? nOf(cleared) === 0 : heldClr, '丁4 清空那一发必须当场说话：要么弹确认框并落库，要么给那句「没读全」的提示（不许静默＝按了没反应还不吭声）', '库里 ' + nOf(cleared) + ' 封；这一发' + (clrSeen.modal ? '弹框并落地' : heldClr ? '按住并提示' : '既不弹框也不提示 ' + JSON.stringify(clrSeen.toast.slice(0, 40))));
+  ok(clrSeen.modal ? (snapAfter === null || nOf(cleared) === 0) : snapAfter === snapBeforeClr, '丁5 清空后快照要么一并销账、要么不可能再被读到；被按住那一发不许偷偷改写任何一本（快照字节照旧）', 'snap=' + String(snapAfter).slice(0, 36) + ' 主键=' + nOf(cleared));
+  await page.waitForTimeout(9000);
+  const later = await rawGet(K1);
+  const lateScreen = await page.evaluate(() => { try { if (window.openMailPage) window.openMailPage(); } catch (e) {} return new Promise((r) => setTimeout(() => r(document.querySelectorAll('#mail-in-list .mail-item, #mail-out-list .mail-item').length), 1300)); });
+  // 现场归属：屏上那几封到底从哪一路回来的（内存暂存／旁路账／剥图快照）。普通被测没有这个口，读成 null 不影响判据
+  const diag6 = await page.evaluate(() => { try { return window.__xyMailDiag ? window.__xyMailDiag() : null; } catch (e) { return { err: String(e && e.message) }; } });
+  ok(clrSeen.modal ? (nOf(later) === 0 && lateScreen === 0)
+    : (nOf(later) === beforeClr && lateScreen === screenBeforeClr && snapAfter === snapBeforeClr),
+    '丁6【用户看得见的那一本】清空落地后 9 秒：库里与屏上同为空态（迟到的读回不许复活）；若是被按住：库里／屏上／快照三处一律照旧（不许一边说等着、一边偷偷删）', '库里 ' + nOf(later) + ' 封；屏上 ' + lateScreen + ' 条；清前 ' + beforeClr + ' 封／' + screenBeforeClr + ' 条；这一发' + (clrSeen.modal ? '落地' : '按住') + '；归属 ' + JSON.stringify(diag6));
+  // 丁7【症状本体】「按住」必须是等一下，不是永远删不掉：重试到读数落定那一轮，清空必须真落空
+  //   （与 #1469 尺子 C3 那一型同一条口径，只是这一场的现场是 LS 整域写不进＋主键已被摘掉）
+  let landed = clrSeen.modal === true && nOf(later) === 0 && lateScreen === 0;
+  let tries7 = landed ? 0 : 1;
+  const heldLog = [];
+  for (; !landed && tries7 <= 8; tries7++) {
+    await page.evaluate(() => { if (window.openMailPage) window.openMailPage(); });
+    await page.waitForTimeout(1200);
+    await page.evaluate(() => { const t = document.getElementById('cc-toast'); if (t) { t.textContent = ''; t.className = 'cc-toast'; } });
+    await page.evaluate(() => { const b = document.getElementById('mail-clear'); if (b) b.click(); });
+    await page.waitForTimeout(900);
+    const s7 = await page.evaluate(() => {
+      const m = document.getElementById('modal-mask'), t = document.getElementById('cc-toast');
+      return { modal: !!(m && !m.hidden && /清空所有信件/.test(String(m.textContent || ''))), toast: t ? String(t.textContent || '') : '' };
+    });
+    if (s7.modal) {
+      await page.evaluate(() => {
+        const m = document.getElementById('modal-mask'); if (!m) return;
+        const btns = Array.from(m.querySelectorAll('button, .modal-btn, .mc-btn'));
+        const t = btns.find((x) => /确定|确认|删除|清空/.test(x.textContent || '')) || btns[btns.length - 1];
+        if (t) t.click();
+      });
+      await page.waitForTimeout(2400);
+      const c7 = await rawGet(K1);
+      const sc7 = await page.evaluate(() => { try { if (window.openMailPage) window.openMailPage(); } catch (e) {} return new Promise((r) => setTimeout(() => r(document.querySelectorAll('#mail-in-list .mail-item, #mail-out-list .mail-item').length), 1200)); });
+      if (nOf(c7) === 0 && sc7 === 0) landed = true;
+      else heldLog.push('第' + tries7 + '轮弹框却仍有货：库里 ' + nOf(c7) + '／屏上 ' + sc7);
+    } else {
+      const dg = await page.evaluate(() => { try { return window.__xyMailDiag ? window.__xyMailDiag() : null; } catch (e) { return 'err'; } });
+      const ask = await page.evaluate(() => { try { return window.__xyMailAskProbe ? window.__xyMailAskProbe() : Promise.resolve('量具外被测没有这一口') } catch (e) { return 'err'; } });
+      heldLog.push('第' + tries7 + '轮仍按住 ' + JSON.stringify(dg) + ' 三态=' + ask);
+      await page.waitForTimeout(2500); // 这一发的库问话在路上，下一轮再试
+    }
+  }
+  // 「为什么还按着」——逐键读那一问的三条证据，而不是整张表的总数（总数会把别的键算进来＝误导）。
+  //   bigBlindWhy 是本批补的只读口（与 bigReadUnconfirmed 逐条同判据）；旧被测没有这一口时退回公开读数。
+  const why7 = await page.evaluate(() => {
+    const REL = 'mail-letters', K = 'xy-home-v2:default:' + REL;
+    const out = { why: 'nofn', deferredAt: 'n/a', idxSize: 'n/a', lsMain: 'throw', lsIdx: 'throw', dataPending: 'n/a', diagTotals: null };
+    try { out.why = window.__xyBigBlindWhy ? String(window.__xyBigBlindWhy(K)) : 'nofn'; } catch (e) { out.why = 'throw'; }
+    try { out.deferredAt = Array.isArray(window.__xyIdbDeferredKeys) ? window.__xyIdbDeferredKeys.indexOf(K) : 'notarray'; } catch (e) { out.deferredAt = 'throw'; }
+    try { out.idxSize = window.idbBigIdxSize ? String(window.idbBigIdxSize(REL)) : 'nofn'; } catch (e) { out.idxSize = 'throw'; }
+    try { out.diagTotals = window.__xyBigReadDiag ? window.__xyBigReadDiag() : 'nofn'; } catch (e) { out.diagTotals = 'throw'; }
+    try { const v = localStorage.getItem(K); out.lsMain = v === null ? 'null' : String(v.length); } catch (e) { out.lsMain = 'throw:' + (e && e.name); }
+    try { out.lsIdx = String(localStorage.getItem('xy-home-v2:__big-idx') || 'null').slice(0, 140); } catch (e) { out.lsIdx = 'throw:' + (e && e.name); }
+    try { out.dataPending = !!(window.mochiDataPending && window.mochiDataPending()); } catch (e) { out.dataPending = 'throw'; }
+    return out;
+  });
+  console.log('    · 丁7 归属读数（哪一格证人还在说「库里本该有一份」） ' + JSON.stringify(why7));
+  ok(landed, '丁7【症状本体】被按住之后重试到读数落定那一轮，清空必须真落空（库里 0＋屏上 0）＝「按住」是等一下，不是这台机永远删不掉', JSON.stringify({ 重试轮数: tries7, 现场: heldLog.slice(0, 2), 为什么还按着: why7 }));
   ok(page.__errs.length === 0, 'Z4 丁场全程零未捕获 JS 异常', page.__errs.join(' | '));
   await ctx.close();
 }

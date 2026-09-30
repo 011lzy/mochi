@@ -302,8 +302,21 @@
       //   于是冷读那一发照旧把「没读到」画成「没有」。判据取「命名空间键与旧顶层键都空」这一个事实，
       //   与上面 get 的回退链同口径，零机型／零 UA 分支。
       awaitingBigKey(k) {
-        try { if (window.xyStore(ns).awaitingBigKey(k)) return true; } catch (e) {}
-        try { return window.xyStore(G).awaitingBigKey(k); } catch (e2) { return false; }
+        // FIX 2026-09-30 #1469：这句问话的语义＝「这一格（新命名空间键与旧顶层键两个候选）都读不出值，
+        //   而证据说库里本该有一份」。旧写法把两格的 awaitingBigKey 直接相或：在 LS 整域坏掉的机器上
+        //   （报障件：整域 192 键≈10.0MB、本项目只剩 1 键、写入被拒 3531 次），根键那一发的
+        //   localStorage.getItem 自己就抛，而数据层对「连读都读不出」刻意判成 unconfirmed（#1309 家族定的），
+        //   于是命名空间那一格明明读得好好的，门面照样回答「不许整包写回」——信箱的删除/清空在这一型
+        //   机器上被永久按住（新尺 C3 实测：八轮重试全是那句提示，库里一封没少也一封没删）。
+        //   现在先问「两个候选里有没有任何一个读得出值」：读得出＝这一格有答案，不再谈「没读到」。
+        //   零机型／零 UA 分支，判据仍是当场事实。
+        try { if (window.xyStore(ns).get(k) !== null) return false; } catch (e3) {}
+        try { if (window.xyStore(G).get(k) !== null) return false; } catch (e4) {}
+        // 两格候选都读不出值时，只认「命名空间那一格」的库里证据（信箱／字卡库这些账就住在那儿）。
+        //   旧顶层键那一格不参与举证：LS 整域坏掉的机器上它对任何键都自证「连读都读不出」（数据层对
+        //   #1309 那一族刻意定的判法），拿它当证据＝每一格都被说成「不许整包写回」，用户亲手清空被
+        //   永久挡死（违 #1309 C2「主动清空必须真落空」契约，新尺丁4/丁5 当场逮到）。
+        try { return window.xyStore(ns).awaitingBigKey(k); } catch (e) { return false; }
       },
       requestBigKey(k) {
         try { window.xyStore(ns).requestBigKey(k); } catch (e) {}

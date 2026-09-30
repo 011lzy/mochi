@@ -8,6 +8,15 @@
   //   与 feed.js 同策略：剥掉图片 dataURL 只保文本，写一份 ≤200KB 的 LS 快照兜底。
   const SNAP_KEY = 'mail-letters-snap';
   const LS_BIG_LIMIT = 200 * 1024;
+  // FIX 2026-09-30 #1469：暂存那一封也得能活过页面回收。#1358f/#1417/#1442 把「读不全就不许整包写回」
+  //   立住之后，剩下的一条尾巴是：被挡下的那一发只活在内存 mailPending（快照是剥图文本版，且只在主键
+  //   读空那一读才被兜），报障机（LS 整域写不进）上一次页面被回收＝那一封信又没了。
+  //   改法＝给暂存单独一本旁路账（每联系人一份，走 xyStore 句柄＝内存＋LS＋IndexedDB），只在读数残缺
+  //   的窗口里追加，任何一次权威整包落盘即销账。口径（作者 2026-09-30 选定）＝**只保新写的信**：
+  //   读数残缺时「删除单封／清空信箱」当场按住并提示（见 deleteLetter/mailClearAll 那句
+  //   xyBigWriteBlocked），所以这本账里只会出现新增与字段变化这一类单调追加——不会出现
+  //   「用户删掉的信又被并回来」，因为那一发根本没被执行。
+  const HOLD_KEY = 'mail-letters-hold';
   const TITLES = ['好久不见', '最近还好吗', '想你了', '给你写了封信', '深夜随想', '一些想说的话'];
   let mtab = 'in';
   let viewLetter = null;
@@ -151,17 +160,35 @@
     if (raw === null && !cid && cs.awaitingBigKey && cs.awaitingBigKey(KEY)) {
       mailSyncCold = true;
       try { if (cs.whenBigKeyBack) cs.whenBigKeyBack(KEY, function () { try { render(); updateBadge(); } catch (e0) {} }); } catch (e) {}
-    } else if (raw !== null) mailSyncCold = false;
+    } else if (raw !== null || !cid) mailSyncCold = false; // #1469s 现证不成立就复位：旧写法只在「读得到值」时复位＝主键真不在库里（raw 恒 null）时这一位永远留着，于是 save() 永远走残缺分支、#1469 的「按住」也永远抬不起来（新尺丁7 实测连按 8 轮全是那句提示，而四条证据当场都已不成立）
     // FIX 2026-09-29 #1417：读到值也可能是旧账（见 mailStaleLs）——同样标残缺读数（提示条改口、
     //   没有整包写回资格），并当场自动踢一趟「库里那份问回来就合并」，不必等用户去点按钮。
     if (mailStaleLs(cid)) { mailSyncCold = true; mailRescueArm(cid); }
     // v3.7.x：主键缺失兜底——大列表只进 IDB（Edge 丢 IDB / LS 被清）时读剥图快照，
     //   文本+标题+时间保留；IDB 存活时模块底部 idbGet 会随后用完整数据重渲染
-    if (!list.length) { try { const v = loadSnap(cid); if (v.length) list = v; } catch (e) {} }
+    // FIX 2026-09-30 #1469p：本会话已权威落过整包 ⇒ 这一本兜底一并关掉。清空那一发落的就是空整包，
+    //   主键读回来是 []，旧写法下一步就去读快照——快照的 IDB 副本此刻可能还在（remove 的 idbDelete
+    //   与按需取回在同一场里会换位，实测：库里 0 封、屏上 21 封），于是「用户亲手清空」在屏上被撤销。
+    //   与 #1469o 给库合并那一趟立的同一条规矩：本场写过＝本地这份就是答案，任何迟到的旧副本只许补字段。
+    if (!list.length && !mailLocalAuthored) { try { const v = loadSnap(cid); if (v.length) list = v; } catch (e) {} }
     // v3.7.x：暂存合并仅对当前桌面（cid undefined）生效——mailPending 是当前桌面
     //   contact-switched 时的暂存，后台遍历其它 cid 时不并入（避免串桌面）
     // FIX 2026-09-28 #1358f：残缺期同样要并入——这一轮不写权威键，增量只靠 mailPending 留在屏上
-    if (!cid && (!mailWriteOpen() || mailSyncCold) && mailPending && mailPending.length) {
+    // FIX 2026-09-30 #1469：并入条件从「写闸关着或读数残缺」改成「只要手上有暂存」——旧条件在
+    //   「有界重试耗尽／库确实没有这一格」这两条放行路上会让暂存的信当场从屏上消失（闸一开 load 就
+    //   不再并它，而它还没落进主键）。暂存的唯一销账点是「权威整包落盘」，落盘前它必须一直看得见；
+    //   mergeLists 按 id 认身份、字段各取有值一方 ⇒ 与库里那份重复也不会列两遍。
+    // FIX 2026-09-30 #1469：手上还没有暂存、而旁路账里有一份（＝上一场读不全时写下的那一封，而这一场
+    //   开机那一灌赶在回填把该键读进内存之前扑了空）⇒ 读的时候当场顺手灌上，不依赖任何事件时序。
+    //   并且：只要手上还攥着暂存就顺手请一次库（#1349 那只单次飞行闸＋#1417 那趟合并，8s 节流），
+    //   否则旁路账永远只是一份「看得见、落不了地」的显示副本——启动那发权威读得早（读到的还是残缺那份
+    //   或压根没轮到），之后再没人来并回，下一场又从头暂存一遍。
+    try {
+      if (mailLocalAuthored) { /* #1469p 本场已权威落过整包＝这一本旁路账不再认（清空那一发落的是空整包，回灌＝把用户刚删掉的又端回屏上） */ }
+      else if (!cid && !mailPending) { const h0 = mailHoldLoad(); if (h0) { mailPending = h0; mailRescueArm(cid); } }
+      else if (!cid && mailPending.length && !mailRescueFlight) mailRescueArm(cid); // #1469n 攥着暂存＝问到库并回为止（无在飞才补踢，不叠发）
+    } catch (eR) {}
+    if (!cid && mailPending && mailPending.length) {
       const map = {};
       list.forEach(x => { if (x && x.id) map[x.id] = x; });
       mailPending.forEach(x => { if (x && x.id) map[x.id] = x; });
@@ -270,6 +297,23 @@
   //      →「并且也需要新增自救的恢复按钮」）。
   // 零机型／零 UA 分支：只问「这一格的 LS 是不是写失败留下的旧值」「库里交没交出整包」。
   let mailLibMerged = false; // 本会话已从库里合过一次：合过之后内存那份即权威，旧 LS 不再作数
+  // FIX 2026-09-30 #1469：本会话有没有权威落过整包。落过＝本地这份就是答案，稍后任何一趟库读
+  //   只许给它补字段、不许再往里补条目——否则用户刚点完「清空所有信件」，一趟在飞的库读把那 21 封
+  //   原样写回库里（#1442 尺子丁5「不许复活已删的信」当场逮到）。与 #1330 给收藏定的
+  //   「本会话用户在看得见的列表上写过即永不再补」同一条口径。
+  let mailLocalAuthored = false;
+  // FIX 2026-09-30 #1469o 收窄：只有「本会话落过空整包」＝用户亲手清空过，这一场的库里回读才整个不许再并。
+  //   原样用 mailLocalAuthored（落过任何整包就不并）会把 #1417 的战果反过来弄没：那台机 LS 停在 145 封的旧账、
+  //   库里有 150 封（含当天那封回信），用户这一场只要写过一封就永不并库里那份＝「后台通知说有回信、点进信箱
+  //   找不到」复发（邻族电池 verify-1417-mail-stale-ls 的 A4/A4b/B2 三条当场抓到）。
+  let mailClearedThisSession = false;
+  // FIX 2026-09-30 #1469r：「读不全」这个判断在一种真实形状下会永远为真——名册／挂起名单／__big-idx
+  //   证人都只是「本该有一份」的旁证，而库里那份可能真被摘掉了（#1361a 就为这个留了 bigHydAbsent 那一格：
+  //   只有健康连接确认过库里确实没有，才作废证人）。报障机上这一型不是假设：新尺丁7 实测连按 8 轮、
+  //   每轮都是那句提示，删除与清空在这一台机上变成「永远删不掉」＝把 #1342 那条「不把这道闸变成新的存不
+  //   进去」直接违了。出口就是数据层现成的那把三态尺（#1361n：读空不许直接落笔，先去库里问，只有
+  //   'absent' 才算把「空」当成了答案）：问到 'absent' ⇒ 这一格的三把残缺证据一并作废，下一次点就落地。
+  let mailBlindCleared = false;
   function mailStaleLs(cid) {
     if (cid || mailLibMerged) return false;
     try {
@@ -389,7 +433,68 @@
   //   #1361b 的静默版：拦下的同时顺手请一次库（单次飞行闸），库值回来后写回资格自然恢复。
   //   三条后台通路（来信/到期回信/摸鱼小结）在生成前各自让路（见三处 mailBlindRead 调用点），
   //   save() 这一道只是兜底：当前桌面的信照旧并入 mailPending＋快照，不凭空蒸发。
-  function mailBlindRead(cid) { return !!window.xyBigWriteHold(csFor(cid), KEY); }
+  function mailBlindRead(cid) { if (!cid && mailBlindCleared) return false; return !!window.xyBigWriteHold(csFor(cid), KEY); } // #1469r
+  // 旁路账的读写：走同一句柄（内存＋LS＋IndexedDB），只在有内容时留键，空了就三处一起销账。
+  function mailHoldSave(arr, cid) {
+    try {
+      const cs = csFor(cid);
+      if (arr && arr.length) cs.set(HOLD_KEY, JSON.stringify(arr));
+      else cs.remove(HOLD_KEY);
+    } catch (e) {}
+  }
+  function mailHoldLoad(cid) {
+    try {
+      const v = csFor(cid).get(HOLD_KEY);
+      if (!v) return null;
+      const a = JSON.parse(v);
+      return Array.isArray(a) && a.length ? a : null;
+    } catch (e) { return null; }
+  }
+  // 权威整包落盘之后对账（销账不许无条件做）：
+  //   ① 这一格此刻还读不到（启动回填排在后面）⇒ 什么都不动——这时判「没有」会把库里那本旁路账删掉；
+  //   ② 读得到且每一封都已被这一包收进去 ⇒ 销账；
+  //   ③ 读得到但这一包漏了其中几封（＝库里那份读回来之前先落了一次整包，例如暂存刚写入而权威读回得早）
+  //      ⇒ 把漏的那几封留在账上并挂回 mailPending（屏上继续看得见），等库里那份读回来再并。
+  //   没有这一道，「先写后销」会把用户那一封两头落空＝本批要修的东西换了个位置重演一遍。
+  function mailHoldReconcile(cid, written) {
+    try {
+      const cs = csFor(cid);
+      if (cs.awaitingBigKey && cs.awaitingBigKey(HOLD_KEY)) return;
+      // 这一包是「权威整包」⇒ 落它的时候账上的内容要么已被收进来、要么用户本就是要用这一包取代它
+      //   （含清空）。曾经写过一版「漏了哪几封就留在账上」，结果用户亲手清空之后那几封被下一趟合并
+      //   带了回来＝丁5 禁止的复活，故收回。配套：mailMergeFromIdb 合并时把账上内容一起收进来，
+      //   所以「先写后销」不再有两头落空那一格。
+      mailHoldSave(null, cid);
+      if (!cid) mailPending = null;
+      void written;
+      if (!cid) mailLocalAuthored = true; // 这一场已经权威落过一次整包＝本地这份就是答案，库里那份只许补字段
+    } catch (e) {}
+  }
+  // 用户动作（删除／清空）能不能当场执行：判据＝「库对这一格回过话，且手里这份不是残缺读数」。
+  //   #1342i 那句只回答「这一格现在读不读得到」，而 LS 坏掉／主键读不出来的机器上那一问可以永远为真，
+  //   拿它单独挡删除＝把 #1309 C2「主动清空必须真落空」永久挡死（#1442 尺子丁4/丁5 当场逮到：
+  //   清空点了没落库，快照里那一本原封不动）。所以这里以「权威有没有回过话」为主：
+  //   没回话＝不许按（正是要挡的那一型），回过话＝按手里这份执行，读不全的另外两格照样挡。
+  function mailWriteBlockedNow(what) {
+    let blocked = false;
+    try { blocked = !mailWriteOpen() || mailReadIncomplete() || mailBlindRead(); } catch (e) { blocked = false; }
+    if (!blocked) return false;
+    try { window.xyBigWriteBlocked(csFor(), KEY, what, true); } catch (e2) {} // 同一句提示＋顺手请一次库
+    // #1469r 按住不等于撒手：借数据层那把三态尺问一句「库里到底有没有这一本」。
+    //   'absent' ＝ 健康连接证实没有 ⇒ 这一格的残缺证据作废，用户下一次点同样的东西就落地；
+    //   'ok' ＝ 库里那份刚取回内存，#1358d 那条回调会重画这一屏（下一次点拿到的就是完整那一本）；
+    //   'unknown' ＝ 这一问也没问出结果 ⇒ 继续按住，这正是该按住的样子。
+    try {
+      const ask1469 = window.idbEnsureBigKey ? window.idbEnsureBigKey(KEY) : null;
+      if (ask1469 && ask1469.then) ask1469.then(function (st) {
+        if (st !== 'absent') return; // #1469r 只有健康连接的「确认没有」才作废残缺证据
+        mailBlindCleared = true;
+        mailSyncCold = false;
+        try { render(); updateBadge(); } catch (e5) {}
+      }, function () {});
+    } catch (e6) {}
+    return true;
+  }
   function save(list, cid) {
     // v3.7.x：cid undefined = 当前桌面，走 mailDbReady 门槛（防启动早期 save([]) 覆盖 IDB）；
     //   cid 指定 = 后台遍历该联系人来信，直接写（maybeIncomingLetterFor 已确认该桌面
@@ -399,10 +504,12 @@
     //   而聊天通知已持久化 → 用户看到「联系人来信」信箱却是空的（iQOO Neo5 SE +
     //   QQ浏览器 X5 IDB 挂起实测）。快照仅文本兜底，IDB 权威读回后 mailMergeFromIdb
     //   按 id 合并恢复完整数据（含图片），不破坏权威防护（主键 store.set 仍等就绪）。
-    if (!cid && !mailWriteOpen()) { try { mailPending = (list || []).slice(); } catch (e) {} writeSnap(list, cid); return; }
-    // FIX 2026-09-28 #1358f：残缺读数没有整包写回资格（#1336 给朋友圈的那条，信箱侧原本没有）——
+    if (!cid && !mailWriteOpen()) { try { mailPending = (list || []).slice(); } catch (e) {} mailHoldSave(mailPending, cid); // #1469a 未就绪那一支也落账
+      // FIX #1469：冷分支不再顺手写剥图快照——暂存现在有自己的落盘腿（旁路账），快照留到读数落定、
+      //   真正写回主键那一发再一起刷新。早先这一支会在事后被迟到的写回重复刷一遍（#1442 尺子丁6 实测）。
+      return; }
     //   手上一页空纸盖进库里那 20 封，就是「点进去没了、之后真的没了」。增量并进 mailPending 留在
-    //   屏上，等 #1358d 那一趟把整包问回来再照常落盘；快照照写（那是更小的一份文本兜底，不是权威）。
+    //   屏上，等 #1358d 那一趟把整包问回来再照常落盘（#1469 起：暂存落旁路账，快照由落盘那一发统一刷新）。
     // FIX 2026-09-29 #1417：判据合一——残缺读数（读空 #1358f ／读到「写失败留下的旧值」 #1417）
     //   都没有整包写回资格：手上一页旧账盖进库里那整包，就是那封回信的永久丢失。增量并进
     //   mailPending 留在屏上，并顺手把库里那份问回来（问回来＝字段级合并＋恢复写回资格）。
@@ -411,11 +518,15 @@
     //   或旧账）。当前桌面这一发照旧并入 mailPending＋快照，等权威读数回来再落盘。
     if (mailReadIncomplete(cid) || mailBlindRead(cid)) {
       try { mailPending = mergeLists(mailPending || [], list || []); } catch (e) {}
-      writeSnap(list, cid);
+      mailHoldSave(mailPending, cid); // #1469b 残缺读数那一支：暂存当场落盘，页面被回收也带得走
       mailRescueArm(cid);
       return;
     }
     csFor(cid).set(KEY, JSON.stringify(list));
+    mailLocalAuthored = true; // #1469：本会话已权威落盘＝屏上这一本就是答案（回灌那三条路关掉）
+    if (!cid && !list.length) mailClearedThisSession = true; // #1469o 落的是空整包＝用户亲手清空，稍后任何一趟库读都不许把那本带回来
+    mailHoldReconcile(cid, list); // #1469c 权威整包落盘后销账（读不到那一格才不动）
+    if (!cid) mailPending = null; // #1469q 内存这一份照旧作废——销账被「那一格读不到」挡住时也一样，屏上不许还攥着刚写进库（或刚清空掉）的那些
     writeSnap(list, cid);
   }
 
@@ -1761,6 +1872,7 @@ window.showDeskPopup({ name: '信箱', notifyKind: 'mail', text: mailPlainDesc('
     });
   }
   function mailClearAll() {
+    if (mailWriteBlockedNow('信箱')) return; // #1469h 清空按住并提示（残缺读数当「答案」清空＝既删不准也盖掉库里那本）
     const n = load().length;
     if (window.openModal) {
       window.openModal('清空所有信件？', '', () => {
@@ -1776,6 +1888,10 @@ window.showDeskPopup({ name: '信箱', notifyKind: 'mail', text: mailPlainDesc('
   // 删除单封信：确认后移除该信及其 TA 回信计划，关闭详情并刷新列表/角标
   function deleteLetter(l) {
     if (!l || !l.id) return;
+    // #1469：读数残缺（读空／写到 LS 的落不回去留下的旧账／数据层交不出权威读数）时这一发当场按住——
+    //   拿一页残缺列表整包写回去「删」一封，等于把库里那些没读到的信一起删没；而只把这一封从暂存里摘掉，
+    //   又会在库里那本读回来后复活。作者定的口径＝只保新写的信，删除要等读数落定（等几秒再点一次即可）。
+    if (mailWriteBlockedNow('这封信')) return; // #1469g 删除按住并提示
     if (window.openModal) {
       window.openModal('删除这封信？', '', () => {
         const list = load();
@@ -1831,6 +1947,12 @@ window.showDeskPopup({ name: '信箱', notifyKind: 'mail', text: mailPlainDesc('
   // 分不清谁是谁）。cid 传入后读写/快照全部绑定该桌面；cid 不传（启动路径）保持
   // 原动态行为（启动无切换，动态 = 当前桌面，等价）。
   function mailMergeFromIdb(v, cid) {
+    // FIX 2026-09-30 #1469：本会话已经权威落过一次整包 ⇒ 当前桌面这一趟合并整个跳过——本地这份就是答案。
+    //   不跳的话：用户点完「清空所有信件」（主键写成 []），一趟在飞的库读回来会走到「主键空 → 兜底读
+    //   快照」那一条，把刚清空的那 21 封从快照里带回来重新落库（#1442 尺子丁5「不许复活已删的信」）。
+    //   与 #1330 给收藏定的「本会话用户在看得见的列表上写过即永不再补」同一条口径；跨会话（这一场没写过）
+    //   不受影响，v3.5.120 的备份导入语义原样。
+    if (mailClearedThisSession && !cid) return; // #1469o 只挡「本场亲手清空」那一型；写过非空整包照旧并库（#1417 的战果不许反过来弄没）
     try {
       const pending = mailPending || [];
       mailPending = null;
@@ -1839,6 +1961,8 @@ window.showDeskPopup({ name: '信箱', notifyKind: 'mail', text: mailPlainDesc('
         const idbArr = JSON.parse(v);
         if (Array.isArray(idbArr)) base = idbArr;
       }
+      // #1469 配套：见函数开头——本会话已权威落过整包时当前桌面这一发直接不并（cur 会经
+      //   「主键为空 → 兜底读快照」把用户刚清空的那些信带回来，只把 base 归零挡不住）。
       // v3.13.x：无论 IDB 是否有数据，始终把当前持久层（localStorage 主键/快照）合进并集——
       // 原实现仅在「权威已就绪 或 IDB 为空」时读 cur，IDB 非空且未就绪时直接跳过本地：
       // 在 vivo/OPPO/真我 Edge 等 IDB 写入失败或挂起的设备上，新信（周报小结/寄出的信/
@@ -1849,10 +1973,44 @@ window.showDeskPopup({ name: '信箱', notifyKind: 'mail', text: mailPlainDesc('
       let cur = [];
       try { cur = JSON.parse(csFor(cid).get(KEY) || '[]'); } catch (e) { cur = []; }
       if (!cur.length) { try { cur = loadSnap(cid); } catch (e) {} }
-      const merged = mergeLists(base, mergeLists(cur, pending));
-      if (merged.length) { csFor(cid).set(KEY, JSON.stringify(merged)); writeSnap(merged, cid); }
+      // FIX 2026-09-30 #1469：基准之外还要带上「旁路账上那一份」——权威那一发可能来得比暂存写入还早
+      //   （或上一场的暂存这一场才被 load 顺手灌上），只认内存 pending 会把那一封漏掉，而漏掉之后
+      //   下面就把它销账＝两头落空。mergeLists 按 id 认身份、字段各取有值一方，重复带进来无害。
+      const merged = mergeLists(mergeLists(base, cur), mergeLists(pending, mailHoldLoad(cid) || []));
+      if (merged.length) { csFor(cid).set(KEY, JSON.stringify(merged)); try { mailHoldReconcile(cid, merged); } catch (e0) {} /* #1469h 库里那份合回来之后对账 */ writeSnap(merged, cid); }
     } catch (e) { /* 解析失败：仍置就绪，避免下次启动重复合并 */ }
   }
+  // #1469d 开机先把上一场没落地的暂存灌回内存：load() 只要手上有暂存就一直并进屏上，
+  //   库里那一份由权威回调（mailMergeFromIdb）／自救那一趟（mailRescueArm）并进来后再当场销账。
+  try { mailPending = mailHoldLoad(); } catch (e0) {} // #1469d 开机先把上一场没落地的暂存灌回内存
+  // 报障机上启动回填是流式排队（诊断件：chat-msgs 81MB、启动挂起名单非空），模块初始化这一刻旁路账
+  // 多半还没进内存 ⇒ 只灌一次会扑空。回填完成那一发再灌一次并趁手重画这一屏；库里那一份随后由权威
+  // 回调／自救那一趟并进来，两处都走 mailHoldReconcile 对账后才销账。
+  document.addEventListener('mochi-restore-done', function () {
+    try {
+      if (mailLocalAuthored) return; // #1469p 本场已经权威落盘＝回填完成这一发不再回灌旁路账（清空之后不许复活）
+      if (mailPending && mailPending.length) return;
+      const h = mailHoldLoad();
+      if (!h) return;
+      mailPending = h;
+      render();
+      updateBadge();
+    } catch (e1) {}
+  });
+  // 只挂监听不够：#785b 讲过空库／快恢复时 mochi-restore-done 在这些 defer 外置脚本求值之前就派发完了
+  // （verify-data-loading-buffer B3/C2/D2 当年恒红就是这个根因）⇒ 走站内现成的两层口 mochiOnDataReady，
+  // 已就绪那一型当场补灌一次；再兜一层：load() 自己发现「手上没有暂存而账上有一份」就灌。
+  if (window.mochiOnDataReady) window.mochiOnDataReady(function () {
+    try {
+      if (mailLocalAuthored) return; // #1469p 同上一条：本场已权威落盘就不再回灌
+      if (mailPending && mailPending.length) return;
+      const h = mailHoldLoad();
+      if (!h) return;
+      mailPending = h;
+      render();
+      updateBadge();
+    } catch (e2) {}
+  });
   try {
     mailAuthAsk(undefined, null, function () {
       checkPendingReply(); // v3.9.x：权威就绪立即补查到期回信（启动即到的回信不再等 20~60s）
@@ -1872,7 +2030,7 @@ window.showDeskPopup({ name: '信箱', notifyKind: 'mail', text: mailPlainDesc('
     mailFuseFlush(function () {
       try {
         const all = load();
-        if (all.length) store.set(KEY, JSON.stringify(all));
+        if (all.length) { store.set(KEY, JSON.stringify(all)); try { mailHoldReconcile(undefined, all); } catch (e0) {} } // #1469f 保险丝放行＝这一包已落盘，暂存销账
       } catch (e) {}
       mailAuthOk = true;
       mailDbReady = true;
@@ -1898,7 +2056,8 @@ window.showDeskPopup({ name: '信箱', notifyKind: 'mail', text: mailPlainDesc('
       mailDbReady = false;
       mailAuthOk = false;
       mailAuthTries = 0; // #1309b：新桌面另给一份重试预算（与 mailPending 一样按桌面重置）
-      mailPending = null;
+      mailBlindCleared = false; // #1469r 这一问的结论属于刚才那个桌面，换桌面重问
+      mailPending = mailHoldLoad(switchedCid); // #1469e 换桌面＝换那本暂存账（账按联系人分键，不会串桌面）
       mailLibMerged = false; // #1417：合过的账按桌面重置——新桌面这一格是不是旧账要重新问一次
       // v3.7.x：补 15s 保险丝（与启动 line 798 同理）——切换联系人后 idbGet 在
       // 个别手机（华为/edge/OPPO 后台挂起）可能不返回，mailDbReady 永远 false →
@@ -1915,7 +2074,7 @@ window.showDeskPopup({ name: '信箱', notifyKind: 'mail', text: mailPlainDesc('
           fuseFired = true;
           try {
             const all = load(switchedCid);
-            if (all.length) csFor(switchedCid).set(KEY, JSON.stringify(all));
+            if (all.length) { csFor(switchedCid).set(KEY, JSON.stringify(all)); try { mailHoldReconcile(switchedCid, all); } catch (e0) {} } // #1469f 保险丝放行那一发同样销账
           } catch (e) {}
           mailAuthOk = true;
           mailDbReady = true;

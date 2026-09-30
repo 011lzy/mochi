@@ -4,6 +4,7 @@ const store = window.activeStore();
 const KEY = 'mail-letters';
 const SNAP_KEY = 'mail-letters-snap';
 const LS_BIG_LIMIT = 200 * 1024;
+const HOLD_KEY = 'mail-letters-hold';
 const TITLES = ['好久不见', '最近还好吗', '想你了', '给你写了封信', '深夜随想', '一些想说的话'];
 let mtab = 'in';
 let viewLetter = null;
@@ -90,10 +91,15 @@ if (raw !== null) list = cachedParse(prefixFor(cid) + ':' + KEY, raw);
 if (raw === null && !cid && cs.awaitingBigKey && cs.awaitingBigKey(KEY)) {
 mailSyncCold = true;
 try { if (cs.whenBigKeyBack) cs.whenBigKeyBack(KEY, function () { try { render(); updateBadge(); } catch (e0) {} }); } catch (e) {}
-} else if (raw !== null) mailSyncCold = false;
+} else if (raw !== null || !cid) mailSyncCold = false; // #1469s 现证不成立就复位：旧写法只在「读得到值」时复位＝主键真不在库里（raw 恒 null）时这一位永远留着，于是 save() 永远走残缺分支、#1469 的「按住」也永远抬不起来（新尺丁7 实测连按 8 轮全是那句提示，而四条证据当场都已不成立）
 if (mailStaleLs(cid)) { mailSyncCold = true; mailRescueArm(cid); }
-if (!list.length) { try { const v = loadSnap(cid); if (v.length) list = v; } catch (e) {} }
-if (!cid && (!mailWriteOpen() || mailSyncCold) && mailPending && mailPending.length) {
+if (!list.length && !mailLocalAuthored) { try { const v = loadSnap(cid); if (v.length) list = v; } catch (e) {} }
+try {
+if (mailLocalAuthored) { /* #1469p 本场已权威落过整包＝这一本旁路账不再认（清空那一发落的是空整包，回灌＝把用户刚删掉的又端回屏上） */ }
+else if (!cid && !mailPending) { const h0 = mailHoldLoad(); if (h0) { mailPending = h0; mailRescueArm(cid); } }
+else if (!cid && mailPending.length && !mailRescueFlight) mailRescueArm(cid); // #1469n 攥着暂存＝问到库并回为止（无在飞才补踢，不叠发）
+} catch (eR) {}
+if (!cid && mailPending && mailPending.length) {
 const map = {};
 list.forEach(x => { if (x && x.id) map[x.id] = x; });
 mailPending.forEach(x => { if (x && x.id) map[x.id] = x; });
@@ -159,6 +165,9 @@ cb();
 } catch (e) { cb(); }
 }
 let mailLibMerged = false; // 本会话已从库里合过一次：合过之后内存那份即权威，旧 LS 不再作数
+let mailLocalAuthored = false;
+let mailClearedThisSession = false;
+let mailBlindCleared = false;
 function mailStaleLs(cid) {
 if (cid || mailLibMerged) return false;
 try {
@@ -258,16 +267,62 @@ const wait = MAIL_AUTH_BACKOFF[mailAuthTries++];
 try { if (window.__mochiPhase) window.__mochiPhase('mail-auth-retry:' + mailAuthTries); } catch (e) {}
 setTimeout(function () { mailAuthAsk(cid, guard, after); }, wait);
 }
-function mailBlindRead(cid) { return !!window.xyBigWriteHold(csFor(cid), KEY); }
+function mailBlindRead(cid) { if (!cid && mailBlindCleared) return false; return !!window.xyBigWriteHold(csFor(cid), KEY); } // #1469r
+function mailHoldSave(arr, cid) {
+try {
+const cs = csFor(cid);
+if (arr && arr.length) cs.set(HOLD_KEY, JSON.stringify(arr));
+else cs.remove(HOLD_KEY);
+} catch (e) {}
+}
+function mailHoldLoad(cid) {
+try {
+const v = csFor(cid).get(HOLD_KEY);
+if (!v) return null;
+const a = JSON.parse(v);
+return Array.isArray(a) && a.length ? a : null;
+} catch (e) { return null; }
+}
+function mailHoldReconcile(cid, written) {
+try {
+const cs = csFor(cid);
+if (cs.awaitingBigKey && cs.awaitingBigKey(HOLD_KEY)) return;
+mailHoldSave(null, cid);
+if (!cid) mailPending = null;
+void written;
+if (!cid) mailLocalAuthored = true; // 这一场已经权威落过一次整包＝本地这份就是答案，库里那份只许补字段
+} catch (e) {}
+}
+function mailWriteBlockedNow(what) {
+let blocked = false;
+try { blocked = !mailWriteOpen() || mailReadIncomplete() || mailBlindRead(); } catch (e) { blocked = false; }
+if (!blocked) return false;
+try { window.xyBigWriteBlocked(csFor(), KEY, what, true); } catch (e2) {} // 同一句提示＋顺手请一次库
+try {
+const ask1469 = window.idbEnsureBigKey ? window.idbEnsureBigKey(KEY) : null;
+if (ask1469 && ask1469.then) ask1469.then(function (st) {
+if (st !== 'absent') return; // #1469r 只有健康连接的「确认没有」才作废残缺证据
+mailBlindCleared = true;
+mailSyncCold = false;
+try { render(); updateBadge(); } catch (e5) {}
+}, function () {});
+} catch (e6) {}
+return true;
+}
 function save(list, cid) {
-if (!cid && !mailWriteOpen()) { try { mailPending = (list || []).slice(); } catch (e) {} writeSnap(list, cid); return; }
+if (!cid && !mailWriteOpen()) { try { mailPending = (list || []).slice(); } catch (e) {} mailHoldSave(mailPending, cid); // #1469a 未就绪那一支也落账
+return; }
 if (mailReadIncomplete(cid) || mailBlindRead(cid)) {
 try { mailPending = mergeLists(mailPending || [], list || []); } catch (e) {}
-writeSnap(list, cid);
+mailHoldSave(mailPending, cid); // #1469b 残缺读数那一支：暂存当场落盘，页面被回收也带得走
 mailRescueArm(cid);
 return;
 }
 csFor(cid).set(KEY, JSON.stringify(list));
+mailLocalAuthored = true; // #1469：本会话已权威落盘＝屏上这一本就是答案（回灌那三条路关掉）
+if (!cid && !list.length) mailClearedThisSession = true; // #1469o 落的是空整包＝用户亲手清空，稍后任何一趟库读都不许把那本带回来
+mailHoldReconcile(cid, list); // #1469c 权威整包落盘后销账（读不到那一格才不动）
+if (!cid) mailPending = null; // #1469q 内存这一份照旧作废——销账被「那一格读不到」挡住时也一样，屏上不许还攥着刚写进库（或刚清空掉）的那些
 writeSnap(list, cid);
 }
 function mailIsUnread(l) { return l.type === 'received' && !l.read && !l.myReply; }
@@ -1256,6 +1311,7 @@ toast('已导入 ' + valid.length + ' 封信（共 ' + merged.length + ' 封）'
 });
 }
 function mailClearAll() {
+if (mailWriteBlockedNow('信箱')) return; // #1469h 清空按住并提示（残缺读数当「答案」清空＝既删不准也盖掉库里那本）
 const n = load().length;
 if (window.openModal) {
 window.openModal('清空所有信件？', '', () => {
@@ -1270,6 +1326,7 @@ toast('信箱已清空');
 }
 function deleteLetter(l) {
 if (!l || !l.id) return;
+if (mailWriteBlockedNow('这封信')) return; // #1469g 删除按住并提示
 if (window.openModal) {
 window.openModal('删除这封信？', '', () => {
 const list = load();
@@ -1307,6 +1364,7 @@ if (mailRescueBtn) mailRescueBtn.addEventListener('click', mailRescueClick);
 render();
 updateBadge();
 function mailMergeFromIdb(v, cid) {
+if (mailClearedThisSession && !cid) return; // #1469o 只挡「本场亲手清空」那一型；写过非空整包照旧并库（#1417 的战果不许反过来弄没）
 try {
 const pending = mailPending || [];
 mailPending = null;
@@ -1318,10 +1376,33 @@ if (Array.isArray(idbArr)) base = idbArr;
 let cur = [];
 try { cur = JSON.parse(csFor(cid).get(KEY) || '[]'); } catch (e) { cur = []; }
 if (!cur.length) { try { cur = loadSnap(cid); } catch (e) {} }
-const merged = mergeLists(base, mergeLists(cur, pending));
-if (merged.length) { csFor(cid).set(KEY, JSON.stringify(merged)); writeSnap(merged, cid); }
+const merged = mergeLists(mergeLists(base, cur), mergeLists(pending, mailHoldLoad(cid) || []));
+if (merged.length) { csFor(cid).set(KEY, JSON.stringify(merged)); try { mailHoldReconcile(cid, merged); } catch (e0) {} /* #1469h 库里那份合回来之后对账 */ writeSnap(merged, cid); }
 } catch (e) { /* 解析失败：仍置就绪，避免下次启动重复合并 */ }
 }
+try { mailPending = mailHoldLoad(); } catch (e0) {} // #1469d 开机先把上一场没落地的暂存灌回内存
+document.addEventListener('mochi-restore-done', function () {
+try {
+if (mailLocalAuthored) return; // #1469p 本场已经权威落盘＝回填完成这一发不再回灌旁路账（清空之后不许复活）
+if (mailPending && mailPending.length) return;
+const h = mailHoldLoad();
+if (!h) return;
+mailPending = h;
+render();
+updateBadge();
+} catch (e1) {}
+});
+if (window.mochiOnDataReady) window.mochiOnDataReady(function () {
+try {
+if (mailLocalAuthored) return; // #1469p 同上一条：本场已权威落盘就不再回灌
+if (mailPending && mailPending.length) return;
+const h = mailHoldLoad();
+if (!h) return;
+mailPending = h;
+render();
+updateBadge();
+} catch (e2) {}
+});
 try {
 mailAuthAsk(undefined, null, function () {
 checkPendingReply(); // v3.9.x：权威就绪立即补查到期回信（启动即到的回信不再等 20~60s）
@@ -1334,7 +1415,7 @@ if (mailWriteOpen()) return;
 mailFuseFlush(function () {
 try {
 const all = load();
-if (all.length) store.set(KEY, JSON.stringify(all));
+if (all.length) { store.set(KEY, JSON.stringify(all)); try { mailHoldReconcile(undefined, all); } catch (e0) {} } // #1469f 保险丝放行＝这一包已落盘，暂存销账
 } catch (e) {}
 mailAuthOk = true;
 mailDbReady = true;
@@ -1349,7 +1430,8 @@ const switchedCid = window.__activeCid || 'default';
 mailDbReady = false;
 mailAuthOk = false;
 mailAuthTries = 0; // #1309b：新桌面另给一份重试预算（与 mailPending 一样按桌面重置）
-mailPending = null;
+mailBlindCleared = false; // #1469r 这一问的结论属于刚才那个桌面，换桌面重问
+mailPending = mailHoldLoad(switchedCid); // #1469e 换桌面＝换那本暂存账（账按联系人分键，不会串桌面）
 mailLibMerged = false; // #1417：合过的账按桌面重置——新桌面这一格是不是旧账要重新问一次
 let fuseFired = false;
 const fuse = setTimeout(function () {
@@ -1359,7 +1441,7 @@ mailFuseFlush(function () {
 fuseFired = true;
 try {
 const all = load(switchedCid);
-if (all.length) csFor(switchedCid).set(KEY, JSON.stringify(all));
+if (all.length) { csFor(switchedCid).set(KEY, JSON.stringify(all)); try { mailHoldReconcile(switchedCid, all); } catch (e0) {} } // #1469f 保险丝放行那一发同样销账
 } catch (e) {}
 mailAuthOk = true;
 mailDbReady = true;

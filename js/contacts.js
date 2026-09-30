@@ -94,8 +94,9 @@ window.xyStore(ns).set(k, v);
 try { window.xyStore(G).remove(k); } catch (e) {}
 },
 awaitingBigKey(k) {
-try { if (window.xyStore(ns).awaitingBigKey(k)) return true; } catch (e) {}
-try { return window.xyStore(G).awaitingBigKey(k); } catch (e2) { return false; }
+try { if (window.xyStore(ns).get(k) !== null) return false; } catch (e3) {}
+try { if (window.xyStore(G).get(k) !== null) return false; } catch (e4) {}
+try { return window.xyStore(ns).awaitingBigKey(k); } catch (e) { return false; }
 },
 requestBigKey(k) {
 try { window.xyStore(ns).requestBigKey(k); } catch (e) {}

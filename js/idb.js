@@ -544,7 +544,8 @@ if (st === 'unknown') delete _memoBlind[key];
 }, function () { delete _memoBlind[key]; });
 } catch (e) { delete _memoBlind[key]; }
 }
-function bigKeyBlind(key) { return !!_memoBlind[key]; }
+const bigHydAbsent = {};     // 完整键名 -> 健康连接确认库里确实没有（本会话不再空读）#1469t：搬到此处的 _memoBlind 之前，同模块内先声明再问，不留 TDZ
+function bigKeyBlind(key) { return !!_memoBlind[key] && !bigHydAbsent[key]; }
 function bigReadUnconfirmed(key) {
 if (memoryCache && (key in memoryCache)) return false;
 try { if (localStorage.getItem(key) !== null) return false; } catch (e) { return true; }
@@ -555,9 +556,9 @@ if (typeof _bigIdx[key] === 'number' && _bigIdx[key] > LS_BIG_LIMIT && !bigHydAb
 if (window.mochiDataPending && window.mochiDataPending()) return true;
 return false;
 }
-window.xyBigWriteBlocked = function (store, key, what) {
+window.xyBigWriteBlocked = function (store, key, what, forced) {
 try {
-if (!store || typeof store.awaitingBigKey !== 'function' || !store.awaitingBigKey(key)) return false;
+if (!forced && (!store || typeof store.awaitingBigKey !== 'function' || !store.awaitingBigKey(key))) return false;
 } catch (e) { return false; }
 try { if (store.requestBigKey) store.requestBigKey(key); } catch (e3) {}
 if (window.toast) { try { window.toast((what || '这份数据') + '这次没读全（存储正忙）：等几秒再点一次即可，不需要重新设置'); } catch (e2) {} }
@@ -1051,7 +1052,6 @@ return true;
 }).catch(() => false);
 };
 const bigHydInflight = {};   // 完整键名 -> 进行中的取回（同键并发合流，不重复读 MB 级值）
-const bigHydAbsent = {};     // 完整键名 -> 健康连接确认库里确实没有（本会话不再空读）
 function bigHydAsk(full) {
 if (bigHydInflight[full]) return bigHydInflight[full];
 if (typeof window.idbHydrateKey !== 'function') return Promise.resolve('unknown');

@@ -818,7 +818,14 @@ window.idbGet = function (key, info) {
   // 刻意不在这里补踢：那条路上 #1218/#1258/#172 各消费方本来就按「每个命名空间每会话只踢一趟」在问库
   // （#1258d 的不变量），数据层再补一脚＝同一个 MB 级原图被读两遍、邻居当场报红（实测 32/0→29/3）。
   // 头像池这类「读回来还要整包写回去」的通路，那一格由消费方自己的证人闸门兜（#1349d~h）。
-  function bigKeyBlind(key) { return !!_memoBlind[key]; }
+  // FIX 2026-09-30 #1469t：这一腿也要认「健康连接已经确认库里没有」。#1361a 给 _bigIdx 那位证人写的
+  //   处置（只有 bigHydAbsent 才作废证人）当年没同步落到 _memoBlind 这一腿上，于是「被 #1195e 放掉过、
+  //   而库里其实已经没有这一键」的机器会永久停在「这一格读不回来」：#1342i 的写回闸与 #1469 的
+  //   「删除／清空按住并提示」都被它焊死（新尺丁7 实测连按 8 轮全是那句提示，三态那一问早已回答
+  //   'absent'，_memoBlind 那一格却还挂着 'fly'）。判据仍是当场事实（这一问有没有问出结果），
+  //   零机型／零 UA 分支；库里真回来的那一格（'ok'）不受影响。
+  const bigHydAbsent = {};     // 完整键名 -> 健康连接确认库里确实没有（本会话不再空读）#1469t：搬到此处的 _memoBlind 之前，同模块内先声明再问，不留 TDZ
+  function bigKeyBlind(key) { return !!_memoBlind[key] && !bigHydAbsent[key]; }
   // ===== FIX 2026-09-27 #1342：「同步读空」不是答案——写回侧那一句问话 =====
   // #1349 已经把「这一格被 #1195e 放掉过」记进 _memoBlind 并在首次读空时补踢一趟（名册与合流都用
   // 它那一份，本批不另起第二套、也不挂第二脚）。本批补的是它的**下一环**：读数没回来之前，
@@ -864,9 +871,13 @@ window.idbGet = function (key, info) {
   // 四本方案账做的都是同一件事：JSON.parse(store.get(K) || '[]') → 改 → store.set(K, 整本)。判据与
   // 文案若各写一份，就是 #1335 那条「一条通路喂坏四个页面、逐页补闸＝覆盖式修补」的反面教材——
   // 所以调用方只调这一句，`what` 只负责说清是哪本账。零机型／零 UA 分支。
-  window.xyBigWriteBlocked = function (store, key, what) {
+  // FIX 2026-09-30 #1469：多收一个可选 forced 位——消费方自己那枚「本地这份是写失败留下的旧账」残缺判据
+  //   （信箱的 mailReadIncomplete）也要走**同一句**判断＋**同一句**文案，不再在业务侧另写一份提示。
+  //   forced 为真＝跳过 awaitingBigKey 那一问直接认「这一发读不全」；请求库值与提示两条腿一字不变，
+  //   老调用方（不传第四参）行为逐位不变。零机型／零 UA 分支。
+  window.xyBigWriteBlocked = function (store, key, what, forced) {
     try {
-      if (!store || typeof store.awaitingBigKey !== 'function' || !store.awaitingBigKey(key)) return false;
+      if (!forced && (!store || typeof store.awaitingBigKey !== 'function' || !store.awaitingBigKey(key))) return false;
     } catch (e) { return false; }
     try { if (store.requestBigKey) store.requestBigKey(key); } catch (e3) {}
     if (window.toast) { try { window.toast((what || '这份数据') + '这次没读全（存储正忙）：等几秒再点一次即可，不需要重新设置'); } catch (e2) {} }
@@ -1654,7 +1665,6 @@ window.idbGet = function (key, info) {
   // 已是同口径的两个先例，这里只是给没做这件事的那批键补上；消费方只允许在 'absent' 时说「已丢失」。
   // 零机型／零 UA 分支：判据只有内核回执的三态。
   const bigHydInflight = {};   // 完整键名 -> 进行中的取回（同键并发合流，不重复读 MB 级值）
-  const bigHydAbsent = {};     // 完整键名 -> 健康连接确认库里确实没有（本会话不再空读）
   // FIX 2026-09-27 #1349i：把「同一完整键那一趟取回」收成一个口，#1218 的消费方问库与 xyStore.get
   //   撞上「被放掉」那一格的补踢（#1349a）共用同一格合流。两条腿各发一趟会把 MB 级原图读两遍，
   //   还会把 #1258d 那条「每个命名空间只踢一趟按需取回」的不变量撞红（那一句是各页「读空先别拆层、
