@@ -33,7 +33,8 @@ function parseRegistry(src) {
   if (start < 0) return { err: '这份 build.mjs 里没有 FIX_SENTINELS 数组' };
   const body = src.slice(start + TAG.length, src.indexOf('\n];', start));
   let arr;
-  try { arr = new Function('return [' + body + ']')(); } catch (e) { return { err: '登记表解析失败（数组写法变了？）：' + String(e.message).slice(0, 80) }; }
+  // 闭合括号前必须换行：登记表末行是裸注释时（v8.56 #1474 那样），直接拼 '] 会被那行注释吃掉＝整道打回体检闸静默断电
+  try { arr = new Function('return [' + body + String.fromCharCode(10) + ']')(); } catch (e) { return { err: '登记表解析失败（数组写法变了？）：' + String(e.message).slice(0, 60) }; }
   const list = (arr || []).filter(x => x && typeof x === 'object' && typeof x.needle === 'string' && typeof x.file === 'string');
   // 条数闸门：本仓登记量早已上千，解析出的条目骤减＝解析错位而非「针真的没了」，宁可跳过
   if (list.length < 100) return { err: '登记表只解析出 ' + list.length + ' 条（异常偏少，疑似错位）' };
