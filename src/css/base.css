@@ -163,6 +163,9 @@ html { margin:0; padding:0; }
 .splash-source-line { font-size:9px; color:var(--hint-ink); line-height:1.9; letter-spacing:0; white-space:nowrap; }
 /* v3.26.x：置顶澄清行可换行——nowrap 仅供单行网址/署名，长句澄清不换行会超出手机屏幕 */
 .splash-source-line.splash-clarify { white-space:normal; padding:0 14px; line-height:1.95; }
+/* #1503：品牌卡「许可 · 署名 · 灵感来源」块是长句（署名 / 二传二改四点要求 / 借鉴来源清单），
+   默认 nowrap 会把开屏撑出横向滚动（#973 S20 / #976 S15 实测）→ 仅本块内放开换行，不影响其余品牌行 */
+.splash-license .splash-source-line { white-space:normal; padding:0 14px; }
 .splash-source-url { color:var(--ink); font-weight:600; }
 /* v3.26.x #793：停更公告横幅（品牌卡内·署名行正下方，data-stop-update）——红色警示形态（同 #315b 免责卡红），
    开屏第一屏第一眼必见；品牌卡整体居中排版，横幅自身改左对齐保正文可读性；暗色主题同批适配 */

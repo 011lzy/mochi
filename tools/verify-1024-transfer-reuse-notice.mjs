@@ -63,7 +63,9 @@ ok(!!s0 && Array.isArray(s0.p) && s0.p[5] && s0.p[5].hl === TAIL, '侵权声明�
 //   原「摘要新增转载高亮条 / 第一条未被顶掉」两条判据改口为「summary 已空」＋「转载章仍在首位」（本章即落点）。
 ok(!!j && Array.isArray(j.summary) && j.summary.length === 0, '在线 summary 已随 #1216 整段清空（残留一条＝联网用户仍看到半块摘要，与静态兜底两份分叉）', JSON.stringify(j.summary || null).slice(0, 40));
 ok(!!j && j.sections.length >= 12 && j.sections[0].h === NUM + TITLE, '转载公告落在线首章（摘要撤除后它才是唯一落点）', j && j.sections.length + ' 章');
-ok(!!j && (j.sections.find((x) => String(x.h).indexOf('9、许可') === 0) || {}).h !== undefined, '9、许可 · 署名 · 灵感来源 章仍在（未被我方替换/删除）');
+// #1503（2026-09-30 作者直派「许可 署名 灵感来源应该也放在显眼的地方啊，和 mochi 名字解释的一起」）：该章整章
+//   从公告下架、要点搬到品牌卡（与「Mochi」名字澄清同处）——原「章仍在」判据改口为「不得回流」。
+ok(!!j && j.sections.every((x) => String(x.h).indexOf('许可 · 署名 · 灵感来源') < 0), '#1503 起在线源不再有「许可 · 署名 · 灵感来源」章（要点已移到品牌卡；回流＝公告与品牌卡两份口径并存）', j && j.sections.map((x) => String(x.h)).join(' / ').slice(0, 60));
 
 console.log('\n== B 离线兜底 src/template.html ==');
 const tpl = readFileSync(join(root, 'src/template.html'), 'utf8');
@@ -104,7 +106,8 @@ const r = await page.evaluate((title) => {
     hasSummaryEl: !!document.querySelector('.splash-summary'),
     noticeHasTail: norm(notice.textContent).indexOf(norm('未经署名转载视为侵权，作者保留追究权利。')) >= 0,
     keepDisclaimer: norm(document.querySelector('.splash-disclaimer') ? document.querySelector('.splash-disclaimer').textContent : '').indexOf(norm('本站禁止未满 18 周岁的未成年人使用')) >= 0,
-    keepPermit: norm(notice.textContent).indexOf(norm('Mochi字卡为原创独立作品（即原版）')) >= 0,
+    // #1503 起该口径随许可章搬到品牌卡（.splash-brandcard，不在 #splash-notice 内）→ 判据改看整页文本
+    keepPermit: norm(document.body.textContent).indexOf(norm('Mochi字卡为原创独立作品（即原版）')) >= 0,
     firstHasAll: ['网站公告·关于转载与二次创作', '本网站所有字卡内容遵循「开放二传二改」原则，欢迎分享与再创作。但请遵守以下要求：',
       '转载或二传链接，必须保留作者署名（言序）；', '二次创作作品请注明「基于言序作品修改」；',
       '禁止抹除署名、伪装原创、或将内容用于恶意引流；', '仅分享网站聊天记录、不涉及搬运字卡的，只需标注mochi字卡tag即可。',
@@ -112,14 +115,14 @@ const r = await page.evaluate((title) => {
     ncharsFirst: nchars(first ? first.textContent : ''),
   };
 }, TITLE);
-ok(r.chapterCount >= 16, '第一页公告章节数 ≥ 16（#1502 起删去四章功能说明型章节＝在线源 16 章）', r.chapterCount);
+ok(r.chapterCount >= 14, '第一页公告章节数 ≥ 14（#1503 起许可章与 Bug 章下架＝在线源 14 章）', r.chapterCount);
 ok(r.firstTitle === NUM + TITLE, '渲染后首章就是该公告（第一眼可见）', r.firstTitle);
 ok(r.firstHasAll, '首章七段原文（首句 + 四条 + 侵权声明）全部渲染到位');
 ok(r.tocHasIt, '目录里能跳转到该章', r.tocCount + ' 章');
 ok(!r.hasSummaryEl, '必读摘要块已整块撤除（#1216 用户直派；渲染侧也不该再出现 .splash-summary）');
 ok(r.noticeHasTail, '侵权声明在页面上可见');
 ok(r.keepDisclaimer, '免责声明卡的 18 周岁红线未被覆盖（摘要撤除后它的权威落点＝开屏必读卡组 .splash-disclaimer，只增不改）');
-ok(r.keepPermit, '9、许可章的原文仍在（未被新增章替换）');
+ok(r.keepPermit, '#1503 起「原创独立作品（即原版）」口径仍在（落点＝品牌卡许可块）');
 ok(errs.length === 0, '全程无未捕获 JS 异常', errs.slice(0, 3));
 await browser.close();
 srv.close();

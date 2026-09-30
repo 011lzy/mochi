@@ -194,8 +194,9 @@ try {
   ok('#974 在线源：摘要里无该高亮条', !!(noticeSrc && srcJson.indexOf(HLLINE) < 0));
   ok('#974 在线源：正文无该章独有的句子残留', !!(noticeSrc && srcJson.indexOf('先把结论说在前面') < 0 && srcJson.indexOf('重开等于从头再读一遍') < 0));
   ok('在线源目录首位已顺延（默认展开不落在已删章的空位上）', !!(noticeSrc && noticeSrc.sections && noticeSrc.sections[0] && noticeSrc.sections[0].h !== TITLE), noticeSrc && noticeSrc.sections && noticeSrc.sections[0] && noticeSrc.sections[0].h);
-  const bugSec = noticeSrc && noticeSrc.sections && noticeSrc.sections.find((x) => String(x.h).indexOf('7、关于 Bug') === 0); // #1500 目录统一编号后该章＝「7、关于 Bug 与设备适配」
-  ok('在线源：Bug 章本来就没有该解释块（删除没留半截）', !!bugSec && JSON.stringify(bugSec).indexOf('开屏偶尔慢') < 0);
+  // #1503 起「关于 Bug 与设备适配」章整章下线（作者直派删除）——原「该章不含慢启动解释」判据随之改口为「不得回流」。
+  const bugSec = noticeSrc && noticeSrc.sections && noticeSrc.sections.find((x) => String(x.h).replace(/^\d+、/, '').indexOf('关于 Bug 与设备适配') === 0);
+  ok('在线源：#1503 起「关于 Bug 与设备适配」章已下线、不得回流（回流＝与「浏览器兼容提醒」重复的报修口径又回开屏）', !bugSec);
   let tplSrc = '';
   try { tplSrc = readFileSync(join(root, 'src/template.html'), 'utf8'); } catch (e) {}
   ok('#974 离线兜底 template.html：章标题与摘要高亮行都不在', tplSrc.indexOf('<p class="splash-sec">开屏偶尔慢一下，是正常的（不是 bug）</p>') < 0 && tplSrc.indexOf('<p class="splash-hl">开屏 / 打开时偶尔慢几秒是正常的，不是 bug') < 0);
