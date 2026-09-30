@@ -684,8 +684,36 @@ if (window.idbSet) window.idbSet(window.activePrefix() + ':checkin-history', JSO
 } catch (e) {}
 renderCheckinHistory();
 }
+let ckBigPending = 0, ckBigSeq = 0;
 function doCheckin() {
 if (!ckEn()) return; // #823a 关闭即全静默：生成/推送/记录/重置计时一并停
+const blind = ['place', 'action', 'msg'].filter(function (k) {
+try { return typeof store.awaitingBigKey === 'function' && store.awaitingBigKey('checkin-cards-' + k); } catch (e) { return false; }
+});
+if (blind.length) {
+if (ckBigPending) return; // 已在等库：60 秒轮询/连点刷新不叠加第二发
+ckBigPending = blind.length;
+const seq = ++ckBigSeq;
+blind.forEach(function (k) { try { store.requestBigKey('checkin-cards-' + k); } catch (e2) {} });
+blind.forEach(function (k) {
+let done = false;
+try {
+store.whenBigKeyBack('checkin-cards-' + k, function () {
+if (seq !== ckBigSeq || done) return;
+done = true;
+if (--ckBigPending > 0) return;
+doCheckin(); // 取齐了＝用完整池子生成（含开关开启时的合并与关闭时的只抽自定义）
+});
+} catch (e3) { if (!done) { done = true; ckBigPending--; } }
+});
+setTimeout(function () {
+if (seq !== ckBigSeq || !ckBigPending) return;
+ckBigSeq++; // 作废在途回调＝保底路径后不会再触发第二次生成
+ckBigPending = 0;
+doCheckin(); // 4 秒保底：IDB 挂死也照旧按可读到的生成（宁可残缺不可静默停更）
+}, 4000);
+return;
+}
 const ck = genCheckin();
 store.set('checkin-current', JSON.stringify(ck));
 renderCheckinUI(ck);
@@ -920,6 +948,15 @@ const groups = ckGroups(ckTab);
 let html = '';
 html += '<div class="mg-grp-row"><button class="cc-tool mg-grp-add"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;margin-right:4px"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>新建分组</button></div>';
 if (!custom.length && !groups.length) {
+let blindTab = false;
+try { blindTab = typeof store.awaitingBigKey === 'function' && store.awaitingBigKey('checkin-cards-' + ckTab); } catch (e0) {}
+if (blindTab) {
+try { store.requestBigKey('checkin-cards-' + ckTab); } catch (e1) {}
+try { store.whenBigKeyBack('checkin-cards-' + ckTab, function () { renderCheckinCards(); }); } catch (e2) {}
+listEl.innerHTML = html + '<div class="ta-empty">字卡库正在取回（内容较多，几秒内自动出现）…</div>';
+bindCkGroupOps();
+return;
+}
 listEl.innerHTML = html + '<div class="ta-empty">暂未添加自定义字卡，可在上方批量输入（每行一个）。</div>';
 bindCkGroupOps();
 return;

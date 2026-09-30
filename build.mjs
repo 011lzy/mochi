@@ -6221,6 +6221,8 @@ const FIX_SENTINELS = [
   { name: '#1512a 纯 overlay 键盘救援（删＝OPPO Reno14/荣耀100 Edge 零信号键盘整行被盖、保底停靠永不触发）', file: 'js/mobile-adapt.js', needle: '零视口响应且内核有 vk＝纯 overlay 键盘' },
   { name: '#1510a 武装门槛连续 3 拍全高（删＝K80 Edge 单拍瞬时全高被武装＝内核被改造成 overlay＝秒收与停靠双双劣化）', file: 'js/mobile-adapt.js', needle: 'if (_aFullReads >= 3) _aKbVkArm();' },
   { name: '#1510b 收缩读数清武装计数（删＝瞬时全高后计数不清零，攒够 3 次照样误武装）', file: 'js/mobile-adapt.js', needle: '_aFullReads = 0; return cur;' },
+  { name: '#1513a 寻踪生成前问大键读全没有（删＝自定义库超 200KB 成 IDB-only 后切一次后台同步读空被当「没有」＝关预设时 TA在哪里/在做什么直接生成空，只剩想对你说）', file: 'js/p2-features.js', needle: "store.awaitingBigKey('checkin-cards-' + k)" },
+  { name: '#1513b 读不全让路请库取回＋回来再生成（删＝闸只拦不取＝日常静默停更；whenBigKeyBack 是 #1358d 取回后重画的唯一口）', file: 'js/p2-features.js', needle: "store.whenBigKeyBack('checkin-cards-' + k, function () {" },
   { name: '#1511a 保存前读数闸（删＝「保存设置」又把没读全的屏面值整包顶库：保存了刷新又回默认/旧值＝#1342 美化方案同族在回复设置页复发）', file: 'js/reply-settings.js', needle: 'function replyKeyUnvouched(k) {' },
   { name: '#1511b 整包保存 stepper 路接闸（删＝步进值绕过读数闸直接落笔，冷读默认值顶掉库里真值）', file: 'js/reply-settings.js', needle: 'if (replyKeyUnvouched(k)) { skipped.push(k); return; }' },
   { name: '#1511c 整包保存开关路接闸（删＝开关值绕过读数闸直接落笔，回填未落定窗口整页顶回默认）', file: 'js/reply-settings.js', needle: 'if (replyKeyUnvouched(k)) { if (skipped.indexOf(k) < 0) skipped.push(k); return; }' },
