@@ -1040,13 +1040,13 @@ var _aH = Math.min(_aVV.height || window.innerHeight, window.innerHeight || _aVV
 var _aKb = false;
 var _aKbAt = 0, _aVvChgAt = Date.now(), _aVvStale = false;
 var _aKbMute = false;
-var _aTextFocused = null;
+var _aTextFocused = null, _aStaleFoc = 0; // #1524：滞留焦点对账计数
 var _aFocusAt = 0, _aProv = false, _aIH = window.innerHeight;
 var _aVvShrunkSeen = false;
 var _aLastAct = Date.now();
 var _aLastVVH = 0;
 var _aPrevH = 0;
-var _aKbStableH = 0, _aFullSince = 0, _aVkHonest = false, _aVkH = -1, _aFullReads = 0, _aLastKbCloseAt = 0;
+var _aKbStableH = 0, _aFullSince = 0, _aVkHonest = false, _aVkH = -1, _aFullReads = 0, _aLastKbCloseAt = 0, _aLastDockSig = 0, _aHoldSuppressUntil = 0, _aHonestSession = 0, _aLowSince = 0, _aVkSeen = 0, _aLowRuns = 0, _aVkListener = null; // #1524：残差签名／收口抑制窗／诚实会话判位
 var _aPanSeen = 0, _aPanSeenAt = 0;
 var _aBurstUntil = 0;
 var _aFullIH = Math.max(window.innerHeight || 0, Math.round(_aVV.height || 0));
@@ -1346,25 +1346,20 @@ _aClosing = true;
 _aPrevH = h;
 var open = (!_aVvStale && !_aKbMute && h < _aH - 60 && _focNow); // 可视高度明显变小 = 键盘弹出（#236：残留读数闩抑制纯 vv 信号；真键盘不受影响——inner 同缩走原判/交互与回基准解锁；#479：必然伴随文本聚焦）
 if (!open && h > _aH) _aH = Math.min(h, window.innerHeight || h); // #1516：基线钳进布局视口——Edge 工具栏切换会报比 inner 还高的假 vv（实测 690 基线下闯入 816），不钳则正常高度被误判成键盘收缩、会话劫持钉全高
-if (open && !_aKb) { _aClosing = false; _aKb = true; _aVvShrunkSeen = true; _aKbAt = Date.now(); _aKbStableH = 0; _aFullSince = 0; _aPhone.style.alignSelf = 'flex-start'; kbDockPanels(); _aProvClear(); } _aKbSnapOpen = true; // #1463：本拍钉高落定后留证
+if (open && !_aKb) { _aClosing = false; _aKb = true; _aVvShrunkSeen = true; _aKbAt = Date.now(); _aKbStableH = 0; _aFullSince = 0; _aHonestSession = 0; _aLowSince = 0; _aVkSeen = 0; _aLowRuns = 0; _aFullReads = 0; _aPhone.style.alignSelf = 'flex-start'; kbDockPanels(); _aProvClear(); } _aKbSnapOpen = true; // #1463：本拍钉高落定后留证
+if (_aKb) { if (h < _aH - 60) { if (!_aLowSince) _aLowSince = Date.now(); _aLowRuns++; _aFullReads = 0; } else { if (_aLowRuns >= 2 && _aLowSince && (Date.now() - _aLowSince) > 400) _aHonestSession = 1; _aLowRuns = 0; _aLowSince = 0; } } // #1524：诚实判位＝收缩持续存在（连续≥2拍且跨度>400ms，回全高那拍结算）；单拍瞬时收缩永不判诚实
 if (!open && _aKb) {
 if (h < _aH - 12) {
 _aClosing = true;
 if (_aPhone.style.height !== h + 'px') _aPhone.style.height = h + 'px';
+if (!_focNow && Date.now() - _aVvChgAt > 1200) { _aKbCloseNow('blur-stale'); return; } // #1524：失焦＋视口读数冻结 1.2s＝键盘确已不在场，别再跟陈旧读数（B 型「失焦回位」；诚实内核上 vv 持续回升故不触发）
 return;
 }
 if (!_aFullSince) _aFullSince = Date.now();
-if (_focNow && ((_aVkHonest && ((Date.now() - _aFullSince < 800 && !(_aVkHonest && _aVkH >= 0 && _aVkH < 80)) || (_aVkH >= 80 && Date.now() - _aUserTypos < 650))) || (!_aVkHonest && Date.now() - _aUserTypos < 300))) { if (!_aVkHonest) { _aFullReads++; if (_aFullReads >= 3) _aKbVkArm(); } /* #1510 连续3拍全高才武装 */ var _hHold = Math.round(_aKbStableH) + _aKbGap() || Math.round(_aVV.height || 0); if (_hHold > 0 && _aPhone.style.height !== _hHold + 'px') _aPhone.style.height = _hHold + 'px'; return; } // #1492：打字中才顶住＋顶住含轴值（无vk翻毛内核靠 800ms；vk 在场＝打字窗口 1.2s；停手＞1.2s 或失焦＝放行回底 // #1481：毛刺顶住（#1484：实测尺在场时 _aKbStableH 由实测持续更新，实测归零走 _aFullSince=1 即时复原） // #1481：全高毛刺未持续 800ms＝顶住会话稳态高度，不缩会话不写全高
-_aKbCloseNow('gate'); // #1506：收口公共体（含取证）
+if (_focNow && _aHoldNow()) { if (!_aVkHonest) { _aFullReads++; if (_aFullReads >= 3 && !_aHonestSession) _aKbVkArm(); } /* #1510 连续3拍全高才武装 */ var _hHold = Math.round(_aKbStableH) + _aKbGap() || Math.round(_aVV.height || 0); if (_hHold > 0 && _aPhone.style.height !== _hHold + 'px') _aPhone.style.height = _hHold + 'px'; return; } // #1492：打字中才顶住＋顶住含轴值（无vk翻毛内核靠 800ms；vk 在场＝打字窗口 1.2s；停手＞1.2s 或失焦＝放行回底 // #1481：毛刺顶住（#1484：实测尺在场时 _aKbStableH 由实测持续更新，实测归零走 _aFullSince=1 即时复原） // #1481：全高毛刺未持续 800ms＝顶住会话稳态高度，不缩会话不写全高
+_aKbCloseNow('gate'); // #1506：收口公共体（含取证；恢复动作全在里面＝单一写入者）
 return;
-_aPhone.style.height = '';
-_aPhone.style.alignSelf = '';
-if (_aH < window.innerHeight - 12) _aH = window.innerHeight; else if (_aH > window.innerHeight + 12) _aH = window.innerHeight; // #1517：高值基线必须回落
-_aDockFix = 0; _aKbSnapOpen = false; _aKbSnap("close"); // #1463：收起清对账残差账＋现场留档（「收起后白带/残留」族取证）
-_aPanComp();
-kbUndockPanels();
-return;
-}
+} // #1524：原挂在 return 之后的恢复块（基线钳/残差清账/现场快照/面板摘停靠）是死代码，已搬进 _aKbCloseNow
 if (_aKb) {
 _aPinHeight(); // #1463：钉高＝vv.height＋键盘间隙轴＋对账残差账（三项全 0＝与原「钉 vv.height」逐字一致）；值不变不写的早退在 _aPinHeight 内
 if (!_aClosing) _aPinPan();
@@ -1376,6 +1371,8 @@ function startAWatch() {
 if (_aWatch) return;
 _aWatch = setInterval(function () {
 try {
+if (_aTextFocused && !_aIsText(document.activeElement)) { _aStaleFoc++; if (_aStaleFoc >= 2) { _aTextFocused = null; _aStaleFoc = 0; } }
+else _aStaleFoc = 0;
 var foc = _aIsText(_aTextFocused) || _aIsText(document.activeElement);
 if (foc) {
 _aBurstUntil = Date.now() + 850;
@@ -1399,7 +1396,7 @@ _aProvClear();
 } else if (_aKb) {
 if (_aVV.height >= _aH - 12) {
 if (!_aFullSince) _aFullSince = Date.now();
-if (_focNow && ((_aVkHonest && ((Date.now() - _aFullSince < 800 && !(_aVkHonest && _aVkH >= 0 && _aVkH < 80)) || (_aVkH >= 80 && Date.now() - _aUserTypos < 650))) || (!_aVkHonest && Date.now() - _aUserTypos < 300))) return; // #1492：打字中才顶住；停手＞1.2s 或失焦＝放行回底（收起空白数秒回归根除）
+if (_focNow && _aHoldNow()) return; // #1492：打字中才顶住；停手＞1.2s 或失焦＝放行回底（收起空白数秒回归根除）
 _aKbCloseNow('watch'); return;
 _aKb = false;
 _aKbStableH = 0; _aFullSince = 0;
@@ -1408,6 +1405,8 @@ _aPhone.style.height = '';
 _aPhone.style.alignSelf = '';
 _aPanComp();
 kbUndockPanels();
+} else if (Date.now() - _aVvChgAt > 1200) {
+_aKbCloseNow('watch-stale'); return;
 }
 } else {
 _aProvCheck();
@@ -1438,11 +1437,12 @@ _aProvVkRuler(base); // #337：Chromium 悬浮键盘改用 VirtualKeyboard 实�
 _aKbSnap("prov"); // #1463：盲猜停靠也留现场（后续实测尺/对账读数进诊断）
 }
 var _aDockFix = 0;
+function _aHoldNow() { return _aVkHonest ? (_aVkH >= 80 || !_aVkSeen) : !_aHonestSession; } // #1524：实测尺三态——≥80 在场顶住／<80 且本会话实测过＝键盘真收口放行／还没实测到过＝它还没报，等它报（武装当场读到 0 不是收口信号）；非实测尺内核＝诚实判位说了算
 function _aKbGap() { var a = window.__mochiScreenAdj; return a ? Math.max(-80, Math.min(80, Math.round(+a.kbgap || 0))) : 0; }
 function _aKbFeedH() {
 var cur = Math.round(_aVV.height || 0);
 if (!_aKb || _aClosing) return cur;
-if (_aVkHonest && _aVkH >= 80) { var _mv = Math.max(240, Math.min(_aH, window.innerHeight || _aH) - _aVkH); _aKbStableH = _mv; _aFullSince = 0; return _mv; } // #1484：overlay 会话用 VirtualKeyboard 实测高度
+if (_aVkHonest && _aVkH >= 80) { var _mv = Math.round(Math.max(240, Math.min(_aH, window.innerHeight || _aH) - _aVkH)); _aKbStableH = _mv; _aFullSince = 0; return _mv; } // #1484：overlay 会话用 VirtualKeyboard 实测高度
 if (cur < _aH - 60) { _aKbStableH = cur; _aFullSince = 0; _aFullReads = 0; return cur; }
 if (!_aFullSince) _aFullSince = Date.now();
 return Math.round(_aKbStableH) || cur;
@@ -1451,29 +1451,36 @@ function _aKbVkArm() {
 try {
 var vk = navigator.virtualKeyboard;
 if (!vk || _aVkHonest) return;
+if (_aVkListener) { try { vk.removeEventListener('geometrychange', _aVkListener); } catch (eRL) {} _aVkListener = null; } // #1524：重武装前先摘旧监听（否则旧监听在本会话继续按陈旧实测钉高）
 _aVkHonest = true;
 try { vk.overlaysContent = true; } catch (eOC) {}
-vk.addEventListener('geometrychange', function () {
+var _applyVk = function () {
 try {
 if (!_aKb) return;
 _aVkH = Math.round((vk.boundingRect && vk.boundingRect.height) || 0);
-if (_aVkH >= 80) { _aKbStableH = Math.max(240, Math.min(_aH, window.innerHeight || _aH) - _aVkH); _aFullSince = 0; _aPinHeight(); }
-else if (_aVkH < 80 && !_aFullSince) _aFullSince = 1;
+if (_aVkH >= 80) { _aVkSeen = 1; _aKbStableH = Math.round(Math.max(240, Math.min(_aH, window.innerHeight || _aH) - _aVkH)); _aFullSince = 0; _aPinHeight(); }
+else if (_aVkH < 80 && _aVkSeen && !_aFullSince) _aFullSince = 1;
 } catch (eG) {}
-});
+};
+vk.addEventListener('geometrychange', _applyVk);
+_aVkListener = _applyVk; // #1524：记住句柄，收口时真正摘掉
+try { _applyVk(); } catch (eA) {} // #1524：武装当场读一次实测高度（geometrychange 只在高度变化时发，武装后不再变则永远读不到）
 } catch (eV) {}
 }
 function _aPinHeight() {
 try {
 if (!_aKb || _aClosing || !_aVV || !_aPhone) return;
+if (Date.now() < _aHoldSuppressUntil) return; // #1524：抑制窗内不推顶
 var _hv = _aKbFeedH(); // #1481：会话内不信瞬时全高读数
-var want = _hv + _aKbGap() + Math.round(_aDockFix);
-if (want > 0 && _aPhone.style.height !== want + 'px') _aPhone.style.height = want + 'px';
+var want = Math.round(_hv + _aKbGap() + Math.round(_aDockFix));
+var _cur = parseInt(_aPhone.style.height, 10) || 0;
+if (want > 0 && Math.abs(want - _cur) > 2) _aPhone.style.height = want + 'px'; // #1524：出口取整＋2px 死区
 } catch (ePH) {}
 }
 function _aDockRecon() {
 try {
 if (!_aKb || _aClosing || !_aVV || !_aPhone) return '';
+if (Date.now() < _aHoldSuppressUntil) return ''; // #1524：抑制窗内不记账不推顶
 var o = Math.round(_aVV.offsetTop || 0);
 var _hv = _aKbFeedH();
 var visB = o + _hv;
@@ -1481,6 +1488,9 @@ var pb = Math.round(_aPhone.getBoundingClientRect().bottom);
 var want = _hv + _aKbGap() + Math.round(_aDockFix);
 var cur = parseInt(_aPhone.style.height, 10) || 0;
 if (Math.abs(cur - want) > 2) { _aPinHeight(); return 'repin'; } // 钉高未落到当前目标（轴刚改/上一拍刚记账）：先落笔，下一拍再量真残差
+var _sig = _hv + '|' + _aKbGap();
+if (_sig === _aLastDockSig) return ''; // #1524：读数与轴值都没变＝不写＝会话内高度恒定
+_aLastDockSig = _sig;
 var err = (visB + _aKbGap()) - pb;
 if (err > 12 && err <= Math.round((window.innerHeight || 844) * 0.6)) {
 _aDockFix += err; _aPinHeight(); return 'grow+' + err;
@@ -1497,10 +1507,13 @@ function _aKbCloseNow(path) {
 try {
 window.__mochiKbClose = { path: path, sinceKey: Date.now() - _aUserTypos, at: Date.now() }; _aLastKbCloseAt = Date.now(); // #1512b：近期收口戳（纯 overlay 救援的防误触发守卫）
 _aKb = false; _aClosing = false;
-_aKbStableH = 0; _aFullSince = 0;
-try { if (_aVkHonest) { _aVkHonest = false; _aVkH = -1; var _vkC = navigator.virtualKeyboard; if (_vkC) _vkC.overlaysContent = false; } } catch (eVC) {}
+_aKbStableH = 0; _aFullSince = 0; _aLastDockSig = 0; _aHonestSession = 0; _aLowSince = 0; _aVkSeen = 0; _aLowRuns = 0; _aFullReads = 0;
+_aHoldSuppressUntil = Date.now() + 1200; // #1524：收口后 1.2s 内禁止重新推顶（收口与保底救援同拍互踢）
+try { if (_aVkHonest || _aVkListener) { if (_aVkListener && navigator.virtualKeyboard) navigator.virtualKeyboard.removeEventListener('geometrychange', _aVkListener); _aVkListener = null; _aVkHonest = false; _aVkH = -1; _aVkSeen = 0; var _vkC = navigator.virtualKeyboard; if (_vkC) _vkC.overlaysContent = false; } } catch (eVC) {} // #1524：解除武装必须摘监听器（旧监听留在下一会话里会拿陈旧实测把输入栏钉在半高）
 _aPhone.style.height = '';
 _aPhone.style.alignSelf = '';
+if (_aH < window.innerHeight - 12) _aH = window.innerHeight; else if (_aH > window.innerHeight + 12) _aH = window.innerHeight; // #1517：高值基线必须回落（#1524：从死代码搬进收口唯一入口）
+_aDockFix = 0; _aKbSnapOpen = false; _aKbSnap("close"); // #1463：收起清对账残差账＋现场留档（#1524：残差账跨会话不清会把上一轮的钉高带进下一轮）
 _aPanComp();
 kbUndockPanels();
 } catch (eCN) {}
@@ -1508,7 +1521,8 @@ kbUndockPanels();
 try {
 document.addEventListener('touchstart', function (e) {
 try {
-if (!_aKb || !_aVkHonest) return;
+if (!_aKb) return;
+if (!_aVkHonest && _aVV && _aVV.height < _aH - 60) return; // #1524：点一下回位不该依赖「尺子已武装」——B 型会话（无尺可用）同样要点得动；但诚实内核读数仍在收缩位＝键盘确实在场，此时不收口（否则输入栏被丢到键盘下）
 var t = e.target;
 if (!t || !t.closest) return;
 if (t.closest('.chat-input-row') || t.closest('#screen-adj-panel') || t.closest('.modal-mask') || t.closest('.kb-dock')) return;

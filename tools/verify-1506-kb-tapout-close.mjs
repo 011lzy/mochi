@@ -24,7 +24,7 @@ function rd(p) { try { return readFileSync(join(root, p), 'utf8'); } catch (e) {
 const jsMA = rd('js/mobile-adapt.js');
 const jsPe = rd('js/personalize.js');
 check('S1 点消息区＝收口意图（删＝收起后空白要等超时）', jsMA.includes("_aKbCloseNow('tap-out')"));
-check('S2 vk 归零绕过毛刺窗仍在', jsMA.includes('&& !(_aVkHonest && _aVkH >= 0 && _aVkH < 80))'));
+check('S2 vk 归零绕过毛刺窗仍在（#1521 收敛后＝实测尺三态：≥80 顶住／<80 且本会话实测过＝真收口／未实测到过＝等它报）', jsMA.includes('return _aVkHonest ? (_aVkH >= 80 || !_aVkSeen) : !_aHonestSession;'));
 check('S3 收口取证写点', jsMA.includes('window.__mochiKbClose = { path: path'));
 check('S4 轴量程 ±80·安卓消费钳', jsMA.includes('return a ? Math.max(-80, Math.min(80, Math.round(+a.kbgap || 0))) : 0;'));
 check('S5 轴 ±80 面板仍在', jsPe.includes('min: -80, max: 80,'));
@@ -155,33 +155,41 @@ await evalJs("(function(){var ph=document.querySelector('.phone');var d=document
 // ---- B1 overlay 会话开启＋实测停靠：360 开 → 844 全高（顶住）→ vk 356 → 488 ----
 await evalJs("(function(){window.__fakeVV.height=360;window.__fakeVV.dispatch('resize');return 1;})()");
 const b1a = await pollH('360px', 6000);
+// overlay 内核的正确模型＝瞬时收缩后立刻全高（会话 <400ms，不判诚实）→ B 型顶住 → 实测尺接管
 await evalJs("(function(){window.__fakeVV.height=844;window.__fakeVV.dispatch('resize');return 1;})()");
-await sleep(600);
 const b1b = await evalJs(H);
 await evalJs("(function(){window.__fakeVK.boundingRect.height=356;window.__fakeVK.dispatch();return 1;})()");
 const b1 = await pollH('488px', 4000);
-check('B1 打字中：实测停靠 488px 稳定顶住（两侧同绿）', b1a && b1b === '360px' && b1, { open: b1a, hold: b1b, vk: b1 });
+check('B1 overlay 内核（瞬时收缩后全高、vk 接管）：实测停靠 488px 稳定顶住', b1a && b1b === '360px' && b1, { open: b1a, hold: b1b, vk: b1 });
 
-// ---- U1 打字中点消息区＝立即收口（红侧无此监听＝仍停靠必红） ----
+// ---- U1 打字中点消息区＝立即收口（红侧无此监听＝仍停靠必红）
+// 注：目标取 firstElementChild —— firstChild 是空白文本节点，事件派上去 closest 不存在，监听永不匹配（旧码靠 650ms 窗口过期误绿，收敛后暴露）----
 await evalJs("(function(){window.__fakeVK.boundingRect.height=356;window.__fakeVK.dispatch();var t=document.getElementById('v1506-ed');if(t){try{t.dispatchEvent(new KeyboardEvent('keydown',{keyCode:229,bubbles:true}));}catch(e){}}return 1;})()");
 const u1a = await pollH('488px', 4000);
 const t0u = Date.now();
-await evalJs("(function(){var cb=document.getElementById('chat-body');if(!cb)return 'no-chatbody';var t=document.getElementById('v1506-ed');var prox=(t&&t.parentNode)?null:cb;var tgt=cb.firstChild||cb;try{tgt.dispatchEvent(new Event('touchstart',{bubbles:true}));}catch(e){}return 'tapped';})()");
+await evalJs("(function(){var cb=document.getElementById('chat-body');if(!cb)return 'no-chatbody';var t=document.getElementById('v1506-ed');var prox=(t&&t.parentNode)?null:cb;var tgt=cb.firstElementChild||cb;try{tgt.dispatchEvent(new Event('touchstart',{bubbles:true}));}catch(e){}return 'tapped';})()");
 const u1 = await pollH('', 1500);
 check('U1 打字中点消息区：当场收口（页面侧同步；红侧无监听靠窗口过期＝必红）', u1a && u1, { docked: u1a, closed: u1, ms: Date.now()-t0u });
 const u2 = await evalJs("(function(){return window.__mochiKbClose?JSON.stringify(window.__mochiKbClose):'none';})()");
 check('U2 收口取证读数（path=tap-out）', u2 && u2.indexOf('tap-out') >= 0, u2);
 
-// ---- U3 打字不误收：重开会话＋连按键 → 800ms 仍停靠 ----
+// ---- U3 诚实内核收敛契约：会话内持续收缩＞400ms 后全高读数＝真收口 → ≤2s 回位（纯 tip 必红） ----
 await evalJs("(function(){var t=document.getElementById('v1506-ed');if(t){try{t.dispatchEvent(new Event('touchstart',{bubbles:true}));}catch(e){}try{t.focus();}catch(e2){}}window.__fakeVV.height=360;window.__fakeVV.dispatch('resize');return 1;})()");
 const u3a = await pollH('360px', 6000);
 await evalJs("(function(){window.__fakeVV.height=844;window.__fakeVV.dispatch('resize');return 1;})()");
-await sleep(300);
-await evalJs("(function(){window.__fakeVK.boundingRect.height=356;window.__fakeVK.dispatch();var t=document.getElementById('v1506-ed');if(t){try{t.dispatchEvent(new KeyboardEvent('keydown',{keyCode:229,bubbles:true}));}catch(e){}}return 1;})()");
-const u3b = await pollH('488px', 4000);
-await sleep(500);
-const u3c = await evalJs(H);
-check('U3 按键后 500ms 仍停靠（650ms 窗内不误收）', u3a && u3b && u3c === '488px', { open: u3a, vk: u3b, h: u3c });
+await sleep(700);
+await evalJs("(function(){var t=document.getElementById('v1506-ed');if(t){try{t.dispatchEvent(new KeyboardEvent('keydown',{keyCode:229,bubbles:true}));}catch(e){}}return 1;})()");
+const u3b = await pollH('', 2500);
+check('U3 诚实内核（会话内持续收缩＞400ms）：全高读数＝真收口，≤2s 回位（#1521 收敛契约；纯 tip 必红）', u3a && u3b, { open: u3a, closed: u3b });
+
+// ---- U3b 零信号内核（B 型）：持续全高 1.2s 仍顶住不展开，失焦后回位 ----
+await evalJs("(function(){var t=document.getElementById('v1506-ed');if(t){try{t.dispatchEvent(new Event('touchstart',{bubbles:true}));}catch(e){}try{t.focus();}catch(e2){}}window.__fakeVV.height=360;window.__fakeVV.dispatch('resize');return 1;})()");
+const u3c = await pollH('360px', 6000);
+await sleep(1400);
+const u3d = await evalJs(H);
+const u3blur = await evalJs("(function(){var d=document.getElementById('v1506-ed');if(d&&d.blur)d.blur();var b=document.getElementById('__focOut');if(!b){b=document.createElement('button');b.id='__focOut';b.style.cssText='position:fixed;left:-99px;top:0;opacity:0';document.body.appendChild(b);}b.focus();var ae=document.activeElement;return ae?(ae.id||ae.tagName):'none';})()");
+const u3e = await pollH('', 5000); // 时序余量：本条只断言「失焦后回位」这一语义，最坏路径约 1.3s（滞留焦点对账 2 拍 + 读数冻结 1.2s）；快回位的时序由 verify-1524 单独钉
+check('U3b 零信号内核（B 型）：全高 1.2s 仍顶住不展开（用户明选 B 型），失焦后回位', u3c && u3d === '360px' && u3e, { open: u3c, held: u3d, blurred: u3e, focusAfter: u3blur });
 
 // ---- U4 停手 650ms 窗过期收口（两侧同绿，红侧 900ms 窗也 ≤2.5s） ----
 const u4 = await pollH('', 2500);

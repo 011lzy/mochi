@@ -29,10 +29,10 @@ function rd(p) { try { return readFileSync(join(root, p), 'utf8'); } catch (e) {
 const jsMA = rd('js/mobile-adapt.js');
 check('S1 实测高度取值口（删＝overlay 会话继续猜）', jsMA.includes('_aKbStableH = _mv; _aFullSince = 0; return _mv;'));
 check('S2 实测尺武装（删＝GT7 类内核永远在猜）', jsMA.includes('_aVkHonest = true;'));
-check('S3 实测归零即时真收信号（删＝关闭回弹拖 800ms 不及时）', jsMA.includes('if (_aVkH < 80 && !_aFullSince) _aFullSince = 1;'));
-check('S4 overlay 签名武装实测尺（删＝GT7 类内核永远在猜）', jsMA.includes('if (!_aVkHonest && _focNow) _aKbVkArm();'));
-check('S5 主链收口解除武装（删＝overlaysContent 残留）', jsMA.includes('var _vkR = navigator.virtualKeyboard;'));
-check('S6 轮询腿收口解除武装（删＝overlaysContent 残留）', jsMA.includes('var _vkR2 = navigator.virtualKeyboard;'));
+check('S3 实测归零即时真收信号（删＝关闭回弹拖 800ms 不及时）', jsMA.includes('else if (_aVkH < 80 && _aVkSeen && !_aFullSince) _aFullSince = 1;'));
+check('S4 overlay 签名武装实测尺（删＝GT7 类内核永远在猜）', jsMA.includes('if (_aFullReads >= 3 && !_aHonestSession) _aKbVkArm();'));
+check('S5 主链收口解除武装（删＝overlaysContent 残留）', jsMA.includes("navigator.virtualKeyboard.removeEventListener('geometrychange', _aVkListener)"));
+check('S6 轮询腿收口解除武装（删＝overlaysContent 残留）', jsMA.includes('_aVkListener = _applyVk;'));
 
 const candidates = [
   process.env.CHROME_PATH,
@@ -165,7 +165,7 @@ await sleep(600);
 const u0b = await evalJs(H);
 await evalJs("(function(){window.__fakeVK.boundingRect.height=356;window.__fakeVK.dispatch();return 1;})()");
 const u1 = await pollH('488px', 4000);
-check('U1 overlay 签名武装＋实测停靠 488px（844−356；纯 HEAD 停 360＝必红）', u0 && u0b === '360px' && u1, { open: u0, hold: u0b, vk: u1 });
+check('U1 overlay 签名武装＋实测停靠 488px（844−356；纯 HEAD 停 360＝必红；#1522 起武装当场读一次实测高度，瞬时 360 不再是契约）', u0 && u1, { open: u0, hold: u0b, vk: u1 });
 
 // ---- U2 实测尺随高跟随：输入法工具栏展开 356→420 → 424px（纯 HEAD 必红） ----
 await evalJs("(function(){window.__fakeVK.boundingRect.height=420;window.__fakeVK.dispatch();return 1;})()");

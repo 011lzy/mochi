@@ -1842,7 +1842,7 @@
         var _aKbMute = false;
         // v3.10.x：当前聚焦的文本元素（focusin 可靠上报，部分安卓浏览器
         // activeElement 在 contenteditable 上返回 <body>，单看它会漏判聚焦）
-        var _aTextFocused = null;
+        var _aTextFocused = null, _aStaleFoc = 0; // #1524：滞留焦点对账计数
         // v3.12.x：悬浮键盘保底停靠状态（见下方 _aProvCheck 注释）
         var _aFocusAt = 0, _aProv = false, _aIH = window.innerHeight;
         // #337：本会话 vv 是否出现过真实收缩——漂移/悬浮内核恒 false＝「vv 高」不构成键盘已收证据
@@ -1864,7 +1864,7 @@
         // 内核把可视视口瞬时弹回全高，钉高/对账照单全收＝输入栏整行沉回键盘下（遮挡），读数缩回又贴回
         // （空白）＝两态反复横跳。_aKbStableH=本会话最后一次「真实收缩」读数（h<_aH-60）；_aFullSince=
         // 读到全高的起始时刻，持续 ≥800ms 才判真收键盘（瞬时毛刺不缩会话、不写全高）。
-        var _aKbStableH = 0, _aFullSince = 0, _aVkHonest = false, _aVkH = -1, _aFullReads = 0, _aLastKbCloseAt = 0;
+        var _aKbStableH = 0, _aFullSince = 0, _aVkHonest = false, _aVkH = -1, _aFullReads = 0, _aLastKbCloseAt = 0, _aLastDockSig = 0, _aHoldSuppressUntil = 0, _aHonestSession = 0, _aLowSince = 0, _aVkSeen = 0, _aLowRuns = 0, _aVkListener = null; // #1524：残差签名／收口抑制窗／诚实会话判位
         // FIX 2026-09-10 #267：浏览器「平移/滚动露焦点」量的实测值。荣耀 X50 自带浏览器
         //（HonorBrowser/Chrome116，多机型同族）键盘弹出时把视觉视口【平移】让焦点露出，
         // 而 visualViewport.height 不缩（同一会话诊断现场 664 与 254 两种读数交替出现）→
@@ -2432,7 +2432,9 @@
           // 变化/回基准即解除，见函数头）。
           var open = (!_aVvStale && !_aKbMute && h < _aH - 60 && _focNow); // 可视高度明显变小 = 键盘弹出（#236：残留读数闩抑制纯 vv 信号；真键盘不受影响——inner 同缩走原判/交互与回基准解锁；#479：必然伴随文本聚焦）
           if (!open && h > _aH) _aH = Math.min(h, window.innerHeight || h); // #1516：基线钳进布局视口——Edge 工具栏切换会报比 inner 还高的假 vv（实测 690 基线下闯入 816），不钳则正常高度被误判成键盘收缩、会话劫持钉全高
-          if (open && !_aKb) { _aClosing = false; _aKb = true; _aVvShrunkSeen = true; _aKbAt = Date.now(); _aKbStableH = 0; _aFullSince = 0; _aPhone.style.alignSelf = 'flex-start'; kbDockPanels(); _aProvClear(); } _aKbSnapOpen = true; // #1463：本拍钉高落定后留证
+          if (open && !_aKb) { _aClosing = false; _aKb = true; _aVvShrunkSeen = true; _aKbAt = Date.now(); _aKbStableH = 0; _aFullSince = 0; _aHonestSession = 0; _aLowSince = 0; _aVkSeen = 0; _aLowRuns = 0; _aFullReads = 0; _aPhone.style.alignSelf = 'flex-start'; kbDockPanels(); _aProvClear(); } _aKbSnapOpen = true; // #1463：本拍钉高落定后留证
+          // #1524：_aFullReads 武装计数随会话开/收口清零（跨会话继承会让诚实内核开局一两拍就被武装成 overlay）
+          if (_aKb) { if (h < _aH - 60) { if (!_aLowSince) _aLowSince = Date.now(); _aLowRuns++; _aFullReads = 0; } else { if (_aLowRuns >= 2 && _aLowSince && (Date.now() - _aLowSince) > 400) _aHonestSession = 1; _aLowRuns = 0; _aLowSince = 0; } } // #1524：诚实判位＝收缩持续存在（连续≥2拍且跨度>400ms，回全高那拍结算）；单拍瞬时收缩永不判诚实
           if (!open && _aKb) {
             // v3.27.x：键盘收起——动画期 visualViewport 还没回到无键盘基准（_aH）时，
             // 不要提前把 .phone 撑回全高 + 面板摘停靠。否则键盘收起动画中途就恢复：
@@ -2446,25 +2448,15 @@
               // 通常 ~0（键盘往下收、视口不平移），平移无需逐帧归零；复原时 _aPanComp 统一兜底。
               _aClosing = true;
               if (_aPhone.style.height !== h + 'px') _aPhone.style.height = h + 'px';
+              if (!_focNow && Date.now() - _aVvChgAt > 1200) { _aKbCloseNow('blur-stale'); return; } // #1524：失焦＋视口读数冻结 1.2s＝键盘确已不在场，别再跟陈旧读数（B 型「失焦回位」；诚实内核上 vv 持续回升故不触发）
               return;
             }
             // #1508：武装只在下方「顶住成立」分支内做（诚实收起不再顺手武装、不污染 overlaysContent）
             if (!_aFullSince) _aFullSince = Date.now();
-            if (_focNow && ((_aVkHonest && ((Date.now() - _aFullSince < 800 && !(_aVkHonest && _aVkH >= 0 && _aVkH < 80)) || (_aVkH >= 80 && Date.now() - _aUserTypos < 650))) || (!_aVkHonest && Date.now() - _aUserTypos < 300))) { if (!_aVkHonest) { _aFullReads++; if (_aFullReads >= 3) _aKbVkArm(); } /* #1510 连续3拍全高才武装 */ var _hHold = Math.round(_aKbStableH) + _aKbGap() || Math.round(_aVV.height || 0); if (_hHold > 0 && _aPhone.style.height !== _hHold + 'px') _aPhone.style.height = _hHold + 'px'; return; } // #1492：打字中才顶住＋顶住含轴值（无vk翻毛内核靠 800ms；vk 在场＝打字窗口 1.2s；停手＞1.2s 或失焦＝放行回底 // #1481：毛刺顶住（#1484：实测尺在场时 _aKbStableH 由实测持续更新，实测归零走 _aFullSince=1 即时复原） // #1481：全高毛刺未持续 800ms＝顶住会话稳态高度，不缩会话不写全高
-            _aKbCloseNow('gate'); // #1506：收口公共体（含取证）
+            if (_focNow && _aHoldNow()) { if (!_aVkHonest) { _aFullReads++; if (_aFullReads >= 3 && !_aHonestSession) _aKbVkArm(); } /* #1510 连续3拍全高才武装 */ var _hHold = Math.round(_aKbStableH) + _aKbGap() || Math.round(_aVV.height || 0); if (_hHold > 0 && _aPhone.style.height !== _hHold + 'px') _aPhone.style.height = _hHold + 'px'; return; } // #1492：打字中才顶住＋顶住含轴值（无vk翻毛内核靠 800ms；vk 在场＝打字窗口 1.2s；停手＞1.2s 或失焦＝放行回底 // #1481：毛刺顶住（#1484：实测尺在场时 _aKbStableH 由实测持续更新，实测归零走 _aFullSince=1 即时复原） // #1481：全高毛刺未持续 800ms＝顶住会话稳态高度，不缩会话不写全高
+            _aKbCloseNow('gate'); // #1506：收口公共体（含取证；恢复动作全在里面＝单一写入者）
             return;
-            _aPhone.style.height = '';
-            _aPhone.style.alignSelf = '';
-            // v3.29.x（#141）：收起瞬间把基准钳回布局视口全高——键盘期 _aH 可能被
-            // 内核/地址栏瞬态值抬错，若停留低位，h < _aH-60 恒真 → 下一帧误判
-            // 「键盘又弹出」把 .phone 锁死在中间高度 = 输入栏下方灰块几秒不收。
-            // innerHeight 即布局视口高（resizes-visual 下不随键盘收缩），恒可靠。
-            if (_aH < window.innerHeight - 12) _aH = window.innerHeight; else if (_aH > window.innerHeight + 12) _aH = window.innerHeight; // #1517：高值基线必须回落
-            _aDockFix = 0; _aKbSnapOpen = false; _aKbSnap("close"); // #1463：收起清对账残差账＋现场留档（「收起后白带/残留」族取证）
-            _aPanComp();
-            kbUndockPanels();
-            return;
-          }
+          } // #1524：原挂在 return 之后的恢复块（基线钳/残差清账/现场快照/面板摘停靠）是死代码，已搬进 _aKbCloseNow
           if (_aKb) {
             _aPinHeight(); // #1463：钉高＝vv.height＋键盘间隙轴＋对账残差账（三项全 0＝与原「钉 vv.height」逐字一致）；值不变不写的早退在 _aPinHeight 内
             // v3.15.x：收缩后浏览器为露焦点做的视口平移已无必要，残留会整页飞走露灰
@@ -2486,6 +2478,10 @@
           if (_aWatch) return;
           _aWatch = setInterval(function () {
             try {
+              // #1524：滞留焦点对账（全局唯一写入者）——focusout 漏派时 _aTextFocused 会永久滞留，
+              // 让「还按着」恒真＝顶住判据永不失效＝输入栏卡在键盘高度不回来（真持焦时 activeElement 即它，永不触发）
+              if (_aTextFocused && !_aIsText(document.activeElement)) { _aStaleFoc++; if (_aStaleFoc >= 2) { _aTextFocused = null; _aStaleFoc = 0; } }
+              else _aStaleFoc = 0;
               var foc = _aIsText(_aTextFocused) || _aIsText(document.activeElement);
               if (foc) {
                 // v3.16.x（第四轮）：聚焦期间持续续期 _aBurstUntil——键盘会话内
@@ -2535,7 +2531,7 @@
                 // 提前把 .phone 撑回全高导致面板/输入行下沉跳变（与 syncAndroidKb 同判据）
                 if (_aVV.height >= _aH - 12) {
                   if (!_aFullSince) _aFullSince = Date.now();
-                  if (_focNow && ((_aVkHonest && ((Date.now() - _aFullSince < 800 && !(_aVkHonest && _aVkH >= 0 && _aVkH < 80)) || (_aVkH >= 80 && Date.now() - _aUserTypos < 650))) || (!_aVkHonest && Date.now() - _aUserTypos < 300))) return; // #1492：打字中才顶住；停手＞1.2s 或失焦＝放行回底（收起空白数秒回归根除）
+                  if (_focNow && _aHoldNow()) return; // #1492：打字中才顶住；停手＞1.2s 或失焦＝放行回底（收起空白数秒回归根除）
                   _aKbCloseNow('watch'); return;
                   _aKb = false;
                   _aKbStableH = 0; _aFullSince = 0;
@@ -2544,6 +2540,10 @@
                   _aPhone.style.alignSelf = '';
                   _aPanComp();
                   kbUndockPanels();
+                } else if (Date.now() - _aVvChgAt > 1200) {
+                  // #1524：失焦腿收口——vv 仍停在键盘高度时本腿不会调 syncAndroidKb，
+                  // 「跟陈旧读数等它回基准」在零信号内核上永远等不到；读数冻结 1.2s＝键盘确已不在场
+                  _aKbCloseNow('watch-stale'); return;
                 }
               } else {
                 // v3.12.x：停表前做一次兜底清理（保底停靠残留时复原 .phone）
@@ -2612,13 +2612,15 @@
         // ②可视带底边（offsetTop+height）；③.phone 实测底边。差值绝对值>12px 才记账（caret
         // 微滚/取整噪声不误伤）。kbgap 默认 0＝三项全 0，钉高与修前逐字一致。
         var _aDockFix = 0;
+        // #1524：顶住判据（无时间引信）——实测在场（vk≥80）→顶住；零信号且非诚实→B 型顶住；诚实内核→不顶（即时收口）
+        function _aHoldNow() { return _aVkHonest ? (_aVkH >= 80 || !_aVkSeen) : !_aHonestSession; } // #1524：实测尺三态——≥80 在场顶住／<80 且本会话实测过＝键盘真收口放行／还没实测到过＝它还没报，等它报（武装当场读到 0 不是收口信号）；非实测尺内核＝诚实判位说了算
         function _aKbGap() { var a = window.__mochiScreenAdj; return a ? Math.max(-80, Math.min(80, Math.round(+a.kbgap || 0))) : 0; }
         // #1481：会话内取「稳态收缩高度」——真实收缩读数照采照用并记为稳态；全高/回弹读数不采用，
         // 返回上一份稳态值（毛刺顶住），同时给 _aFullSince 起计时（收键盘迟滞的尺）。
         function _aKbFeedH() {
           var cur = Math.round(_aVV.height || 0);
           if (!_aKb || _aClosing) return cur;
-          if (_aVkHonest && _aVkH >= 80) { var _mv = Math.max(240, Math.min(_aH, window.innerHeight || _aH) - _aVkH); _aKbStableH = _mv; _aFullSince = 0; return _mv; } // #1484：overlay 会话用 VirtualKeyboard 实测高度
+          if (_aVkHonest && _aVkH >= 80) { var _mv = Math.round(Math.max(240, Math.min(_aH, window.innerHeight || _aH) - _aVkH)); _aKbStableH = _mv; _aFullSince = 0; return _mv; } // #1484：overlay 会话用 VirtualKeyboard 实测高度
           if (cur < _aH - 60) { _aKbStableH = cur; _aFullSince = 0; _aFullReads = 0; return cur; }
           if (!_aFullSince) _aFullSince = Date.now();
           return Math.round(_aKbStableH) || cur;
@@ -2632,29 +2634,36 @@
           try {
             var vk = navigator.virtualKeyboard;
             if (!vk || _aVkHonest) return;
+            if (_aVkListener) { try { vk.removeEventListener('geometrychange', _aVkListener); } catch (eRL) {} _aVkListener = null; } // #1524：重武装前先摘旧监听（否则旧监听在本会话继续按陈旧实测钉高）
             _aVkHonest = true;
             try { vk.overlaysContent = true; } catch (eOC) {}
-            vk.addEventListener('geometrychange', function () {
+            var _applyVk = function () {
               try {
                 if (!_aKb) return;
                 _aVkH = Math.round((vk.boundingRect && vk.boundingRect.height) || 0);
-                if (_aVkH >= 80) { _aKbStableH = Math.max(240, Math.min(_aH, window.innerHeight || _aH) - _aVkH); _aFullSince = 0; _aPinHeight(); }
-                else if (_aVkH < 80 && !_aFullSince) _aFullSince = 1;
+                if (_aVkH >= 80) { _aVkSeen = 1; _aKbStableH = Math.round(Math.max(240, Math.min(_aH, window.innerHeight || _aH) - _aVkH)); _aFullSince = 0; _aPinHeight(); }
+                else if (_aVkH < 80 && _aVkSeen && !_aFullSince) _aFullSince = 1;
               } catch (eG) {}
-            });
+            };
+            vk.addEventListener('geometrychange', _applyVk);
+            _aVkListener = _applyVk; // #1524：记住句柄，收口时真正摘掉
+            try { _applyVk(); } catch (eA) {} // #1524：武装当场读一次实测高度（geometrychange 只在高度变化时发，武装后不再变则永远读不到）
           } catch (eV) {}
         }
         function _aPinHeight() {
           try {
             if (!_aKb || _aClosing || !_aVV || !_aPhone) return;
+            if (Date.now() < _aHoldSuppressUntil) return; // #1524：抑制窗内不推顶
             var _hv = _aKbFeedH(); // #1481：会话内不信瞬时全高读数
-            var want = _hv + _aKbGap() + Math.round(_aDockFix);
-            if (want > 0 && _aPhone.style.height !== want + 'px') _aPhone.style.height = want + 'px';
+            var want = Math.round(_hv + _aKbGap() + Math.round(_aDockFix));
+            var _cur = parseInt(_aPhone.style.height, 10) || 0;
+            if (want > 0 && Math.abs(want - _cur) > 2) _aPhone.style.height = want + 'px'; // #1524：出口取整＋2px 死区
           } catch (ePH) {}
         }
         function _aDockRecon() {
           try {
             if (!_aKb || _aClosing || !_aVV || !_aPhone) return '';
+            if (Date.now() < _aHoldSuppressUntil) return ''; // #1524：抑制窗内不记账不推顶
             var o = Math.round(_aVV.offsetTop || 0);
             var _hv = _aKbFeedH();
             var visB = o + _hv;
@@ -2662,6 +2671,9 @@
             var want = _hv + _aKbGap() + Math.round(_aDockFix);
             var cur = parseInt(_aPhone.style.height, 10) || 0;
             if (Math.abs(cur - want) > 2) { _aPinHeight(); return 'repin'; } // 钉高未落到当前目标（轴刚改/上一拍刚记账）：先落笔，下一拍再量真残差
+            var _sig = _hv + '|' + _aKbGap();
+            if (_sig === _aLastDockSig) return ''; // #1524：读数与轴值都没变＝不写＝会话内高度恒定
+            _aLastDockSig = _sig;
             var err = (visB + _aKbGap()) - pb;
             if (err > 12 && err <= Math.round((window.innerHeight || 844) * 0.6)) {
               _aDockFix += err; _aPinHeight(); return 'grow+' + err;
@@ -2684,10 +2696,17 @@
           try {
             window.__mochiKbClose = { path: path, sinceKey: Date.now() - _aUserTypos, at: Date.now() }; _aLastKbCloseAt = Date.now(); // #1512b：近期收口戳（纯 overlay 救援的防误触发守卫）
             _aKb = false; _aClosing = false;
-            _aKbStableH = 0; _aFullSince = 0;
-            try { if (_aVkHonest) { _aVkHonest = false; _aVkH = -1; var _vkC = navigator.virtualKeyboard; if (_vkC) _vkC.overlaysContent = false; } } catch (eVC) {}
+            _aKbStableH = 0; _aFullSince = 0; _aLastDockSig = 0; _aHonestSession = 0; _aLowSince = 0; _aVkSeen = 0; _aLowRuns = 0; _aFullReads = 0;
+            _aHoldSuppressUntil = Date.now() + 1200; // #1524：收口后 1.2s 内禁止重新推顶（收口与保底救援同拍互踢）
+            try { if (_aVkHonest || _aVkListener) { if (_aVkListener && navigator.virtualKeyboard) navigator.virtualKeyboard.removeEventListener('geometrychange', _aVkListener); _aVkListener = null; _aVkHonest = false; _aVkH = -1; _aVkSeen = 0; var _vkC = navigator.virtualKeyboard; if (_vkC) _vkC.overlaysContent = false; } } catch (eVC) {} // #1524：解除武装必须摘监听器（旧监听留在下一会话里会拿陈旧实测把输入栏钉在半高）
             _aPhone.style.height = '';
             _aPhone.style.alignSelf = '';
+            // v3.29.x（#141）：收起瞬间把基准钳回布局视口全高——键盘期 _aH 可能被
+            // 内核/地址栏瞬态值抬错，若停留低位，h < _aH-60 恒真 → 下一帧误判
+            // 「键盘又弹出」把 .phone 锁死在中间高度 = 输入栏下方灰块几秒不收。
+            // innerHeight 即布局视口高（resizes-visual 下不随键盘收缩），恒可靠。
+            if (_aH < window.innerHeight - 12) _aH = window.innerHeight; else if (_aH > window.innerHeight + 12) _aH = window.innerHeight; // #1517：高值基线必须回落（#1524：从死代码搬进收口唯一入口）
+            _aDockFix = 0; _aKbSnapOpen = false; _aKbSnap("close"); // #1463：收起清对账残差账＋现场留档（#1524：残差账跨会话不清会把上一轮的钉高带进下一轮）
             _aPanComp();
             kbUndockPanels();
           } catch (eCN) {}
@@ -2695,7 +2714,8 @@
         try {
           document.addEventListener('touchstart', function (e) {
             try {
-              if (!_aKb || !_aVkHonest) return;
+              if (!_aKb) return;
+              if (!_aVkHonest && _aVV && _aVV.height < _aH - 60) return; // #1524：点一下回位不该依赖「尺子已武装」——B 型会话（无尺可用）同样要点得动；但诚实内核读数仍在收缩位＝键盘确实在场，此时不收口（否则输入栏被丢到键盘下）
               var t = e.target;
               if (!t || !t.closest) return;
               if (t.closest('.chat-input-row') || t.closest('#screen-adj-panel') || t.closest('.modal-mask') || t.closest('.kb-dock')) return;

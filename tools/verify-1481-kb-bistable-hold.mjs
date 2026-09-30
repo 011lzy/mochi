@@ -31,11 +31,11 @@ function check(desc, ok, detail) {
 function rd(p) { try { return readFileSync(join(root, p), 'utf8'); } catch (e) { return ''; } }
 const jsMA = rd('js/mobile-adapt.js');
 const idx = rd('index.html');
-check('S1 会话稳态高度采集（删＝毛刺读数照进钉高）', jsMA.includes('_aKbStableH = cur; _aFullSince = 0; return cur;'));
+check('S1 会话稳态高度采集（删＝毛刺读数照进钉高）', jsMA.includes('if (cur < _aH - 60) { _aKbStableH = cur; _aFullSince = 0; _aFullReads = 0; return cur; }'));
 check('S2 钉高改用稳态高度（删＝会话期瞬时全高被照写）', jsMA.includes('var _hv = _aKbFeedH(); // #1481'));
 check('S3 对账同用稳态高度（删＝对账环把毛刺当真残差）', jsMA.includes('var visB = o + _hv;'));
 check('S4 主链复原迟滞（删＝收键盘毛刺直接拆会话）', jsMA.includes('var _hHold = Math.round(_aKbStableH)'));
-check('S5 打字中顶住·轮询腿（#1492 起形态）', jsMA.includes('_aLastAct < 1200))) return;'));
+check('S5 打字中顶住·轮询腿（#1492 起形态）', jsMA.includes('if (_focNow && _aHoldNow()) return;'));
 check('S6 诊断打印键盘期快照环（删＝毛刺序列拍不进诊断单）', idx.includes('键盘期快照环='));
 
 const candidates = [
@@ -166,9 +166,12 @@ await sleep(600);
 const t2aH = await evalJs(H);
 check('T2a 全高毛刺顶住：600ms 时仍 330px（键盘还开着；纯 HEAD 已复原＝必红）', t2aH === '330px', t2aH);
 
-// ---- T2b 持续全高＝真收键盘：≤3s 内复原清内联高（两侧同绿；新版迟滞 800ms） ----
+// ---- T2b B 型契约（#1521）：无 vk 会话持续全高也不自动收口，聚焦就顶住；点消息区才回位 ----
+const t2bHold = await sleep(3000).then(() => evalJs(H));
+check('T2b B 型：无 vk 会话持续全高 3s 仍顶住不自动收口（#1521 删掉 800ms 时间引信后的契约）', t2bHold === '330px', t2bHold);
+await evalJs("(function(){var cb=document.getElementById('chat-body');if(!cb)return 0;var tgt=cb.firstElementChild||cb;try{tgt.dispatchEvent(new Event('touchstart',{bubbles:true}));}catch(e){}return 1;})()");
 const t2b = await pollH('', 3000);
-check('T2b 无 vk 会话全高 800ms 后收口回底（#1492 终版口径）', t2b);
+check('T2b 点消息区＝当场回位（B 型的回位口，纯 HEAD 无此监听＝必红）', t2b);
 
 // ---- T3 轮询毛刺顶住：重开 360 后，不发事件直接改 700（只有 250ms 轮询看得见）→ 600ms 时仍 360px（纯 HEAD 必红） ----
 await evalJs("(function(){window.__fakeVV.height=360;window.__fakeVV.dispatch('resize');return 1;})()");
@@ -177,8 +180,13 @@ await evalJs("(function(){window.__fakeVV.height=844;return 1;})()");
 await sleep(600);
 const t3aH = await evalJs(H);
 check('T3a 轮询毛刺顶住：600ms 时仍 360px（纯 HEAD 轮询腿拆会话＝必红）', t3open && t3aH === '360px', t3aH);
+await evalJs("(function(){var t=document.getElementById('v1481-ed');if(t){try{t.dispatchEvent(new Event('touchstart',{bubbles:true}));}catch(e){}try{t.focus();}catch(e2){}}window.__fakeVV.height=360;window.__fakeVV.dispatch('resize');return 1;})()");
+const t3openB = await pollH('360px', 6000);
+await evalJs("(function(){window.__fakeVV.height=844;return 1;})()");
+await sleep(700);
+await evalJs("(function(){var cb=document.getElementById('chat-body');if(!cb)return 0;var tgt=cb.firstElementChild||cb;try{tgt.dispatchEvent(new Event('touchstart',{bubbles:true}));}catch(e){}return 1;})()");
 const t3b = await pollH('', 3000);
-check('T3b 轮询腿同口径收口回底（#1492 终版）', t3b);
+check('T3b 轮询腿自带会话：点消息区当场回底（B 型回位口，两侧同绿）', t3openB && t3b);
 
 // ---- T5 失焦真复原不受迟滞影响：重开后 blur＋全高 → ≤2.5s 复原（两侧同绿） ----
 await evalJs("(function(){window.__fakeVV.height=360;window.__fakeVV.dispatch('resize');return 1;})()");

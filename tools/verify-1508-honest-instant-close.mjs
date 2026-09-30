@@ -23,9 +23,9 @@ function check(desc, ok, detail) {
 function rd(p) { try { return readFileSync(join(root, p), 'utf8'); } catch (e) { return ''; } }
 const jsMA = rd('js/mobile-adapt.js');
 const jsPe = rd('js/personalize.js');
-check('S1 诚实内核收起即收·主链（删＝800ms 窗一刀切＝秒收回归）', jsMA.includes('(!_aVkHonest && Date.now() - _aUserTypos < 300))) { if (!_aVkHonest) { _aFullReads++'));
-check('S2 诚实内核轮询腿同秒收', jsMA.includes('(!_aVkHonest && Date.now() - _aUserTypos < 300))) return;'));
-check('S3 武装只在顶住成立时（诚实收起不被污染）', jsMA.includes('if (_aFullReads >= 3) _aKbVkArm();'));
+check('S1 诚实内核收起即收·主链（删＝顶住判据整条消失＝秒收回归；#1521 收敛后判据＝实测尺三态／诚实判位，无时间引信）', jsMA.includes('function _aHoldNow() {'));
+check('S2 诚实内核轮询腿同秒收', jsMA.includes('if (_focNow && _aHoldNow()) return;'));
+check('S3 武装只在顶住成立时（诚实收起不被污染；#1521-36 起计数由收缩记账行清零，不受收口抑制窗影响）', jsMA.includes('if (_aFullReads >= 3 && !_aHonestSession) _aKbVkArm();'));
 check('S4 轴量程 ±80·安卓消费钳', jsMA.includes('return a ? Math.max(-80, Math.min(80, Math.round(+a.kbgap || 0))) : 0;'));
 check('S5 轴 ±80 面板仍在', jsPe.includes('min: -80, max: 80,'));
 
@@ -153,12 +153,17 @@ await evalJs("(function(){var s=document.getElementById('splash');if(s){s.classL
 await evalJs("(function(){var ph=document.querySelector('.phone');var d=document.createElement('div');d.id='v1508-ed';d.contentEditable='true';d.style.cssText='position:absolute;left:10px;bottom:0;width:200px;height:40px;background:#fff';ph.appendChild(d);window.__arm=setInterval(function(){var t=document.getElementById('v1508-ed');if(!t)return;if(document.activeElement!==t){try{t.focus();}catch(e2){}}},400);return 1;})()");
 
 // ---- H1 诚实开启：恒缩 360（无 vk）→ 钉 360 ----
+// #1521：本组四例（H1~H4）建模的是诚实内核——尺子必须沉默（boundingRect 恒 0）。
+// 原夹具的尺子无条件报 356，等于给诚实内核也塞了一把 overlay 尺，武装一次就把场景
+// 变成 overlay（本尺 H4 期望 360 而实测 488 就是这么来的）→ 与被测语义自相矛盾。
+await evalJs("(function(){window.__fakeVK.boundingRect.height=0;return 1;})()");
 await evalJs("(function(){var t=document.getElementById('v1508-ed');if(t){try{t.dispatchEvent(new Event('touchstart',{bubbles:true}));}catch(e){}try{t.focus();}catch(e2){}}window.__fakeVV.height=360;window.__fakeVV.dispatch('resize');return 1;})()");
 const h1 = await pollH('360px', 6000);
 check('H1 诚实会话钉 360px', h1);
 await evalJs("(function(){clearInterval(window.__arm);window.__arm=null;return 1;})()"); // #1512 前置：停触摸泵（永动触摸编辑框＝真机不存在的形态，会误触发保底停靠）
 
-// ---- H2 打字中收起（vv→844）：≤700ms 收口（纯 #1506 前身＝800ms 窗必红） ----
+// ---- H2 打字中收起（vv→844）：≤1.2s 收口 ----
+await sleep(900); // #1521：诚实内核的忠实建模——收缩读数要「持续存在」（连续≥2拍且跨度>400ms）才判得出诚实；原夹件收缩后立刻发全高，压根没给内核说话的时间
 await evalJs("(function(){var t=document.getElementById('v1508-ed');if(t){try{t.dispatchEvent(new KeyboardEvent('keydown',{keyCode:229,bubbles:true}));}catch(e){}}window.__fakeVV.height=844;window.__fakeVV.dispatch('resize');return 1;})()");
 const h2 = await pollH('', 2000);
 check('H2 诚实收起即收：≤1.2s 内收口（红侧 800ms 窗＋tick 也会过，判别靠 H3）', h2);
@@ -167,7 +172,7 @@ check('H2 诚实收起即收：≤1.2s 内收口（红侧 800ms 窗＋tick 也�
 await evalJs("(function(){var t=document.getElementById('v1508-ed');if(t){try{t.dispatchEvent(new Event('touchstart',{bubbles:true}));}catch(e){}try{t.focus();}catch(e2){}}window.__fakeVV.height=360;window.__fakeVV.dispatch('resize');return 1;})()");
 await pollH('360px', 6000);
 await evalJs("(function(){var t=document.getElementById('v1508-ed');if(t){try{t.dispatchEvent(new KeyboardEvent('keydown',{keyCode:229,bubbles:true}));}catch(e){}}return 1;})()");
-await sleep(450);
+await sleep(900); // #1521：同 H2，诚实判据要求收缩持续存在（连续≥2拍且跨度>400ms），450ms 在 250ms 轮询口径下只有 1 拍
 await evalJs("(function(){window.__fakeVV.height=844;window.__fakeVV.dispatch('resize');var t0=Date.now();window.__t0h3=t0;return 1;})()");
 const t3=Date.now();
 const h3 = await pollH('', 1500);
