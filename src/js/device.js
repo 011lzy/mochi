@@ -3608,6 +3608,7 @@ window.mochiViewportForm = function (sig) {
     // 拍不到；复现完回来点一次诊断，键盘期的 inner/vv/平移/钉高/底边差就都在这一行里。
     const _ks = (function () { try { return window.__mochiKbSnap || (window.__mochiKbSnaps && window.__mochiKbSnaps[0]) || null; } catch (eKSS) { return null; } })();
     L.push('键盘期快照=' + (_ks ? JSON.stringify(_ks) : '无（先去聊天页点输入栏弹一次键盘再收起，回来重测一次就有了）'));
+    L.push('键盘期快照环=' + (function () { try { return JSON.stringify((window.__mochiKbSnaps || []).map(function (q) { return [q.ev, q.kb, q.vvH, q.ph]; })); } catch (eKR) { return '[]'; } })()); // #1481：双稳态内核（GT7 Edge）毛刺序列取证
     L.push('== 顶部安全区 ==');
     L.push('env(safe-area-inset-top)=' + inp.envTop + 'px  --mochi-safe-top=' + inp.varTop + 'px  diff(screen−inner)=' + inp.diff + 'px');
     L.push('');
