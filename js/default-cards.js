@@ -1116,11 +1116,20 @@ try { return (window.getCustomFuncCards && window.getCustomFuncCards(cat)) || []
 const g = (DATA[cat] || []).find(x => x[0] === group);
 let arr = g && Array.isArray(g[1]) && g[1].length ? g[1] : (Array.isArray(fallback) ? fallback : []);
 arr = arr.slice();
+try { const off = window.isDefaultCardOff; if (off) arr = arr.filter(c => !off(cat, c)); } catch (e) {}
 try {
 const cf = (window.getCustomFuncCards && window.getCustomFuncCards(cat)) || [];
 if (cf.length) arr = arr.concat(cf);
 } catch (e) {}
 return arr;
+};
+window.gateCardFallback = function (cat, fallback) {
+try {
+const arr = Array.isArray(fallback) ? fallback.slice() : [];
+const off = window.isDefaultCardOff;
+if (!off) return arr;
+return arr.filter(c => !off(cat, c));
+} catch (e) { return []; }
 };
 window.getPresetGroupLines = function (group, fallback) {
 let arr = [];

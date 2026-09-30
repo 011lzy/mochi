@@ -6237,7 +6237,15 @@ const FIX_SENTINELS = [
   { name: '#1497d 解锁即会话放行（删＝输对密码也解不开）', file: 'js/card-lock.js', needle: 'sessionOpen = true' },
   { name: '#1497e 暗号通路归一化（删＝跳问答/关应用锁/管理验证三入口全角输入照旧解不开）', file: 'js/applock.js', needle: 'function normCode(v) {' },
   { name: '#1497f 解锁就地生效不刷新（删/改回解锁后 reload＝会话闸下解锁即被打回锁定死循环）', file: 'js/clock.js', needle: "okState.textContent = '验证通过'" },
-  { name: '#1481a 会话稳态高度采集（删＝双稳态内核毛刺读数照进钉高，输入栏反复沉回键盘下）', file: 'js/mobile-adapt.js', needle: '_aKbStableH = cur; _aFullSince = 0; return cur;' },
+  // ==== 2026-09-30 #1498 「禁止使用的字卡」对部分使用方无效（荣耀畅玩40 Plus／夸克实报，明说其他机型同现·要求不要覆盖修改引发跨机型回归）： ====
+  // 逐张关闭/整组停用要被所有使用方认账——原先 getLibPool 只「取组」不过闸（8 个游戏/拍卖模块与 chat/ta-ask 两处裸抽）；
+  // 各功能「过闸后为空 ⇒ 回落内置兜底」而兜底与数据组逐字同文（花园 7/7、喝水 6/6）；gift-shop 直读数据零闸。
+  { name: '#1498a getLibPool 内置同源池过总闸（删＝裸抽调 getInteractPool 的 8 个模块无视逐张关闭/整组停用）', file: 'js/default-cards.js', needle: 'if (off) arr = arr.filter(c => !off(cat, c));' },
+  { name: '#1498b 兜底池统一出口 gateCardFallback（删＝全关后回落同文内置兜底＝禁用形同无效）', file: 'js/default-cards.js', needle: 'window.gateCardFallback = function (cat, fallback) {' },
+  { name: '#1498c 房间话术兜底过闸＋过滤结果一律采用（删＝全关时留下未过滤池，实测 11/11 仍被使用）', file: 'js/room.js', needle: "window.gateCardFallback('room'" },
+  { name: '#1498d 花园悄悄话兜底过闸＋空则不发音（删＝WM 兜底 7/7 与数据组同文，全关后照旧出声）', file: 'js/garden.js', needle: 'window.gateCardFallback("garden", WM)' },
+  { name: '#1498e 听歌字卡兜底过闸（删＝DEF_TA_PAUSE/RESUME_CARDS 是数据组旧拷贝，全关后照旧发）', file: 'js/music-player.js', needle: "window.gateCardFallback('music', fallback)" },
+  { name: '#1498f 礼物寄语池过闸（删＝TA 送礼/许愿仍把用户禁用的主字卡拼进寄语）', file: 'js/gift-shop.js', needle: 'window.__giftCardPool = function ()' },  { name: '#1481a 会话稳态高度采集（删＝双稳态内核毛刺读数照进钉高，输入栏反复沉回键盘下）', file: 'js/mobile-adapt.js', needle: '_aKbStableH = cur; _aFullSince = 0; return cur;' },
   { name: '#1481b 钉高改用稳态高度（删＝会话期瞬时全高读数被照写，键盘盖住输入栏）', file: 'js/mobile-adapt.js', needle: 'var _hv = _aKbFeedH(); // #1481' },
   { name: '#1481c 对账同用稳态高度（删＝对账环把毛刺全高读数当真残差，两态反复横跳）', file: 'js/mobile-adapt.js', needle: 'var visB = o + _hv;' },
   { name: '#1481d 会话期全高毛刺顶住（删＝收键盘毛刺直接拆会话，两态反复横跳复发）', file: 'js/mobile-adapt.js', needle: 'var _hHold = Math.round(_aKbStableH)' },

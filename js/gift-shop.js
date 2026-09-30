@@ -859,7 +859,20 @@ wish: rec.wishGiftWish || '送给你'
 }, { fromTaWish: true, onDone: done });
 return true;
 };
-function cardPool() { const pool = []; try { const d = window.DEFAULT_CARD_DATA; if (d && d.main) { d.main.forEach(function (c) { if (c && c[1]) c[1].forEach(function (x) { if (x) pool.push(x); }); }); } } catch (e) {} return pool; }
+function cardPool() {
+const pool = [];
+try {
+const d = window.DEFAULT_CARD_DATA;
+const off = window.isDefaultCardOff;
+if (d && d.main) {
+d.main.forEach(function (c) {
+if (c && c[1]) c[1].forEach(function (x) { if (x && !(off && off('main', x))) pool.push(x); });
+});
+}
+} catch (e) {}
+return pool;
+}
+window.__giftCardPool = function () { try { return cardPool(); } catch (e) { return []; } };
 function taWish(gift) {
 let wish = (gift && gift.wish) || '送给你';
 const pool = cardPool();

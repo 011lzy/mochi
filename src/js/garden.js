@@ -931,9 +931,14 @@ function partnerAct(silent, used) {
     // v3.13.x：悄悄话走系统预设字卡池（字卡库「花园」tab 同源，dc-off-garden:* 过滤）
     var wmPool = (window.getLibPool ? window.getLibPool("garden", "梦角悄悄话", WM) : WM).slice();
     if (window.isDefaultCardOff) wmPool = wmPool.filter(function (c) { return !window.isDefaultCardOff("garden", c); });
-    if (!wmPool.length) wmPool = WM.slice();
-    var msg = wmPool[Math.floor(Math.random() * wmPool.length)];
-    addLog(pName, "\uD83D\uDC95 " + msg);
+    // FIX 2026-09-30 #1498：兜底也必须过闸。WM 内置兜底 7 条与数据组「梦角悄悄话」前 7 条
+    //   **逐字重合**，原写法「过闸后为空 ⇒ 回落 WM」于是把用户刚关掉的同一批句子又捡回来，
+    //   逐张关光/整组停用等于没关（实测全关后 7/7 仍被使用）。全关＝真停用：不出声。
+    if (!wmPool.length) wmPool = (window.gateCardFallback ? window.gateCardFallback("garden", WM) : []);
+    if (wmPool.length) {
+      var msg = wmPool[Math.floor(Math.random() * wmPool.length)];
+      addLog(pName, "\uD83D\uDC95 " + msg);
+    }
     }
   }
   if (acted) {

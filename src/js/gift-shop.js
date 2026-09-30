@@ -1040,7 +1040,28 @@
     return true;
   };
 
-  function cardPool() { const pool = []; try { const d = window.DEFAULT_CARD_DATA; if (d && d.main) { d.main.forEach(function (c) { if (c && c[1]) c[1].forEach(function (x) { if (x) pool.push(x); }); }); } } catch (e) {} return pool; }
+  // FIX 2026-09-30 #1498 礼物寄语同样必须过闸：本池原先直接扫 DEFAULT_CARD_DATA.main 全量，
+  //   完全不认字卡库的逐张关闭（dc-off-main:<文案>）与整组停用（dc-groups-off.main）——
+  //   用户把主字卡关掉后，TA 送礼物/许愿时仍会把它们随机拼进寄语（1~5 张，见 taWish），
+  //   症状即用户报障「设置了禁止使用的字卡，联系人还是能使用」（多机型同现，与机型/浏览器无关）。
+  //   判据与聊天回复池同一条（isDefaultCardOff，一条同时认单卡闸与整组闸），零机型分支。
+  //   全关后 pool 为空 → taWish 的 `if (pool.length && ...)` 自然不拼卡，只留礼物自带寄语。
+  function cardPool() {
+    const pool = [];
+    try {
+      const d = window.DEFAULT_CARD_DATA;
+      const off = window.isDefaultCardOff;
+      if (d && d.main) {
+        d.main.forEach(function (c) {
+          if (c && c[1]) c[1].forEach(function (x) { if (x && !(off && off('main', x))) pool.push(x); });
+        });
+      }
+    } catch (e) {}
+    return pool;
+  }
+  // #1498 只读探针（与 window.__replyPoolDiag / __tiBankInfo 同款用途）：礼物寄语池现在的真实内容，
+  //   供诊断与行为尺读取「被禁的主字卡是否还被拼进寄语」。不写任何键。
+  window.__giftCardPool = function () { try { return cardPool(); } catch (e) { return []; } };
   function taWish(gift) {
     let wish = (gift && gift.wish) || '送给你';
     const pool = cardPool();

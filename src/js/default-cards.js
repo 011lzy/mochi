@@ -1378,11 +1378,34 @@
     const g = (DATA[cat] || []).find(x => x[0] === group);
     let arr = g && Array.isArray(g[1]) && g[1].length ? g[1] : (Array.isArray(fallback) ? fallback : []);
     arr = arr.slice();
+    // FIX 2026-09-30 #1498 消费端总闸下沉到取池口（本函数原先只「取组」、过滤全靠每个调用方自己
+    //   记着过 isDefaultCardOff）：auction（拍卖）／五子棋／连线／消消乐／四子棋／记忆翻牌／钓鱼／
+    //   音乐 等 8 个模块与 chat.js「吐槽·回应」、ta-ask.js「询问·回应」等处是**裸抽**
+    //   （getInteractPool(name, fb) 后直接 pool[random]），用户逐张关闭或整组停用「互动回应」
+    //   字卡后它们照旧使用（用户报障「设置了禁止使用的字卡，联系人还是能使用」的多机型同现）。
+    //   这里对【预设组内容 + 兜底数组】这一半统一过闸——已过滤的调用方再过滤一次是幂等的
+    //   （同口径三次过滤结果不变），裸抽的调用方从此自动跟上。自建功能字卡不过此闸：
+    //   它们由 cc-groups-off / cc-groups-public-off 管（见 getCustomFuncCards，已各自剔除停用分组）。
+    try { const off = window.isDefaultCardOff; if (off) arr = arr.filter(c => !off(cat, c)); } catch (e) {}
     try {
       const cf = (window.getCustomFuncCards && window.getCustomFuncCards(cat)) || [];
       if (cf.length) arr = arr.concat(cf);
     } catch (e) {}
     return arr;
+  };
+  // FIX 2026-09-30 #1498 兜底池必须同过一道闸（与 getLibPool 同一判据，零机型分支）：
+  //   各功能模块自带的 FB/DEF_* 兜底数组，多数就是数据组内容的旧拷贝——实测「花园→梦角悄悄话」
+  //   组内 7 条与 GB 的 WM 兜底 7 条**逐字重合**、「喝水→梦角催喝水」组内 18 条里兜底 6 条全重合。
+  //   原写法「过闸后为空 ⇒ 回落兜底」于是把用户刚关掉的同一批句子又捡回来，逐张关光/整组停用
+  //   等于没关（用户报障「设置了禁止使用的字卡，联系人还是能使用」）。统一出口：兜底也过闸，
+  //   全关＝真停用（空数组、不出声）；只有数据文件缺该分组时兜底才真有货。
+  window.gateCardFallback = function (cat, fallback) {
+    try {
+      const arr = Array.isArray(fallback) ? fallback.slice() : [];
+      const off = window.isDefaultCardOff;
+      if (!off) return arr;
+      return arr.filter(c => !off(cat, c));
+    } catch (e) { return []; }
   };
   // #1422（作者 2026-09-29 定）：这六池原是 chat.js／feed.js 里写死的「互动必答句」，字卡库里
   //   没有页面——搜得到（旧的跨分类搜索钩子登记过）却看不到、也逐句关不掉。现并到

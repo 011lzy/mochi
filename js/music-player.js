@@ -3662,7 +3662,7 @@ try {
 if (window.dcfGet && !(Math.random() * 100 < window.dcfGet('music'))) return;
 let arr = window.getLibPool ? window.getLibPool('music', group, fallback) : (fallback || []);
 if (window.isDefaultCardOff) arr = arr.filter(c => !window.isDefaultCardOff('music', c));
-if (!arr.length) arr = (fallback || []).slice();
+if (!arr.length) arr = window.gateCardFallback ? window.gateCardFallback('music', fallback) : [];
 if (!arr.length) return;
 let m = arr[Math.floor(Math.random() * arr.length)];
 if (window.taFit) m = window.taFit(m);

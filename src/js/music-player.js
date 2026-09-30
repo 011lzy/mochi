@@ -4559,7 +4559,10 @@
       if (window.dcfGet && !(Math.random() * 100 < window.dcfGet('music'))) return;
       let arr = window.getLibPool ? window.getLibPool('music', group, fallback) : (fallback || []);
       if (window.isDefaultCardOff) arr = arr.filter(c => !window.isDefaultCardOff('music', c));
-      if (!arr.length) arr = (fallback || []).slice();
+      // FIX 2026-09-30 #1498：兜底同样过闸（DEF_TA_PAUSE_CARDS / DEF_TA_RESUME_CARDS 是数据组
+      //   「TA 暂停播放 / TA 恢复播放」前几条的旧拷贝）——全关之后回落兜底＝禁用形同无效。
+      //   过闸后为空＝真停用：不出声（下面那句 return 即既有行为）。
+      if (!arr.length) arr = window.gateCardFallback ? window.gateCardFallback('music', fallback) : [];
       if (!arr.length) return;
       let m = arr[Math.floor(Math.random() * arr.length)];
       if (window.taFit) m = window.taFit(m);
