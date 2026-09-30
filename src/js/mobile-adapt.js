@@ -2450,10 +2450,9 @@
             }
             if (!_aVkHonest && _focNow) _aKbVkArm(); // #1484：overlay 签名（回弹全高且仍聚焦）＝武装实测尺
             if (!_aFullSince) _aFullSince = Date.now();
-            if (_focNow && (Date.now() - _aFullSince < 800 && !(_aVkHonest && _aVkH >= 0 && _aVkH < 80)) || (_aVkHonest && _aVkH >= 80 && Date.now() - _aUserTypos < 900)) { var _hHold = Math.round(_aKbStableH) + _aKbGap() || Math.round(_aVV.height || 0); if (_hHold > 0 && _aPhone.style.height !== _hHold + 'px') _aPhone.style.height = _hHold + 'px'; return; } // #1492：打字中才顶住＋顶住含轴值（无vk翻毛内核靠 800ms；vk 在场＝打字窗口 1.2s；停手＞1.2s 或失焦＝放行回底 // #1481：毛刺顶住（#1484：实测尺在场时 _aKbStableH 由实测持续更新，实测归零走 _aFullSince=1 即时复原） // #1481：全高毛刺未持续 800ms＝顶住会话稳态高度，不缩会话不写全高
-            _aKb = false;
-            _aClosing = false;
-            _aKbStableH = 0; _aFullSince = 0; try { if (_aVkHonest) { _aVkHonest = false; _aVkH = -1; var _vkR = navigator.virtualKeyboard; if (_vkR) _vkR.overlaysContent = false; } } catch (eVD) {} // #1484：解除武装还原内核默认
+            if (_focNow && (Date.now() - _aFullSince < 800 && !(_aVkHonest && _aVkH >= 0 && _aVkH < 80)) || (_aVkHonest && _aVkH >= 80 && Date.now() - _aUserTypos < 650)) { var _hHold = Math.round(_aKbStableH) + _aKbGap() || Math.round(_aVV.height || 0); if (_hHold > 0 && _aPhone.style.height !== _hHold + 'px') _aPhone.style.height = _hHold + 'px'; return; } // #1492：打字中才顶住＋顶住含轴值（无vk翻毛内核靠 800ms；vk 在场＝打字窗口 1.2s；停手＞1.2s 或失焦＝放行回底 // #1481：毛刺顶住（#1484：实测尺在场时 _aKbStableH 由实测持续更新，实测归零走 _aFullSince=1 即时复原） // #1481：全高毛刺未持续 800ms＝顶住会话稳态高度，不缩会话不写全高
+            _aKbCloseNow('gate'); // #1506：收口公共体（含取证）
+            return;
             _aPhone.style.height = '';
             _aPhone.style.alignSelf = '';
             // v3.29.x（#141）：收起瞬间把基准钳回布局视口全高——键盘期 _aH 可能被
@@ -2536,8 +2535,8 @@
                 // 提前把 .phone 撑回全高导致面板/输入行下沉跳变（与 syncAndroidKb 同判据）
                 if (_aVV.height >= _aH - 12) {
                   if (!_aFullSince) _aFullSince = Date.now();
-                  if (_focNow && (Date.now() - _aFullSince < 800 && !(_aVkHonest && _aVkH >= 0 && _aVkH < 80)) || (_aVkHonest && _aVkH >= 80 && Date.now() - _aUserTypos < 900)) return; // #1492：打字中才顶住；停手＞1.2s 或失焦＝放行回底（收起空白数秒回归根除）
-                  _aKbStableH = 0; _aFullSince = 0; try { if (_aVkHonest) { _aVkHonest = false; _aVkH = -1; var _vkR2 = navigator.virtualKeyboard; if (_vkR2) _vkR2.overlaysContent = false; } } catch (eVD2) {}
+                  if (_focNow && (Date.now() - _aFullSince < 800 && !(_aVkHonest && _aVkH >= 0 && _aVkH < 80)) || (_aVkHonest && _aVkH >= 80 && Date.now() - _aUserTypos < 650)) return; // #1492：打字中才顶住；停手＞1.2s 或失焦＝放行回底（收起空白数秒回归根除）
+                  _aKbCloseNow('watch'); return;
                   _aKb = false;
                   _aKbStableH = 0; _aFullSince = 0;
                   _aClosing = false;
@@ -2680,6 +2679,30 @@
         // 4 条），屏幕适配诊断打印成「键盘期快照」行；纯只读取证、不参与任何判定。读数
         // 四元组没动就不重量 rect（打字稳态零强制布局）。
         var _aSnapPre = '';
+        // #1506：收口公共体＋取证（哪条路收的、距最后一次按键多久）＋点消息区＝收口意图
+        function _aKbCloseNow(path) {
+          try {
+            window.__mochiKbClose = { path: path, sinceKey: Date.now() - _aUserTypos, at: Date.now() };
+            _aKb = false; _aClosing = false;
+            _aKbStableH = 0; _aFullSince = 0;
+            try { if (_aVkHonest) { _aVkHonest = false; _aVkH = -1; var _vkC = navigator.virtualKeyboard; if (_vkC) _vkC.overlaysContent = false; } } catch (eVC) {}
+            _aPhone.style.height = '';
+            _aPhone.style.alignSelf = '';
+            _aPanComp();
+            kbUndockPanels();
+          } catch (eCN) {}
+        }
+        try {
+          document.addEventListener('touchstart', function (e) {
+            try {
+              if (!_aKb || !_aVkHonest) return;
+              var t = e.target;
+              if (!t || !t.closest) return;
+              if (t.closest('.chat-input-row') || t.closest('#screen-adj-panel') || t.closest('.modal-mask') || t.closest('.kb-dock')) return;
+              if (t.closest('#chat-body') || t.closest('#gc-body')) _aKbCloseNow('tap-out');
+            } catch (eTO) {}
+          }, { passive: true, capture: true });
+        } catch (eTO2) {}
         var _aKbSnapOpen = false;
         function _aKbSnap(ev) {
           try {
@@ -2689,7 +2712,7 @@
             _aSnapPre = pre;
             var pr = _aPhone.getBoundingClientRect();
             var o = Math.round(_aVV.offsetTop || 0);
-            var s = { ts: Date.now(), ev: ev || "", kb: _aKb ? 1 : 0, prov: _aProv ? 1 : 0,
+            var s = { ts: Date.now(), ev: ev || "", kb: _aKb ? 1 : 0, prov: _aProv ? 1 : 0, tsk: Date.now() - _aUserTypos,
               inner: window.innerHeight || 0, vvH: Math.round(_aVV.height || 0), offTop: o,
               scale: +(+( _aVV.scale || 1)).toFixed(2), ph: _aPhone.style.height || "",
               phB: Math.round(pr.bottom), visB: o + Math.round(_aVV.height || 0),
