@@ -924,7 +924,7 @@
       // 用它记录目标元素；用 activeElement 复合判断兜底。
       // #1463 键盘间隙轴：iOS 键盘会话高度在自动停靠值上叠加用户本机微调——默认 0＝
       // 传给 _setPhoneH 的值逐位不变；±40 钳制，下限保护仍归 _setPhoneH 的 40% 地板管。
-      function _kbGapPx() { var a = window.__mochiScreenAdj; var v = a ? Math.round(+a.kbgap || 0) : 0; return v > 40 ? 40 : (v < -40 ? -40 : v); }
+      function _kbGapPx() { var a = window.__mochiScreenAdj; var v = a ? Math.round(+a.kbgap || 0) : 0; return v > 80 ? 80 : (v < -80 ? -80 : v); }
       var _textFocused = null;
       // v3.26.x #208：最近一次文本失焦时刻（focusin 归零）——键盘收起视口未还原自愈的计时基准
       var _focLostAt = 0;
@@ -2450,7 +2450,7 @@
             }
             if (!_aVkHonest && _focNow) _aKbVkArm(); // #1484：overlay 签名（回弹全高且仍聚焦）＝武装实测尺
             if (!_aFullSince) _aFullSince = Date.now();
-            if (Date.now() - _aFullSince < 800 || (_aVkHonest && _aVkH >= 80)) { var _hHold = Math.round(_aKbStableH) || Math.round(_aVV.height || 0); if (_hHold > 0 && _aPhone.style.height !== _hHold + 'px') _aPhone.style.height = _hHold + 'px'; return; } // #1481：毛刺顶住（#1484：实测尺在场时 _aKbStableH 由实测持续更新，实测归零走 _aFullSince=1 即时复原） // #1481：全高毛刺未持续 800ms＝顶住会话稳态高度，不缩会话不写全高
+            if (_focNow && (Date.now() - _aFullSince < 800 || (_aVkHonest && _aVkH >= 80 && Date.now() - _aLastAct < 1200))) { var _hHold = Math.round(_aKbStableH) + _aKbGap() || Math.round(_aVV.height || 0); if (_hHold > 0 && _aPhone.style.height !== _hHold + 'px') _aPhone.style.height = _hHold + 'px'; return; } // #1492：打字中才顶住＋顶住含轴值（无vk翻毛内核靠 800ms；vk 在场＝打字窗口 1.2s；停手＞1.2s 或失焦＝放行回底 // #1481：毛刺顶住（#1484：实测尺在场时 _aKbStableH 由实测持续更新，实测归零走 _aFullSince=1 即时复原） // #1481：全高毛刺未持续 800ms＝顶住会话稳态高度，不缩会话不写全高
             _aKb = false;
             _aClosing = false;
             _aKbStableH = 0; _aFullSince = 0; try { if (_aVkHonest) { _aVkHonest = false; _aVkH = -1; var _vkR = navigator.virtualKeyboard; if (_vkR) _vkR.overlaysContent = false; } } catch (eVD) {} // #1484：解除武装还原内核默认
@@ -2536,7 +2536,7 @@
                 // 提前把 .phone 撑回全高导致面板/输入行下沉跳变（与 syncAndroidKb 同判据）
                 if (_aVV.height >= _aH - 12) {
                   if (!_aFullSince) _aFullSince = Date.now();
-                  if (Date.now() - _aFullSince < 800 || (_aVkHonest && _aVkH >= 80)) return; // #1481/#1484：毛刺顶住＋实测键盘在场（≥80px）必顶住＝两态横跳根除
+                  if (_focNow && (Date.now() - _aFullSince < 800 || (_aVkHonest && _aVkH >= 80 && Date.now() - _aLastAct < 1200))) return; // #1492：打字中才顶住；停手＞1.2s 或失焦＝放行回底（收起空白数秒回归根除）
                   _aKbStableH = 0; _aFullSince = 0; try { if (_aVkHonest) { _aVkHonest = false; _aVkH = -1; var _vkR2 = navigator.virtualKeyboard; if (_vkR2) _vkR2.overlaysContent = false; } } catch (eVD2) {}
                   _aKb = false;
                   _aKbStableH = 0; _aFullSince = 0;
@@ -2613,7 +2613,7 @@
         // ②可视带底边（offsetTop+height）；③.phone 实测底边。差值绝对值>12px 才记账（caret
         // 微滚/取整噪声不误伤）。kbgap 默认 0＝三项全 0，钉高与修前逐字一致。
         var _aDockFix = 0;
-        function _aKbGap() { var a = window.__mochiScreenAdj; return a ? Math.max(-40, Math.min(40, Math.round(+a.kbgap || 0))) : 0; }
+        function _aKbGap() { var a = window.__mochiScreenAdj; return a ? Math.max(-80, Math.min(80, Math.round(+a.kbgap || 0))) : 0; }
         // #1481：会话内取「稳态收缩高度」——真实收缩读数照采照用并记为稳态；全高/回弹读数不采用，
         // 返回上一份稳态值（毛刺顶住），同时给 _aFullSince 起计时（收键盘迟滞的尺）。
         function _aKbFeedH() {
@@ -3485,7 +3485,7 @@
   var KEYS = { top: 'screen-adj-top', bottom: 'screen-adj-bottom', h: 'screen-adj-h', desk: 'screen-adj-desk', shift: 'screen-adj-shift', text: 'screen-adj-text', side: 'screen-adj-side', kbgap: 'screen-adj-kbgap' };
   // #764 文字大小轴：只叠加在「文字组」字号上（display-tune.css 逐条 calc），范围 0~12px；其余偏移轴维持 ±80
   // #794 左右安全边轴：曲面/瀑布屏内容贴边时两侧同时内收，单向 0~12px（在 .phone 既有 18px 横向内边距上叠加）
-  var RANGE = { top: [-80, 80], bottom: [-80, 80], h: [-80, 80], desk: [-60, 60], shift: [-60, 60], text: [0, 12], side: [0, 12], kbgap: [-40, 40] };
+  var RANGE = { top: [-80, 80], bottom: [-80, 80], h: [-80, 80], desk: [-60, 60], shift: [-60, 60], text: [0, 12], side: [0, 12], kbgap: [-80, 80] };
   // #1393：读优先走数据层（内存缓存＝本会话刚写的那一份，LS 写失败设备靠 IDB 回填那一份），
   // 数据层缺位（外置件没加载上／自愈重注入还没跑到 idb.js）时退回裸 LS 读＝与修前逐字一致。
   function loadAdj(k) {

@@ -35,7 +35,7 @@ check('S1 会话稳态高度采集（删＝毛刺读数照进钉高）', jsMA.in
 check('S2 钉高改用稳态高度（删＝会话期瞬时全高被照写）', jsMA.includes('var _hv = _aKbFeedH(); // #1481'));
 check('S3 对账同用稳态高度（删＝对账环把毛刺当真残差）', jsMA.includes('var visB = o + _hv;'));
 check('S4 主链复原迟滞（删＝收键盘毛刺直接拆会话）', jsMA.includes('var _hHold = Math.round(_aKbStableH)'));
-check('S5 轮询复原迟滞（删＝毛刺从轮询腿拆会话；#1486 起该行含实测在场条款，新旧形态皆认）', jsMA.includes('if (Date.now() - _aFullSince < 800) return;') || jsMA.includes('(_aVkHonest && _aVkH >= 80)) return;'));
+check('S5 打字中顶住·轮询腿（#1492 起形态）', jsMA.includes('_aLastAct < 1200))) return;'));
 check('S6 诊断打印键盘期快照环（删＝毛刺序列拍不进诊断单）', idx.includes('键盘期快照环='));
 
 const candidates = [
@@ -168,7 +168,7 @@ check('T2a 全高毛刺顶住：600ms 时仍 330px（键盘还开着；纯 HEAD 
 
 // ---- T2b 持续全高＝真收键盘：≤3s 内复原清内联高（两侧同绿；新版迟滞 800ms） ----
 const t2b = await pollH('', 3000);
-check('T2b 持续全高 800ms 判真收：复原清内联高（两侧同绿）', t2b);
+check('T2b 无 vk 会话全高 800ms 后收口回底（#1492 终版口径）', t2b);
 
 // ---- T3 轮询毛刺顶住：重开 360 后，不发事件直接改 700（只有 250ms 轮询看得见）→ 600ms 时仍 360px（纯 HEAD 必红） ----
 await evalJs("(function(){window.__fakeVV.height=360;window.__fakeVV.dispatch('resize');return 1;})()");
@@ -178,7 +178,7 @@ await sleep(600);
 const t3aH = await evalJs(H);
 check('T3a 轮询毛刺顶住：600ms 时仍 360px（纯 HEAD 轮询腿拆会话＝必红）', t3open && t3aH === '360px', t3aH);
 const t3b = await pollH('', 3000);
-check('T3b 持续全高轮询腿复原（两侧同绿）', t3b);
+check('T3b 轮询腿同口径收口回底（#1492 终版）', t3b);
 
 // ---- T5 失焦真复原不受迟滞影响：重开后 blur＋全高 → ≤2.5s 复原（两侧同绿） ----
 await evalJs("(function(){window.__fakeVV.height=360;window.__fakeVV.dispatch('resize');return 1;})()");

@@ -6178,7 +6178,7 @@ const FIX_SENTINELS = [
   { name: '#1463f 键盘间隙改动即时生效钩（删＝会话中拖滑杆要等下一轮事件才动）', file: 'js/mobile-adapt.js', needle: 'if (window.__mochiKbReconNow) window.__mochiKbReconNow();' },
   { name: '#1463g 安卓键盘探针全字段透传（删回两字段＝报告「键盘残留」安卓恒 n/a）', file: 'js/device.js', needle: 'var k2 = window.__mochiAndroidKb ? window.__mochiAndroidKb() : null; return k2 || null;' },
   { name: '#1463h 诊断打印键盘期快照行（删＝取证链断在最后一米）', file: 'js/device.js', needle: '键盘期快照=' },
-  { name: '#1463i 面板第 8 轴登记（删＝键盘间隙轴从面板消失）', file: 'js/personalize.js', needle: "{ k: 'kbgap', name: '键盘间隙', min: -40, max: 40" },
+  { name: '#1463i 面板第 8 轴登记（删＝键盘间隙轴从面板消失）', file: 'js/personalize.js', needle: "{ k: 'kbgap', name: '键盘间隙', min: -80, max: 80" },
   { name: '#1463j 诊断系统行安卓如实报（删回 iOS 版式＝安卓单子永远写 iOS ?）', file: 'js/device.js', needle: 'if (/android/i.test(_ua))' },
   /* ==== 2026-09-29 #1416（作者复报「后台通知说有回信、点进信箱找不到」同批的四条定型＋三条换锚） ==== */
   // ==== #1417 信箱「后台说有回信、点进信箱找不到」＋自救恢复按钮（作者直派，红米 K80 Chrome 复报、多机型同现）====
@@ -6213,8 +6213,14 @@ const FIX_SENTINELS = [
   { name: '#1467a 翻页帧尺翻页已停即收笔（删＝60 帧盲采把采样窗后 ~50s 的环境冻结记成「翻页耗时」，851ms 假读数回流）', file: 'js/desktop-slider.js', needle: 'if (gaps.length && Date.now() - perfScrollAt > 500) { finish(); return; }' },
   { name: '#1467b 切回桌面帧尺 2.5s 墙钟封顶（删＝切页窗口过后继续盲采 30 帧，环境冻结混进切页账）', file: 'js/desktop-slider.js', needle: 'if (gaps.length && Date.now() - swT0 > 2500) { finish(); return; }' },
   { name: '#1467c 诊断行截短标注（删＝截短样本看起来和整段采样一模一样，分诊又被假读数带偏）', file: 'js/device.js', needle: "dp.cut ? '（截短：翻页已停，未采满 60 帧）'" },
-  { name: '#1486a 实测在场必顶住·主链（删＝GT7 两态横跳复发：实测 355 在场仍被 800ms 迟滞拆会话）', file: 'js/mobile-adapt.js', needle: '(_aVkHonest && _aVkH >= 80)) { var _hHold' },
-  { name: '#1486b 实测在场必顶住·轮询腿（删＝横跳从轮询腿复发）', file: 'js/mobile-adapt.js', needle: '(_aVkHonest && _aVkH >= 80)) return;' },
+  { name: '#1492a 顶住只限打字中·主链（删＝收起键盘后页面被按在停靠高度数秒＝白屏/输入栏消失回归）', file: 'js/mobile-adapt.js', needle: '_aVkH >= 80 && Date.now() - _aLastAct < 1200))) { var _hHold' },
+  { name: '#1492b 顶住只限打字中·轮询腿（删＝同上从轮询腿复发）', file: 'js/mobile-adapt.js', needle: '_aVkH >= 80 && Date.now() - _aLastAct < 1200))) return;' },
+  { name: '#1492c 顶住高度含键盘间隙轴（删＝Edge 系实测会话拖轴无效＝「键盘间隙调没用」复发）', file: 'js/mobile-adapt.js', needle: 'Math.round(_aKbStableH) + _aKbGap()' },
+  { name: '#1492d 轴量程 ±80·装载钳（删＝K80/OPPO 实证 ~90px 空带拖不回）', file: 'js/mobile-adapt.js', needle: 'kbgap: [-80, 80]' },
+  { name: '#1492e 轴量程 ±80·安卓消费钳', file: 'js/mobile-adapt.js', needle: 'return a ? Math.max(-80, Math.min(80, Math.round(+a.kbgap || 0))) : 0;' },
+  { name: '#1492f 轴量程 ±80·面板滑杆', file: 'js/personalize.js', needle: "min: -80, max: 80," },
+  { name: '#1486a 实测在场必顶住·主链（删＝GT7 两态横跳复发：实测 355 在场仍被 800ms 迟滞拆会话）', file: 'js/mobile-adapt.js', needle: 'if (_focNow && (Date.now() - _aFullSince < 800 || (_aVkHonest && _aVkH >= 80 && Date.now() - _aLastAct < 1200))) { var _hHold' },
+  { name: '#1486b 实测在场必顶住·轮询腿（删＝横跳从轮询腿复发）', file: 'js/mobile-adapt.js', needle: 'if (_focNow && (Date.now() - _aFullSince < 800 || (_aVkHonest && _aVkH >= 80 && Date.now() - _aLastAct < 1200))) return;' },
   // ==== 2026-09-30 #1494（原 #1488，撞号让位心意市集批 14a9a5f）聊天记录导出（cs-export-msgs）与信箱导出（mail-export）裸 a[download] 绕过统一三级导出链（全站导入/导出普查新发现；作者拍板修）。裸 a[download] 在 iPhone 主屏安装（standalone 无下载管理器）与 #758 壳浏览器家族静默无反应＝导出点了没反应；#172 修聊天美化导出时已立「统一链」口径，本批把漏改的两处收进来（mochiExportBlob/mochiExportFile 主路＋裸腿兜底；聊天记录流式 parts 构建原样保留＝整包 stringify 顶 V8 字符串上限）====
   { name: '#1494a 聊天记录导出走统一 Blob 三级链（删＝iPhone 主屏/壳浏览器点了导出没反应复发）', file: 'js/chat-settings.js', needle: "window.mochiExportBlob(blob, '聊天记录_'" },
   { name: '#1494b 信箱导出走统一小文件三级链（删＝同族最后一处裸下载复发）', file: 'js/mail.js', needle: "window.mochiExportFile(json, '信箱数据_'" },
@@ -6235,7 +6241,7 @@ const FIX_SENTINELS = [
   { name: '#1481b 钉高改用稳态高度（删＝会话期瞬时全高读数被照写，键盘盖住输入栏）', file: 'js/mobile-adapt.js', needle: 'var _hv = _aKbFeedH(); // #1481' },
   { name: '#1481c 对账同用稳态高度（删＝对账环把毛刺全高读数当真残差，两态反复横跳）', file: 'js/mobile-adapt.js', needle: 'var visB = o + _hv;' },
   { name: '#1481d 会话期全高毛刺顶住（删＝收键盘毛刺直接拆会话，两态反复横跳复发）', file: 'js/mobile-adapt.js', needle: 'var _hHold = Math.round(_aKbStableH)' },
-  { name: '#1481e 250ms 轮询复原同样过迟滞（删＝毛刺从轮询腿把会话拆掉，回到反复横跳）', file: 'js/mobile-adapt.js', needle: 'if (Date.now() - _aFullSince < 800 || (_aVkHonest && _aVkH >= 80)) return;' },
+  { name: '#1481e 250ms 轮询复原同样过迟滞（删＝毛刺从轮询腿把会话拆掉，回到反复横跳）', file: 'js/mobile-adapt.js', needle: '+ _aKbGap() || Math.round(_aVV.height || 0)' },
   { name: '#1481f 诊断打印键盘期快照环（删＝双稳态毛刺序列拍不进诊断单，取证盲）', file: 'js/device.js', needle: '键盘期快照环=' },
   // ==== 2026-09-30 #1483 字卡库【公用/专属】导出数据缺「梦角自由造句」栏、导入数据解析面只认 7 聊天分类（作者直派「导入数据和导出数据不包括【梦角自由造句】这个tag里的字卡，帮我全部检查修复」）。#353 起 mjfree 卡就在公用/专属两库（管理页 tab＋dream-free 自动入库），导出弹窗 EXPORT_CATS 却没这栏＝造句卡永远导不出；导入侧 applyImportData 只解析 7 类＝功能/造句卡导回来静默丢弃（v3.32.x 起就能导出的 13 功能分类同样进不来，纯功能文件还误报「文件里没有可导入的字卡」）====
   { name: '#1483a 导出弹窗补「梦角自由造句」分类（删＝两库造句卡永远导不出去，作者点名的症状本体）', file: 'js/chatcard.js', needle: "['mjfree', '梦角自由造句']" },
