@@ -1646,7 +1646,7 @@ const FIX_SENTINELS = [
   { name: '#337 键盘可见性触发停靠（删则读数漂移内核输入栏整行留在键盘下=畅玩80Pro 族无法聊天）', file: 'js/mobile-adapt.js', needle: '_kbCovered = !!(_rC && _rC.height > 0 && _aCoverBottom(tgt) > _visBottomC + 12);' },
   // ==== 2026-09-13 #387 点聊天输入栏 UI 乱+闪屏（桌面浏览器 DevTools 移动模拟实测复现，多机型同族）：安卓/iOS 键盘保底停靠的读数判据（|vv−基线|≤2 且 |inner−基线|≤2）只证「视口没动」不证「键盘在场」——无软键盘环境（电脑浏览器/移动模拟/外接键盘）视口永远不动，点输入栏即盲推 58% 停靠＝输入栏顶到屏中下方大空白（UI 乱），自愈清除后反复点击又缩回（闪屏）。修复：安卓 _aProvCheck 与 iOS _iProvCheck 两处盲推分支统一加「实测被盖」闸（#337 同一把尺：聚焦元素∪输入行底边低于可视区底边+12px 才停靠）——悬浮键盘真场景键盘必然盖住输入栏照常停靠零回归；元素可见无需停靠，只可能少停不可能多停。行为断言 tools/verify-kb-prov-covered.mjs ====
   { name: '#387 安卓盲推停靠被盖闸·实测（删则无键盘环境点输入栏盲推 58%=输入栏顶屏中 UI 乱闪屏）', file: 'js/mobile-adapt.js', needle: 'if (_kbCovered) _aProvDock();' },
-  { name: '#387 安卓读数判据分支同样被被盖闸包住（删 =||= 恢复视口不动即盲推）', file: 'js/mobile-adapt.js', needle: 'Math.abs(ih - _aIH) <= 2 && _kbCovered) {' },
+  { name: '#387 安卓读数判据分支同样被被盖闸包住（删 =||= 恢复视口不动即盲推）', file: 'js/mobile-adapt.js', needle: '(_kbCovered || (navigator.virtualKeyboard && Date.now() - _aFocusAt > 700 && Date.now() - _aLastKbCloseAt > 800))' },
   { name: '#387 iOS 盲推停靠被盖闸（删则无键盘 iOS 环境点输入栏盲推收缩=UI 乱闪屏）', file: 'js/mobile-adapt.js', needle: '_iCovered = !!(_rI && _rI.height > 0 && _rI.bottom > ((_vv.offsetTop || 0) + _vv.height) + 12);' },
   { name: '#337 VirtualKeyboard 实测尺拉起（删则悬浮键盘只能 58% 盲猜，高占比输入法停靠不足仍被盖）', file: 'js/mobile-adapt.js', needle: 'vk.overlaysContent = true;' },
   { name: '#337 欠深自纠逐拍收紧（删则保底停靠不足时输入栏仍被盖不自愈）', file: 'js/mobile-adapt.js', needle: 'var ph = Math.max(Math.round(base * 0.34), cur - Math.round(base * 0.08));' },
@@ -6217,6 +6217,8 @@ const FIX_SENTINELS = [
   { name: '#1467a 翻页帧尺翻页已停即收笔（删＝60 帧盲采把采样窗后 ~50s 的环境冻结记成「翻页耗时」，851ms 假读数回流）', file: 'js/desktop-slider.js', needle: 'if (gaps.length && Date.now() - perfScrollAt > 500) { finish(); return; }' },
   { name: '#1467b 切回桌面帧尺 2.5s 墙钟封顶（删＝切页窗口过后继续盲采 30 帧，环境冻结混进切页账）', file: 'js/desktop-slider.js', needle: 'if (gaps.length && Date.now() - swT0 > 2500) { finish(); return; }' },
   { name: '#1467c 诊断行截短标注（删＝截短样本看起来和整段采样一模一样，分诊又被假读数带偏）', file: 'js/device.js', needle: "dp.cut ? '（截短：翻页已停，未采满 60 帧）'" },
+  { name: '#1512b 救援防误触发守卫（删＝诚实内核点按→打字→立刻收起时序被误停靠 490）', file: 'js/mobile-adapt.js', needle: 'Date.now() - _aLastKbCloseAt > 800' },
+  { name: '#1512a 纯 overlay 键盘救援（删＝OPPO Reno14/荣耀100 Edge 零信号键盘整行被盖、保底停靠永不触发）', file: 'js/mobile-adapt.js', needle: '零视口响应且内核有 vk＝纯 overlay 键盘' },
   { name: '#1510a 武装门槛连续 3 拍全高（删＝K80 Edge 单拍瞬时全高被武装＝内核被改造成 overlay＝秒收与停靠双双劣化）', file: 'js/mobile-adapt.js', needle: 'if (_aFullReads >= 3) _aKbVkArm();' },
   { name: '#1510b 收缩读数清武装计数（删＝瞬时全高后计数不清零，攒够 3 次照样误武装）', file: 'js/mobile-adapt.js', needle: '_aFullReads = 0; return cur;' },
   { name: '#1506a 点消息区＝收口意图（删＝收起后空白要等超时才消，点消息列表不能立刻回底）', file: 'js/mobile-adapt.js', needle: "_aKbCloseNow('tap-out')" },

@@ -1864,7 +1864,7 @@
         // 内核把可视视口瞬时弹回全高，钉高/对账照单全收＝输入栏整行沉回键盘下（遮挡），读数缩回又贴回
         // （空白）＝两态反复横跳。_aKbStableH=本会话最后一次「真实收缩」读数（h<_aH-60）；_aFullSince=
         // 读到全高的起始时刻，持续 ≥800ms 才判真收键盘（瞬时毛刺不缩会话、不写全高）。
-        var _aKbStableH = 0, _aFullSince = 0, _aVkHonest = false, _aVkH = -1, _aFullReads = 0;
+        var _aKbStableH = 0, _aFullSince = 0, _aVkHonest = false, _aVkH = -1, _aFullReads = 0, _aLastKbCloseAt = 0;
         // FIX 2026-09-10 #267：浏览器「平移/滚动露焦点」量的实测值。荣耀 X50 自带浏览器
         //（HonorBrowser/Chrome116，多机型同族）键盘弹出时把视觉视口【平移】让焦点露出，
         // 而 visualViewport.height 不缩（同一会话诊断现场 664 与 254 两种读数交替出现）→
@@ -2682,7 +2682,7 @@
         // #1506：收口公共体＋取证（哪条路收的、距最后一次按键多久）＋点消息区＝收口意图
         function _aKbCloseNow(path) {
           try {
-            window.__mochiKbClose = { path: path, sinceKey: Date.now() - _aUserTypos, at: Date.now() };
+            window.__mochiKbClose = { path: path, sinceKey: Date.now() - _aUserTypos, at: Date.now() }; _aLastKbCloseAt = Date.now(); // #1512b：近期收口戳（纯 overlay 救援的防误触发守卫）
             _aKb = false; _aClosing = false;
             _aKbStableH = 0; _aFullSince = 0;
             try { if (_aVkHonest) { _aVkHonest = false; _aVkH = -1; var _vkC = navigator.virtualKeyboard; if (_vkC) _vkC.overlaysContent = false; } } catch (eVC) {}
@@ -2843,7 +2843,7 @@
                 kbTouchArmed(tgt) &&
                 Date.now() > kbHardKeyUntil &&
                 Math.abs(_aVV.height - _aH) <= 2 &&
-                Math.abs(ih - _aIH) <= 2 && _kbCovered) {
+                Math.abs(ih - _aIH) <= 2 && (_kbCovered || (navigator.virtualKeyboard && Date.now() - _aFocusAt > 700 && Date.now() - _aLastKbCloseAt > 800))) { // #1512：被盖实测 OR 触摸聚焦后 700ms 零视口响应且内核有 vk＝纯 overlay 键盘（vv 全程撒谎，被盖闸永假；桌面鼠标聚焦无 touch 不误伤）
               _aProvDock();
             } else if (!_aKb && !_aProv && !_aKbMute &&
                 Date.now() - _aFocusAt > 900 &&

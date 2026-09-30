@@ -156,6 +156,7 @@ await evalJs("(function(){var ph=document.querySelector('.phone');var d=document
 await evalJs("(function(){var t=document.getElementById('v1508-ed');if(t){try{t.dispatchEvent(new Event('touchstart',{bubbles:true}));}catch(e){}try{t.focus();}catch(e2){}}window.__fakeVV.height=360;window.__fakeVV.dispatch('resize');return 1;})()");
 const h1 = await pollH('360px', 6000);
 check('H1 诚实会话钉 360px', h1);
+await evalJs("(function(){clearInterval(window.__arm);window.__arm=null;return 1;})()"); // #1512 前置：停触摸泵（永动触摸编辑框＝真机不存在的形态，会误触发保底停靠）
 
 // ---- H2 打字中收起（vv→844）：≤700ms 收口（纯 #1506 前身＝800ms 窗必红） ----
 await evalJs("(function(){var t=document.getElementById('v1508-ed');if(t){try{t.dispatchEvent(new KeyboardEvent('keydown',{keyCode:229,bubbles:true}));}catch(e){}}window.__fakeVV.height=844;window.__fakeVV.dispatch('resize');return 1;})()");

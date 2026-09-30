@@ -1046,7 +1046,7 @@ var _aVvShrunkSeen = false;
 var _aLastAct = Date.now();
 var _aLastVVH = 0;
 var _aPrevH = 0;
-var _aKbStableH = 0, _aFullSince = 0, _aVkHonest = false, _aVkH = -1, _aFullReads = 0;
+var _aKbStableH = 0, _aFullSince = 0, _aVkHonest = false, _aVkH = -1, _aFullReads = 0, _aLastKbCloseAt = 0;
 var _aPanSeen = 0, _aPanSeenAt = 0;
 var _aBurstUntil = 0;
 var _aFullIH = Math.max(window.innerHeight || 0, Math.round(_aVV.height || 0));
@@ -1495,7 +1495,7 @@ try { window.__mochiKbReconNow = function () { try { if (_aProv && !_aKb && !_aC
 var _aSnapPre = '';
 function _aKbCloseNow(path) {
 try {
-window.__mochiKbClose = { path: path, sinceKey: Date.now() - _aUserTypos, at: Date.now() };
+window.__mochiKbClose = { path: path, sinceKey: Date.now() - _aUserTypos, at: Date.now() }; _aLastKbCloseAt = Date.now(); // #1512b：近期收口戳（纯 overlay 救援的防误触发守卫）
 _aKb = false; _aClosing = false;
 _aKbStableH = 0; _aFullSince = 0;
 try { if (_aVkHonest) { _aVkHonest = false; _aVkH = -1; var _vkC = navigator.virtualKeyboard; if (_vkC) _vkC.overlaysContent = false; } } catch (eVC) {}
@@ -1628,7 +1628,7 @@ Date.now() - kbLastTouchAt < 1500 &&
 kbTouchArmed(tgt) &&
 Date.now() > kbHardKeyUntil &&
 Math.abs(_aVV.height - _aH) <= 2 &&
-Math.abs(ih - _aIH) <= 2 && _kbCovered) {
+Math.abs(ih - _aIH) <= 2 && (_kbCovered || (navigator.virtualKeyboard && Date.now() - _aFocusAt > 700 && Date.now() - _aLastKbCloseAt > 800))) { // #1512：被盖实测 OR 触摸聚焦后 700ms 零视口响应且内核有 vk＝纯 overlay 键盘（vv 全程撒谎，被盖闸永假；桌面鼠标聚焦无 touch 不误伤）
 _aProvDock();
 } else if (!_aKb && !_aProv && !_aKbMute &&
 Date.now() - _aFocusAt > 900 &&
