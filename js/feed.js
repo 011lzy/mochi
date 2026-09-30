@@ -2939,6 +2939,7 @@ const merged = mergePosts(base, mergePosts(cur, pending));
 if (!merged.length) { if (authOk && feedPending === pending) feedPending = null; return; }
 const degraded = !authOk && curFromSnap;
 if (!degraded) feedMem = merged;
+if (!degraded && feedWritePending) feedWritePending = merged;
 if (!degraded) scheduleFeedTokPass(2500);
 feedGuardWrite(JSON.stringify(merged)).then(written => {
 if (written) {

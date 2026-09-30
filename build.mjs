@@ -6465,6 +6465,9 @@ const FIX_SENTINELS = [
   { name: '#1521a 跨桌面查岗题库写前按目标桌面 store 问读全没有（删＝跨桌面来消息抽题那条自动写把对方桌面题库顶成纯预设）', file: 'js/ck-question.js', needle: '!ckAutoHoldIn(s, KEY)) { try { s.set(KEY' },
   { name: '#1521b 昵称池整包写前问读全没有（删＝「添加昵称」这条读-改-写在盲窗里把整池顶掉）', file: 'js/avatar-lib.js', needle: "xyBigWriteBlocked(store, 'nick-lib', '昵称池')" },
   { name: '#1521c 添加昵称尊重闸结果（删＝被拦后仍重绘并报「已添加」，用户以为存进去了）', file: 'js/avatar-lib.js', needle: 'if (saveFn(list) === false) return;' },
+  { name: '#1522a 花园年报分享走 feedAddPost 正路（删＝退回裸读裸写 feed-posts＝同步层读空一发抹掉朋友圈历史＋点击帧兆级串化长任务）', file: 'js/garden.js', needle: '!!window.feedAddPost(text)' },
+  { name: '#1522b 花园年报整包盲写已退役（删除型；回流＝JSON.parse(st.get(FK)) 读空顶库、st.set 整包写回复发）', file: 'js/garden.js', needle: 'st.set(FK, raw)', absent: true },
+  { name: '#1522c 冷读合并落定同拍刷新待写槽（删＝已排程的陈旧 arr 在合并后照写＝权威整本被顶回残缺形态丢历史）', file: 'js/feed.js', needle: 'if (!degraded && feedWritePending) feedWritePending = merged;' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

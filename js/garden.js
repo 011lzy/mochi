@@ -1351,20 +1351,7 @@ year + " \u82B1\u56ED\u5E74\u62A5 \uD83C\uDF3F",
 ];
 var text = lines.join("\n");
 var ok = false;
-try {
-var st = window.xyStore ? window.xyStore("xy-home-v2") : null;
-if (st) {
-var FK = "feed-posts";
-var arr = []; try { arr = JSON.parse(st.get(FK) || "[]"); } catch (e2) {}
-var owner = "default"; try { if (window.__activeCid) owner = window.__activeCid; } catch (e2) {}
-var an = "\u6211"; try { var as = window.activeStore ? window.activeStore() : null; if (as) { var nn = as.get("feed-user-name") || as.get("lbl-user"); if (nn) an = nn; } } catch (e2) {}
-arr.unshift({ id: "f_" + Date.now(), role: "me", owner: owner, authorName: an, authorAv: "", taName: "", taAv: "", content: text, imgs: [], ts: Date.now(), likes: [], comments: [] });
-var raw = JSON.stringify(arr);
-st.set(FK, raw);
-if (window.idbSet) window.idbSet("xy-home-v2:" + FK, raw);
-ok = true;
-}
-} catch (e3) {}
+try { ok = typeof window.feedAddPost === "function" ? !!window.feedAddPost(text) : false; } catch (e3) {}
 try { document.dispatchEvent(new CustomEvent("garden-share-report", { detail: { ok: ok } })); } catch (e4) {}
 if (window.openModal) window.openModal(ok ? "\u2705 \u5DF2\u53D1\u5E03\u5230\u670B\u53CB\u5708" : "\u53D1\u5E03\u5931\u8D25", "", function () {}, { pills: [{ label: "\u597D\u7684", value: "ok" }], noInput: true, staticText: ok ? "\u82B1\u56ED\u5E74\u62A5\u5DF2\u53D1\u5230\u670B\u53CB\u5708\uFF0C\u53BB\u670B\u53CB\u5708\u770B\u770B\u5427~" : "\u8BF7\u7A0D\u540E\u518D\u8BD5" });
 });

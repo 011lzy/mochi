@@ -3806,6 +3806,13 @@ if (comInput) comInput.addEventListener('keydown', (e) => { if (e.key === 'Enter
       //   可读（idbRestore 回填 / LS 恢复）下一次 load() 就恢复完整内容，与守卫同源。
       const degraded = !authOk && curFromSnap;
       if (!degraded) feedMem = merged;
+      // FIX 2026-10-01 #1522c：内存真相被合并结果顶掉的同一拍，刷新待写槽——否则已排程的
+      //   runFeedWrite/flushFeedWrite 照写 save() 当时按值捕获的陈旧 arr：冷读窗口里「先 save
+      //   单帖增量、后合并落定」的时序下，那发陈旧写排在合并之后＝把刚合并好的权威整本又顶回
+      //   残缺形态（#1336 注释点名的同族「排在后面的那发根本不知道」，当时只收了 feedPending
+      //   一侧、槽这一侧漏了；花园年报分享 feedAddPost 冷窗实测：合并落定 308k 并集落库后，
+      //   陈旧槽一发 276 字符单帖把权威顶回残缺＝端态丢历史）。降级兜底那份不写（同下行口径）。
+      if (!degraded && feedWritePending) feedWritePending = merged;
       // #1363：启动这一发也要过同一道闸——存量用户主键里那些原样存着的 dataURL 靠这一次自愈搬进池，
       //   主键从此回到小键档（有 localStorage 副本、快照与权威同形）；降级兜底那一份不去动它。
       if (!degraded) scheduleFeedTokPass(2500);
