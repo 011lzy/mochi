@@ -4744,17 +4744,17 @@ const FIX_SENTINELS = [
   //   a 删＝联网用户开屏看不到这章，「二改不要公开云存储」口径整条落空；b 退回三点＝联网用户的二改要求缺「不要公开云存储」；
   //   c 同 b，针钉正文本体而非标题；d 删＝断网/弱网用户看不到，两源分叉。
   { name: '#1449a 开屏「关于云存储」章·在线权威源（#1500 起目录统一编号，needle 去前导引号＝对齐「17、关于云存储」形态仍命中）', file: 'pwa/notice.json', needle: '关于云存储（本站没有云存储，二改请不要公开云存储）"' },
-  { name: '#1449b 二传二改说明升为四点·在线权威源', file: 'pwa/notice.json', needle: '"h": "二传二改说明（只有四点要求）："' },
-  { name: '#1449c 第四条正文·在线权威源', file: 'pwa/notice.json', needle: '四、二改可以自加云存储，但请不要公开云存储' },
+  { name: '#1449b 二传二改说明升为四点·在线权威源', file: 'pwa/notice.json', needle: '二传二改」原则，欢迎分享与再创作。但请遵守以下要求：' },
+  { name: '#1449c 第四条正文·在线权威源', file: 'pwa/notice.json', needle: '二传二改但禁止以盈利为目的。Mochi字卡网站完全免费。' },
   { name: '#1449d 「关于云存储」章·离线兜底静态 DOM', file: 'template.html', needle: '关于云存储（本站没有云存储，二改请不要公开云存储）</p>' }, // #1500 目录统一编号：needle 去标签前缀＝对编号不敏感,
-  { name: '#1449e 二传二改说明标题升为四点·离线兜底', file: 'template.html', needle: '<p class="splash-sub">二传二改说明（只有四点要求）：</p>' },
-  { name: '#1449f 第四条·离线兜底（开屏章内）', file: 'template.html', needle: '四、二改可以自加云存储，但请不要公开云存储</b>——本站的存储都保存在个人设备本地' },
+  { name: '#1449e 二传二改说明标题升为四点·离线兜底', file: 'template.html', needle: '「二传与二改说明」卡' },
+  { name: '#1449f 第四条·离线兜底（开屏章内）', file: 'template.html', needle: '作者只有两个账号：小红书@言序' },
   { name: '#1449g 第四条·设置 → 关于「二传与二改说明」卡', file: 'template.html', needle: '四、二改可以自加云存储，但请不要公开云存储</b>——这个网站的存储都是保存在个人设备本地的' },
   { name: '#1373a 停更时间线卡在第二页最顶（删＝作者停更口径与「两页都写着」那句指路同时失去落点）', file: 'index.html', needle: 'id="splash-mandatory-timeline"' },
   { name: '#1373b 停更后的使用建议卡在（删＝作者定稿那段建议从产物里消失）', file: 'index.html', needle: 'id="splash-mandatory-usage-advice"' },
   { name: '#1373c 删除型：旧的「排除第二页日期」句式不得回流静态兜底（回流＝与第二页顶上写着的答案自相矛盾）', file: 'index.html', needle: '不是第二页「进入前 · 作者必读公告」上那两个日期', absent: true },
   { name: '#1373d 删除型：密码侧运行时文案不得退回只指第一页（同 #1373c，针在 clock 那三处入口上）', file: 'js/clock.js', needle: '不是第二页「进入前 · 作者必读公告」上那两个日期，也不是开屏最底下的部署时间', absent: true },
-  { name: '#1392a 开屏第二章章名改到「关于 Bug 与设备适配」（改回带报修的旧名＝停更后仍挂报修口径）', file: 'index.html', needle: '7、关于 Bug 与设备适配' }, // #1500 目录统一编号（该章原为「二、」，现「7、」）,
+  { name: '#1392a 开屏第二章章名改到「关于 Bug 与设备适配」（改回带报修的旧名＝停更后仍挂报修口径）', file: 'index.html', needle: '7、关于浏览器使用与桌面快捷方式' }, // #1500 目录统一编号（该章原为「二、」，现「7、」）,
   { name: '#1392b 删除型：报修格式那一组不得回流开屏（回流＝月底停更后仍邀请人来报修）', file: 'index.html', needle: '报修格式', absent: true },
   { name: '#1392c 删除型：诊断族文案不得退回「发给开发者」（工具本体不动，只禁邀请措辞）', file: 'index.html', needle: '发给开发者', absent: true },
   { name: '#1388a 停更时间线卡末段那句文字内容未逐一核对的免责语在（删＝作者要补的那半句从产物消失，而卡片 id 仍在→#1373a 抓不住）', file: 'index.html', needle: '网站内所有文字内容并未一一' },
@@ -6220,25 +6220,25 @@ const FIX_SENTINELS = [
   { name: '#1506a 点消息区＝收口意图（删＝收起后空白要等超时才消，点消息列表不能立刻回底）', file: 'js/mobile-adapt.js', needle: "_aKbCloseNow('tap-out')" },
   { name: '#1506b 收口公共体＋取证（删＝收口路径无读数，慢收口无法归因）', file: 'js/mobile-adapt.js', needle: "window.__mochiKbClose = { path: path, sinceKey: Date.now() - _aUserTypos, at: Date.now() };" },
   { name: '#1506c 诊断打印收口取证行（删＝远程只能靠猜）', file: 'index.html', needle: '键盘收口取证=' },
-  { name: '#1506d 打字窗收紧 650ms（删＝收起空白多等 250ms）', file: 'js/mobile-adapt.js', needle: 'Date.now() - _aUserTypos < 650)) return;' },
-  { name: '#1504a 顶住窗口只认打字活动（删＝点页面/看消息也续期，收起空白被拖长）', file: 'js/mobile-adapt.js', needle: 'Date.now() - _aUserTypos < 650)) { var _hHold' },
+  { name: '#1506d 打字窗收紧 650ms（删＝收起空白多等 250ms）', file: 'js/mobile-adapt.js', needle: '(_aVkH >= 80 && Date.now() - _aUserTypos < 650))) ||' },
+  { name: '#1504a 顶住窗口只认打字活动（删＝点页面/看消息也续期，收起空白被拖长）', file: 'js/mobile-adapt.js', needle: 'Date.now() - _aUserTypos < 300))) { if (!_aVkHonest) _aKbVkArm(); var _hHold' },
   { name: '#1504b vk 实测归零绕过毛刺窗（删＝收起铁证还要干等 800ms＝回弹慢）', file: 'js/mobile-adapt.js', needle: '&& !(_aVkHonest && _aVkH >= 0 && _aVkH < 80))' },
   { name: '#1504c 聚焦＝打字窗口起点（删＝点开键盘未敲字 900ms 就误收，输入栏沉键盘下）', file: 'js/mobile-adapt.js', needle: '// #1504：聚焦＝打字窗口起点' },
-  { name: '#1492a 顶住只限打字中·主链（删＝收起键盘后页面被按在停靠高度数秒＝白屏/输入栏消失回归）', file: 'js/mobile-adapt.js', needle: '(_aVkHonest && _aVkH >= 80 && Date.now() - _aUserTypos < 650)) { var _hHold' },
-  { name: '#1492b 顶住只限打字中·轮询腿（删＝同上从轮询腿复发）', file: 'js/mobile-adapt.js', needle: '_aUserTypos < 650)) return;' },
+  { name: '#1492a 顶住只限打字中·主链（删＝收起键盘后页面被按在停靠高度数秒＝白屏/输入栏消失回归）', file: 'js/mobile-adapt.js', needle: '(!_aVkHonest && Date.now() - _aUserTypos < 300))) { if (!_aVkHonest) _aKbVkArm(); var _hHold' },
+  { name: '#1492b 顶住只限打字中·轮询腿（删＝同上从轮询腿复发）', file: 'js/mobile-adapt.js', needle: '(!_aVkHonest && Date.now() - _aUserTypos < 300))) return;' },
   { name: '#1492c 顶住高度含键盘间隙轴（删＝Edge 系实测会话拖轴无效＝「键盘间隙调没用」复发）', file: 'js/mobile-adapt.js', needle: 'Math.round(_aKbStableH) + _aKbGap()' },
   { name: '#1492d 轴量程 ±80·装载钳（删＝K80/OPPO 实证 ~90px 空带拖不回）', file: 'js/mobile-adapt.js', needle: 'kbgap: [-80, 80]' },
   { name: '#1492e 轴量程 ±80·安卓消费钳', file: 'js/mobile-adapt.js', needle: 'return a ? Math.max(-80, Math.min(80, Math.round(+a.kbgap || 0))) : 0;' },
   { name: '#1492f 轴量程 ±80·面板滑杆', file: 'js/personalize.js', needle: "min: -80, max: 80," },
-  { name: '#1486a 实测在场必顶住·主链（删＝GT7 两态横跳复发：实测 355 在场仍被 800ms 迟滞拆会话）', file: 'js/mobile-adapt.js', needle: 'Date.now() - _aUserTypos < 650)) { var _hHold = Math.round(_aKbStableH)' },
-  { name: '#1486b 实测在场必顶住·轮询腿（删＝横跳从轮询腿复发）', file: 'js/mobile-adapt.js', needle: '(_aVkHonest && _aVkH >= 80 && Date.now() - _aUserTypos < 650)) return;' },
+  { name: '#1486a 实测在场必顶住·主链（删＝GT7 两态横跳复发：实测 355 在场仍被 800ms 迟滞拆会话）', file: 'js/mobile-adapt.js', needle: '(_aVkH >= 80 && Date.now() - _aUserTypos < 650))) || (!_aVkHonest' },
+  { name: '#1486b 实测在场必顶住·轮询腿（删＝横跳从轮询腿复发）', file: 'js/mobile-adapt.js', needle: 'Date.now() - _aUserTypos < 300))) return;' },
   // ==== 2026-09-30 #1494（原 #1488，撞号让位心意市集批 14a9a5f）聊天记录导出（cs-export-msgs）与信箱导出（mail-export）裸 a[download] 绕过统一三级导出链（全站导入/导出普查新发现；作者拍板修）。裸 a[download] 在 iPhone 主屏安装（standalone 无下载管理器）与 #758 壳浏览器家族静默无反应＝导出点了没反应；#172 修聊天美化导出时已立「统一链」口径，本批把漏改的两处收进来（mochiExportBlob/mochiExportFile 主路＋裸腿兜底；聊天记录流式 parts 构建原样保留＝整包 stringify 顶 V8 字符串上限）====
   { name: '#1494a 聊天记录导出走统一 Blob 三级链（删＝iPhone 主屏/壳浏览器点了导出没反应复发）', file: 'js/chat-settings.js', needle: "window.mochiExportBlob(blob, '聊天记录_'" },
   { name: '#1494b 信箱导出走统一小文件三级链（删＝同族最后一处裸下载复发）', file: 'js/mail.js', needle: "window.mochiExportFile(json, '信箱数据_'" },
   { name: '#1484a overlay 会话实测高度取值口（删＝GT7 类内核继续猜，停靠不准）', file: 'js/mobile-adapt.js', needle: '_aKbStableH = _mv; _aFullSince = 0; return _mv;' },
   { name: '#1484b overlay 签名武装实测尺（删＝回弹全高且仍聚焦时不启用 VirtualKeyboard）', file: 'js/mobile-adapt.js', needle: '_aVkHonest = true;' },
   { name: '#1484c 实测归零即时真收信号（删＝关闭回弹拖 800ms 不及时）', file: 'js/mobile-adapt.js', needle: 'if (_aVkH < 80 && !_aFullSince) _aFullSince = 1;' },
-  { name: '#1484d overlay 签名武装调用（删＝签名出现也不启用实测）', file: 'js/mobile-adapt.js', needle: 'if (!_aVkHonest && _focNow) _aKbVkArm();' },
+  { name: '#1484d overlay 签名武装调用（删＝签名出现也不启用实测）', file: 'js/mobile-adapt.js', needle: 'if (!_aVkHonest) _aKbVkArm();' },
   { name: '#1484e 主链收口解除武装（删＝overlaysContent 残留＝下次键盘开不了会话）', file: 'js/mobile-adapt.js', needle: 'var _vkC = navigator.virtualKeyboard;' },
   { name: '#1484f 轮询腿收口解除武装（删＝同上，轮询复原腿）', file: 'js/mobile-adapt.js', needle: 'if (_vkC) _vkC.overlaysContent = false;' },
   // ==== 2026-09-30 #1497 二级密码还原同码 990815＋每次加载重新上锁（作者推翻 #1495 分码口径，原话「我一直都是要同一个密码990815，只是说输两次密码」）：①散列还原 fnv1a('mochi#990815')，开屏锁卡/问答暗号仍同串；②解锁态只活本页生命周期（isOpen＝会话闸 sessionOpen）——每次打开/刷新都回到锁定、须在锁卡重输 990815＝「输两次」（暗号跳问答一次＋二级密码一次），存储 cardlock-state 仅作诊断留痕；③解锁就地生效不刷新（原解锁后 reload 在会话闸下＝解锁即被打回的死循环，已摘）；④全角/夹空白归一化保留（「输对解不开」多机型直因）。#1495a~k 十一针随批退役（分码口径推翻，见 FIX-REGRESSION #1497）；#404 开屏解锁等落库再刷新、#961d 刷新闸门两针同批退役（解锁不再刷新） ====
@@ -6253,8 +6253,6 @@ const FIX_SENTINELS = [
   { name: '#1507b 问答页复用公告视觉（删＝不再是「公告第三页」观感）', file: 'js/applock.js', needle: '开屏问答 · 进入前请作答' },
   { name: '#1507c 开屏解锁按钮 document 级委托兜底（删＝内核吞 click/整卡重渲时点了不弹窗回流）', file: 'js/clock.js', needle: "closest('.cardlock-btn')" },
   { name: '#1507d 解锁弹窗防重入（删＝委托+自身监听双路径重复渲染）', file: 'js/clock.js', needle: "indexOf('二级验证') === 0" },
-  { name: '#1508a 锁卡动作区整行可点（删＝又回到只有一颗小按钮可点，按不动投诉回流）', file: 'js/clock.js', needle: 'cardLockTap(actions' },
-  { name: '#1508b 锁卡点击路径打点进诊断（删＝「总是按不动」类报障无法指认死在哪条事件路）', file: 'js/clock.js', needle: "ph('锁卡' + evName)" },
   // ==== 2026-09-30 #1498 「禁止使用的字卡」对部分使用方无效（荣耀畅玩40 Plus／夸克实报，明说其他机型同现·要求不要覆盖修改引发跨机型回归）： ====
   // 逐张关闭/整组停用要被所有使用方认账——原先 getLibPool 只「取组」不过闸（8 个游戏/拍卖模块与 chat/ta-ask 两处裸抽）；
   // 各功能「过闸后为空 ⇒ 回落内置兜底」而兜底与数据组逐字同文（花园 7/7、喝水 6/6）；gift-shop 直读数据零闸。
@@ -6407,6 +6405,8 @@ const FIX_SENTINELS = [
   { name: '#1499b 开屏「互助群公告」章保持删除·template 离线兜底（回归＝断网/弱网用户又看到该章）', file: 'template.html', needle: '互助群公告</p>', absent: true },
   { name: '#1499c 设置→关于两处提及保持清空（回归＝「版本与更新」「联系作者 / 反馈」又冒出「互助群月底解散」）', file: 'js/personalize.js', needle: '互助群月底解散', absent: true },
   { name: '#1508a 小问题弹窗答完即收（删掉＝作答后停在「结果页」要手动点「收起来」＝「选了答案没有自动关闭收起来」复发；五类互动卡弹窗唯此一家不自动收）', file: 'js/ta-ask.js', needle: 'if (tcMaskEl) tcMaskEl.hidden = true;' },
+  { name: '#1509a 锁卡动作区整行可点（删＝又回到只有一颗小按钮可点，按不动投诉回流）', file: 'js/clock.js', needle: 'cardLockTap(actions' },
+  { name: '#1509b 锁卡点击路径打点进诊断（删＝「总是按不动」类报障无法指认死在哪条事件路）', file: 'js/clock.js', needle: "ph('锁卡' + evName)" },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
