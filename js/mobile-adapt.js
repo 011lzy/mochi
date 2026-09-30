@@ -1036,7 +1036,7 @@ try {
 var _aPhone = document.querySelector('.phone');
 var _aVV = window.visualViewport;
 if (_aVV && _aPhone) {
-var _aH = _aVV.height; // 无键盘基准（跟随地址栏显隐更新）
+var _aH = Math.min(_aVV.height || window.innerHeight, window.innerHeight || _aVV.height); // #1517：初值钳进布局视口——Edge 工具栏隐藏瞬间报超内高的假 vv 会毒化全页基准
 var _aKb = false;
 var _aKbAt = 0, _aVvChgAt = Date.now(), _aVvStale = false;
 var _aKbMute = false;
@@ -1359,7 +1359,7 @@ _aKbCloseNow('gate'); // #1506：收口公共体（含取证）
 return;
 _aPhone.style.height = '';
 _aPhone.style.alignSelf = '';
-if (_aH < window.innerHeight - 12) _aH = window.innerHeight;
+if (_aH < window.innerHeight - 12) _aH = window.innerHeight; else if (_aH > window.innerHeight + 12) _aH = window.innerHeight; // #1517：高值基线必须回落
 _aDockFix = 0; _aKbSnapOpen = false; _aKbSnap("close"); // #1463：收起清对账残差账＋现场留档（「收起后白带/残留」族取证）
 _aPanComp();
 kbUndockPanels();

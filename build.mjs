@@ -6217,6 +6217,8 @@ const FIX_SENTINELS = [
   { name: '#1467a 翻页帧尺翻页已停即收笔（删＝60 帧盲采把采样窗后 ~50s 的环境冻结记成「翻页耗时」，851ms 假读数回流）', file: 'js/desktop-slider.js', needle: 'if (gaps.length && Date.now() - perfScrollAt > 500) { finish(); return; }' },
   { name: '#1467b 切回桌面帧尺 2.5s 墙钟封顶（删＝切页窗口过后继续盲采 30 帧，环境冻结混进切页账）', file: 'js/desktop-slider.js', needle: 'if (gaps.length && Date.now() - swT0 > 2500) { finish(); return; }' },
   { name: '#1467c 诊断行截短标注（删＝截短样本看起来和整段采样一模一样，分诊又被假读数带偏）', file: 'js/device.js', needle: "dp.cut ? '（截短：翻页已停，未采满 60 帧）'" },
+  { name: '#1517a 无键盘基准初值钳进布局视口（删＝加载瞬间假高毒化基准＝每会话被伪造成键盘收缩＝钉全高被盖）', file: 'js/mobile-adapt.js', needle: 'var _aH = Math.min(_aVV.height || window.innerHeight, window.innerHeight || _aVV.height);' },
+  { name: '#1517b 高值基线在收口时回落（删＝816 类基线永不回 690＝伪装内核）', file: 'js/mobile-adapt.js', needle: 'else if (_aH > window.innerHeight + 12) _aH = window.innerHeight;' },
   { name: '#1512b 救援防误触发守卫（删＝诚实内核点按→打字→立刻收起时序被误停靠 490）', file: 'js/mobile-adapt.js', needle: 'Date.now() - _aLastKbCloseAt > 800' },
   { name: '#1512a 纯 overlay 键盘救援（删＝OPPO Reno14/荣耀100 Edge 零信号键盘整行被盖、保底停靠永不触发）', file: 'js/mobile-adapt.js', needle: '零视口响应且内核有 vk＝纯 overlay 键盘' },
   { name: '#1515a p2 libPool 兜底过闸（删＝喝水/吃饭/存钱罐/同频/伸手全关后照旧回落同文兜底＝禁用等于没关）', file: 'js/p2-features.js', needle: 'return arr.length ? arr.slice() : (window.gateCardFallback ? window.gateCardFallback(cat, fallback) : (fallback || []).slice());' },

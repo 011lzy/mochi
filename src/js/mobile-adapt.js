@@ -1829,7 +1829,7 @@
       var _aPhone = document.querySelector('.phone');
       var _aVV = window.visualViewport;
       if (_aVV && _aPhone) {
-        var _aH = _aVV.height; // 无键盘基准（跟随地址栏显隐更新）
+        var _aH = Math.min(_aVV.height || window.innerHeight, window.innerHeight || _aVV.height); // #1517：初值钳进布局视口——Edge 工具栏隐藏瞬间报超内高的假 vv 会毒化全页基准
         var _aKb = false;
         // FIX 2026-09-07 #236：键盘会话计时/vv 残留闩——HeyTapBrowser（OPPO K13 Turbo
         // Pro 实报「屏幕下方大片空白」）收键盘后 vv.height 恒停在 inner−底栏高不回基准，
@@ -2459,7 +2459,7 @@
             // 内核/地址栏瞬态值抬错，若停留低位，h < _aH-60 恒真 → 下一帧误判
             // 「键盘又弹出」把 .phone 锁死在中间高度 = 输入栏下方灰块几秒不收。
             // innerHeight 即布局视口高（resizes-visual 下不随键盘收缩），恒可靠。
-            if (_aH < window.innerHeight - 12) _aH = window.innerHeight;
+            if (_aH < window.innerHeight - 12) _aH = window.innerHeight; else if (_aH > window.innerHeight + 12) _aH = window.innerHeight; // #1517：高值基线必须回落
             _aDockFix = 0; _aKbSnapOpen = false; _aKbSnap("close"); // #1463：收起清对账残差账＋现场留档（「收起后白带/残留」族取证）
             _aPanComp();
             kbUndockPanels();
