@@ -623,6 +623,28 @@
   const GIFTS_KEY = 'market-gifts'; // 旧各桌面商品库键（仅迁移读取用）
   function customLoad() { try { const a = JSON.parse((GSTORE && GSTORE.get(CUSTOM_KEY)) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
   function customSave(a) { if (GSTORE) GSTORE.set(CUSTOM_KEY, JSON.stringify(a)); }
+  // #1488 大键冷读闸：market-custom 带图后是 >200KB 的 IDB-only 大键（xyStore.set 大键分支主动
+  // 摘掉 LS 副本），冷启动回填未轮到／切后台被按体积放掉／iOS 回收重开时，同步读就是 null——
+  // 那是「没读到」，不是「没有」；此刻拿空账整包写回＝把库里整本商品库顶掉（用户视角＝上传的
+  // 商品刷新后全消失，再传一次就只剩新传那件，永远攒不起来；iPhone 15／iOS 18.6.2 Safari 实报，
+  // 安卓／桌面同链路）。判据只有数据层那一句 awaitingBigKey（零机型／零 UA）；出口也是数据层
+  // 现成的：值读回（内存/LS 有值）或健康连接确认库里真无此键（大键缺席裁决）即自动放行，
+  // 不把这道闸变成新的「存不进去」。与信箱／朋友圈／字卡库／美化方案同一族，本页最后接闸。
+  function customReadUnconfirmed() {
+    try { return !!(GSTORE && typeof GSTORE.awaitingBigKey === 'function' && GSTORE.awaitingBigKey(CUSTOM_KEY)); } catch (e) { return false; }
+  }
+  function customWriteBlocked() {
+    try { if (window.xyBigWriteBlocked && window.xyBigWriteBlocked(GSTORE, CUSTOM_KEY, '心意集市商品库')) return true; } catch (e) {}
+    return false;
+  }
+  function customAwaitBack(cb) {
+    try { if (GSTORE && GSTORE.requestBigKey) GSTORE.requestBigKey(CUSTOM_KEY); } catch (e) {}
+    try { if (GSTORE && GSTORE.whenBigKeyBack) GSTORE.whenBigKeyBack(CUSTOM_KEY, function () { try { cb(); } catch (e0) {} }); } catch (e1) {}
+  }
+  function marketRerenderBoth() {
+    try { if (marketPage && !marketPage.hidden) renderMarket(); } catch (e0) {}
+    try { const gp = document.getElementById('chat-gift-panel'); if (gp && !gp.hidden) giftPanelRerender(); } catch (e1) {}
+  }
   function giftsLoad() {
     const dead = {}, ov = {}, customs = [];
     customLoad().forEach(function (c) {
@@ -639,7 +661,7 @@
     });
     return out.concat(customs);
   }
-  function deleteGift(id) {
+  function deleteGift(id) { if (customWriteBlocked()) return;
     const customs = customLoad();
     const idx = customs.findIndex(function (x) { return x && x.id === id; });
     if (DEF_IDS[id]) {
@@ -739,7 +761,7 @@
   // 桌面上删过的默认商品记删除标记。幂等（market-migrated 标记 + id 去重），
   // 模块加载跑一次合并 LS；mochi-restore-done（IDB 回填完）后未打标记再跑一次
   function migrateMarketGlobal(setMark) {
-    if (!GSTORE || GSTORE.get(MIGRATE_KEY)) return;
+    if (!GSTORE || GSTORE.get(MIGRATE_KEY)) return; if (customReadUnconfirmed()) return; // #1488 读不全＝这一跑既不并也不落标记，restore-done 再来一趟
     const customs = customLoad();
     const seen = {};
     customs.forEach(function (c) { if (c && c.id) { seen[c.id] = 1; if (c.del) seen['del:' + c.id] = 1; } });
@@ -773,7 +795,7 @@
   }
   // 救援：迁移若在扩库前跑过，新默认商品被误标 del → 幂等清一次（每批独立标记键）
   function rescueBatch(ids, mark) {
-    if (!GSTORE || GSTORE.get(mark)) return;
+    if (!GSTORE || GSTORE.get(mark)) return; if (customReadUnconfirmed()) return; // #1488 同款：空读不清标不发号
     const customs = customLoad();
     let changed = false;
     for (let i = customs.length - 1; i >= 0; i--) {
@@ -1660,8 +1682,10 @@
     const list = filterGifts(gifts);
     const q = normTxt(searchText).trim();
     // #797：商品库走 IDB 回填，未完成时不把空值说成「还没有商品」（诱导重添＝回填后重复）
-    if (!list.length && !q && window.mochiDataPending && window.mochiDataPending()) {
+    // #1488：回填排队与大键没取回都不把空读说成「还没有商品」（诱导重传＝重复）；后者顺手请一次库、值回来补一刀重渲
+    if (!list.length && !q && (customReadUnconfirmed() || (window.mochiDataPending && window.mochiDataPending()))) {
       el.innerHTML = window.mochiLoadingHtml('礼物商品');
+      if (customReadUnconfirmed()) customAwaitBack(marketRerenderBoth);
       return;
     }
     const emptyTxt = q ? ('没找到「' + q + '」相关商品') : '还没有商品，点下方添加';
@@ -1753,6 +1777,7 @@
   function renderMineCard() {
     const el = document.getElementById('market-mine');
     if (!el) return;
+    const pend = customReadUnconfirmed(); // #1488：读取中不许谎报「还没上传过商品」（诱导重传＝重复）
     const n = customMine().length;
     el.innerHTML =
       '<button class="market-mine-add" id="market-mine-add" type="button">' +
@@ -1760,7 +1785,7 @@
         '<span class="market-mine-txt">上传我的商品<em>用自己的照片当礼物，放进市集就能送</em></span>' +
       '</button>' +
       '<div class="market-mine-foot">' +
-        '<span class="market-mine-cnt" id="market-mine-cnt">' + (n ? '已上传 ' + n + ' 件自定义商品' : '还没上传过商品（默认商品不用上传）') + '</span>' +
+        '<span class="market-mine-cnt" id="market-mine-cnt">' + (pend ? '商品库读取中…（存储正忙，马上回来）' : (n ? '已上传 ' + n + ' 件自定义商品' : '还没上传过商品（默认商品不用上传）')) + '</span>' +
         '<button class="market-mine-mini" id="market-mine-export" type="button">导出商品数据</button>' +
         '<button class="market-mine-mini" id="market-mine-import" type="button">导入商品数据</button>' +
       '</div>';
@@ -1783,6 +1808,7 @@
   }
   function exportMarketGoods() {
     const items = customMine();
+    if (!items.length && customReadUnconfirmed()) { toast('商品库还没读全（存储正忙）：等几秒再导出'); customAwaitBack(marketRerenderBoth); return; } // #1488
     if (!items.length) { toast('还没有自定义商品，点上面「上传我的商品」先加一件'); return; }
     const json = marketGoodsJson(items);
     const bytes = packBytes(json);
@@ -1825,6 +1851,7 @@
           try { data = JSON.parse(text || 'null'); } catch (e) {}
           const raw = goodsFromPack(data);
           if (!raw) { toast('这个文件里没有商品数据'); return; }
+          if (customWriteBlocked()) return; // #1488 读不全先按住：这一发读出来的计划必是错的
           const plan = mergeGoods(customLoad(), raw);
           if (!plan.added && !plan.updated) {
             toast(plan.skipped ? ('这 ' + plan.skipped + ' 件商品都已在你的商品库里，没有新增') : '文件里没有可导入的商品');
@@ -1947,7 +1974,7 @@
       } else {
         customs.push(item);
       }
-      customSave(customs); closeTc(); renderMarket(); toast('已保存');
+      if (customWriteBlocked()) { customAwaitBack(marketRerenderBoth); return; } customSave(customs); closeTc(); renderMarket(); toast('已保存');
     });
     if (cancelBtn) cancelBtn.addEventListener('click', closeTc);
   }
@@ -2175,7 +2202,7 @@
     document.getElementById('market-reset').addEventListener('click', function () {
       if (!window.openModal) return;
       window.openModal('恢复默认商品？（清除对默认商品的修改/删除记录，自定义商品保留）', '', function () {
-        customSave(customLoad().filter(function (c) { return c && !c.del && !c.base; }));
+        if (customWriteBlocked()) return; customSave(customLoad().filter(function (c) { return c && !c.del && !c.base; }));
         renderMarket(); toast('已恢复默认');
       }, { noInput: true });
     });

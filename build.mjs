@@ -6304,7 +6304,17 @@ const FIX_SENTINELS = [
   { name: '#1485f 通话铃声大键空窗补读的证人问询（sfx-ring >200KB 不落 LS，切后台放副本/启动挂起期同步读空＝设了自定义一声不响：上传时内置选择已被清掉，旧代码落内置段同样无声）', file: 'js/sfx.js', needle: "sst.awaitingBigKey && sst.awaitingBigKey(KEYS.ring)" },
   { name: '#1485g 空窗补读接线 whenBigKeyBack（回来走同一条自定义播放链；确无此键不回调＝按内置段收场，保持「没设过=静音」设计）', file: 'js/sfx.js', needle: "sst.whenBigKeyBack(KEYS.ring, tryCustom)" },
   { name: '#1485h 接听/挂断作废在飞补读（代次闸，删＝铃声迟响/双响）', file: 'js/sfx.js', needle: "ringReadGen++; // #1485b" },
-  // ====
+  // ====,
+  { name: '#1488a 冷读未确认判据（删＝空读被当「没有」，商品库冷启动/切后台后整包顶掉）', file: 'js/gift-shop.js', needle: 'function customReadUnconfirmed()' },
+  { name: '#1488b 删除商品先过闸（删＝读不全时删除把库里整本顶掉）', file: 'js/gift-shop.js', needle: 'function deleteGift(id) { if (customWriteBlocked()) return;' },
+  { name: '#1488c 迁移读不全不落笔不落标记（删＝restore-done 空读把 market-custom 写成空库）', file: 'js/gift-shop.js', needle: 'if (!GSTORE || GSTORE.get(MIGRATE_KEY)) return; if (customReadUnconfirmed()) return;' },
+  { name: '#1488d 默认商品救援读不全不动（删＝空读把 rescue 标记落了、真救援那场永不跑）', file: 'js/gift-shop.js', needle: 'if (!GSTORE || GSTORE.get(mark)) return; if (customReadUnconfirmed()) return;' },
+  { name: '#1488e 导入先过闸（删＝计划按空账算，落笔顶掉真库）', file: 'js/gift-shop.js', needle: 'if (customWriteBlocked()) return; // #1488 读不全先按住：这一发读出来的计划必是错的' },
+  { name: '#1488f 上传/编辑保存先过闸＋请库补渲（删＝相册切后台放掉大键后，保存把商品库顶成只剩新一件）', file: 'js/gift-shop.js', needle: 'if (customWriteBlocked()) { customAwaitBack(marketRerenderBoth); return; } customSave(customs);' },
+  { name: '#1488g 恢复默认先过闸（删＝读不全时整包写回）', file: 'js/gift-shop.js', needle: 'if (customWriteBlocked()) return; customSave(customLoad().filter(' },
+  { name: '#1488h 大键没取回同显加载态并请库补渲（删＝把「没读到」画成「还没有商品」诱导重传）', file: 'js/gift-shop.js', needle: 'if (customReadUnconfirmed()) customAwaitBack(marketRerenderBoth);' },
+  { name: '#1488i 我的商品块读取中诚实文案（删＝读取窗口谎报「还没上传过商品」）', file: 'js/gift-shop.js', needle: '商品库读取中' },
+  { name: '#1488j 导出读不全诚实提示（删＝空读导出空包当备份）', file: 'js/gift-shop.js', needle: '商品库还没读全' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
