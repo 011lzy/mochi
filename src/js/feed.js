@@ -1181,6 +1181,22 @@
     // 「使用表情包概率」fd-image-prob：每张卡出现表情包/图片的概率；颜文字/emoji 固定 15%
     return genMixedCards(c, 1, maxN, { imgP: c.imageProb, kaoP: 15, emoP: 15 }, cid);
   }
+  // #1485a：TA 生成内容前的「按桌面就绪」原语——非当前桌面的 cc-groups 是 IDB-only 大键
+  //   （>200KB 只进 IndexedDB+内存缓存，从不落 localStorage），启动回填不轮到非活跃桌面、
+  //   切后台又被 #1195e 按体积放掉内存副本；此刻 cardPool(cid) 同步读到的是空库，而
+  //   hydrateLibForCid 的取回是 fire-and-forget——旧写法「先发起取回、立刻读池」把「没读到」
+  //   当成「这个桌面没有字卡」，TA 发的动态/评论只剩默认字卡与兜底句（多联系人实报：
+  //   与 A 对话时 B 发的朋友圈反复只有颜文字，正常字卡一张不用；多机型同现，与设备无关）。
+  //   修法＝生成前先等取回落定（hydrateScope 内部：已有数据短路 / 健康连接确认无键短路 /
+  //   在飞复用，对真无字卡的桌面零开销），拿到库再抽卡。判据只认「cid 是不是当前桌面」，
+  //   零机型／零 UA 分支。cb 落定后同步跑，调用方自己兜 try。
+  function poolReadyFor(cid, cb) {
+    const cur = window.__activeCid || 'default';
+    if (cid === cur || !window.hydrateLibForCid) { cb(); return; }
+    try {
+      window.hydrateLibForCid(cid).then(function () { cb(); }, function () { cb(); });
+    } catch (e) { cb(); }
+  }
   // v3.5.57：TA 回应我的回复的回复池
   const TA_REPLY_POOL = ['哈哈，好呀', '那你呢？', '嗯嗯，说得对', '我记住啦', '跟你分享过的', '被你发现了', '那很好呀', '我也这么觉得'];
 
@@ -2603,6 +2619,8 @@ function submitComment() {
     if (Math.random() * 100 < tcfg.replyProb) {
       const cfg = tcfg;
       setTimeout(() => {
+        // #1485a：tcOwner 非当前桌面时先等该桌面字卡大键取回落定再生成（详见 poolReadyFor 注释）
+        poolReadyFor(tcOwner, function () { try {
         const list2 = load();
         const p2 = list2.find(x => x.id === pid);
         if (!p2 || !p2.comments || !p2.comments[replyCi]) return;
@@ -2621,6 +2639,7 @@ function submitComment() {
         refreshPostCard(pid);
         // v3.11.x：通知带评论/回复定位（点击直接闪到这条回复）
         addNotice('comment', p2.id, taFeedNameFor(tcOwner) + ' 回复了你：' + noticeTextClean(replyText), tcOwner, { ci: replyCi, ri: replies.length - 1 });
+        } catch (eR) {} });
       }, (cfg.replySpeedMin + Math.random() * Math.max(1, cfg.replySpeedMax - cfg.replySpeedMin)) * 1000);
     }
     return;
@@ -2638,22 +2657,25 @@ function submitComment() {
   if (Math.random() * 100 < pcfg.commentProb) {
     const cfg = pcfg;
     setTimeout(() => {
+      // #1485a：动态所属桌面非当前桌面时先等该桌面字卡大键取回落定再生成（详见 poolReadyFor 注释）
+      poolReadyFor(p.owner || 'default', function () { try {
       const list2 = load();
-      const p2 = list2.find(x => x.id === pid);
-      if (!p2) return;
-      p2.comments = p2.comments || [];
-      const taText = pickReplyContent(cfg, p2.owner || 'default');
-      p2.comments.push(stampAuthor({ content: taText, ts: Date.now(), replies: [] }, taAuthorOf(p2)));
+      const p2b = list2.find(x => x.id === pid);
+      if (!p2b) return;
+      p2b.comments = p2b.comments || [];
+      const taText = pickReplyContent(cfg, p2b.owner || 'default');
+      p2b.comments.push(stampAuthor({ content: taText, ts: Date.now(), replies: [] }, taAuthorOf(p2b)));
       save(list2);
       refreshPostCard(pid);
       // v3.11.x：修复「评论联系人的朋友圈，联系人回复没有提醒」——原实现只在
       // 动态是自己的（role==='me'）时才发通知，评论 TA 的动态后 TA 回你评论完全无感知。
       // 改为两种情况都通知：我的动态→「评论了你的动态」；TA 的动态→「回复了你的评论」，
       // 并带上内容预览与定位（点击通知直接闪到那条评论）。
-      const taName2 = p2.taName || taFeedNameFor(p2.owner || 'default');
-      const loc = { ci: p2.comments.length - 1 };
-      if ((p2.role || p2.by) === 'me') addNotice('comment', p2.id, taName2 + ' 评论了你的动态：' + noticeTextClean(taText), p2.owner || 'default', loc);
-      else addNotice('comment', p2.id, taName2 + ' 回复了你的评论：' + noticeTextClean(taText), p2.owner || 'default', loc);
+      const taName2 = p2b.taName || taFeedNameFor(p2b.owner || 'default');
+      const loc = { ci: p2b.comments.length - 1 };
+      if ((p2b.role || p2.by) === 'me') addNotice('comment', p2b.id, taName2 + ' 评论了你的动态：' + noticeTextClean(taText), p2b.owner || 'default', loc);
+      else addNotice('comment', p2b.id, taName2 + ' 回复了你的评论：' + noticeTextClean(taText), p2b.owner || 'default', loc);
+      } catch (eC) {} });
     }, (cfg.commentSpeedMin + Math.random() * Math.max(1, cfg.commentSpeedMax - cfg.commentSpeedMin)) * 1000);
   }
 }
@@ -3097,6 +3119,8 @@ if (comInput) comInput.addEventListener('keydown', (e) => { if (e.key === 'Enter
       // 该桌面的 TA 有概率首次评论我的动态
       if (Math.random() * 100 < ccfg.commentProb) {
         setTimeout(() => {
+          // #1485a：该桌面非当前桌面时先等字卡大键取回落定再生成（详见 poolReadyFor 注释）
+          poolReadyFor(cid, function () { try {
           const list2 = load();
           const p2 = list2.find(x => x.id === id);
           if (!p2) return;
@@ -3105,6 +3129,7 @@ if (comInput) comInput.addEventListener('keydown', (e) => { if (e.key === 'Enter
           save(list2);
           refreshPostCard(id);
           addNotice('comment', p2.id, taFeedNameFor(cid) + ' 评论了你的动态', cid);
+          } catch (eF) {} });
         }, (ccfg.commentSpeedMin + Math.random() * Math.max(1, ccfg.commentSpeedMax - ccfg.commentSpeedMin)) * 1000);
       }
     });
@@ -3253,19 +3278,24 @@ if (comInput) comInput.addEventListener('keydown', (e) => { if (e.key === 'Enter
         return;
       }
       // 内容取该联系人桌面的字卡库
-      const g = genPostContent(cfg, cid);
-      const taName = cs.get('lbl-partner') || 'TA';
-      const taAv = cs.get('avatar-partner') || '';
-      const list = load();
-      const post = { id: 'f_' + Date.now() + '_' + cid, role: 'ta', owner: cid, authorName: taName, authorAv: '', taName: taName, taAv: '', content: g.content, imgs: g.imgs, ts: Date.now(), likes: [], comments: [] };
-      list.unshift(post);
-      save(list);
-      cs.set('feed-last', String(now));
-      cs.set('feed-next', String(cfg.minInterval + Math.random() * Math.max(1, cfg.maxInterval - cfg.minInterval)));
-      cs.set('feed-day-count', JSON.stringify({ t: today, n: dayCount.n + 1 }));
-      notifyFeedPostToChat(cid, taName);
-      addNotice('post', post.id, taName + ' 发布了一条新动态', cid);
-      renderVisible();
+      // #1485a：非当前桌面先等字卡大键取回落定再生成——同步读池的空窗会把「没读到」
+      //   当成「没字卡」，TA 动态只剩默认卡/兜底句（详见 poolReadyFor 注释）。
+      const buildPost = function () {
+        const g = genPostContent(cfg, cid);
+        const taName = cs.get('lbl-partner') || 'TA';
+        const taAv = cs.get('avatar-partner') || '';
+        const list = load();
+        const post = { id: 'f_' + Date.now() + '_' + cid, role: 'ta', owner: cid, authorName: taName, authorAv: '', taName: taName, taAv: '', content: g.content, imgs: g.imgs, ts: Date.now(), likes: [], comments: [] };
+        list.unshift(post);
+        save(list);
+        cs.set('feed-last', String(now));
+        cs.set('feed-next', String(cfg.minInterval + Math.random() * Math.max(1, cfg.maxInterval - cfg.minInterval)));
+        cs.set('feed-day-count', JSON.stringify({ t: today, n: dayCount.n + 1 }));
+        notifyFeedPostToChat(cid, taName);
+        addNotice('post', post.id, taName + ' 发布了一条新动态', cid);
+        renderVisible();
+      };
+      poolReadyFor(cid, function () { try { buildPost(); } catch (eB) {} });
     } catch (e) {}
   }
   // 遍历所有联系人：每个联系人的 TA 都可能自动发动态（朋友圈共享）

@@ -820,6 +820,13 @@ const c = cfg || feedCfg();
 const maxN = Math.random() * 100 < c.cardProb ? Math.max(1, c.maxCards) : 1;
 return genMixedCards(c, 1, maxN, { imgP: c.imageProb, kaoP: 15, emoP: 15 }, cid);
 }
+function poolReadyFor(cid, cb) {
+const cur = window.__activeCid || 'default';
+if (cid === cur || !window.hydrateLibForCid) { cb(); return; }
+try {
+window.hydrateLibForCid(cid).then(function () { cb(); }, function () { cb(); });
+} catch (e) { cb(); }
+}
 const TA_REPLY_POOL = ['哈哈，好呀', '那你呢？', '嗯嗯，说得对', '我记住啦', '跟你分享过的', '被你发现了', '那很好呀', '我也这么觉得'];
 function safeBg(v, key, s) {
 if (v && typeof v === 'string' && v.length > 500 * 1024) {
@@ -1986,6 +1993,7 @@ const tcfg = feedCfgFor(tcOwner);
 if (Math.random() * 100 < tcfg.replyProb) {
 const cfg = tcfg;
 setTimeout(() => {
+poolReadyFor(tcOwner, function () { try {
 const list2 = load();
 const p2 = list2.find(x => x.id === pid);
 if (!p2 || !p2.comments || !p2.comments[replyCi]) return;
@@ -2001,6 +2009,7 @@ replies.push(stampAuthor({ content: replyText, ts: Date.now(), to: myToName }, t
 save(list2);
 refreshPostCard(pid);
 addNotice('comment', p2.id, taFeedNameFor(tcOwner) + ' 回复了你：' + noticeTextClean(replyText), tcOwner, { ci: replyCi, ri: replies.length - 1 });
+} catch (eR) {} });
 }, (cfg.replySpeedMin + Math.random() * Math.max(1, cfg.replySpeedMax - cfg.replySpeedMin)) * 1000);
 }
 return;
@@ -2015,18 +2024,20 @@ refreshPostCard(pid);
 if (Math.random() * 100 < pcfg.commentProb) {
 const cfg = pcfg;
 setTimeout(() => {
+poolReadyFor(p.owner || 'default', function () { try {
 const list2 = load();
-const p2 = list2.find(x => x.id === pid);
-if (!p2) return;
-p2.comments = p2.comments || [];
-const taText = pickReplyContent(cfg, p2.owner || 'default');
-p2.comments.push(stampAuthor({ content: taText, ts: Date.now(), replies: [] }, taAuthorOf(p2)));
+const p2b = list2.find(x => x.id === pid);
+if (!p2b) return;
+p2b.comments = p2b.comments || [];
+const taText = pickReplyContent(cfg, p2b.owner || 'default');
+p2b.comments.push(stampAuthor({ content: taText, ts: Date.now(), replies: [] }, taAuthorOf(p2b)));
 save(list2);
 refreshPostCard(pid);
-const taName2 = p2.taName || taFeedNameFor(p2.owner || 'default');
-const loc = { ci: p2.comments.length - 1 };
-if ((p2.role || p2.by) === 'me') addNotice('comment', p2.id, taName2 + ' 评论了你的动态：' + noticeTextClean(taText), p2.owner || 'default', loc);
-else addNotice('comment', p2.id, taName2 + ' 回复了你的评论：' + noticeTextClean(taText), p2.owner || 'default', loc);
+const taName2 = p2b.taName || taFeedNameFor(p2b.owner || 'default');
+const loc = { ci: p2b.comments.length - 1 };
+if ((p2b.role || p2.by) === 'me') addNotice('comment', p2b.id, taName2 + ' 评论了你的动态：' + noticeTextClean(taText), p2b.owner || 'default', loc);
+else addNotice('comment', p2b.id, taName2 + ' 回复了你的评论：' + noticeTextClean(taText), p2b.owner || 'default', loc);
+} catch (eC) {} });
 }, (cfg.commentSpeedMin + Math.random() * Math.max(1, cfg.commentSpeedMax - cfg.commentSpeedMin)) * 1000);
 }
 }
@@ -2362,6 +2373,7 @@ addNotice('like', p2.id, nm + ' 赞了你的动态', cid);
 }
 if (Math.random() * 100 < ccfg.commentProb) {
 setTimeout(() => {
+poolReadyFor(cid, function () { try {
 const list2 = load();
 const p2 = list2.find(x => x.id === id);
 if (!p2) return;
@@ -2370,6 +2382,7 @@ p2.comments.push(stampAuthor({ content: pickReplyContent(ccfg, cid), ts: Date.no
 save(list2);
 refreshPostCard(id);
 addNotice('comment', p2.id, taFeedNameFor(cid) + ' 评论了你的动态', cid);
+} catch (eF) {} });
 }, (ccfg.commentSpeedMin + Math.random() * Math.max(1, ccfg.commentSpeedMax - ccfg.commentSpeedMin)) * 1000);
 }
 });
@@ -2486,6 +2499,7 @@ if (Math.random() * 100 >= cfg.postProb) {
 cs.set('feed-next', String(cfg.minInterval + Math.random() * Math.max(1, cfg.maxInterval - cfg.minInterval)));
 return;
 }
+const buildPost = function () {
 const g = genPostContent(cfg, cid);
 const taName = cs.get('lbl-partner') || 'TA';
 const taAv = cs.get('avatar-partner') || '';
@@ -2499,6 +2513,8 @@ cs.set('feed-day-count', JSON.stringify({ t: today, n: dayCount.n + 1 }));
 notifyFeedPostToChat(cid, taName);
 addNotice('post', post.id, taName + ' 发布了一条新动态', cid);
 renderVisible();
+};
+poolReadyFor(cid, function () { try { buildPost(); } catch (eB) {} });
 } catch (e) {}
 }
 function maybeAutoPost() {

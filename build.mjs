@@ -6293,6 +6293,16 @@ const FIX_SENTINELS = [
   { name: '#1474c 主页「TA 的关心记录」回收症状关心（删掉＝聊天里发了、记录页永远不出现）', file: 'js/records.js', needle: "tag === '症状关心'" },
   { name: '#1474d 日格弹层保存症状后当场过关心链（删掉＝只能等下次联系人回复被动触发，体感「记了没人理」）', file: 'js/period.js', needle: 'if (syms.length) { try { checkCare(); } catch (e) {} }' },
   // ====
+  // ==== v8.56 #1485 多联系人下 TA 朋友圈/评论只剩默认卡颜文字 ＋ 语音通话自定义铃声有时不响（一加 Ace3／Edge 报障，多机型同现；判据零机型／零 UA） ====
+  { name: '#1485a 朋友圈 TA 生成前的按桌面就绪原语（非当前桌面 cc-groups 是 IDB-only 大键，同步读空把「没读到」当「没字卡」；删＝动态/评论只剩默认卡与兜底句）', file: 'js/feed.js', needle: "if (cid === cur || !window.hydrateLibForCid) { cb(); return; }" },
+  { name: '#1485b TA 发动态先等字卡大键取回落定再生成（删＝另一桌面的动态回到空池兜底）', file: 'js/feed.js', needle: "try { buildPost(); } catch (eB) {}" },
+  { name: '#1485c TA 回应我的回复：同一条等待（删＝跨桌面回复读空池）', file: 'js/feed.js', needle: "poolReadyFor(tcOwner, function () { try {" },
+  { name: '#1485d TA 评论回应：同一条等待（删＝评论所属桌面非当前时读空池）', file: 'js/feed.js', needle: "poolReadyFor(p.owner || 'default', function () { try {" },
+  { name: '#1485e 我发动态后各桌面 TA 首评：同一条等待（删＝非活跃桌面首评读空池）', file: 'js/feed.js', needle: "} catch (eF) {} });" },
+  { name: '#1485f 通话铃声大键空窗补读的证人问询（sfx-ring >200KB 不落 LS，切后台放副本/启动挂起期同步读空＝设了自定义一声不响：上传时内置选择已被清掉，旧代码落内置段同样无声）', file: 'js/sfx.js', needle: "sst.awaitingBigKey && sst.awaitingBigKey(KEYS.ring)" },
+  { name: '#1485g 空窗补读接线 whenBigKeyBack（回来走同一条自定义播放链；确无此键不回调＝按内置段收场，保持「没设过=静音」设计）', file: 'js/sfx.js', needle: "sst.whenBigKeyBack(KEYS.ring, tryCustom)" },
+  { name: '#1485h 接听/挂断作废在飞补读（代次闸，删＝铃声迟响/双响）', file: 'js/sfx.js', needle: "ringReadGen++; // #1485b" },
+  // ====
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
