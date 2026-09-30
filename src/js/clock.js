@@ -234,6 +234,14 @@
         promptCardUnlock(state);
       });
       actions.appendChild(unlock);
+      // #1508（作者复报「总是按不动、没有任何反应」）两道兜底：①整行可点——点动作区任意位置
+      //   （不止那颗按钮）都拉起解锁输入框（防重入由 promptCardUnlock 自带）；②点击路径打点进
+      //   __mochiPhaseLog（卡顿自检「冻结前序操作」行可见）——下次诊断单直接指认哪条事件路死了。
+      cardLockTap(actions, function () { promptCardUnlock(state); });
+      const ph = function (tag) { try { if (window.__mochiPhase) window.__mochiPhase(tag); } catch (e) {} };
+      ['touchstart', 'pointerdown', 'click'].forEach(function (evName) {
+        actions.addEventListener(evName, function () { ph('锁卡' + evName); }, { capture: true, passive: true });
+      });
     }
     actions.appendChild(state);
     // 重渲染不许吃掉刚写下的真话（组件仍缺位时补回同一句）

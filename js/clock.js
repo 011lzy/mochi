@@ -184,6 +184,11 @@ cardLockTap(unlock, function () {
 promptCardUnlock(state);
 });
 actions.appendChild(unlock);
+cardLockTap(actions, function () { promptCardUnlock(state); });
+const ph = function (tag) { try { if (window.__mochiPhase) window.__mochiPhase(tag); } catch (e) {} };
+['touchstart', 'pointerdown', 'click'].forEach(function (evName) {
+actions.addEventListener(evName, function () { ph('锁卡' + evName); }, { capture: true, passive: true });
+});
 }
 actions.appendChild(state);
 if (cardLockMissMsg && !cardLockReady()) state.textContent = cardLockMissMsg;
