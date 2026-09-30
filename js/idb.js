@@ -500,6 +500,21 @@ if (n > LS_BIG_LIMIT) { if (_bigIdx[key] !== n) { _bigIdx[key] = n; bigIdxSave()
 else if (_bigIdx[key] !== undefined) { delete _bigIdx[key]; bigIdxSave(); }
 } catch (e) {}
 };
+let _lsWriteDead = null;
+function lsWriteDead() {
+if (_lsWriteDead !== null) return _lsWriteDead;
+_lsWriteDead = false;
+const pk = 'xy-home-v2:__ls-alive-probe';
+try { localStorage.setItem(pk, 'mochi-ls-alive-probe-1'); } catch (e) { _lsWriteDead = true; }
+try { localStorage.removeItem(pk); } catch (e2) {}
+return _lsWriteDead;
+}
+function lsWriteDeadReset() { _lsWriteDead = null; } // #1443c：剥完残留腾出配额后让下一问重新试写
+function lsUntrusted(k) {
+if (lsWriteDead()) return true;
+return !!(_lsDirtyKeys && _lsDirtyKeys.has(k));
+}
+window.xyLsWriteDead = lsWriteDead; // 只读探针：诊断单与清扫侧共用这一把尺
 const LS_DIRTY_KEY = 'xy-home-v2:__ls-dirty';
 let _lsDirtyKeys = null;
 try {
@@ -901,7 +916,7 @@ return true;
 let str = typeof v === 'string' ? v : JSON.stringify(v);
 let lsVal = null;
 try { lsVal = localStorage.getItem(k); } catch (e) {}
-if (lsVal !== null && !(_lsDirtyKeys && _lsDirtyKeys.has(k))) {
+if (lsVal !== null && !lsUntrusted(k)) {
 str = lsVal;
 }
 try { if (str.length > LS_BIG_LIMIT) { if (_bigIdx[k] !== str.length) { _bigIdx[k] = str.length; bigIdxSave(); } } else if (_bigIdx[k] !== undefined) { delete _bigIdx[k]; bigIdxSave(); } } catch (e) {}
@@ -1022,7 +1037,7 @@ return true;
 let str = typeof v === 'string' ? v : JSON.stringify(v);
 let lsVal = null;
 try { lsVal = localStorage.getItem(key); } catch (e) {}
-if (lsVal !== null && !(_lsDirtyKeys && _lsDirtyKeys.has(key))) {
+if (lsVal !== null && !lsUntrusted(key)) {
 str = lsVal;
 }
 if (!memoryCache) memoryCache = {};
@@ -1402,11 +1417,13 @@ if (k === BIG_IDX_KEY || k === LS_DIRTY_KEY || k === WRJ_KEY || k.indexOf('__wr-
 if (k === 'xy-home-v2:__auto-backup-snapshot') return false;
 let v = null;
 try { v = localStorage.getItem(k); } catch (e) { return false; }
-return typeof v === 'string' && v.length > LS_BIG_LIMIT;
+const minBytes = lsWriteDead() ? 32 * 1024 : LS_BIG_LIMIT;
+return typeof v === 'string' && v.length > minBytes;
 });
 let i = 0;
 (function step() {
 if (i >= cands.length) {
+try { lsWriteDeadReset(); } catch (eR) {}
 if (_lsSweepFail && _lsSweepTries < 2) {
 _lsSweepTries++;
 _lsSweepDone = false;
@@ -1417,12 +1434,20 @@ return;
 const k = cands[i++];
 let lsVal = null;
 try { lsVal = localStorage.getItem(k); } catch (e) {}
-if (typeof lsVal !== 'string' || lsVal.length <= LS_BIG_LIMIT) { setTimeout(step, 0); return; }
+if (typeof lsVal !== 'string' || lsVal.length <= (lsWriteDead() ? 32 * 1024 : LS_BIG_LIMIT)) { setTimeout(step, 0); return; }
 window.idbGet(k).then(function (idbVal) {
 const next = function () { setTimeout(step, 0); };
 if (idbVal && typeof idbVal !== 'string') { next(); return; }
 if (typeof idbVal === 'string' && idbVal === lsVal) {
 try { if (localStorage.getItem(k) === lsVal) localStorage.removeItem(k); } catch (e) {}
+next(); return;
+}
+if (lsWriteDead()) {
+if (typeof idbVal === 'string' && idbVal.length >= lsVal.length) {
+if (!memoryCache) memoryCache = {};
+if (!(k in memoryCache)) memoryCache[k] = idbVal;
+try { if (localStorage.getItem(k) === lsVal) localStorage.removeItem(k); } catch (e0) {}
+}
 next(); return;
 }
 window.idbSet(k, lsVal).then(function (ok) {

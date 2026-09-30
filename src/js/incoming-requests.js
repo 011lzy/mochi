@@ -551,7 +551,7 @@
           // 可接听，超时由 resumeHeldCall 补写未接（跨桌面自动落归属桌面）。
           // av 传归属联系人头像（cAvatar），不让挂起通知借用当前桌面头像。
           if (window.callHoldIncoming) window.callHoldIncoming(name, req.cid, av);
-          else if (window.bgNotifyCheck) window.bgNotifyCheck(title, Date.now(), { name: name + '来电', av: av, avFixed: true, force: true });
+          else if (window.bgNotifyCheck) window.bgNotifyCheck(title, Date.now(), { name: name + '来电', av: av, avFixed: true, force: true, kind: 'call', cid: req.cid });
         } else if (req.kind === 'checkin') {
           // 同一道题最近已在该联系人桌面聊天里出现过（用户看过/答过）→ 后台不再重复
           // 追问、也不再重复弹系统通知（仅释放 pending 防占用队列）。
@@ -560,12 +560,12 @@
             // 那样挂着等——只发系统通知（文案抄 call.js 那句「对方会等你几分钟」），pending 留在
             // 队列、不入聊天、不写记录；回到前台由 resumeHeldCheckins() 弹同一个窗，3 分钟没回来
             // 才按「错过未回应」收尾（那时只写记录，聊天里照样不落卡）。
-            if (window.bgNotifyCheck) window.bgNotifyCheck(title + '：' + (req.text || '') + '，快回来回应，TA 会等你几分钟', Date.now(), { name: name + '查岗', av: av, avFixed: true });
+            if (window.bgNotifyCheck) window.bgNotifyCheck(title + '：' + (req.text || '') + '，快回来回应，TA 会等你几分钟', Date.now(), { name: name + '查岗', av: av, avFixed: true, kind: 'checkin', cid: req.cid });
             return true;
           }
         } else { // chat 求聊天
           if (window.chatAppendDeskTextTo) window.chatAppendDeskTextTo(req.cid, req.text || '想你了，来聊聊天吧。');
-          if (window.bgNotifyCheck) window.bgNotifyCheck(title + '：来陪我聊聊天吧', Date.now(), { name: name + '来聊天', av: av, avFixed: true });
+          if (window.bgNotifyCheck) window.bgNotifyCheck(title + '：来陪我聊聊天吧', Date.now(), { name: name + '来聊天', av: av, avFixed: true, kind: 'chatreq', cid: req.cid });
         }
       } catch (e) {}
       // 已按后台口径处理完毕（求聊天落了聊天、来电挂了 call-hold、或这道题刚被去重挡掉），

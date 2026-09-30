@@ -744,6 +744,33 @@ window.idbGet = function (key, info) {
   // 持久化双份：sessionStorage（同标签页刷新有效）+ IndexedDB 的 __ls-dirty 键
   // （跨浏览器重启仍有效——配额满/隐私模式通常持续，只有 IDB 是可靠源，用它记住
   // 哪些键的 LS 是坏的，回填时避开，不破坏 v3.16.x「IDB 权威」语义）。
+  // FIX 2026-09-29 #1443b：把「本场 localStorage 写不写得进」升成一个当场可证的事实，不再逐键猜。
+  //   旧口径只有【某一枚键的那一发 setItem 恰好抛过】才把它标进「LS 不可信」集合（lsDirtyAdd）。
+  //   一台 LS 整域已满、每一次写都抛的机器（iPhone 12 Pro／iOS 17.1.1 主屏幕模式；诊断单：整域 3187 键
+  //   ≈6.1MB、1 字节写探针直接 QuotaExceededError、本页被系统回收 26 次）上，只要某一本账自配额满
+  //   之后没人再写过，它那本【冻结在旧时刻的 LS 快照】就永远「没标脏」⇒ 回填照「LS 有值且没标脏＝
+  //   LS 最新」把库里那份更新整包换成旧包（retainValue／idbHydrateKey 两处），收藏就这样凭空少一截
+  //   （同屏读数：fav-msgs LS 311.7KB < IDB 328.4KB；另一桌面 162.0KB < 175.9KB——LS 一律更小）。
+  //   #1335 已把这句话写在写日志上（「落不了盘的账本不能算最近一次写入」），这一批推广到整层 LS。
+  //   判据仍是「这一枚 setItem 抛没抛」一个内核事实，零机型／零 UA 分支；LS 写得进的机器探针必然
+  //   成功 ⇒ 旧行为一个字不变。量法沿用 #1335c 的教训：拿一个【新键名】试写（原样写回同一枚键是
+  //   0 字节增量的无操作、配额满也不抛，实测过），写完立刻撤掉，健康机器上不留痕迹。
+  let _lsWriteDead = null;
+  function lsWriteDead() {
+    if (_lsWriteDead !== null) return _lsWriteDead;
+    _lsWriteDead = false;
+    const pk = 'xy-home-v2:__ls-alive-probe';
+    try { localStorage.setItem(pk, 'mochi-ls-alive-probe-1'); } catch (e) { _lsWriteDead = true; }
+    try { localStorage.removeItem(pk); } catch (e2) {}
+    return _lsWriteDead;
+  }
+  function lsWriteDeadReset() { _lsWriteDead = null; } // #1443c：剥完残留腾出配额后让下一问重新试写
+  // 这一枚键的 LS 快照还能不能充当「最近一次写入」：逐键脏标记 或 整层写不进，任一成立都不可信
+  function lsUntrusted(k) {
+    if (lsWriteDead()) return true;
+    return !!(_lsDirtyKeys && _lsDirtyKeys.has(k));
+  }
+  window.xyLsWriteDead = lsWriteDead; // 只读探针：诊断单与清扫侧共用这一把尺
   const LS_DIRTY_KEY = 'xy-home-v2:__ls-dirty';
   let _lsDirtyKeys = null;
   try {
@@ -1442,7 +1469,7 @@ window.idbGet = function (key, info) {
         // （logFish 等读-改-写）双写时自然追平。
         let lsVal = null;
         try { lsVal = localStorage.getItem(k); } catch (e) {}
-        if (lsVal !== null && !(_lsDirtyKeys && _lsDirtyKeys.has(k))) {
+        if (lsVal !== null && !lsUntrusted(k)) {
           str = lsVal;
         }
         try { if (str.length > LS_BIG_LIMIT) { if (_bigIdx[k] !== str.length) { _bigIdx[k] = str.length; bigIdxSave(); } } else if (_bigIdx[k] !== undefined) { delete _bigIdx[k]; bigIdxSave(); } } catch (e) {}
@@ -1598,7 +1625,7 @@ window.idbGet = function (key, info) {
         // 以 LS 为准（IDB 异步写可能未落地）；LS 缺失/写失败 → 用 IDB 值；不回写 IDB
         let lsVal = null;
         try { lsVal = localStorage.getItem(key); } catch (e) {}
-        if (lsVal !== null && !(_lsDirtyKeys && _lsDirtyKeys.has(key))) {
+        if (lsVal !== null && !lsUntrusted(key)) {
           str = lsVal;
         }
         if (!memoryCache) memoryCache = {};
@@ -2188,11 +2215,20 @@ window.idbGet = function (key, info) {
       if (k === 'xy-home-v2:__auto-backup-snapshot') return false;
       let v = null;
       try { v = localStorage.getItem(k); } catch (e) { return false; }
-      return typeof v === 'string' && v.length > LS_BIG_LIMIT;
+      // #1443c：LS 整层写不进的机器，配额是被一批【卡在 200K 字符阈值下面的大快照】撑死的——本机
+      //   3×feed-cover-bg=359.4KB、fav-msgs=311.7KB、feed-posts=264.5KB、cc-groups-public=276.8KB，
+      //   按 iOS 的 UTF-16 记账每个只有 13 万~18 万字符，全在 LS_BIG_LIMIT 之下 ⇒ 旧筛选条件一辈子
+      //   碰不到它们，配额永久满、这一层永久写不进。探针抛过 ⇒ 候选阈值降到 32K 字符，只把真正占
+      //   地方的那批请出去；LS 写得进的机器阈值一字不变。
+      const minBytes = lsWriteDead() ? 32 * 1024 : LS_BIG_LIMIT;
+      return typeof v === 'string' && v.length > minBytes;
     });
     let i = 0;
     (function step() {
       if (i >= cands.length) {
+        // #1443c：请出去一批就重新探一次——腾出配额后这一层重新写得进，判定自动回到原口径
+        //   （只复位缓存位，不直接断言「活了」，下一问自会试写一发）
+        try { lsWriteDeadReset(); } catch (eR) {}
         // 本轮收尾：有候选没清干净（读写失败/超时）→ 允许稍后重试一轮（上限 2 次）
         if (_lsSweepFail && _lsSweepTries < 2) {
           _lsSweepTries++;
@@ -2204,13 +2240,27 @@ window.idbGet = function (key, info) {
       const k = cands[i++];
       let lsVal = null;
       try { lsVal = localStorage.getItem(k); } catch (e) {}
-      if (typeof lsVal !== 'string' || lsVal.length <= LS_BIG_LIMIT) { setTimeout(step, 0); return; }
+      // #1443c：逐条复检必须与候选筛选同一把尺——上一版只降了 cands 那道的阈值，这一道仍留 200K 字符，
+      // 于是本机那排 13万~18万字符的快照「进了候选、又被这一步退回」，配额照样腾不出来（新尺 L4 抓到）。
+      if (typeof lsVal !== 'string' || lsVal.length <= (lsWriteDead() ? 32 * 1024 : LS_BIG_LIMIT)) { setTimeout(step, 0); return; }
       window.idbGet(k).then(function (idbVal) {
         const next = function () { setTimeout(step, 0); };
         if (idbVal && typeof idbVal !== 'string') { next(); return; }
         if (typeof idbVal === 'string' && idbVal === lsVal) {
           // 纯去重：IDB 已有同值，LS 副本是双倍计费残留；删前复读防业务刚写入新值
           try { if (localStorage.getItem(k) === lsVal) localStorage.removeItem(k); } catch (e) {}
+          next(); return;
+        }
+        // FIX 2026-09-29 #1443c：LS 整层写不进的机器绝不再把 LS 那份当「最新」追平 IDB——那正是
+        //   收藏／字卡被旧包整包顶掉的放大器（见上方 lsWriteDead 注释）。这一层落不下去时改判据：
+        //   库里那份有值且不比 LS 短＝IDB 至少一样全 ⇒ 只剥 LS 这一份重复快照；LS 反而更长＝谁新
+        //   说不出，两份都留着，不赌。LS 写得进的机器走原路，一字未动。
+        if (lsWriteDead()) {
+          if (typeof idbVal === 'string' && idbVal.length >= lsVal.length) {
+            if (!memoryCache) memoryCache = {};
+            if (!(k in memoryCache)) memoryCache[k] = idbVal;
+            try { if (localStorage.getItem(k) === lsVal) localStorage.removeItem(k); } catch (e0) {}
+          }
           next(); return;
         }
         // IDB 缺失/落后 → 以 LS 为最新追平 IDB，写成功且 LS 未变才删（绝不先删后写）

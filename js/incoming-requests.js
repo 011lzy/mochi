@@ -406,15 +406,15 @@ try {
 const av = cAvatar(req.cid);
 if (req.kind === 'call') {
 if (window.callHoldIncoming) window.callHoldIncoming(name, req.cid, av);
-else if (window.bgNotifyCheck) window.bgNotifyCheck(title, Date.now(), { name: name + '来电', av: av, avFixed: true, force: true });
+else if (window.bgNotifyCheck) window.bgNotifyCheck(title, Date.now(), { name: name + '来电', av: av, avFixed: true, force: true, kind: 'call', cid: req.cid });
 } else if (req.kind === 'checkin') {
 if (!deskQSeenRecently(req.cid, req.text)) {
-if (window.bgNotifyCheck) window.bgNotifyCheck(title + '：' + (req.text || '') + '，快回来回应，TA 会等你几分钟', Date.now(), { name: name + '查岗', av: av, avFixed: true });
+if (window.bgNotifyCheck) window.bgNotifyCheck(title + '：' + (req.text || '') + '，快回来回应，TA 会等你几分钟', Date.now(), { name: name + '查岗', av: av, avFixed: true, kind: 'checkin', cid: req.cid });
 return true;
 }
 } else { // chat 求聊天
 if (window.chatAppendDeskTextTo) window.chatAppendDeskTextTo(req.cid, req.text || '想你了，来聊聊天吧。');
-if (window.bgNotifyCheck) window.bgNotifyCheck(title + '：来陪我聊聊天吧', Date.now(), { name: name + '来聊天', av: av, avFixed: true });
+if (window.bgNotifyCheck) window.bgNotifyCheck(title + '：来陪我聊聊天吧', Date.now(), { name: name + '来聊天', av: av, avFixed: true, kind: 'chatreq', cid: req.cid });
 }
 } catch (e) {}
 setStatus(req.cid, 'seen');

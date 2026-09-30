@@ -996,7 +996,7 @@
       try {
         if (window.bgLateCatchup && window.bgLateCatchup() && window.bgNotifyCheck) {
           const cp = document.getElementById('page-chat');
-          if (!(cp && !cp.hidden)) window.bgNotifyCheck(wishText, Date.now(), { name: partnerName() + '的心愿', late: true });
+          if (!(cp && !cp.hidden)) window.bgNotifyCheck(wishText, Date.now(), { name: partnerName() + '的心愿', late: true, kind: 'wish' });
         }
       } catch (e) {}
       return true;

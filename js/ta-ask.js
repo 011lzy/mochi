@@ -704,7 +704,7 @@ taAskSave(d);
 refreshAskRecordsIfOpen(); // #625：提问记录页开着时后台来的询问即时上屏
 } catch (e) {}
 const idx = el ? Number(el.dataset.idx) : -1;
-if (window.bgNotifyCheck) window.bgNotifyCheck('TA想问你一个问题：' + q.text, Date.now(), { name: 'TA的询问', late: _lateNotify() });
+if (window.bgNotifyCheck) window.bgNotifyCheck('TA想问你一个问题：' + q.text, Date.now(), { name: 'TA的询问', late: _lateNotify(), kind: 'ask' });
 if (popup) {
 if (document.hidden) { _enqueuePop(idx, 'openAskReply'); }
 else {
@@ -1596,7 +1596,7 @@ const el = window.chatAddSystem(q.text, {
 special: 'ask-choose', choiceQuestion: q.text, choiceOptions: q.options, choicePref: q.pref, choiceCat: q.cat || ''
 });
 const idx = el ? Number(el.dataset.idx) : -1;
-if (window.bgNotifyCheck) window.bgNotifyCheck('TA想让你选一个答案：' + q.text, Date.now(), { name: 'TA的小问题', late: _lateNotify() });
+if (window.bgNotifyCheck) window.bgNotifyCheck('TA想让你选一个答案：' + q.text, Date.now(), { name: 'TA的小问题', late: _lateNotify(), kind: 'ask' });
 if (popup) {
 if (document.hidden) { _enqueuePop(idx, 'openTC'); }
 else {
@@ -2356,7 +2356,7 @@ special: 'ask-curious', curiousQuestion: q.text, curiousQuick: q.quick || [], cu
 curiousFollowup: q.followup || '', curiousQid: q.id || '', curiousCat: q.cat || ''
 });
 const idx = el ? Number(el.dataset.idx) : -1;
-if (window.bgNotifyCheck) window.bgNotifyCheck('TA对你有点好奇：' + q.text, Date.now(), { name: 'TA的好奇', late: _lateNotify() });
+if (window.bgNotifyCheck) window.bgNotifyCheck('TA对你有点好奇：' + q.text, Date.now(), { name: 'TA的好奇', late: _lateNotify(), kind: 'ask' });
 if (popup) {
 if (document.hidden) { _enqueuePop(idx, 'openCurious'); }
 else {
@@ -2899,7 +2899,7 @@ else if (opts && opts.popup === false) popup = false;
 window.chatAddSystem('TA吐槽了你一句。', { special: 'ask-msg' });
 const el = window.chatAddSystem(q.text, { special: 'ask-roast', roastText: q.text, roastCat: q.cat || 'light' });
 const idx = el ? Number(el.dataset.idx) : -1;
-if (window.bgNotifyCheck) window.bgNotifyCheck('TA吐槽了你一句：' + q.text, Date.now(), { name: 'TA的吐槽', late: _lateNotify() });
+if (window.bgNotifyCheck) window.bgNotifyCheck('TA吐槽了你一句：' + q.text, Date.now(), { name: 'TA的吐槽', late: _lateNotify(), kind: 'ask' });
 if (popup) {
 if (document.hidden) { _enqueuePop(idx, 'openRoast'); }
 else {
@@ -2981,7 +2981,7 @@ st.recent = recent.concat([text]).slice(-6);
 ccStateSave(st);
 interactGateMark();
 if (window.chatAddIn) window.chatAddIn(text, { initiative: 1, tag: '用了你建的字卡' });
-if (window.bgNotifyCheck) { try { window.bgNotifyCheck(text, Date.now(), { name: window.taFit ? window.taFit('TA') + '的字卡' : 'TA的字卡' }); } catch (e) {} }
+if (window.bgNotifyCheck) { try { window.bgNotifyCheck(text, Date.now(), { name: window.taFit ? window.taFit('TA') + '的字卡' : 'TA的字卡', kind: 'msg' }); } catch (e) {} }
 } catch (e) {}
 }
 window.maybeTriggerTACC = maybeTriggerTACC;

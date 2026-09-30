@@ -4963,7 +4963,7 @@ notifyT = notifyT + ' ' + phOf();
 const isHidden = opts.isHidden === true;
 if (isHidden) {
 if (window.bgNotifyCheck) {
-window.bgNotifyCheck(notifyT, opts.deliveredAt || Date.now(), { name: opts.name, img: opts.img, av: opts.av, avFixed: opts.avFixed === true, deliveredAt: opts.deliveredAt || 0, msgTs: opts.msgTs || 0 });
+window.bgNotifyCheck(notifyT, opts.deliveredAt || Date.now(), { name: opts.name, img: opts.img, av: opts.av, avFixed: opts.avFixed === true, deliveredAt: opts.deliveredAt || 0, msgTs: opts.msgTs || 0, kind: opts.notifyKind || 'msg', cid: opts.notifyCid || '' });
 }
 return;
 }
@@ -5483,6 +5483,18 @@ if (ledN > 0) { if (tries < 5) setTimeout(onRetry, 2000); else if (onExhaust) on
 writeOne();
 }).catch(function () { if (tries < 3) setTimeout(onRetry, 1500); else if (onExhaust) onExhaust(); });
 }
+function deskAppendLastToInbox(cid, arr) {
+if (!arr || !arr.length) return;
+try { deskAppendInbox(cid, [arr[arr.length - 1]]); } catch (e) {}
+}
+function deskWriteAck(key, val, onFail) {
+let p = null;
+try { p = window.idbSet(key, val); } catch (e) { p = null; }
+const fail = function () { try { if (onFail) onFail(); } catch (e2) {} };
+if (!p || !p.then) { fail(); return false; }
+p.then(function (ok) { if (!ok) fail(); }, fail);
+return true;
+}
 const CHAT_DESK_INBOX_MAX = 200; // #1200：中转箱容量上限（异常堆积时保最近 200 条）
 function deskAppendInbox(cid, recs) {
 const key = 'xy-home-v2:' + cid + ':chat-desk-inbox';
@@ -5559,7 +5571,7 @@ if (!window.idbGet || !window.idbSet) return;
 const key = 'xy-home-v2:' + cid + ':chat-msgs';
 let tries = 0;
 const writeArr = function (arr) {
-try { window.idbSet(key, JSON.stringify(arr)); } catch (e) {}
+deskWriteAck(key, JSON.stringify(arr), function () { deskAppendLastToInbox(cid, arr); });
 try { localStorage.setItem(key, JSON.stringify(arr)); } catch (e) {}
 try { chatLedgerSave('xy-home-v2:' + cid, arr.length, msgsBytes(arr)); } catch (e) {}
 };
@@ -5605,7 +5617,7 @@ if (!window.idbGet || !window.idbSet) return;
 const key = 'xy-home-v2:' + cid + ':chat-msgs';
 let tries = 0;
 const writeArr = function (arr) {
-try { window.idbSet(key, JSON.stringify(arr)); } catch (e) {}
+deskWriteAck(key, JSON.stringify(arr), function () { deskAppendLastToInbox(cid, arr); });
 try { localStorage.setItem(key, JSON.stringify(arr)); } catch (e) {}
 try { chatLedgerSave('xy-home-v2:' + cid, arr.length, msgsBytes(arr)); } catch (e) {}
 };
@@ -5648,7 +5660,7 @@ const key = 'xy-home-v2:' + cid + ':chat-msgs';
 const archKey = 'xy-home-v2:' + cid + ':chat-arch';
 let tries = 0;
 const writeArr = function (arr) {
-try { window.idbSet(key, JSON.stringify(arr)); } catch (e) {}
+deskWriteAck(key, JSON.stringify(arr), function () { if (tries < 3) setTimeout(attempt, 1500); });
 try { localStorage.setItem(key, JSON.stringify(arr)); } catch (e) {}
 try { if (window.idbDelete) window.idbDelete(archKey); } catch (e) {}
 try { chatLedgerSave('xy-home-v2:' + cid, arr.length, msgsBytes(arr)); } catch (e) {}

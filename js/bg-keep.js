@@ -1615,8 +1615,91 @@ return;
 runTest(my);
 });
 }
-let hiddenSentCount = 0;
+const NOTIFY_KIND_LABEL = {
+msg: '条新消息', checkin: '次查岗', chatreq: '次求聊天', ask: '条提问',
+invite: '个申请', call: '次来电', mail: '封来信', feed: '条动态', wish: '个心愿', other: '条提醒'
+};
+let hiddenSent = {};
+let hiddenSentCount = 0; // 总条数：只用来判「这一场后台发过没有」，文案不再拿它冒充消息数
 let hiddenSentName = '';
+const sentAdd = function (kind) {
+hiddenSentCount++;
+hiddenSent[kind] = (hiddenSent[kind] || 0) + 1;
+};
+const sentReset = function () { hiddenSent = {}; hiddenSentCount = 0; hiddenSentName = ''; };
+const sentSummaryText = function () {
+const order = ['msg', 'checkin', 'chatreq', 'ask', 'invite', 'call', 'mail', 'feed', 'wish', 'other'];
+const parts = [];
+order.forEach(function (k) { if (hiddenSent[k]) parts.push(hiddenSent[k] + ' ' + NOTIFY_KIND_LABEL[k]); });
+if (!parts.length) return '你不在的时候有 ' + hiddenSentCount + ' 条提醒';
+return '你不在的时候收到 ' + parts.join(' · ');
+};
+const notifyKind = function (extra) {
+const k = extra && extra.kind;
+return NOTIFY_KIND_LABEL[k] ? k : 'other';
+};
+const NOTIFY_LEDGER_KEY = '__notify-ledger';
+function notifyLedger() {
+try {
+const raw = window.xyStore('xy-home-v2').get(NOTIFY_LEDGER_KEY);
+if (!raw) return [];
+const a = JSON.parse(raw);
+return Array.isArray(a) ? a : [];
+} catch (e) { return []; }
+}
+function notifyLedgerPush(entry) {
+try {
+const s = window.xyStore('xy-home-v2');
+const list = notifyLedger().filter(function (x) { return x && x.ts > Date.now() - 6 * 3600 * 1000; });
+list.push(entry);
+while (list.length > 12) list.shift();
+s.set(NOTIFY_LEDGER_KEY, JSON.stringify(list));
+} catch (e) {}
+}
+function notifyConsume(tag) {
+try {
+const list = notifyLedger();
+let hit = null;
+for (let i = list.length - 1; i >= 0; i--) {
+if (list[i] && list[i].tag === tag) { hit = list[i]; list.splice(i, 1); break; }
+}
+if (hit) window.xyStore('xy-home-v2').set(NOTIFY_LEDGER_KEY, JSON.stringify(list));
+return hit;
+} catch (e) { return null; }
+}
+function notifyEntryFromTag(tag) {
+try {
+const p = String(tag || '').split('|');
+if (p[0] !== 'nk' || p.length < 4) return null;
+return { kind: p[1], cid: p[2], tag: String(tag) };
+} catch (e) { return null; }
+}
+function notifyRoute(entry) {
+try {
+if (entry && entry.cid && window.setActiveContact && entry.cid !== (window.__activeCid || 'default')) {
+window.setActiveContact(entry.cid);
+}
+} catch (e) {}
+try {
+if (entry && entry.kind === 'mail' && typeof window.openMailPage === 'function') { window.openMailPage(); return true; }
+if (typeof window.enterChat === 'function') { window.enterChat(); return true; }
+} catch (x) {}
+return false;
+}
+window.xyPendingNotifyClick = function () { return new Promise(function (res) { try { notifyPendingClick(res); } catch (e) { res(null); } }); };
+function notifyPendingClick(cb) {
+try {
+if (!window.idbGet) { cb(null); return; }
+Promise.resolve(window.idbGet('xy-home-v2:__notify-click')).then(function (raw) {
+if (!raw) { cb(null); return; }
+try { if (window.idbDelete) window.idbDelete('xy-home-v2:__notify-click'); } catch (e0) {}
+let o = raw;
+try { if (typeof raw === 'string') o = JSON.parse(raw); } catch (e1) { cb(null); return; }
+if (!o || !o.tag || !o.ts || Date.now() - o.ts > 3 * 60000) { cb(null); return; }
+cb(notifyConsume(String(o.tag)) || notifyEntryFromTag(String(o.tag)));
+}, function () { cb(null); });
+} catch (e) { cb(null); }
+}
 document.addEventListener('visibilitychange', function () {
 const vis = document.visibilityState;
 if (vis === 'hidden') {
@@ -1640,17 +1723,17 @@ const chatPage = document.getElementById('page-chat');
 const inChat = chatPage && !chatPage.hidden;
 const n = hiddenSentCount;
 const who = hiddenSentName || store.get('lbl-partner') || (window.taWord ? window.taWord() : 'TA');
-hiddenSentCount = 0;
-hiddenSentName = '';
+const summaryText = sentSummaryText(); // #1443d：先按类别拼好话，再清账（清早了就没得报）
+sentReset();
 if (!inChat && n > 0 && window.showDeskPopup) {
-window.showDeskPopup({ name: who, text: '你不在的时候收到 ' + n + ' 条新消息', isHidden: false });
+window.showDeskPopup({ name: who, text: summaryText, isHidden: false });
 const now = Date.now();
 if (saved === '1' && 'Notification' in window && Notification.permission === 'granted' &&
 (!lastResumeNotifyAt || now - lastResumeNotifyAt > 30000)) {
 lastResumeNotifyAt = now;
 const notiIcon = (store.get('cs-avatar-partner') || store.get('avatar-partner') || '');
 const sendNoti = function (iconVal) {
-const o = { body: '你不在的时候收到 ' + n + ' 条新消息' };
+const o = { body: summaryText };
 if (iconVal) o.icon = iconVal;
 showSysNotification(who, o);
 };
@@ -1824,7 +1907,7 @@ recentChatDup(nkey, ts, NOTIFY_FRESH_CHAT_DUP_MS)) { gateStats.tooFresh++; retur
 if (!force && !bgNoDedup() && (notifiedDup(nkey) || seenDup(nkey))) { gateStats.dup++; return; }
 if (!force && !bgNoDedup() && recentChatDup(nkey, ts)) { gateStats.dup++; return; }
 gateStats.sent++; markNotified(nkey);
-hiddenSentCount++;
+sentAdd(notifyKind(extra)); // #1443d：按类别记账，未登记的一律算「提醒」
 hiddenSentName = extra.name || store.get('lbl-partner') || (window.taWord ? window.taWord() : 'TA');
 const name = extra.name || store.get('lbl-partner') || (window.taWord ? window.taWord() : 'TA');
 let t = '';
@@ -1856,6 +1939,15 @@ const cropAvatarToSquare = makeAvatarThumb;
 const sendFinal = function (iconVal) {
 if (iconVal) opts.icon = iconVal;
 if (previewImg) opts.image = previewImg;
+const nk = notifyKind(extra);
+const ncid = String(extra.cid || window.__activeCid || 'default');
+let ntag = '';
+try { ntag = String(opts.tag || ''); } catch (eT0) { ntag = ''; }
+if (!ntag) {
+ntag = 'nk|' + nk + '|' + ncid + '|' + Date.now().toString(36);
+try { opts.tag = ntag; } catch (eT) {}
+}
+notifyLedgerPush({ tag: ntag, kind: nk, cid: ncid, ts: Date.now() });
 showSysNotification(name, opts).then(function (ok) {
 if (ok) {
 try { if (extra.msgTs && window.__mochiMsgNotified) window.__mochiMsgNotified(extra.msgTs, 'in'); } catch (e) {}
@@ -2099,8 +2191,15 @@ try {
 if ('serviceWorker' in navigator && navigator.serviceWorker) {
 navigator.serviceWorker.addEventListener('message', function (e) {
 if (!e || !e.data || e.data.type !== 'MOCHI_NOTIFY_CLICK') return;
-try { if (typeof window.enterChat === 'function') window.enterChat(); } catch (x) {}
+let entry = null;
+try { entry = notifyConsume(String(e.data.tag || '')) || notifyEntryFromTag(String(e.data.tag || '')); } catch (x) {}
+notifyRoute(entry);
 });
+try {
+const bootRoute = function () { try { notifyPendingClick(function (en) { if (en) notifyRoute(en); }); } catch (e0) {} };
+if (window.mochiOnDataReady) window.mochiOnDataReady(bootRoute);
+else document.addEventListener('mochi-restore-done', bootRoute);
+} catch (e1) {}
 }
 } catch (e) {}
 })();

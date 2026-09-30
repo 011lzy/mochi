@@ -1185,7 +1185,7 @@
         // v3.6.x：后台时弹窗不可见，发系统通知让用户知道有换头像邀请
         if (document.visibilityState === 'hidden' && window.bgNotifyCheck) {
           const iname = store.get('lbl-partner') || 'TA';
-          window.bgNotifyCheck(iname + ' 想给你换头像', Date.now(), { name: iname, img: data });
+          window.bgNotifyCheck(iname + ' 想给你换头像', Date.now(), { name: iname, img: data, kind: 'invite' });
         }
       } else {
         // 直接换：换上 + 聊天显示"昵称 更换了你的头像" + 新头像图片
@@ -1270,7 +1270,7 @@
         //  这里显式触发一条，避免只有聊天系统消息、后台用户没感知到换头像）
         try {
           if (window.bgNotifyCheck) {
-            window.bgNotifyCheck((store.get('lbl-partner') || 'TA') + ' 更换了头像', Date.now(), { name: store.get('lbl-partner') || 'TA', av: fit });
+            window.bgNotifyCheck((store.get('lbl-partner') || 'TA') + ' 更换了头像', Date.now(), { name: store.get('lbl-partner') || 'TA', av: fit, kind: 'other' });
           }
         } catch (e) {}
       });
@@ -1459,7 +1459,7 @@
         // 后台时弹窗不可见，发系统通知让用户知道有换昵称邀请
         if (document.visibilityState === 'hidden' && window.bgNotifyCheck) {
           const iname = store.get('lbl-partner') || 'TA';
-          window.bgNotifyCheck(iname + ' 想给你换昵称', Date.now(), { name: iname });
+          window.bgNotifyCheck(iname + ' 想给你换昵称', Date.now(), { name: iname, kind: 'invite' });
         }
       } else {
         applyMyNick(name);
@@ -1506,7 +1506,7 @@
       const text = nickMsgPartner(name);
       chatSystem(text, null, true);
       try {
-        if (window.bgNotifyCheck) window.bgNotifyCheck(text, Date.now(), { name: cPartnerName() });
+        if (window.bgNotifyCheck) window.bgNotifyCheck(text, Date.now(), { name: cPartnerName(), kind: 'other' });
       } catch (e) {}
     } catch (e) {}
   }

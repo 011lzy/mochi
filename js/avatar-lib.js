@@ -864,7 +864,7 @@ if (invite) {
 showMeAvatarInvite(data);
 if (document.visibilityState === 'hidden' && window.bgNotifyCheck) {
 const iname = store.get('lbl-partner') || 'TA';
-window.bgNotifyCheck(iname + ' 想给你换头像', Date.now(), { name: iname, img: data });
+window.bgNotifyCheck(iname + ' 想给你换头像', Date.now(), { name: iname, img: data, kind: 'invite' });
 }
 } else {
 const trigHash = strHash(data);
@@ -914,7 +914,7 @@ noteApplied('partner', fit);
 chatSystem(cPartnerName() + ' 更换了头像', fit);
 try {
 if (window.bgNotifyCheck) {
-window.bgNotifyCheck((store.get('lbl-partner') || 'TA') + ' 更换了头像', Date.now(), { name: store.get('lbl-partner') || 'TA', av: fit });
+window.bgNotifyCheck((store.get('lbl-partner') || 'TA') + ' 更换了头像', Date.now(), { name: store.get('lbl-partner') || 'TA', av: fit, kind: 'other' });
 }
 } catch (e) {}
 });
@@ -1052,7 +1052,7 @@ if (invite) {
 showMeNickInvite(name);
 if (document.visibilityState === 'hidden' && window.bgNotifyCheck) {
 const iname = store.get('lbl-partner') || 'TA';
-window.bgNotifyCheck(iname + ' 想给你换昵称', Date.now(), { name: iname });
+window.bgNotifyCheck(iname + ' 想给你换昵称', Date.now(), { name: iname, kind: 'invite' });
 }
 } else {
 applyMyNick(name);
@@ -1091,7 +1091,7 @@ updateNickGridNow();
 const text = nickMsgPartner(name);
 chatSystem(text, null, true);
 try {
-if (window.bgNotifyCheck) window.bgNotifyCheck(text, Date.now(), { name: cPartnerName() });
+if (window.bgNotifyCheck) window.bgNotifyCheck(text, Date.now(), { name: cPartnerName(), kind: 'other' });
 } catch (e) {}
 } catch (e) {}
 }

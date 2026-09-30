@@ -2312,8 +2312,106 @@
   //   弹「错误联系人名 + 错误条数」（用户实测：切换桌面后弹窗显示旧桌面昵称、没收到
   //   消息却说收到1条）。hiddenSentCount 只在 bgNotifyCheck 真正发送系统通知时累加，
   //   回前台时据此弹一条汇总，准确反映"后台真收到了几条、来自谁"。
-  let hiddenSentCount = 0;
+  // FIX 2026-09-29 #1443d（作者选定口径＝分类如实报）：hiddenSentCount 数的一直是「本次后台真发出去
+  //   的通知条数」（在 bgNotifyCheck 决定发送那一点 +1），与通知是不是一条【消息】无关——跨桌面查岗、
+  //   换头像/换昵称申请、来信、朋友圈动态、心愿、来电全被算进去，再拼成「你不在的时候收到 N 条新
+  //   消息」。iPhone 12 Pro／iOS 17.1.1 实报「横幅提醒有 2 条新消息，通知的是联系人申请贴贴、查岗、
+  //   跨桌面查岗之类的，点进去却没有消息」——那句 N 条从一开始就没在说消息。现按类别分离计数：进了
+  //   聊天的才叫「消息」，其余点名报类别；没登记的类别一律落「提醒」，绝不冒充「新消息」。
+  const NOTIFY_KIND_LABEL = {
+    msg: '条新消息', checkin: '次查岗', chatreq: '次求聊天', ask: '条提问',
+    invite: '个申请', call: '次来电', mail: '封来信', feed: '条动态', wish: '个心愿', other: '条提醒'
+  };
+  let hiddenSent = {};
+  let hiddenSentCount = 0; // 总条数：只用来判「这一场后台发过没有」，文案不再拿它冒充消息数
   let hiddenSentName = '';
+  const sentAdd = function (kind) {
+    hiddenSentCount++;
+    hiddenSent[kind] = (hiddenSent[kind] || 0) + 1;
+  };
+  const sentReset = function () { hiddenSent = {}; hiddenSentCount = 0; hiddenSentName = ''; };
+  // 「2 条新消息 · 1 次查岗 · 1 封来信」——类别顺序固定，读数来自本会话后台实际发送记账
+  const sentSummaryText = function () {
+    const order = ['msg', 'checkin', 'chatreq', 'ask', 'invite', 'call', 'mail', 'feed', 'wish', 'other'];
+    const parts = [];
+    order.forEach(function (k) { if (hiddenSent[k]) parts.push(hiddenSent[k] + ' ' + NOTIFY_KIND_LABEL[k]); });
+    if (!parts.length) return '你不在的时候有 ' + hiddenSentCount + ' 条提醒';
+    return '你不在的时候收到 ' + parts.join(' · ');
+  };
+  const notifyKind = function (extra) {
+    const k = extra && extra.kind;
+    return NOTIFY_KIND_LABEL[k] ? k : 'other';
+  };
+  // FIX 2026-09-29 #1443e（作者选定口径＝跳到事件真正的归属）：通知此前不带 tag，页面端收到点击
+  //   只会 enterChat 当前桌面（旧 2999 行把 sw 传回的 tag 整个丢掉），于是「某角色查岗」「TA 想给你
+  //   换头像」点进去看的是当前桌面——那张卡落的是别的桌面，必然「点进去没有」。现每一发编一个可回查
+  //   的 tag，并把 {tag,类别,归属桌面} 记进一份小账（走 xyStore：LS 写不进也照样落库，见 #1443b）。
+  const NOTIFY_LEDGER_KEY = '__notify-ledger';
+  function notifyLedger() {
+    try {
+      const raw = window.xyStore('xy-home-v2').get(NOTIFY_LEDGER_KEY);
+      if (!raw) return [];
+      const a = JSON.parse(raw);
+      return Array.isArray(a) ? a : [];
+    } catch (e) { return []; }
+  }
+  function notifyLedgerPush(entry) {
+    try {
+      const s = window.xyStore('xy-home-v2');
+      const list = notifyLedger().filter(function (x) { return x && x.ts > Date.now() - 6 * 3600 * 1000; });
+      list.push(entry);
+      while (list.length > 12) list.shift();
+      s.set(NOTIFY_LEDGER_KEY, JSON.stringify(list));
+    } catch (e) {}
+  }
+  function notifyConsume(tag) {
+    try {
+      const list = notifyLedger();
+      let hit = null;
+      for (let i = list.length - 1; i >= 0; i--) {
+        if (list[i] && list[i].tag === tag) { hit = list[i]; list.splice(i, 1); break; }
+      }
+      if (hit) window.xyStore('xy-home-v2').set(NOTIFY_LEDGER_KEY, JSON.stringify(list));
+      return hit;
+    } catch (e) { return null; }
+  }
+  // tag 本身就叫得出类别与归属（nk|kind|cid|号）——账本被回收清掉了也认得，不额外多一个读数源
+  function notifyEntryFromTag(tag) {
+    try {
+      const p = String(tag || '').split('|');
+      if (p[0] !== 'nk' || p.length < 4) return null;
+      return { kind: p[1], cid: p[2], tag: String(tag) };
+    } catch (e) { return null; }
+  }
+  function notifyRoute(entry) {
+    try {
+      if (entry && entry.cid && window.setActiveContact && entry.cid !== (window.__activeCid || 'default')) {
+        window.setActiveContact(entry.cid);
+      }
+    } catch (e) {}
+    try {
+      if (entry && entry.kind === 'mail' && typeof window.openMailPage === 'function') { window.openMailPage(); return true; }
+      if (typeof window.enterChat === 'function') { window.enterChat(); return true; }
+    } catch (x) {}
+    return false;
+  }
+  // 页面被系统回收后重启：sw 那一发 postMessage 落在还没挂监听的身体上＝点击被吞。点击侧顺手
+  //   把 tag 写进 IDB（sw.js 的 __notify-click），开机后问一句「刚才是不是点过一条没消费掉的」。
+  // 只读出口：诊断与回归尺子共用同一发问法（Promise 形态，回调口径不变）
+  window.xyPendingNotifyClick = function () { return new Promise(function (res) { try { notifyPendingClick(res); } catch (e) { res(null); } }); };
+  function notifyPendingClick(cb) {
+    try {
+      if (!window.idbGet) { cb(null); return; }
+      Promise.resolve(window.idbGet('xy-home-v2:__notify-click')).then(function (raw) {
+        if (!raw) { cb(null); return; }
+        try { if (window.idbDelete) window.idbDelete('xy-home-v2:__notify-click'); } catch (e0) {}
+        let o = raw;
+        try { if (typeof raw === 'string') o = JSON.parse(raw); } catch (e1) { cb(null); return; }
+        if (!o || !o.tag || !o.ts || Date.now() - o.ts > 3 * 60000) { cb(null); return; }
+        cb(notifyConsume(String(o.tag)) || notifyEntryFromTag(String(o.tag)));
+      }, function () { cb(null); });
+    } catch (e) { cb(null); }
+  }
   document.addEventListener('visibilitychange', function () {
     const vis = document.visibilityState;
     if (vis === 'hidden') {
@@ -2343,11 +2441,11 @@
       const inChat = chatPage && !chatPage.hidden;
       const n = hiddenSentCount;
       const who = hiddenSentName || store.get('lbl-partner') || (window.taWord ? window.taWord() : 'TA');
-      hiddenSentCount = 0;
-      hiddenSentName = '';
+      const summaryText = sentSummaryText(); // #1443d：先按类别拼好话，再清账（清早了就没得报）
+      sentReset();
       if (!inChat && n > 0 && window.showDeskPopup) {
         // visibilitychange 为 visible 时触发，isHidden=false 显示应用内横幅
-        window.showDeskPopup({ name: who, text: '你不在的时候收到 ' + n + ' 条新消息', isHidden: false });
+        window.showDeskPopup({ name: who, text: summaryText, isHidden: false });
         const now = Date.now();
         if (saved === '1' && 'Notification' in window && Notification.permission === 'granted' &&
             (!lastResumeNotifyAt || now - lastResumeNotifyAt > 30000)) {
@@ -2356,7 +2454,7 @@
           // 取当前桌面聊天头像（与 bgNotifyCheck 同口径），等比缩略后作 icon，失败回退原文。
           const notiIcon = (store.get('cs-avatar-partner') || store.get('avatar-partner') || '');
           const sendNoti = function (iconVal) {
-            const o = { body: '你不在的时候收到 ' + n + ' 条新消息' };
+            const o = { body: summaryText };
             if (iconVal) o.icon = iconVal;
             showSysNotification(who, o);
           };
@@ -2661,7 +2759,7 @@
     gateStats.sent++; markNotified(nkey);
     // v3.19.x：累加「本次后台实际发送的通知数」——回前台汇总用它（见 visibilitychange
     // 处理器），发送者名取本次通知标题
-    hiddenSentCount++;
+    sentAdd(notifyKind(extra)); // #1443d：按类别记账，未登记的一律算「提醒」
     hiddenSentName = extra.name || store.get('lbl-partner') || (window.taWord ? window.taWord() : 'TA');
     const name = extra.name || store.get('lbl-partner') || (window.taWord ? window.taWord() : 'TA');
     let t = '';
@@ -2729,6 +2827,20 @@
     const sendFinal = function (iconVal) {
       if (iconVal) opts.icon = iconVal;
       if (previewImg) opts.image = previewImg;
+      // #1443e：点击侧要凭 tag 找回这一发的类别与归属桌面，所以每一发都得有个可回查的号，并把
+      //   {tag,类别,归属桌面} 落一份小账（走 xyStore＝LS 写不进也照样落库，见 #1443b）。
+      //   但 tag 不是只有我一家在用：#1456 的来电通知拿 opts.tag 当「同一联系人共用一条＋renotify 重弹」
+      //   的把手（上方 extra.callAlert 分支）。无条件覆写就把那批的 30 秒重弹顶没了——故调用方给了
+      //   tag 就【沿用它的 tag 记账】，没给才编 nk|… 那一路；两条都进账本，点击侧一样认得归属。
+      const nk = notifyKind(extra);
+      const ncid = String(extra.cid || window.__activeCid || 'default');
+      let ntag = '';
+      try { ntag = String(opts.tag || ''); } catch (eT0) { ntag = ''; }
+      if (!ntag) {
+        ntag = 'nk|' + nk + '|' + ncid + '|' + Date.now().toString(36);
+        try { opts.tag = ntag; } catch (eT) {}
+      }
+      notifyLedgerPush({ tag: ntag, kind: nk, cid: ncid, ts: Date.now() });
       // v3.12.x：受理成功才记入"已通知"指纹（窗口内同内容不再重弹）
       showSysNotification(name, opts).then(function (ok) {
         if (ok) {
@@ -3009,8 +3121,18 @@
     if ('serviceWorker' in navigator && navigator.serviceWorker) {
       navigator.serviceWorker.addEventListener('message', function (e) {
         if (!e || !e.data || e.data.type !== 'MOCHI_NOTIFY_CLICK') return;
-        try { if (typeof window.enterChat === 'function') window.enterChat(); } catch (x) {}
+        // #1443e：认 tag 找回这一发的类别与归属桌面；认不出（老通知／psync 那一路不带 nk 前缀）
+        //   退回进聊天页＝不比旧行为差，也不会跳到一个空页骗人
+        let entry = null;
+        try { entry = notifyConsume(String(e.data.tag || '')) || notifyEntryFromTag(String(e.data.tag || '')); } catch (x) {}
+        notifyRoute(entry);
       });
+      // 开机补一次：点击落在「页面已被回收、监听还没挂上」那一窗，靠 IDB 里那条 __notify-click 追回
+      try {
+        const bootRoute = function () { try { notifyPendingClick(function (en) { if (en) notifyRoute(en); }); } catch (e0) {} };
+        if (window.mochiOnDataReady) window.mochiOnDataReady(bootRoute);
+        else document.addEventListener('mochi-restore-done', bootRoute);
+      } catch (e1) {}
     }
   } catch (e) {}
 })();

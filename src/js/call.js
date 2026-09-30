@@ -728,7 +728,7 @@
   //   冻结后台页音频的硬限制，通知侧做到最接近来电即是上限。
   function bgCallNotify(name, hint, avOverride) {
     try {
-      if (window.bgNotifyCheck) window.bgNotifyCheck(name + ' 来电了' + (hint ? '，' + hint : ''), Date.now(), { name: name + '来电', av: avOverride || partnerAv(), avFixed: true, force: true, callAlert: true, callTag: name });
+      if (window.bgNotifyCheck) window.bgNotifyCheck(name + ' 来电了' + (hint ? '，' + hint : ''), Date.now(), { name: name + '来电', av: avOverride || partnerAv(), avFixed: true, force: true, callAlert: true, callTag: name, kind: 'call' });
     } catch (e) {}
   }
   // #161：响铃挂起——后台来电不再「命中即未接」（用户反馈：点开通知永远接不到，

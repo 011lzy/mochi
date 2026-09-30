@@ -1104,7 +1104,7 @@ const FIX_SENTINELS = [
   // callInProgress 占用判定（文字变了）；改锚到同一分支的概率掷骰行——它同样证明「跨桌面来电
   // 分支仍在、且不被 document.hidden 前台词门控地照常掷」，与 #677c 的条件行锚点互不共用。
   { name: '#159 跨桌面来电去掉前台门控（后台命中走 deliver hidden 分支发「XX来电」系统通知，修后台永不弹窗；逻辑锚=该分支的概率掷骰行仍无 document.hidden 前置）', file: 'js/incoming-requests.js', needle: "if (Date.now() - lastAt(cid, 'call') >= callCool * 60000 && Math.random() * 100 < callProb) {" },
-  { name: '#159 跨桌面来电通知 force 通道（与 #150 同口径，绕过 15s 过渡期/去重闸门）', file: 'js/incoming-requests.js', needle: 'avFixed: true, force: true }' },
+  { name: '#159 跨桌面来电通知 force 通道（与 #150 同口径，绕过 15s 过渡期/去重闸门）', file: 'js/incoming-requests.js', needle: "name + '来电', av: av, avFixed: true, force: true" },
   { name: '#160 GIF 上传上限砍到 512KB base64（修 iOS 字卡库堆到 62.8MB 每次整库 stringify/parse 秒级长任务卡死；逻辑锚点是数值表达式，改回大上限即消失）', file: 'js/chatcard.js', needle: 'const CC_GIF_MAX_B64 = 512 * 1024;' },
   { name: '#162 贴底钉住态 chatPinnedBottom（程序化滚底置真/用户触摸滚轮解除，修 iPadOS 26 Safari 回消息视图上漂）', file: 'js/chat.js', needle: 'let chatPinnedBottom = true;' },
   { name: '#162 来消息侧滚底 rAF+150ms 复写（原只写一次 scrollTop 被 iPadOS 26 内核顶开；改平滑滚动后复写走 scrollChatBottomSmooth，逻辑锚句随行更新）', file: 'js/chat.js', needle: 'requestAnimationFrame(() => { if (chatPinnedBottom) scrollChatBottomSmooth(); });' },
@@ -4313,7 +4313,7 @@ const FIX_SENTINELS = [
   { name: '#915b 回前台记录本次后台时长（删＝bgLateCatchup 无判据，补弹闸门形同虚设）', file: 'js/bg-keep.js', needle: '_fgFromHiddenFor = lastHiddenAt > 0 ? now - lastHiddenAt : 0;' },
   { name: '#915c 互动卡迟到判定外抛给查岗卡共用（删＝ck-question 侧断链）', file: 'js/ta-ask.js', needle: 'window.interactLateNotify = _lateNotify;' },
   { name: '#915d 查岗卡通知打 late 标（删＝查岗卡回前台补弹回流）', file: 'js/ck-question.js', needle: 'late: !!(window.interactLateNotify && window.interactLateNotify())' },
-  { name: '#915e 心愿卡迟到补发系统通知（删＝心愿后台无弹窗复发）', file: 'js/gift-shop.js', needle: "window.bgNotifyCheck(wishText, Date.now(), { name: partnerName() + '的心愿', late: true });" },
+  { name: '#915e 心愿卡迟到补发系统通知（删＝心愿后台无弹窗复发）', file: 'js/gift-shop.js', needle: "bgNotifyCheck(wishText, Date.now(), { name: partnerName() + '的心愿', late: true" },
   /* ==== 2026-09-20 #916 顶部白条/显示不全+聊天闪动（Edge 工具条显隐 dvh 滞留族）根治 + 屏幕适配错误环红点只增不减收口 ==== */
   { name: '#917a 判定器读本机手调轴（删＝用户亲手调的值又被当布局缺陷每 5s 刷错误环，本批报障复发）', file: 'js/device.js', needle: 'inp.adj = (function () {' },
   { name: '#917b 整体位移轴折算进底部期望（删＝手调位移后必报「底部超出/少填」假错误回流）', file: 'js/device.js', needle: 'const expB = expBase + adjShift;' },
@@ -6169,6 +6169,21 @@ const FIX_SENTINELS = [
   { name: '#1467b 切回桌面帧尺 2.5s 墙钟封顶（删＝切页窗口过后继续盲采 30 帧，环境冻结混进切页账）', file: 'js/desktop-slider.js', needle: 'if (gaps.length && Date.now() - swT0 > 2500) { finish(); return; }' },
   { name: '#1467c 诊断行截短标注（删＝截短样本看起来和整段采样一模一样，分诊又被假读数带偏）', file: 'js/device.js', needle: "dp.cut ? '（截短：翻页已停，未采满 60 帧）'" },
 
+  { name: "#1443a 跨桌面写回要认库的回执（删＝idbSet resolve(false) 时通知已弹、卡一个字没落；iPhone 12 Pro／iOS 17.1.1 实报「某角色查岗：刚才有没有感觉到我？点进去所有角色页面都没有这条消息（以前都是有记录的）」；行为侧由 tools/verify-1443-ls-frozen-write-ack 的 D 组钉）", file: "js/chat.js", needle: "function deskAppendLastToInbox(cid, arr) {" },
+  { name: "#1443a2 跨桌面改写类认回执＝重跑一次读-改-写（删＝答案写失败静默丢，那张卡永远停在未回答）", file: "js/chat.js", needle: "deskWriteAck(key, JSON.stringify(arr), function () { if (tries < 3) setTimeout(attempt, 1500); });" },
+  { name: "#1443b LS 写不进＝整层不再充当权威（探针口；删＝配额满那台机上「最后一次写得进的旧账」重新赢过库，收藏「消失很多」复发）", file: "js/idb.js", needle: "window.xyLsWriteDead = lsWriteDead;" },
+  { name: "#1443b2 启动回填改问 lsUntrusted 而不是只认逐键脏标记（改回 _lsDirtyKeys.has＝配额满之后再没人写过的键永远「没标脏」，旧包照样遮蔽库里新值）", file: "js/idb.js", needle: "if (lsVal !== null && !lsUntrusted(k)) {" },
+  { name: "#1443b3 按需取回侧同一把尺（漏这处＝该键被单独取回时又信 LS）", file: "js/idb.js", needle: "if (lsVal !== null && !lsUntrusted(key)) {" },
+  { name: "#1443c 残留清扫候选阈值随探针降到 32K 字符（不降＝本机撑爆配额的 feed-cover-bg／fav-msgs／feed-posts 那排每个只有 13万~18万字符，全卡在 200K 字符阈值下＝一辈子清不掉、LS 永久满）", file: "js/idb.js", needle: "const minBytes = lsWriteDead() ? 32 * 1024 : LS_BIG_LIMIT;" },
+  { name: "#1443c2 清扫的逐条复检与候选筛选同一把尺（只降筛选不降复检＝进了候选又被这一步退回，配额照样腾不出；新尺 L4 实测抓到过这一型）", file: "js/idb.js", needle: "lsVal.length <= (lsWriteDead() ? 32 * 1024 : LS_BIG_LIMIT)" },
+  { name: "#1443c3 冻结期绝不把 LS 追平写进库（改回旧路＝拿旧包整包顶掉库里新值，「看着少」变成「真没了」）", file: "js/idb.js", needle: "if (typeof idbVal === 'string' && idbVal.length >= lsVal.length) {" },
+  { name: "#1443d 后台汇总按类别记账（改回单计数＝把查岗／申请／来信／动态全算成「新消息」，横幅与屏上事实打嘴＝症状①）", file: "js/bg-keep.js", needle: "sentAdd(notifyKind(extra));" },
+  { name: "#1443d2 分类如实那句在位（删＝回退成只拼条数的旧句）", file: "js/bg-keep.js", needle: "return '你不在的时候收到 ' + parts.join(' · ');" },
+  { name: "#1443d3 旧「N 条新消息」冒充句不得回流（回流＝症状①复发），删除型", file: "js/bg-keep.js", needle: "'你不在的时候收到 ' + n + ' 条新消息'", absent: true },
+  { name: "#1443e 每一发通知带可回查的 nk 号（删＝点击侧无从找回类别与归属桌面）", file: "js/bg-keep.js", needle: "'nk|' + nk + '|' + ncid + '|'" },
+  { name: "#1443e1 tag 共存：调用方已给 tag 就沿用只补账（无条件覆写＝顶掉 #1456 来电那一路「同联系人共用一条＋renotify 30 秒重弹」）", file: "js/bg-keep.js", needle: "String(opts.tag || '')" },
+  { name: "#1443e2 点击按归属路由（改回裸 enterChat＝跨桌面查岗／贴贴申请点进去仍是当前桌面，「点进去却没有」复发）", file: "js/bg-keep.js", needle: "function notifyRoute(entry) {" },
+  { name: "#1443e3 回收后开机补投的读出口（删＝点击落在页面还没挂 message 监听的空档里被吞，「点了通知什么也没发生」复发）", file: "js/bg-keep.js", needle: "window.xyPendingNotifyClick = function () {" },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
@@ -6346,8 +6361,10 @@ try {
     "fetchIndexRes('./index.html', INDEX_NETWORK_TIMEOUT)",
     'fetchIndexRes(u, isIndexUrl(u) ? INDEX_NETWORK_TIMEOUT : NETWORK_TIMEOUT)',
     // FIX 2026-09-10 #280：媒体池令牌裸路径（@@m:）本地快速 404，禁止发真实网络请求
-    "u.pathname.indexOf('@@m:') >= 0"
-  ];
+    "u.pathname.indexOf('@@m:') >= 0",
+    // v8.55 #1443e4：点击侧把 tag 落进 IDB 那份小账（页面被系统回收时 postMessage 落在没人挂监听的空档）
+    "xy-home-v2:__notify-click"
+    ];
   const swMissing = swNeedles.filter(n => !swSrc.includes(n));
   if (swMissing.length) {
     console.error('❌ sw.js 关键修复哨兵：以下特征缺失（修复可能被覆盖）：');

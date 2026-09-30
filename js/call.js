@@ -501,7 +501,7 @@ shownName = null;
 }
 function bgCallNotify(name, hint, avOverride) {
 try {
-if (window.bgNotifyCheck) window.bgNotifyCheck(name + ' 来电了' + (hint ? '，' + hint : ''), Date.now(), { name: name + '来电', av: avOverride || partnerAv(), avFixed: true, force: true, callAlert: true, callTag: name });
+if (window.bgNotifyCheck) window.bgNotifyCheck(name + ' 来电了' + (hint ? '，' + hint : ''), Date.now(), { name: name + '来电', av: avOverride || partnerAv(), avFixed: true, force: true, callAlert: true, callTag: name, kind: 'call' });
 } catch (e) {}
 }
 const CALL_HOLD_MS = 3 * 60 * 1000;

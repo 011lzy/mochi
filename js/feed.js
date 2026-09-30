@@ -2066,7 +2066,7 @@ try { store.set('feed-app-unread', String(feedAppUnread() + 1)); } catch (e) {}
 renderNoticeBadge();
 if (window.showDeskPopup && !feedPageVisible()) {
 const av = owner ? taAvFor(owner) : '';
-window.showDeskPopup({ name: '朋友圈', text: (window.taFit ? window.taFit(noticeTextClean(text), owner) : noticeTextClean(text)), av: av, avFixed: true, onClick: openFeedPage, isHidden: document.visibilityState === 'hidden' });
+window.showDeskPopup({ name: '朋友圈', notifyKind: 'feed', text: (window.taFit ? window.taFit(noticeTextClean(text), owner) : noticeTextClean(text)), av: av, avFixed: true, onClick: openFeedPage, isHidden: document.visibilityState === 'hidden' });
 } else if (feedPageVisible() && document.visibilityState !== 'hidden') {
 let nt = noticeTextClean(text);
 if (nt.length > 40) nt = nt.slice(0, 40) + '…';

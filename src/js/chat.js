@@ -6649,7 +6649,7 @@ notifyT = notifyT + ' ' + phOf();
 const isHidden = opts.isHidden === true;
 if (isHidden) {
 if (window.bgNotifyCheck) {
-window.bgNotifyCheck(notifyT, opts.deliveredAt || Date.now(), { name: opts.name, img: opts.img, av: opts.av, avFixed: opts.avFixed === true, deliveredAt: opts.deliveredAt || 0, msgTs: opts.msgTs || 0 });
+window.bgNotifyCheck(notifyT, opts.deliveredAt || Date.now(), { name: opts.name, img: opts.img, av: opts.av, avFixed: opts.avFixed === true, deliveredAt: opts.deliveredAt || 0, msgTs: opts.msgTs || 0, kind: opts.notifyKind || 'msg', cid: opts.notifyCid || '' });
 }
 return;
 }
@@ -7418,6 +7418,28 @@ function deskAppendMissGuard(cid, tries, onRetry, writeOne, onExhaust) {
     writeOne();
   }).catch(function () { if (tries < 3) setTimeout(onRetry, 1500); else if (onExhaust) onExhaust(); });
 }
+// FIX 2026-09-29 #1443a：跨桌面整包写回必须认 IndexedDB 的回执。idbSet 是会 resolve(false) 的
+//   （事务 onabort/onerror/超时——页面被冻结或被系统回收时最容易中止），而旧写法三处 writeArr
+//   全是「发完不管」，于是通知已经弹出去、那张卡一个字都没存住：iPhone 12 Pro／iOS 17.1.1 实报
+//   「后台通知写着 某角色查岗：刚才有没有感觉到我？点进去所有角色页面都没有这条消息（以前都是有
+//   记录的）」，同屏诊断单两条读数正是这一发的现场——LS 整域写恒抛（writeArr 里那发 localStorage
+//   兜底同样落不进去）、本页被系统回收 26 次。判据只取「库回没回话」这一个内核事实，零机型／零 UA。
+//   onFail 由调用方定：追加类交既有 #1200 中转箱（进该桌面聊天时 chatDeskInboxMerge 按身份去重回流，
+//   回执迟到造成重复也不会落两条）；就地改写类重跑一次「读-改-写」，不凭空补气泡。
+// 追加类未提交的兜底动作＝把「这一发」交中转箱（不是整包），两条跨桌面追加路径共用这一句，
+// 也顺便让回归针有一处唯一落点（两处调用原文同形＝钉成哑哨兵）
+function deskAppendLastToInbox(cid, arr) {
+if (!arr || !arr.length) return;
+try { deskAppendInbox(cid, [arr[arr.length - 1]]); } catch (e) {}
+}
+function deskWriteAck(key, val, onFail) {
+let p = null;
+try { p = window.idbSet(key, val); } catch (e) { p = null; }
+const fail = function () { try { if (onFail) onFail(); } catch (e2) {} };
+if (!p || !p.then) { fail(); return false; }
+p.then(function (ok) { if (!ok) fail(); }, fail);
+return true;
+}
 const CHAT_DESK_INBOX_MAX = 200; // #1200：中转箱容量上限（异常堆积时保最近 200 条）
 function deskAppendInbox(cid, recs) {
   const key = 'xy-home-v2:' + cid + ':chat-desk-inbox';
@@ -7494,7 +7516,8 @@ if (!window.idbGet || !window.idbSet) return;
 const key = 'xy-home-v2:' + cid + ':chat-msgs';
 let tries = 0;
 const writeArr = function (arr) {
-try { window.idbSet(key, JSON.stringify(arr)); } catch (e) {}
+// #1443a：认库的回执——没提交就把这一发交 #1200 中转箱，进该桌面聊天时回流，不再静默丢
+deskWriteAck(key, JSON.stringify(arr), function () { deskAppendLastToInbox(cid, arr); });
 try { localStorage.setItem(key, JSON.stringify(arr)); } catch (e) {}
 // v3.26.x #90：跨桌面追加后同步条数账本（下次冷启动大键读失败时它就是守卫依据）
 try { chatLedgerSave('xy-home-v2:' + cid, arr.length, msgsBytes(arr)); } catch (e) {}
@@ -7550,7 +7573,8 @@ window.chatAppendDeskRec = function (cid, rec) {
   const key = 'xy-home-v2:' + cid + ':chat-msgs';
   let tries = 0;
   const writeArr = function (arr) {
-    try { window.idbSet(key, JSON.stringify(arr)); } catch (e) {}
+    // #1443a：认库的回执——没提交就把这一发交 #1200 中转箱，进该桌面聊天时回流，不再静默丢
+    deskWriteAck(key, JSON.stringify(arr), function () { deskAppendLastToInbox(cid, arr); });
     try { localStorage.setItem(key, JSON.stringify(arr)); } catch (e) {}
     // v3.26.x #90：跨桌面追加后同步条数账本（下次冷启动大键读失败时它就是守卫依据）
     try { chatLedgerSave('xy-home-v2:' + cid, arr.length, msgsBytes(arr)); } catch (e) {}
@@ -7607,7 +7631,8 @@ window.chatDeskCardReply = function (cid, cardSpecial, cardTs, statusKey, patch,
   const archKey = 'xy-home-v2:' + cid + ':chat-arch';
   let tries = 0;
   const writeArr = function (arr) {
-    try { window.idbSet(key, JSON.stringify(arr)); } catch (e) {}
+    // #1443a：改写类认库的回执＝重跑一次「读-改-写」（库里那条卡没被改成就还是没改成，不凭空补气泡）
+    deskWriteAck(key, JSON.stringify(arr), function () { if (tries < 3) setTimeout(attempt, 1500); });
     try { localStorage.setItem(key, JSON.stringify(arr)); } catch (e) {}
     try { if (window.idbDelete) window.idbDelete(archKey); } catch (e) {}
     // v3.26.x #90：跨桌面写回后同步条数账本（同 chatAppendDeskRec）
