@@ -6210,6 +6210,17 @@ const FIX_SENTINELS = [
   { name: '#1441b 中转箱有货＝起读的第二条证据（删＝屏上凭据再对也不读库，#1200 那批的中转箱静默滞留）', file: 'js/chat.js', needle: "const csRawInbox = localStorage.getItem(window.activePrefix() + ':chat-desk-inbox');" },
   { name: '#1441c 跨上下文写入用 storage 事件记账（删＝#1441a 摘掉时间闸后，另一个标签页/窗口落的聊天永远追不回来）', file: 'js/chat.js', needle: "k === pre + ':chat-msgs' || k === pre + ':chat-desk-inbox' || k === pre + ':chat-tail'" },
   { name: '#1441d 起读时把这发证据消费掉（不销账＝此后每一趟都要重读，白起轮子换个形式回来）', file: 'js/chat.js', needle: 'if (!csAuthHere) { chatXtxWriteSeen = false; loadMsgs(); }' },
+  { name: "#1478a 队列那本账的「库里回没回话」三态判据（改回只信 xyStore 同步读＝冷启动回填还没跑完时读到空，那一发整包写回会把库里正在等的挂起抹掉；报障那台机（系统主屏幕模式）实报「横幅有、点进去没有、主页那一栏也没有」）", file: "js/incoming-requests.js", needle: "qAuth = (v === undefined || v === null) ? 'absent' : 'ok';" },
+  { name: "#1478b 权威回话前不落整包（删＝把「读不到」当成「没有」，saveQ 直接盖掉库账；改成无条件落盘＝症状复发）", file: "js/incoming-requests.js", needle: "if (qAuth === 'pending') { try { qHold = (q || []).slice(); } catch (e) {} return; }" },
+  { name: "#1478c 挂起身份＝cid|kind|sid（把 sid 换回 ts＝setStatus 改判后一条变两条，holding 永不清零、收尾反复记账）", file: "js/incoming-requests.js", needle: "String((x && x.sid) || '')" },
+  { name: "#1478d 并集同身份取 ts 更大那一枚（改成排前者赢＝已落定的 seen 被库里旧的 pending 复活）", file: "js/incoming-requests.js", needle: "if (((x && x.ts) || 0) > ((prev && prev.ts) || 0)) byId[k] = x;" },
+  { name: "#1478e 孤儿自愈支路也走同一道闸（改回裸 rootSet＝自愈那一发从旁路整包盖掉库账，闸门形同虚设）", file: "js/incoming-requests.js", needle: "if (healed || filtered.length !== q.length) { saveQ(filtered); q = filtered; }" },
+  { name: "#1478f 「这道题见过没有」改认 records-care 这本（只读裸 chat-msgs 快照＝LS 写不进的那台机上判据永久失效，同一道题反复弹通知）", file: "js/incoming-requests.js", needle: "if (!r0 || r0.kind !== 'desk-checkin') continue;" },
+  { name: "#1478g 权威问话与首拍等数据回填就绪（只留 12 秒那一拍＝回填慢时首拍读到空库、且冷启动不派发 visibilitychange，挂起收尾唯一机会被错过）", file: "js/incoming-requests.js", needle: "if (window.mochiOnDataReady) window.mochiOnDataReady(qBoot);" },
+  { name: "#1478h 探针吐出这一键的库回话状态（删＝诊断单与尺子都看不见闸门卡在哪个态，复发时无从判读）", file: "js/incoming-requests.js", needle: "auth: qAuth," },
+  { name: "#1478i 问话有界耗尽后退回旧语义（无界重试＝库永久不可用时队列从此存不进去，把「可能丢一条」换成「永远存不进」）", file: "js/incoming-requests.js", needle: "if (qAuthTries >= Q_AUTH_BACKOFF.length) { qAuth = 'ok'; qDrain(); return; }" },
+  { name: "#1478j 闸门关着时读侧并回本页自己那本（删＝落盘扣住的窗口里 hasPending/setStatus 一起瞎：同一联系人重复投递＋弹窗点「稍后」释放不掉；邻族 verify-desk-incoming 实测抓到过这一型）", file: "js/incoming-requests.js", needle: "if (qAuth === 'pending' && qHold && qHold.length) q = qUnion(q, qHold);" },
+  { name: "#1478k 探针交出页面这一本账（qids）——删＝闸门关着的窗口里外部读数只剩「LS 还没落盘」，邻族 verify-desk-incoming T8 与诊断单都读不到页面自己记着的那条 pending）", file: "js/incoming-requests.js", needle: "qids: q.map(function (x) { return x.cid + ':' + x.status; })," },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
