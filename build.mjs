@@ -6253,9 +6253,9 @@ const FIX_SENTINELS = [
   { name: '#1484f 轮询腿收口解除武装（删＝同上，轮询复原腿）', file: 'js/mobile-adapt.js', needle: 'if (_vkC) _vkC.overlaysContent = false;' },
   // ==== 2026-09-30 #1497 二级密码还原同码 990815＋每次加载重新上锁（作者推翻 #1495 分码口径，原话「我一直都是要同一个密码990815，只是说输两次密码」）：①散列还原 fnv1a('mochi#990815')，开屏锁卡/问答暗号仍同串；②解锁态只活本页生命周期（isOpen＝会话闸 sessionOpen）——每次打开/刷新都回到锁定、须在锁卡重输 990815＝「输两次」（暗号跳问答一次＋二级密码一次），存储 cardlock-state 仅作诊断留痕；③解锁就地生效不刷新（原解锁后 reload 在会话闸下＝解锁即被打回的死循环，已摘）；④全角/夹空白归一化保留（「输对解不开」多机型直因）。#1495a~k 十一针随批退役（分码口径推翻，见 FIX-REGRESSION #1497）；#404 开屏解锁等落库再刷新、#961d 刷新闸门两针同批退役（解锁不再刷新） ====
   { name: '#1497a 同码还原：散列回 990815（删/改＝又变分码或换码）', file: 'js/card-lock.js', needle: "'4240701628'" },
+  { name: '#1511a 解锁态持久化闸（删/改回会话闸＝每次刷新重输回流，作者口径「已解锁就不要每次重新解锁」）', file: 'js/card-lock.js', needle: "return stGet() === 'open'" },
+  { name: '#1511b 问答答对一次＝本机永久放行（删＝答对后每次刷新仍重问回流）', file: 'js/applock.js', needle: '已解锁：本机以后不再问答' },
   { name: '#1497b 全角/夹空白归一化接入散列（删＝全角数字输入解锁不了回流＝「输对也解不开」多机型直因）', file: 'js/card-lock.js', needle: "fnv1a('mochi#' + normCode(pw))" },
-  { name: '#1497c 每次加载重新上锁会话闸（删＝解锁态跨加载常开＝「不用重新输入解锁」回流）', file: 'js/card-lock.js', needle: 'let sessionOpen = false' },
-  { name: '#1497d 解锁即会话放行（删＝输对密码也解不开）', file: 'js/card-lock.js', needle: 'sessionOpen = true' },
   { name: '#1497e 暗号通路归一化（删＝跳问答/关应用锁/管理验证三入口全角输入照旧解不开）', file: 'js/applock.js', needle: 'function normCode(v) {' },
   { name: '#1497f 解锁就地生效不刷新（删/改回解锁后 reload＝会话闸下解锁即被打回锁定死循环）', file: 'js/clock.js', needle: "okState.textContent = '验证通过'" },
   { name: '#1501a 进入应用二级密码强制提醒弹窗已摘除（删除型；回流＝作者口径「就放在开屏爱点不点」被推翻）', file: 'js/clock.js', needle: 'maybeCardLockReminder', absent: true },

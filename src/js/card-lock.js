@@ -5,11 +5,9 @@
 //   ② 开屏解锁——开屏公告区出现「防未成年人·内置字卡锁定」卡，点「输入密码解锁」弹
 //      openModal 输入框，输对密码（990815，与开屏问答「暗号」同串）才放行；输错提示剩余
 //      次数并节流。
-//   ③ 每次加载重新上锁 + 可重锁——#1497（2026-09-30 作者推翻 #1495 分码口径，原话「我一直
-//      都是要同一个密码990815，只是说输两次密码」）：解锁态只活本页生命周期（sessionOpen
-//      会话闸）——每次打开/刷新都回到锁定，须在锁卡重新输入＝每次「输两次」（暗号跳问答
-//      一次＋二级密码一次）。存储 cardlock-state 仅作诊断留痕，闸门不再读它（#389/#404 的
-//      持久化机器保留＝写路径照走，但「解锁态跨刷新丢失」从此不是问题面）。
+//   ③ 持久化 + 可重锁——解锁状态存全局根键（per-cid 无关），解锁一次后刷新/重开不再重输
+//      （#1511 作者拍板「已经解锁了就不要每次重新解锁」；#1497 会话闸撤销）；解锁后卡变「已解锁」
+//      可一键重新上锁；想改密码只能改本文件重新部署（源码不存明文，只存散列）。
 // 存储约定：纯本地无后端；密码不存明文——存 FNV-1a 32 位散列（防顺手翻源码/存储看到），
 //   这不是安全边界（前端无真安全），只是「不显眼 + 不鼓励尝试」；真正意图是产品层的年龄门槛。
 (function () {
@@ -37,7 +35,7 @@
   }
   // #389 状态写统一走 xyStore（内存缓存 + LS 快照 + __wr-journal + IDB + 标记五件套）；
   // xyStore 不在（理论不会：idb.js 先于本文件加载）才退回裸 LS，保持老行为可用。
-  // #1497 起读侧闸门不再消费存储值（见 sessionOpen），写侧照走＝诊断与历史链路不哑。
+  // #1497 的会话闸已按 #1511 撤销（不再绕开存储值），写侧照走＝诊断与历史链路不哑。
   function stGet() {
     try {
       if (window.xyStore) {
@@ -51,13 +49,11 @@
     try { if (window.xyStore) { window.xyStore(GNS).set(STATE_SHORT, v); return; } } catch (e) {}
     try { localStorage.setItem(LS_KEY, v); } catch (e) {}
   }
-  // #1497 会话闸：解锁态只活本页生命周期——每次页面加载（冷启动/刷新/重开）从锁定开始，
-  //   在锁卡（或进入后提醒弹窗）输对密码才放行＝「重新输入解锁」。为什么不读写存储做闸：
-  //   idbRestore 的 retainValue／wrj 自愈按「IDB 有标记的权威值」回填，任何启动期写/读存储
-  //   的闸都会与回填竞态（#1495 写式迁移被 verify-cardlock-quota-persist B1 实测打回＝配额满
-  //   家族「解锁刷新即回锁」）；纯内存会话旗标与恢复机制零交集，配额满/LS 回滚机型行为一致。
-  let sessionOpen = false;
-  function isOpen() { try { return sessionOpen; } catch (e) { return false; } }
+  // #1497 会话闸已按 #1511 撤销（2026-09-30 作者再拍板「已经解锁了……每次刷新重新打开网页总是让我
+  //   重新解锁……帮我修复」）：解锁态回归持久化——isOpen 读存储（#389/#404 自愈链随之恢复职能），
+  //   解锁一次后刷新/重开不再重输；当天的「不要弹窗」（#1501）与「解锁就地生效不刷新」均保留。
+  //   当天早些时候的「每次加载重新上锁」口径由会话闸实现，实测与「已解锁就不要再问」诉求冲突，撤。
+  function isOpen() { try { return stGet() === 'open'; } catch (e) { return false; } }
   // 存量自愈：修复前解锁过的用户，状态键已被 contacts.js migrateLegacy 搬进
   // default 命名空间（xy-home-v2:default:cardlock-state）并删了根键——启动时把它
   // 搬回根键（#1497 起仅留痕用，保持历史数据完整）。
@@ -98,7 +94,6 @@
     if (now < failUntil) return { ok: false, msg: '尝试太频繁，请 ' + Math.ceil((failUntil - now) / 1000) + ' 秒后再试' };
     if (fnv1a('mochi#' + normCode(pw)) === PW_HASH) {
       fails = 0;
-      sessionOpen = true;   // #1497 会话闸放行：只活本页生命周期
       stSet('open');
       lastOpen = true;
       document.dispatchEvent(new Event('mochi-cardlock-open'));
@@ -109,7 +104,6 @@
     return { ok: false, msg: '密码不对（还剩 ' + (5 - fails) + ' 次机会）' };
   };
   window.cardLockRelock = function () {
-    sessionOpen = false;
     stSet('locked');
     lastOpen = false;
     document.dispatchEvent(new Event('mochi-cardlock-locked'));

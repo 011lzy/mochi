@@ -24,8 +24,8 @@ const srcApplock = readFileSync(join(root, 'src/js/applock.js'), 'utf8');
 const prodApplock = (() => { try { return readFileSync(join(root, 'js/applock.js'), 'utf8'); } catch { return ''; } })();
 const prodIndex = readFileSync(join(root, 'index.html'), 'utf8');
 
-check('S1 源 card-lock 同码散列＋会话闸＋归一化（无 pwver 残留）', srcLock.includes("'4240701628'") && srcLock.includes('let sessionOpen = false') && srcLock.includes("fnv1a('mochi#' + normCode(pw))") && !srcLock.includes('1062906492') && !srcLock.includes('pwverOk'));
-check('S2 产物 js/card-lock.js 同步（外置件不落库＝线上没这批）', prodLock.includes("'4240701628'") && prodLock.includes('let sessionOpen = false'));
+check('S1 源 card-lock 同码散列＋持久化闸＋归一化（无 pwver 残留；#1511 起会话闸撤销＝解锁持久化）', srcLock.includes("'4240701628'") && srcLock.includes("stGet() === 'open'") && srcLock.includes("fnv1a('mochi#' + normCode(pw))") && !srcLock.includes('1062906492') && !srcLock.includes('pwverOk') && !srcLock.includes('sessionOpen'));
+check('S2 产物 js/card-lock.js 同步（外置件不落库＝线上没这批）', prodLock.includes("'4240701628'") && prodLock.includes("stGet() === 'open'"));
 check('S3 clock 解锁就地生效（无刷新死循环）＋同码口径还原（#1501 起提醒面摘除＝是同一个 计 2）', srcClock.includes("okState.textContent = '验证通过'") && !srcClock.includes('验证通过，页面即将刷新') && !srcClock.includes('不是同一个') && (srcClock.match(/是同一个/g) || []).length >= 2);
 check('S4 applock 三入口归一化在位＋同码尾句还原', (srcApplock.match(/normCode\(v\) === QA_SKIP_CODE/g) || []).length === 3 && srcApplock.includes('卡的二级验证密码是同一个（同一串 6 位数字）'));
 check('S5 index.html 同码还原（旧分码句与 995180 绝迹）', prodIndex.includes('是同一个（同一串 6 位数字') && !prodIndex.includes('不是同一个') && !prodIndex.includes('995180'));
@@ -93,19 +93,19 @@ try {
   check('B5 夹空白「99 0815」＝输对（空白归一化保留）', await ev("window.cardLockTryUnlock(' 99 0815 ').ok")===true);
   check('B6 解锁写诊断留痕 state=open', await ev("localStorage.getItem('xy-home-v2:cardlock-state')")==='open');
 
-  // B7 解锁后就地生效不刷新：页面未重载（__mochiBootAt 不变）＝会话闸下不会被弹回锁定
+  // B7 解锁后就地生效不刷新：页面未重载（__mochiBootAt 不变）
   const bootAt1 = await ev('window.__mochiBootAt');
   await sleep(1200);
   const bootAt2 = await ev('window.__mochiBootAt');
-  check('B7 解锁后页面未自动刷新（刷新＝会话闸打回锁定死循环）', bootAt1 === bootAt2 && await ev('window.cardLockOpen()')===true, 'bootAt ' + bootAt1 + '→' + bootAt2);
+  check('B7 解锁后页面未自动刷新（解锁就地生效）', bootAt1 === bootAt2 && await ev('window.cardLockOpen()')===true, 'bootAt ' + bootAt1 + '→' + bootAt2);
 
-  // B8 重载＝重新上锁（「重新输入解锁」本体契约）
+  // B8 重载后仍解锁（#1511 持久化：解锁态跨刷新保留＝「已解锁就不要每次重新解锁」）
   await goto(baseUrl + '/');
   check('B8a 组件就位（重载）', await waitCardLock());
   await sleep(1200);
-  check('B8 重载后回到锁定（解锁态只活本页生命周期）', await ev('window.cardLockOpen()') === false);
-  // B9 开屏锁卡锁定态渲染出「输入密码解锁」入口
-  check('B9 开屏锁卡渲染锁定入口', (await ev("(function(){var b=document.querySelector('#splash-cardlock-actions .cardlock-btn');return b?b.textContent:'';})()"))==='输入密码解锁');
+  check('B8 重载后仍解锁（持久化还原）', await ev('window.cardLockOpen()') === true);
+  // B9 开屏锁卡已解锁态渲染「重新上锁」入口
+  check('B9 开屏锁卡渲染已解锁（重新上锁）', (await ev("(function(){var b=document.querySelector('#splash-cardlock-actions .cardlock-btn');return b?b.textContent:'';})()"))==='重新上锁');
 
   // Z 零未捕获异常
   const errs = await ev("(window.__jsErrors||[]).length") || 0;

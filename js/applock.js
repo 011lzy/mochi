@@ -440,7 +440,7 @@ mask.innerHTML = '<div class="splash-mandatory">' +
 '<div class="splash-mandatory-scroll">' +
 '<div class="splash-mandatory-head">' +
 '<div class="splash-mandatory-title">开屏问答 · 进入前请作答</div>' +
-'<div class="splash-mandatory-sub">本站禁止未满 18 周岁的未成年人使用；两题都答对才能进入。本机每次打开都会问答；输暗号可永久跳过问答层。</div>' +
+'<div class="splash-mandatory-sub">本站禁止未满 18 周岁的未成年人使用；两题都答对才能进入。答对一次，本机以后不再问答；也可输暗号直接跳过。</div>' +
 '</div>' + rows +
 '<div class="applock-err" id="applock-err" style="text-align:left;margin-top:10px"></div>' +
 '<div style="margin-top:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
@@ -461,6 +461,8 @@ if (errEl) errEl.textContent = '第 ' + (firstBad + 1) + ' 题答案不对，再
 return;
 }
 if (errEl) errEl.textContent = '';
+qaSkipSet(true);
+try { if (window.toast) window.toast('已解锁：本机以后不再问答'); } catch (e) {}
 if (afterAll) afterAll();
 };
 const okBtn = document.getElementById('qa-page-ok');
@@ -617,12 +619,12 @@ const n = qaList().length;
 let html;
 if (on) {
 const acts = qaSkipped() ? [{ act: 'qa-unskip', label: '恢复本机问答' }] : [];
-html = '<span>已开启：每次打开本站需先答对 <b>' + n + '</b> 道固定问答题' +
+html = '<span>已开启：首次进入时答对 <b>' + n + '</b> 道固定问答题，本机即永久放行（不再重复问答）' +
 (enabled() && !!pinHash() ? '，再输入数字密码' : '') + '。' +
-(qaSkipped() ? '本机已输暗号跳过问答（当前不再询问）。' : '锁屏时点「输暗号」可让本机永久跳过问答层。') +
+(qaSkipped() ? '本机已输暗号跳过问答（当前不再询问）。' : '答对一次后本机即永久放行；也可点「输暗号」直接跳过。') +
 '</span>' + actsHtml(acts);
 } else {
-html = '<span>未开启。开启后每次打开本站需先答对固定问答题才放行；可不设上方数字密码锁单独使用。锁屏时可输暗号让本机永久跳过问答层。</span>';
+html = '<span>未开启。首次答对固定问答题后本机永久放行（不再重复询问）；可不设上方数字密码锁单独使用。也可输暗号直接永久跳过问答层。</span>';
 }
 s.innerHTML = html;
 Array.prototype.forEach.call(s.querySelectorAll('[data-aa]'), function (b) {

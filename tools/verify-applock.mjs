@@ -334,7 +334,7 @@ await qaPageSubmit();
 st = JSON.parse(await lockState() || '{}');
 check('I2 答错提示且仍锁屏', st.shown === true && st.err.indexOf('不对') >= 0, st.err);
 
-// 两题都对 → 放行（无密码锁）
+// 两题都对 → 放行（无密码锁）；#1511 答对一次＝本机永久放行（qaskip 落库，与输暗号等效）
 await qaFill(0, '梦角');
 await qaFill(1, '是');
 await qaPageSubmit();
@@ -344,19 +344,18 @@ await evalJs("(function(){var b=document.querySelector('#applock-mask .al-primar
 await sleep(200);
 st = JSON.parse(await lockState() || '{}');
 check('I3 全部答对解锁进入（含 #299 一次性小提醒放行）', st.shown === false, JSON.stringify(st));
+check('I3b 答对即本机永久放行（#1511：qaskip 已落库）', (await evalJs("localStorage.getItem('" + P + "applock-qaskip')")) === '1');
 
-// v3.32.x 需求：问答门不吃本会话豁免 —— 同标签刷新必须重新答两道题
-// （对比 D1：数字密码锁仍是「同标签刷新不重锁」）
+// #1511：答对后同标签刷新不再问答（对比 v3.32.x 旧口径「每次加载都问」，已按作者口径翻转）
 await cdp('Page.reload');
 await sleep(1200);
 st = JSON.parse(await lockState() || '{}');
-check('I4 同标签刷新仍问答（问答门每次加载都问）', st.shown === true && st.qaPage === true && st.qaInputs === 2, JSON.stringify(st));
-check('I4b 会话标记不影响问答门（sess=1 仍问）', st.sess === '1', st.sess);
+check('I4 答对后刷新不再问答（本机永久放行）', st.shown === false, JSON.stringify(st));
 
-// 新会话（等效新开标签）→ 再问；输入暗号 990815 永久跳过
-await clearSessAndReload();
+// 测暗号通路：恢复本机问答 → 再问；输暗号 990815 永久跳过
+await seedAndReload({ 'applock-qa-en': '1', 'applock-qaskip': '0' });
 st = JSON.parse(await lockState() || '{}');
-check('I5 新会话再次问答', st.shown === true && st.qaPage === true, st.title);
+check('I5 恢复本机问答后再问', st.shown === true && st.qaPage === true, st.title);
 await clickLink('skipqa');
 st = JSON.parse(await lockState() || '{}');
 check('I6 出现暗号输入屏', st.shown === true && st.title.indexOf('跳过') >= 0, st.title);
