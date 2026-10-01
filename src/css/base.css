@@ -209,18 +209,12 @@ html { margin:0; padding:0; }
   margin-bottom:calc(var(--mochi-safe-bottom,env(safe-area-inset-bottom,0px)) + 20px);
   animation:splash-fade-up .6s ease .4s backwards;
 }
-/* v3.8.y：底部版本块——两行：名称+版本(加粗) / 部署时间+实时秒数，去等宽字体、字号加大适配手机 */
+/* v3.8.y：底部版本块；2026-10-01（停更收口）收成静态一行，部署行/检测行样式随批退役 */
 .splash-ver {
   display:flex; flex-flow:row wrap; align-items:baseline; justify-content:center; gap:1px 8px;
   line-height:1.4;
 }
 .splash-ver .sv-app { font-size:11px; font-weight:700; color:var(--ink); letter-spacing:.5px; }
-.splash-ver .sv-deploy { font-size:10px; color:var(--hint-ink); }
-/* #570：开屏新版检测行（ver-check.js）——检测中/失败灰、已是最新绿、有新版红加粗下划线可点 */
-.splash-ver .sv-check { font-size:10.5px; color:var(--hint-ink); }
-.splash-ver .sv-check.ok { color:#1f9d55; }
-.splash-ver .sv-check.stale { color:#e0523c; font-weight:700; }
-.splash-ver .sv-check.warn { opacity:.85; }
 /* v3.5.111：开屏公告卡片（白纸卡片，与全局简约风格一致）；v3.8.y：不再自滚，随 .splash-box 整页滚动 */
 .splash-notice {
   margin:16px auto 0; width:min(324px, 100%); text-align:left;

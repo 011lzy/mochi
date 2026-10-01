@@ -163,11 +163,6 @@ display:flex; flex-flow:row wrap; align-items:baseline; justify-content:center; 
 line-height:1.4;
 }
 .splash-ver .sv-app { font-size:11px; font-weight:700; color:var(--ink); letter-spacing:.5px; }
-.splash-ver .sv-deploy { font-size:10px; color:var(--hint-ink); }
-.splash-ver .sv-check { font-size:10.5px; color:var(--hint-ink); }
-.splash-ver .sv-check.ok { color:#1f9d55; }
-.splash-ver .sv-check.stale { color:#e0523c; font-weight:700; }
-.splash-ver .sv-check.warn { opacity:.85; }
 .splash-notice {
 margin:16px auto 0; width:min(324px, 100%); text-align:left;
 background:var(--card-bg); border:1px solid var(--sp-line);
@@ -7688,9 +7683,13 @@ cursor: pointer; padding: 0;
 .gift-wish-row { padding: 6px 14px 2px; }
 .gift-wish-row button { width: 100%; padding: 10px 0; border-radius: 12px; border: 1px dashed rgba(0, 0, 0, 0.2); background: #f7f7f7; color: #111; font-size: 13px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .gift-wish-row button:active { transform: scale(0.98); background: #f2f2f5; }
+.gift-mine-row { padding: 6px 14px 2px; }
+.gift-mine-row button { width: 100%; padding: 10px 0; border-radius: 12px; border: 1px solid rgba(0, 0, 0, 0.14); background: #f7f7f7; color: #111; font-size: 13px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.gift-mine-row button:active { transform: scale(0.98); background: #f2f2f5; }
 [data-theme="dark"] .gift-item-tawish { background: rgba(245, 245, 245, 0.85); color: #1c1c1e; }
 [data-theme="dark"] #page-market .gift-item-tawish { background: rgba(245, 245, 245, 0.85); color: #1c1c1e; }
 [data-theme="dark"] .gift-wish-row button { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.25); color: #f2f2f2; }
+[data-theme="dark"] .gift-mine-row button { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.25); color: #f2f2f2; }
 .gc-from-name {
 font-size: 10px; color: #888; margin-bottom: 2px;
 display: block; max-width: 64px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -10948,12 +10947,12 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
     <!-- v3.8.y：底部操作区固定不随内容滚动；.splash-box 为整页滚动容器 -->
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
-      <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <!-- #570：第三行开屏新版检测（ver-check.js 渲染）：检测中 / ✓已是最新 / ⇩有新版本可点更新 -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1790860540085">
-        <span class="sv-app">Mochi 字卡传讯 <b>v8.56</b></span>
-        <span class="sv-deploy">部署于 2026-10-01 21:15<span id="splash-ver-live"></span></span>
-        <span class="sv-check" id="splash-ver-check" hidden></span>
+      <!-- 2026-10-01（作者直派「更新时间/更新提醒删掉、不写版号，只写已完结停更」）：原三行
+           （名称+版号 / 部署时间+实时秒 / 版本检测行）收成一行；检测行随 ver-check.js 退役删除。
+           data-build-ts / data-version 两属性保留：device.js 诊断、bg-keep 自检、pwa.js 旧包检测
+           仍只读属性（诊断版本号走 data-version 兜底，device.js 两处缓存原生支持）。 -->
+      <div class="splash-ver" id="splash-ver" data-build-ts="1790863867673" data-version="v8.66">
+        <span class="sv-app">Mochi 字卡传讯 已完结停更</span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -12489,7 +12488,7 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
         <div class="set-row" id="row-changelog">
           <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 12c0-5.5 3.5-10 10-10 3.7 0 7 2 8.8 5M22 12c0 5.5-3.5 10-10 10-3.7 0-7-2-8.8-5"/></svg></div>
           <div class="txt">版本与更新<span class="sub">当前版本 · 一键更新到最新（更新摘要见开屏公告）</span></div>
-          <div class="val" id="about-ver-val">v8.56</div>
+          <div class="val" id="about-ver-val">v8.66</div>
           <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></div>
         </div>
         <!-- #606 开源与致谢：开源/私有部署说明 + 灵感来源与致谢（内容与功能介绍页同源，做成独立入口） -->
@@ -12580,7 +12579,7 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
         </div>
       </div>
       </div><!-- /them-sec about -->
-      <div class="ver">Mochi 字卡传讯 v8.56</div>
+      <div class="ver">Mochi 字卡传讯 v8.66</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -12979,7 +12978,7 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v8.56</span>
+              <span class="lic-ver">v8.66</span>
             </div>
             <div class="lic-p">原创极简风情侣字卡传讯，不是小手机：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <!-- v3.26.x #648：原版口径澄清——唯一原版使用网站＋其他版本均为开放二传二改产生的二传/二改版 -->
@@ -17821,7 +17820,7 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
   // v3.5.123：readonly 起手（防 Chrome 密码弹条破坏表单签名）——这里立即解除，
   // 早于所有功能模块，任何设备都不会出现输入框不可用的情况
   (function () { var _ci = document.getElementById('chat-input'); if (_ci) _ci.readOnly = false; })();
-window.__jsErrors = window.__jsErrors || []; window.__mochiLoaded = window.__mochiLoaded || []; window.__mochiErrLoaded = window.__mochiErrLoaded || []; window.__mochiBootAt = Date.now(); window.__mochiJsFiles = ["device.js","idb.js","contacts.js","applock.js","card-lock.js","dcp-master.js","media-pool.js","storage-slim.js","perf-check.js","energy-check.js","flash-check.js","img-compress.js","img-ingest.js","clock.js","tabs.js","desktop-slider.js","quote-cards.js","personalize.js","chat.js","group-chat.js","chatcard.js","chat-settings.js","reply-settings.js","fav-settings.js","default-cards-data.js","dict-ext-data.js","default-cards.js","quote-spell.js","dream-free.js","mood-followup-data.js","mood-reply-cards.js","ta-mood-data.js","ta-mood.js","music-player.js","calendar.js","divination.js","avatar-lib.js","ta-ask.js","ck-question.js","incoming-requests.js","ta-invite.js","bg-keep.js","records.js","call.js","mail.js","feed.js","loc-lib.js","p2-features.js","gift-shop.js","memo-app.js","memo-arc.js","my-arc.js","period.js","accounting.js","garden.js","room.js","drift-bottle.js","decision.js","group-decision.js","pong.js","snake-game.js","breakout.js","connect-four.js","coop-mine.js","fishing.js","memory-game.js","gomoku.js","linkup.js","match3.js","auction.js","arcade.js","mood-diary.js","sfx.js","fullscreen.js","data-backup.js","feature-data.js","pwa.js","ver-check.js","cjian.js","feature-hub.js","settings-help.js","onboarding.js","page-coach.js","card-audit.js","storage-guide.js","mobile-adapt.js"]; window.__mochiExtFiles = ["idb.js","contacts.js","applock.js","card-lock.js","dcp-master.js","media-pool.js","storage-slim.js","perf-check.js","energy-check.js","flash-check.js","img-compress.js","img-ingest.js","clock.js","tabs.js","desktop-slider.js","quote-cards.js","personalize.js","chat.js","group-chat.js","chatcard.js","chat-settings.js","reply-settings.js","fav-settings.js","default-cards-data.js","dict-ext-data.js","default-cards.js","quote-spell.js","dream-free.js","mood-followup-data.js","mood-reply-cards.js","ta-mood-data.js","ta-mood.js","music-player.js","calendar.js","divination.js","avatar-lib.js","ta-ask.js","ck-question.js","incoming-requests.js","ta-invite.js","bg-keep.js","records.js","call.js","mail.js","feed.js","loc-lib.js","p2-features.js","gift-shop.js","memo-app.js","memo-arc.js","my-arc.js","period.js","accounting.js","garden.js","room.js","drift-bottle.js","decision.js","group-decision.js","pong.js","snake-game.js","breakout.js","connect-four.js","coop-mine.js","fishing.js","memory-game.js","gomoku.js","linkup.js","match3.js","auction.js","arcade.js","mood-diary.js","sfx.js","fullscreen.js","data-backup.js","feature-data.js","cjian.js","feature-hub.js","settings-help.js","onboarding.js","page-coach.js","card-audit.js","storage-guide.js","mobile-adapt.js"];
+window.__jsErrors = window.__jsErrors || []; window.__mochiLoaded = window.__mochiLoaded || []; window.__mochiErrLoaded = window.__mochiErrLoaded || []; window.__mochiBootAt = Date.now(); window.__mochiJsFiles = ["device.js","idb.js","contacts.js","applock.js","card-lock.js","dcp-master.js","media-pool.js","storage-slim.js","perf-check.js","energy-check.js","flash-check.js","img-compress.js","img-ingest.js","clock.js","tabs.js","desktop-slider.js","quote-cards.js","personalize.js","chat.js","group-chat.js","chatcard.js","chat-settings.js","reply-settings.js","fav-settings.js","default-cards-data.js","dict-ext-data.js","default-cards.js","quote-spell.js","dream-free.js","mood-followup-data.js","mood-reply-cards.js","ta-mood-data.js","ta-mood.js","music-player.js","calendar.js","divination.js","avatar-lib.js","ta-ask.js","ck-question.js","incoming-requests.js","ta-invite.js","bg-keep.js","records.js","call.js","mail.js","feed.js","loc-lib.js","p2-features.js","gift-shop.js","memo-app.js","memo-arc.js","my-arc.js","period.js","accounting.js","garden.js","room.js","drift-bottle.js","decision.js","group-decision.js","pong.js","snake-game.js","breakout.js","connect-four.js","coop-mine.js","fishing.js","memory-game.js","gomoku.js","linkup.js","match3.js","auction.js","arcade.js","mood-diary.js","sfx.js","fullscreen.js","data-backup.js","feature-data.js","pwa.js","cjian.js","feature-hub.js","settings-help.js","onboarding.js","page-coach.js","card-audit.js","storage-guide.js","mobile-adapt.js"]; window.__mochiExtFiles = ["idb.js","contacts.js","applock.js","card-lock.js","dcp-master.js","media-pool.js","storage-slim.js","perf-check.js","energy-check.js","flash-check.js","img-compress.js","img-ingest.js","clock.js","tabs.js","desktop-slider.js","quote-cards.js","personalize.js","chat.js","group-chat.js","chatcard.js","chat-settings.js","reply-settings.js","fav-settings.js","default-cards-data.js","dict-ext-data.js","default-cards.js","quote-spell.js","dream-free.js","mood-followup-data.js","mood-reply-cards.js","ta-mood-data.js","ta-mood.js","music-player.js","calendar.js","divination.js","avatar-lib.js","ta-ask.js","ck-question.js","incoming-requests.js","ta-invite.js","bg-keep.js","records.js","call.js","mail.js","feed.js","loc-lib.js","p2-features.js","gift-shop.js","memo-app.js","memo-arc.js","my-arc.js","period.js","accounting.js","garden.js","room.js","drift-bottle.js","decision.js","group-decision.js","pong.js","snake-game.js","breakout.js","connect-four.js","coop-mine.js","fishing.js","memory-game.js","gomoku.js","linkup.js","match3.js","auction.js","arcade.js","mood-diary.js","sfx.js","fullscreen.js","data-backup.js","feature-data.js","cjian.js","feature-hub.js","settings-help.js","onboarding.js","page-coach.js","card-audit.js","storage-guide.js","mobile-adapt.js"];
 (function () { try {
 (function () {
 try { window.__jsErrors = window.__jsErrors || []; } catch (e0) {}
@@ -22607,118 +22606,6 @@ else window.addEventListener('load', boot);
 })();
 if (window.__mochiLoaded) window.__mochiLoaded.push("pwa.js");
 } catch (__e) { if (window.__mochiErrLoaded) window.__mochiErrLoaded.push("pwa.js"); try { console.error("[JS] pwa.js", __e && __e.message || __e); } catch (x) {} if (window.__jsErrors) window.__jsErrors.push("[pwa.js] " + String(__e && __e.message || __e)); } })();
-(function () { try {
-(function () {
-'use strict';
-if (location.protocol === 'file:') return;
-var el = document.getElementById('splash-ver-check');
-var sv = document.getElementById('splash-ver');
-if (!el || !sv) return;
-var localTs = Number(sv.getAttribute('data-build-ts')) || 0;
-function gapStr(ms) {
-if (!(ms > 0)) return '';
-var min = Math.round(ms / 60000);
-if (min < 1) return '不足 1 分钟';
-if (min < 60) return '约 ' + min + ' 分钟';
-var hr = ms / 3600000;
-if (hr < 48) return '约 ' + (Math.round(hr * 10) / 10) + ' 小时';
-return '约 ' + Math.round(hr / 24) + ' 天';
-}
-var RETRY_KEY = 'xy-home-v2:ver-retry';
-function retryMarked() {
-try { return !!localStorage.getItem(RETRY_KEY); } catch (e) { return false; }
-}
-function markRetry(ts) {
-try {
-var n = Number(String(localStorage.getItem(RETRY_KEY) || '').split('|')[1]) || 0;
-localStorage.setItem(RETRY_KEY, String(ts > 0 ? ts : 0) + '|' + (n + 1) + '|' + Date.now());
-} catch (e) {}
-}
-function clearRetry() { try { localStorage.removeItem(RETRY_KEY); } catch (e) {} }
-function isReloadEntry() {
-try {
-var n = performance.getEntriesByType && performance.getEntriesByType('navigation');
-if (n && n.length && n[0] && n[0].type) return n[0].type === 'reload';
-if (performance.navigation) return performance.navigation.type === 1;
-} catch (e) {}
-return false;
-}
-var HINT = [
-'点了刷新还是旧版？先别再连着点了——新版本要在后台完整下载一次才会换上。',
-'① 停在这个页面别动，等 3~5 分钟，再刷新一次；',
-'② 或换成流量（手机数据）再试，同样是「等一会儿再刷一次」。'
-];
-var hint = null;
-function showHint() {
-try {
-if (!hint) {
-hint = document.createElement('span');
-hint.className = 'sv-check-hint';
-hint.style.cssText = 'font-size:10.5px;line-height:1.6;color:var(--hint-ink);opacity:.9;' +
-'max-width:100%;text-align:left;white-space:pre-line;';
-if (!el.parentNode) return;
-el.parentNode.insertBefore(hint, el.nextSibling);
-}
-hint.textContent = HINT.join('\n');
-hint.hidden = false;
-} catch (e) {}
-}
-var onlineTs = 0;
-function tap() {
-markRetry(onlineTs);
-if (typeof window.mochiRefreshNow === 'function') window.mochiRefreshNow();
-else { try { location.reload(); } catch (e) {} }
-}
-function set(cls, text, clickable) {
-el.hidden = false;
-el.className = 'sv-check' + (cls ? ' ' + cls : '');
-el.textContent = text;
-el.style.cursor = clickable ? 'pointer' : '';
-el.style.textDecoration = clickable ? 'underline' : '';
-el.onclick = clickable ? tap : null;
-}
-set('', '版本检测中…');
-var done = false;
-var abort = null;
-try { if (typeof AbortController === 'function') abort = new AbortController(); } catch (e) {}
-var to = abort ? setTimeout(function () { try { abort.abort(); } catch (e) {} }, 3000) : 0;
-var opts = { cache: 'no-store' };
-if (abort) opts.signal = abort.signal;
-try {
-fetch('version.json?t=' + Date.now(), opts).then(function (r) {
-return r.ok ? r.json() : null;
-}).then(function (j) {
-if (to) clearTimeout(to);
-if (done) return;
-done = true;
-var ts = j ? Number(j.ts) : 0;
-if (!(ts > 0)) { set('warn', '未能读取版本信息（不影响使用）'); return; }
-if (!localTs) { set('warn', '本机缺构建时间，无法比对'); return; }
-if (ts === localTs) { clearRetry(); set('ok', '✓ 已是最新版'); return; }
-if (ts > localTs) {
-onlineTs = ts;
-if (retryMarked() || isReloadEntry()) {
-set('stale', '⇩ 仍是旧版（落后' + gapStr(ts - localTs) + '）· 点此再试', true);
-showHint();
-return;
-}
-set('stale', '⇩ 有新版本（落后' + gapStr(ts - localTs) + '）· 点此更新', true);
-return;
-}
-set('warn', '本机比云端还新（CDN 同步中，可忽略）');
-}).catch(function () {
-if (to) clearTimeout(to);
-if (done) return;
-done = true;
-set('warn', '未能检测版本（离线或网络受限）· 不影响使用');
-});
-} catch (e) {
-if (to) clearTimeout(to);
-try { el.hidden = true; } catch (e2) {}
-}
-})();
-if (window.__mochiLoaded) window.__mochiLoaded.push("ver-check.js");
-} catch (__e) { if (window.__mochiErrLoaded) window.__mochiErrLoaded.push("ver-check.js"); try { console.error("[JS] ver-check.js", __e && __e.message || __e); } catch (x) {} if (window.__jsErrors) window.__jsErrors.push("[ver-check.js] " + String(__e && __e.message || __e)); } })();
 window.__mochiBootRetry = function () { try { location.reload(); } catch (e) {} };(function () { function selfContained() { try { return location.protocol === "file:" || !document.querySelector("script[src]"); } catch (e0) { return false; } } function bar() {  if (selfContained()) return;  if (document.getElementById("boot-retry-bar")) return;  var off = 0; try { off = sessionStorage.getItem("mochi-boot-bar-off") === "1" ? 1 : 0; } catch (e6) {}  if (off) return;  var b = document.createElement("div");  b.className = "ver-update-bar"; b.id = "boot-retry-bar"; b.style.cursor = "pointer";  b.style.flexWrap = "wrap"; b.style.rowGap = "6px";  b.innerHTML = "<span class=\"vub-txt\">网络不佳·部分功能没加载完</span><b class=\"vub-act\">点此重试</b><b class=\"vub-act\" id=\"boot-retry-off\">知道了</b>";  b.addEventListener("click", function () { window.__mochiBootRetry(); });  var x = b.querySelector("#boot-retry-off");  if (x) x.addEventListener("click", function (ev) { ev.stopPropagation(); try { sessionStorage.setItem("mochi-boot-bar-off", "1"); } catch (e7) {} if (b.parentNode) b.parentNode.removeChild(b); });  (document.body || document.documentElement).appendChild(b); } function missing() { var e = window.__mochiJsFiles || [], g = window.__mochiLoaded || []; return Math.max(0, e.length - g.length - (window.__mochiErrLoaded || []).length); } function heal() {  try {   if (window.__mochiDataReady && missing() === 0) return;   if (selfContained()) return;   if (!navigator.onLine || missing() === 0) return;   var now = Date.now(), last = 0;   try { last = Number(sessionStorage.getItem("mochi-boot-heal")) || 0; } catch (e2) {}   if (now - last < 7200000) return;   try { sessionStorage.setItem("mochi-boot-heal", String(now)); } catch (e3) {}   setTimeout(function () { try { location.replace(location.href); } catch (e4) {} }, 400);  } catch (e) {} } function sweep() { var ex = (window.__mochiJsFiles || []).length, ok = !!window.__mochiDataReady && ex - (window.__mochiLoaded || []).length - (window.__mochiErrLoaded || []).length <= 0; var b = ok && document.getElementById("boot-retry-bar"); if (b && b.parentNode) b.parentNode.removeChild(b); return ok; } function check(auto) { var ok = sweep(); if (!ok) bar(); if (auto && typeof heal === "function") heal(); } try { document.addEventListener("mochi-restore-done", function () { setTimeout(sweep, 50); }); } catch (e5) {} if (document.readyState === "complete") { setTimeout(function(){check(false);}, 3000); setTimeout(function(){check(true);}, 8000); } else window.addEventListener("load", function () { setTimeout(function(){check(false);}, 3000); setTimeout(function(){check(true);}, 8000); });})();</script>
 <script defer src="js/idb.js" onerror="window.__mochiExtFail=(window.__mochiExtFail||[]).concat('idb.js')"></script>
 <script defer src="js/contacts.js" onerror="window.__mochiExtFail=(window.__mochiExtFail||[]).concat('contacts.js')"></script>
@@ -22824,4 +22711,4 @@ window.__mochiBootRetry = function () { try { location.reload(); } catch (e) {} 
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mupk4khh -->
+<!-- __MOCHI_EOF__ mupm3w2h -->

@@ -113,7 +113,7 @@ function minifyCss(code) {
 
 // ===== 按顺序拼接样式 / 脚本（顺序即生效顺序） =====
 const cssFiles = ['base.css', 'home.css', 'chat-main.css', 'chat-pages.css', 'market.css', 'group-chat.css', 'setting.css', 'tabbar.css', 'dark.css', 'garden.css', 'memo.css', 'memo-arc.css', 'room.css', 'drift-bottle.css', 'applock.css', 'feature-data.css', 'display-tune.css'];
-const jsFiles = ['device.js', 'idb.js', 'contacts.js', 'applock.js', 'card-lock.js', 'dcp-master.js', 'media-pool.js','storage-slim.js', 'perf-check.js', 'energy-check.js', 'flash-check.js', 'img-compress.js', 'img-ingest.js', 'clock.js', 'tabs.js', 'desktop-slider.js', 'quote-cards.js', 'personalize.js', 'chat.js', 'group-chat.js', 'chatcard.js', 'chat-settings.js', 'reply-settings.js', 'fav-settings.js', 'default-cards-data.js', 'dict-ext-data.js', 'default-cards.js', 'quote-spell.js', 'dream-free.js', 'mood-followup-data.js', 'mood-reply-cards.js', 'ta-mood-data.js', 'ta-mood.js', 'music-player.js', 'calendar.js', 'divination.js', 'avatar-lib.js', 'ta-ask.js', 'ck-question.js', 'incoming-requests.js', 'ta-invite.js', 'bg-keep.js', 'records.js', 'call.js', 'mail.js', 'feed.js', 'loc-lib.js', 'p2-features.js', 'gift-shop.js', 'memo-app.js', 'memo-arc.js', 'my-arc.js', 'period.js', 'accounting.js', 'garden.js', 'room.js', 'drift-bottle.js', 'decision.js', 'group-decision.js', 'pong.js', 'snake-game.js', 'breakout.js', 'connect-four.js', 'coop-mine.js', 'fishing.js', 'memory-game.js', 'gomoku.js', 'linkup.js', 'match3.js', 'auction.js', 'arcade.js', 'mood-diary.js', 'sfx.js', 'fullscreen.js', 'data-backup.js', 'feature-data.js', 'pwa.js', 'ver-check.js', 'cjian.js', 'feature-hub.js', 'settings-help.js', 'onboarding.js', 'page-coach.js', 'card-audit.js', 'storage-guide.js', 'mobile-adapt.js'];
+const jsFiles = ['device.js', 'idb.js', 'contacts.js', 'applock.js', 'card-lock.js', 'dcp-master.js', 'media-pool.js','storage-slim.js', 'perf-check.js', 'energy-check.js', 'flash-check.js', 'img-compress.js', 'img-ingest.js', 'clock.js', 'tabs.js', 'desktop-slider.js', 'quote-cards.js', 'personalize.js', 'chat.js', 'group-chat.js', 'chatcard.js', 'chat-settings.js', 'reply-settings.js', 'fav-settings.js', 'default-cards-data.js', 'dict-ext-data.js', 'default-cards.js', 'quote-spell.js', 'dream-free.js', 'mood-followup-data.js', 'mood-reply-cards.js', 'ta-mood-data.js', 'ta-mood.js', 'music-player.js', 'calendar.js', 'divination.js', 'avatar-lib.js', 'ta-ask.js', 'ck-question.js', 'incoming-requests.js', 'ta-invite.js', 'bg-keep.js', 'records.js', 'call.js', 'mail.js', 'feed.js', 'loc-lib.js', 'p2-features.js', 'gift-shop.js', 'memo-app.js', 'memo-arc.js', 'my-arc.js', 'period.js', 'accounting.js', 'garden.js', 'room.js', 'drift-bottle.js', 'decision.js', 'group-decision.js', 'pong.js', 'snake-game.js', 'breakout.js', 'connect-four.js', 'coop-mine.js', 'fishing.js', 'memory-game.js', 'gomoku.js', 'linkup.js', 'match3.js', 'auction.js', 'arcade.js', 'mood-diary.js', 'sfx.js', 'fullscreen.js', 'data-backup.js', 'feature-data.js', 'pwa.js', 'cjian.js', 'feature-hub.js', 'settings-help.js', 'onboarding.js', 'page-coach.js', 'card-audit.js', 'storage-guide.js', 'mobile-adapt.js'];
 
 // ===== PERF-PLAN 阶段 1：JS 外置化（2026-09-18）=====
 // 首开「3.8MB 内联 JS 主线程整段解析执行」是 iOS/中低端安卓卡顿的结构性大头
@@ -129,13 +129,13 @@ const jsFiles = ['device.js', 'idb.js', 'contacts.js', 'applock.js', 'card-lock.
 // · 粒度＝一功能文件一个 js/<file> 资源（消融实证：合成大块把单次冻结峰值 308→481ms）；
 // · 顺序＝extFiles 即 jsFiles.filter 产物，天然保持 jsFiles 原序（D2），执行时序回到
 //   外置化之前的单包语义，「core 不依赖 ext 加载期全局」这条隐性约束作废；
-// · 留内联仅 3 件系统件（D4-B 口径，~176KB minify 后）：device.js（系统基座/诊断分母）、
-//   pwa.js（#802 自愈引擎必须在火场里——pwa.js 自己 404 时没人重注入）、ver-check.js
-//   （依赖 pwa 的 mochiRefreshNow，与 pwa 同段保序）；
+// · 留内联仅 2 件系统件（D4-B 口径；2026-10-01 停更收口：ver-check.js 随开屏版本检测退役
+//   移出，原 3 件 ~176KB）：device.js（系统基座/诊断分母）、
+//   pwa.js（#802 自愈引擎必须在火场里——pwa.js 自己 404 时没人重注入）；
 // · ta-ask/records/p2-features 等当年「保守留 core」的顾虑随 D2 消失：全 defer 下执行
 //   顺序=jsFiles 原序，与单包一致，不存在「core 先行、ext 整体后移」的次序漂移。
 // 改这份清单必须同步看 PERF-PLAN §2 的分级规则与 tools/verify-ext-boot.mjs 裁决门。
-const CORE_KEEP_INLINE = { 'device.js': 1, 'pwa.js': 1, 'ver-check.js': 1 };
+const CORE_KEEP_INLINE = { 'device.js': 1, 'pwa.js': 1 };
 const extFiles = jsFiles.filter(f => !CORE_KEEP_INLINE[f]);
 const extSet = new Set(extFiles);
 const coreFiles = jsFiles.filter(f => !extSet.has(f));
@@ -2695,15 +2695,9 @@ const FIX_SENTINELS = [
   // ==== 2026-09-16 #555 安卓平板判定（device.js 只认 iPad/Macintosh 触摸屏，安卓平板
   // 竖屏被当手机全屏拉宽、横屏掉进桌面 390px 外壳；用户指派「没做平板适配」）====
   { name: '#555 安卓平板判定（删/改＝安卓平板回到手机拉宽/390px 外壳双症状）', file: 'js/device.js', needle: '!/Mobile/i.test(ua) && Math.min(_tw, _th) >= 600' },
-  // ==== 2026-09-16 #570 开屏新版检测（用户指派「独立的新版检测放开屏，显示现在是不是新版」；
-  // 新文件 ver-check.js + pwa.js 暴露预取刷新链 + template/base.css 锚点样式；#550~#560 区段已被并行批次占用故跳取 #570） ====
-  { name: '#570a 开屏检测行有新版分支（删则开屏永远不出「是不是新版」结论行，功能静默消失）', file: 'js/ver-check.js', needle: "set('stale', '⇩ 有新版本（落后' + gapStr(ts - localTs) + '）· 点此更新', true);" },
+  // ==== 2026-10-01 停更收口退役：#570a/#570c/#629a 三针随开屏版本检测功能整体下线（作者直派
+  // 「更新时间/更新提醒删掉」——ver-check.js 删除、检测行锚点撤除，退役有案 FIX-REGRESSION.md）。
   { name: '#570b pwa 预取刷新链暴露给开屏（删则「点此更新」退回裸 reload＝弱网/iOS 刷完仍旧版）', file: 'js/pwa.js', needle: 'window.mochiRefreshNow = function () { refreshNow(); };' },
-  { name: '#570c 开屏检测行静态锚点（删则 ver-check.js 找不到挂载点直接 return＝功能消失）', file: 'template.html', needle: 'id="splash-ver-check"' },
-  // ==== 2026-09-16 #629 开屏「刷了还是旧版」指引（用户反馈「无线网和流量都正常、多次刷新仍是
-  // 旧版」；同族 #157/#273/#570。锚点取「已刷过却仍旧版」的判定表达式——它被删/被短路即整条
-  // 指引消失、开屏只剩「点此更新」，用户又开始连点） ====
-  { name: '#629a 开屏「已刷过却仍旧版」判定（删/短路＝指引不出现，用户继续连点刷新＝真因被掩盖）', file: 'js/ver-check.js', needle: 'if (retryMarked() || isReloadEntry()) {' },
   // 同批：标记键是全局根键，漏登记 EXCLUDE 会被 migrateLegacy 每次刷新迁进 default 并删根键
   // （同 #231 的 ver-update-ack-ts/ver-update-notify）。实测写入后 navigate 2.2s 读回即 null。
   { name: '#629b 标记根键登记 EXCLUDE（删＝标记写一次就没，开屏永远只出「点此更新」）', file: 'js/contacts.js', needle: "'ver-retry'" },

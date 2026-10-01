@@ -254,20 +254,7 @@ if (dirty) run(); // 强刷回写
 (function () {
 const splash = document.getElementById('splash');
 if (!splash) return;
-const verEl = document.getElementById('splash-ver');
-const verLiveEl = document.getElementById('splash-ver-live');
-let _verIv = null;
-if (verEl && verLiveEl) {
-const pad2 = (n) => (n < 10 ? '0' + n : '' + n);
-const fill = () => {
-const d = new Date();
-verLiveEl.textContent = ' · ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
-};
-fill();
-_verIv = setInterval(fill, 1000);
-}
 const hide = () => {
-if (_verIv) { clearInterval(_verIv); _verIv = null; }
 if (splash.classList.contains('hide')) return;
 splash.classList.add('hide');
 setTimeout(() => { if (splash.parentNode) splash.parentNode.removeChild(splash); }, 400);

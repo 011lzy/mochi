@@ -336,20 +336,8 @@
 (function () {
   const splash = document.getElementById('splash');
   if (!splash) return;
-  // v3.5.96：开屏显示「部署版本（构建时注入）+ 实时时间」——手机端可随时验证是否最新部署
-  // v3.8.y：版本块分两行（名称+版本 / 部署时间），实时秒数只写进 #splash-ver-live，不再整块重写
-  const verEl = document.getElementById('splash-ver');
-  const verLiveEl = document.getElementById('splash-ver-live');
-  let _verIv = null;
-  if (verEl && verLiveEl) {
-    const pad2 = (n) => (n < 10 ? '0' + n : '' + n);
-    const fill = () => {
-      const d = new Date();
-      verLiveEl.textContent = ' · ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
-    };
-    fill();
-    _verIv = setInterval(fill, 1000);
-  }
+  // 2026-10-01（作者直派「已完结停更」收口）：版本块只留静态一行，部署时间/实时秒/检测行退役
+  //（#splash-ver-live 不复存在，此处原每秒刷新逻辑随之删除；#splash-ver 的 data-build-ts 仍供诊断读）。
   // v3.5.111：开屏含公告 → 点击进入才进页面（点任意处或「点击进入」按钮均可）
   // v3.5.122：开屏等待数据（IndexedDB 回填）就绪后才显示「点击进入」——
   //   就绪前只显示「正在加载数据…」，不提供"跳过加载"入口（跳过后桌面数据
@@ -357,8 +345,6 @@
   //   + 12 秒整体保险（idb.js），正常几秒完成；这里 20 秒保险丝兜底任何意外，
   //   确保开屏永不卡死、进入时数据已完整。
   const hide = () => {
-    // v3.5.129：开屏隐藏时才停止版本时间刷新（数据恢复慢时版本时间不再提前冻结）
-    if (_verIv) { clearInterval(_verIv); _verIv = null; }
     if (splash.classList.contains('hide')) return;
     splash.classList.add('hide');
     setTimeout(() => { if (splash.parentNode) splash.parentNode.removeChild(splash); }, 400);
