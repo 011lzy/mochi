@@ -10762,50 +10762,7 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
             <p class="splash-bullet"><b>换浏览器 / 换网址要重新允许</b>：通知权限按「浏览器 + 网址」记，Chrome 与 Edge 各自独立；同一台手机换了浏览器，按上面「收不到①」重做一遍即可。</p>
           </div>
         </div>
-      </div>
-    </div>
-    <!-- v3.8.y：底部操作区固定不随内容滚动；.splash-box 为整页滚动容器 -->
-    <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
-    <div class="splash-footcard">
-      <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <!-- #570：第三行开屏新版检测（ver-check.js 渲染）：检测中 / ✓已是最新 / ⇩有新版本可点更新 -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1790827220948">
-        <span class="sv-app">Mochi 字卡传讯 <b>v8.56</b></span>
-        <span class="sv-deploy">部署于 2026-10-01 12:00<span id="splash-ver-live"></span></span>
-        <span class="sv-check" id="splash-ver-check" hidden></span>
-      </div>
-      <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
-           只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
-      <div class="splash-loading" id="splash-loading">正在加载数据…</div>
-      <!-- #657：等得比较久时就地解释「为什么慢、不是坏了」——用户普遍把开屏等待当成 bug，
-           而这一刻他盯着的是这里、不会去翻公告章节。默认 hidden，只在
-           「数据多未就绪(slow)」或「数据已就绪但整页 5.5MB 资源还没加载完」时由 clock.js 显示 -->
-      <div class="splash-loading-sub" id="splash-loading-sub" hidden>首次打开要先联网下载整个网站的代码，再取回存在你本机的数据；网速慢、设备越旧、数据越多都会更慢，属正常，不是坏了。若长时间停在「正在加载页面」，多与当前网络连不上有关（某些 WiFi 对本站不稳定），换一个网络（WiFi 与流量互换）再试通常就能打开。</div>
-      <!-- v3.8.y：必须把公告滑到底才能进入——未到底时按钮置灰不可点，下方提示滑动 -->
-      <div class="splash-enter-hint" id="splash-enter-hint" hidden>请滑到底部后进入</div>
-      <!-- #315c：一次性年龄确认勾选——勾选后才可进入（clock.js 门控），确认一次后永久记住；
-           把免责从「默认你看了」升级为「明确勾选确认」，未勾选时进入按钮置灰 -->
-      <label class="splash-age" id="splash-age-row" hidden>
-        <input type="checkbox" id="splash-age-check">
-        <span>我已阅读并同意上方全部说明，确认本人已年满 18 周岁</span>
-        <!-- #1453：勾选行旁一条「查看免责声明」锚点——点它滚回上面那张免责卡（clock.js 接线，smooth 滚动手感同目录跳转）。
-             用 <a href="#splash-disclaimer"> 而非 span：不依赖 JS 也能跳（渐进增强）、原生可聚焦；JS 里 preventDefault 后不用 hash 跳转。
-             只提供查看入口，不改变门控：未勾选仍进不去（updateEnterState 一字未动） -->
-        <a class="splash-age-view" id="splash-age-view" href="#splash-disclaimer">查看免责声明</a>
-      </label>
-      <div class="splash-btns">
-        <!-- v3.26.x：按钮文案「点击进入」→「我已阅读并知晓」——把进入动作显性化为已读确认（公告没人看的低成本对策第一步；门控/样式/脚本定位均未动） -->
-        <div class="splash-enter" id="splash-enter" hidden>我已阅读并知晓</div>
-      </div>
-      <!-- v3.26.x：数据加载超 12 秒仍未就绪时的逃生口（clock.js 控制显隐，默认 hidden）；
-           点此进入会提示「数据仍在加载，部分内容可能暂时看不见」，避免静默放行误入空数据 -->
-      <div class="splash-force-enter" id="splash-force-enter" hidden>仍要进入</div>
-    </div>
-    <!-- v3.26.x：点击进入后强制观看公告——每次点「我已阅读并知晓」都会先弹这一页（作者道别公告
-         月底停更 / 停更后建议；二传二改与二级密码已并入主公告『许可 · 署名 · 灵感来源』章，此处不再重复），
-         必须把整页滑到底、点【我已阅读并确认进入】才能真正进入；
-         门控逻辑在 clock.js（mandBottom 未到底时按钮 is-disabled 不可点），不可删除或绕过 -->
-    <div class="splash-mandatory" id="splash-mandatory" hidden>
+        <!-- 开屏1页：原第二页(splash-mandatory)内容并入第一页，clock.js showMandatory 因 mandEl=null 自动 finishEnter -->
       <div class="splash-mandatory-scroll" id="splash-mandatory-scroll">
         <div class="splash-mandatory-head">
           <div class="splash-mandatory-title">进入前 · 作者必读公告</div>
@@ -10978,10 +10935,44 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
         <div class="splash-mandatory-end">—— 公告完 ——</div>
         <div class="splash-mandatory-note">使用之前请先看第一页的开屏公告，很多问题上面都写了。说实话是公告越来越长了，但是大部分人就是不看，我也没有办法。另：本页说的「让 AI 修」和开屏公告里的「问 AI」都只是使用建议——AI 无法保证 100% 正确，AI 也会出错和骗人，AI 给的答案请自行甄别。</div>
       </div>
-      <div class="splash-mandatory-foot">
-        <div class="splash-mandatory-hint" id="splash-mandatory-hint">请滑到底部后确认进入</div>
-        <div class="splash-mandatory-enter" id="splash-mandatory-enter">我已阅读并确认进入</div>
       </div>
+    </div>
+    <!-- v3.8.y：底部操作区固定不随内容滚动；.splash-box 为整页滚动容器 -->
+    <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
+    <div class="splash-footcard">
+      <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
+      <!-- #570：第三行开屏新版检测（ver-check.js 渲染）：检测中 / ✓已是最新 / ⇩有新版本可点更新 -->
+      <div class="splash-ver" id="splash-ver" data-build-ts="1790829936174">
+        <span class="sv-app">Mochi 字卡传讯 <b>v8.64</b></span>
+        <span class="sv-deploy">部署于 2026-10-01 12:45<span id="splash-ver-live"></span></span>
+        <span class="sv-check" id="splash-ver-check" hidden></span>
+      </div>
+      <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
+           只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
+      <div class="splash-loading" id="splash-loading">正在加载数据…</div>
+      <!-- #657：等得比较久时就地解释「为什么慢、不是坏了」——用户普遍把开屏等待当成 bug，
+           而这一刻他盯着的是这里、不会去翻公告章节。默认 hidden，只在
+           「数据多未就绪(slow)」或「数据已就绪但整页 5.5MB 资源还没加载完」时由 clock.js 显示 -->
+      <div class="splash-loading-sub" id="splash-loading-sub" hidden>首次打开要先联网下载整个网站的代码，再取回存在你本机的数据；网速慢、设备越旧、数据越多都会更慢，属正常，不是坏了。若长时间停在「正在加载页面」，多与当前网络连不上有关（某些 WiFi 对本站不稳定），换一个网络（WiFi 与流量互换）再试通常就能打开。</div>
+      <!-- v3.8.y：必须把公告滑到底才能进入——未到底时按钮置灰不可点，下方提示滑动 -->
+      <div class="splash-enter-hint" id="splash-enter-hint" hidden>请滑到底部后进入</div>
+      <!-- #315c：一次性年龄确认勾选——勾选后才可进入（clock.js 门控），确认一次后永久记住；
+           把免责从「默认你看了」升级为「明确勾选确认」，未勾选时进入按钮置灰 -->
+      <label class="splash-age" id="splash-age-row" hidden>
+        <input type="checkbox" id="splash-age-check">
+        <span>我已阅读并同意上方全部说明，确认本人已年满 18 周岁</span>
+        <!-- #1453：勾选行旁一条「查看免责声明」锚点——点它滚回上面那张免责卡（clock.js 接线，smooth 滚动手感同目录跳转）。
+             用 <a href="#splash-disclaimer"> 而非 span：不依赖 JS 也能跳（渐进增强）、原生可聚焦；JS 里 preventDefault 后不用 hash 跳转。
+             只提供查看入口，不改变门控：未勾选仍进不去（updateEnterState 一字未动） -->
+        <a class="splash-age-view" id="splash-age-view" href="#splash-disclaimer">查看免责声明</a>
+      </label>
+      <div class="splash-btns">
+        <!-- v3.26.x：按钮文案「点击进入」→「我已阅读并知晓」——把进入动作显性化为已读确认（公告没人看的低成本对策第一步；门控/样式/脚本定位均未动） -->
+        <div class="splash-enter" id="splash-enter" hidden>我已阅读并知晓</div>
+      </div>
+      <!-- v3.26.x：数据加载超 12 秒仍未就绪时的逃生口（clock.js 控制显隐，默认 hidden）；
+           点此进入会提示「数据仍在加载，部分内容可能暂时看不见」，避免静默放行误入空数据 -->
+      <div class="splash-force-enter" id="splash-force-enter" hidden>仍要进入</div>
     </div>
   </div>
   <div class="phone">
@@ -12489,7 +12480,7 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
         <div class="set-row" id="row-changelog">
           <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 12c0-5.5 3.5-10 10-10 3.7 0 7 2 8.8 5M22 12c0 5.5-3.5 10-10 10-3.7 0-7-2-8.8-5"/></svg></div>
           <div class="txt">版本与更新<span class="sub">当前版本 · 一键更新到最新（更新摘要见开屏公告）</span></div>
-          <div class="val" id="about-ver-val">v8.56</div>
+          <div class="val" id="about-ver-val">v8.64</div>
           <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></div>
         </div>
         <!-- #606 开源与致谢：开源/私有部署说明 + 灵感来源与致谢（内容与功能介绍页同源，做成独立入口） -->
@@ -12580,7 +12571,7 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
         </div>
       </div>
       </div><!-- /them-sec about -->
-      <div class="ver">Mochi 字卡传讯 v8.56</div>
+      <div class="ver">Mochi 字卡传讯 v8.64</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -12979,7 +12970,7 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v8.56</span>
+              <span class="lic-ver">v8.64</span>
             </div>
             <div class="lic-p">原创极简风情侣字卡传讯，不是小手机：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <!-- v3.26.x #648：原版口径澄清——唯一原版使用网站＋其他版本均为开放二传二改产生的二传/二改版 -->
@@ -22823,4 +22814,4 @@ window.__mochiBootRetry = function () { try { location.reload(); } catch (e) {} 
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mup0af9w -->
+<!-- __MOCHI_EOF__ mup1wmcu -->
