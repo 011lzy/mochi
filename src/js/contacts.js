@@ -12,6 +12,12 @@
     // 旧值（用户反馈：玩 4 天桌面「已摸鱼」显示第 2 天）。fish-log-global-migrated 为
     // 合并幂等标记键，同为全局根键。二者都不随联系人隔离，绝不能迁移。
     'fish-log', 'fish-log-global-migrated',
+    // #1541：开屏/系统标记键出生即根域全局键，读取方都只认根键——此前漏排除，每次刷新
+    // 被 migrateLegacy 当旧顶层业务键迁进 default 并删根键：① age-confirmed（#1475 版本化
+    // 年龄确认）每次开屏都要重新勾；② storage-guide-shown（#1250 存储修复引导已送达标记，
+    // LS 快路径每启必 miss，全靠 markShown 写的 IDB 那份兜底才没反复重弹）；③ splash-seen:*
+    // （每日首开强读标记，见 isExcluded 前缀挡）天天失效。
+    'age-confirmed', 'storage-guide-shown',
     // v3.17.x：跨桌面「来消息」全局根键——incoming-requests（申请队列）、
     // desk-checkin-en（桌面查岗全局开关）与 desk-call-en（跨桌面来电全局开关）都存
     // 根命名空间、全桌面通，绝不随联系人隔离，防 migrateLegacy 每次刷新搬进 default
@@ -226,6 +232,9 @@
     // 每刷新清空、大键/脏键索引反复丢失，LS 回滚家族（#82/#88/#226/#229）自愈被持续削弱。
     if (r.indexOf('__') === 0) return true;
     if (EXCLUDE.indexOf(r) >= 0) return true;
+    // #1541：每日首开已读标记 splash-seen:<日期>——键名带日期后缀，EXCLUDE 精确名单盖不住，
+    // 按前缀挡迁移（clock.js 每日写当日新键，昨天的自然过期，无需回收）。
+    if (r.indexOf('splash-seen:') === 0) return true;
     // v3.9.x：reply-gc-* 群聊全局设置键同样不能迁移（无冒号，原逻辑会误判为旧业务键）
     if (r.indexOf('reply-gc-') === 0) return true;
     if (r.indexOf('music-file:') === 0) return true;
@@ -441,8 +450,14 @@
   window.createContact = function (name) {
     const list = getContacts();
     const id = 'c' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
-    list.push({ id: id, name: name || ('联系人' + (list.length)) });
+    const nm = name || ('联系人' + (list.length));
+    list.push({ id: id, name: nm });
     regStore().set('contacts', JSON.stringify(list));
+    // #1541c：新建即写该桌面 lbl-partner＝联系人名——桌面「TA/我」圆签（personalize
+    // paintDeskNames 读它）切过去当场显示名字，与 renameContact 改名同步 lbl-partner
+    // 的既有行为对齐；不写则新桌面回退 taWord() 恒显「TA」，与默认桌面视觉无差＝
+    // 「切了等于没切」（用户口径「添加联系人桌面无反应」的观感之一）。
+    try { window.xyStore(G + ':' + id).set('lbl-partner', nm); } catch (e) {}
     return id;
   };
   window.renameContact = function (id, name) {
@@ -710,6 +725,25 @@
         try { def.remove(k); } catch (e) {}
       }
     });
+    // #1541：上面三键（age-confirmed / storage-guide-shown）与 splash-seen:* 的存量副本回收
+    // ——修复前已被误迁进 default 的那份写回根键找回（根键已有值只删副本，pomo-* 同款）：
+    // 不找回＝已确认过年龄的存量用户每次开屏仍要重新勾、引导标记仍缺。splash-seen 副本
+    // 是过期日期标记，只删不回（当日根键由 clock.js 自己重写）。
+    ['age-confirmed', 'storage-guide-shown'].forEach(function (k) {
+      const v = def.get(k);
+      if (v !== null && v !== undefined && v !== '') {
+        try { if (root.get(k) === null || root.get(k) === undefined) root.set(k, v); } catch (e) {}
+        try { def.remove(k); } catch (e) {}
+      }
+    });
+    try {
+      const stale = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const kk = localStorage.key(i);
+        if (kk && kk.indexOf(G + ':default:splash-seen:') === 0) stale.push(kk);
+      }
+      stale.forEach(function (kk) { try { localStorage.removeItem(kk); } catch (e2) {} });
+    } catch (e) {}
     const old = [];
     // v3.6.x：顺带清理存量双重前缀垃圾键（default:default:*）——旧版迁移误把命名空间键
     // 再迁一层产生，读取不命中但占存储，安全删除
@@ -955,6 +989,9 @@
       if (window.openModal) window.openModal('新建联系人', '', (v) => {
         const name = (v || '').trim(); if (!name) return;
         const id = window.createContact(name); window.setActiveContact(id); hideContactModal(m);
+        // #1541c：即时反馈——新桌面未设壁纸/头像时与默认桌面视觉相同，无反馈＝
+        // 「点了没反应」错觉；toast 点名已切换＋桌面圆签当场显示新名双保险。
+        try { if (window.toast) window.toast('已创建「' + name + '」的桌面，已为你切换'); } catch (e) {}
       });
     });
     box.appendChild(add);

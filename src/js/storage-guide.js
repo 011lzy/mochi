@@ -74,6 +74,10 @@
       // 连流程一起抢走，落点还会打在换上的按钮上（无头实测 B2 假象同形）。让路重试，不抢。
       const mask = document.getElementById('modal-mask');
       if (mask && !mask.hidden) { setTimeout(proceed, 2500); return; }
+      // #1541a：modal-mask 之外的自绘弹层（联系人管理面板 #contact-manager 等）开着同样让路
+      // ——它们不占 mask，却正被用户操作；抢开＝连同其上层输入弹窗一起顶掉（「添加联系人
+      // 桌面无反应」主因，探针实测 300ms 内引导顶上）。
+      if (window.mochiOverlayBusy && window.mochiOverlayBusy()) { setTimeout(proceed, 2500); return; }
       doneThisSession = true;
       try { showGuide(); } catch (e) {}
     };

@@ -504,6 +504,9 @@
       if (typeof window.openModal !== 'function') return 'nofn';
       const mask = document.getElementById('modal-mask');
       if (mask && !mask.hidden) return 'busy';
+      // #1541a 同族：modal-mask 之外的自绘弹层（联系人管理面板 #contact-manager 等）开着
+      // 也是占用——返 busy 下轮复查再弹，不顶掉用户正在操作的层及其上层输入弹窗。
+      if (window.mochiOverlayBusy && window.mochiOverlayBusy()) return 'busy';
       const intro = everBacked
         ? '距上次完整备份已经 ' + days + ' 天了。'
         : '你到现在还没做过一次完整的数据备份（「备份聊天」只含聊天记录，不算完整备份）。';

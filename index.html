@@ -10951,7 +10951,7 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
            （名称+版号 / 部署时间+实时秒 / 版本检测行）收成一行；检测行随 ver-check.js 退役删除。
            data-build-ts / data-version 两属性保留：device.js 诊断、bg-keep 自检、pwa.js 旧包检测
            仍只读属性（诊断版本号走 data-version 兜底，device.js 两处缓存原生支持）。 -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1790863867673" data-version="v8.66">
+      <div class="splash-ver" id="splash-ver" data-build-ts="1790868350521" data-version="v8.66">
         <span class="sv-app">Mochi 字卡传讯 已完结停更</span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
@@ -17847,6 +17847,33 @@ show();
 } catch (e) {}
 };
 } catch (e) {}
+try {
+window.mochiOverlayBusy = function () {
+try {
+const roots = [];
+if (document.body) roots.push(document.body);
+const ph = document.querySelector('.phone');
+if (ph && ph !== document.body) roots.push(ph);
+const vw = window.innerWidth || 1, vh = window.innerHeight || 1;
+for (let r = 0; r < roots.length; r++) {
+const kids = roots[r].children;
+for (let i = 0; i < kids.length; i++) {
+const el = kids[i];
+if (el.hidden || el.id === 'modal-mask') continue;
+const cs = getComputedStyle(el);
+if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+if (cs.position !== 'fixed') continue;
+if (cs.pointerEvents === 'none') continue;
+const rc = el.getBoundingClientRect();
+if (rc.width * rc.height < vw * vh * 0.5) continue;
+const z = parseInt(cs.zIndex, 10);
+if (!isNaN(z) && z >= 80) return true;
+}
+}
+} catch (e) {}
+return false;
+};
+} catch (e) {}
 let isMobile = false;
 try { isMobile = window.matchMedia && window.matchMedia('(max-width: 900px)').matches; } catch (e) {}
 let mobileRule = isMobile ? 'viewport<=900' : '';
@@ -22169,6 +22196,7 @@ function openBackupModal(days, everBacked) {
 if (typeof window.openModal !== 'function') return 'nofn';
 const mask = document.getElementById('modal-mask');
 if (mask && !mask.hidden) return 'busy';
+if (window.mochiOverlayBusy && window.mochiOverlayBusy()) return 'busy';
 const intro = everBacked
 ? '距上次完整备份已经 ' + days + ' 天了。'
 : '你到现在还没做过一次完整的数据备份（「备份聊天」只含聊天记录，不算完整备份）。';
@@ -22711,4 +22739,4 @@ window.__mochiBootRetry = function () { try { location.reload(); } catch (e) {} 
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mupm3w2h -->
+<!-- __MOCHI_EOF__ muporz21 -->

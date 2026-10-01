@@ -3,6 +3,7 @@
 const G = 'xy-home-v2';
 const EXCLUDE = ['contacts', 'active-contact', 'feed-posts', 'migrated-v1', 'js-errors', 'theme-mode', 'accent-color',
 'fish-log', 'fish-log-global-migrated',
+'age-confirmed', 'storage-guide-shown',
 'incoming-requests', 'desk-checkin-en', 'desk-call-en', 'desk-freq-mode', 'call-hold',
 'night-mode-en',
 'group-chat-msgs',
@@ -56,6 +57,7 @@ function isExcluded(k) {
 const r = k.slice(G.length + 1);
 if (r.indexOf('__') === 0) return true;
 if (EXCLUDE.indexOf(r) >= 0) return true;
+if (r.indexOf('splash-seen:') === 0) return true;
 if (r.indexOf('reply-gc-') === 0) return true;
 if (r.indexOf('music-file:') === 0) return true;
 if (r.indexOf('font-blob-') === 0) return true;
@@ -183,8 +185,10 @@ window.getActiveContact = function () { return window.__activeCid || 'default'; 
 window.createContact = function (name) {
 const list = getContacts();
 const id = 'c' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
-list.push({ id: id, name: name || ('联系人' + (list.length)) });
+const nm = name || ('联系人' + (list.length));
+list.push({ id: id, name: nm });
 regStore().set('contacts', JSON.stringify(list));
+try { window.xyStore(G + ':' + id).set('lbl-partner', nm); } catch (e) {}
 return id;
 };
 window.renameContact = function (id, name) {
@@ -351,6 +355,21 @@ try { if (root.get(k) === null || root.get(k) === undefined) root.set(k, v); } c
 try { def.remove(k); } catch (e) {}
 }
 });
+['age-confirmed', 'storage-guide-shown'].forEach(function (k) {
+const v = def.get(k);
+if (v !== null && v !== undefined && v !== '') {
+try { if (root.get(k) === null || root.get(k) === undefined) root.set(k, v); } catch (e) {}
+try { def.remove(k); } catch (e) {}
+}
+});
+try {
+const stale = [];
+for (let i = 0; i < localStorage.length; i++) {
+const kk = localStorage.key(i);
+if (kk && kk.indexOf(G + ':default:splash-seen:') === 0) stale.push(kk);
+}
+stale.forEach(function (kk) { try { localStorage.removeItem(kk); } catch (e2) {} });
+} catch (e) {}
 const old = [];
 const garbage = [];
 for (let i = 0; i < localStorage.length; i++) {
@@ -546,6 +565,7 @@ add.addEventListener('click', () => {
 if (window.openModal) window.openModal('新建联系人', '', (v) => {
 const name = (v || '').trim(); if (!name) return;
 const id = window.createContact(name); window.setActiveContact(id); hideContactModal(m);
+try { if (window.toast) window.toast('已创建「' + name + '」的桌面，已为你切换'); } catch (e) {}
 });
 });
 box.appendChild(add);

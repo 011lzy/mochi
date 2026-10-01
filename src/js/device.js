@@ -48,6 +48,46 @@
       } catch (e) {}
     };
   } catch (e) {}
+  // ===== #1541a：全站自绘弹层占用探测（存储修复引导/备份提醒开弹前判定）=====
+  // #modal-mask(z90) 之外还有一批自绘 fixed 弹层——联系人管理面板 #contact-manager(z89)、
+  // 朋友圈/经期等全屏面板(z80~99)——不占 modal-mask，只查 mask 会漏判占用：引导/备份提醒
+  // 把用户正在操作的面板连同其上层 openModal 输入框整个顶掉（探针实测：添加联系人点确定
+  // 后 80ms 输入弹窗正常关闭、300ms 内「更新完成·存储修复引导」自动顶上＝用户口径
+  // 「添加联系人桌面无反应」主因）。判据只取代码事实：body / .phone 直子中 position:fixed、
+  // 可见、z-index ≥ 80 且拦截点击（非 pointer-events:none）的层在开＝占用。纯装饰层
+  // （桌面挂件 9998/9999 均带 pointer-events:none）与常驻低层（状态栏/标签栏 z≤78）天然
+  // 排除；开屏 #splash(999) 开着同样算占用＝顺带修掉「引导在开屏底下已弹已写标记、用户
+  // 进入后永远看不到」的存量盲弹。
+  try {
+    window.mochiOverlayBusy = function () {
+      try {
+        const roots = [];
+        if (document.body) roots.push(document.body);
+        const ph = document.querySelector('.phone');
+        if (ph && ph !== document.body) roots.push(ph);
+        const vw = window.innerWidth || 1, vh = window.innerHeight || 1;
+        for (let r = 0; r < roots.length; r++) {
+          const kids = roots[r].children;
+          for (let i = 0; i < kids.length; i++) {
+            const el = kids[i];
+            if (el.hidden || el.id === 'modal-mask') continue;
+            const cs = getComputedStyle(el);
+            if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+            if (cs.position !== 'fixed') continue;
+            if (cs.pointerEvents === 'none') continue;
+            // 面积过半才算弹层——排除桌面顶部问候/消息小卡（#daily-greet/#desk-msg 同为 z89
+            // 的产品功能浮层，常驻/自动收，不是用户正在操作的弹窗；把它们算占用的实际后果
+            // ＝引导/备份提醒被常驻层永久卡死不弹）
+            const rc = el.getBoundingClientRect();
+            if (rc.width * rc.height < vw * vh * 0.5) continue;
+            const z = parseInt(cs.zIndex, 10);
+            if (!isNaN(z) && z >= 80) return true;
+          }
+        }
+      } catch (e) {}
+      return false;
+    };
+  } catch (e) {}
   // 只在真实手机窄屏启用（桌面模拟器外壳不受影响）
   // v3.5.137：900px——Moto G100 等 2400px 物理屏 / DPR 2.75-3 的 CSS 视口约 800-873px，
   // 原 768px 上限会误判为桌面（显示 390px 小手机框 + 两侧灰底）

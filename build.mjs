@@ -392,6 +392,13 @@ console.log('已复制 PWA 文件 → ' + pwaFiles.join(', ') + '（sw 缓存版
 // （防止并行会话/旧缓冲把已移除的代码改回来）。
 // 维护：新增关键修复时在此登记一行 { name, file, needle }（needle 为产物中的特征串）。
 const FIX_SENTINELS = [
+  // ==== 2026-10-01 #1541 用户报「为什么添加联系人 桌面无反应」——探针实证：添加链路全绿，主因＝#1250 存储修复引导（300ms 内）／备份提醒抢开全站单例弹窗把「新建联系人」输入框连操作面板一起顶掉＋新桌面未写 lbl-partner 切过去与默认桌面视觉无差（切了等于没切）====
+  { name: '#1541a 自绘弹层占用探测判据（fixed·可见·拦点击·面积过半·z≥80；删或改判据＝引导/备份提醒又开始顶用户正在操作的层，或反过来被桌面问候小卡永久卡死不弹）', file: 'js/device.js', needle: 'rc.width * rc.height < vw * vh * 0.5' },
+  { name: '#1541b 存储修复引导开弹前让路自绘弹层（只查 modal-mask＝联系人管理面板里点添加又被引导顶掉）', file: 'js/storage-guide.js', needle: "window.mochiOverlayBusy()) { setTimeout(proceed, 2500); return; }" },
+  { name: '#1541c 备份提醒同族 busy（自绘弹层开着返 busy 下轮复查，不顶掉用户正在操作的层）', file: 'js/pwa.js', needle: "window.mochiOverlayBusy()) return 'busy';" },
+  { name: '#1541d 新建联系人即写该桌面 lbl-partner（删＝新桌面圆签恒回退「TA」，与默认桌面视觉无差＝切了等于没切）', file: 'js/contacts.js', needle: "xyStore(G + ':' + id).set('lbl-partner', nm)" },
+  { name: '#1541e 添加成功即时 toast 点名已切换（删＝新桌面视觉无差时「点了没反应」错觉无解）', file: 'js/contacts.js', needle: "window.toast('已创建「' + name + '」的桌面，已为你切换')" },
+  { name: '#1541f 系统标记键挡迁移（age-confirmed/storage-guide-shown 被误迁删根键＝年龄每次重勾、引导标记每启被打掉靠 IDB 兜底）', file: 'js/contacts.js', needle: "'age-confirmed', 'storage-guide-shown'," },
   // ==== 2026-09-30 #1502 作者直派「11、自定义字卡全量导入导出／关于「多选题」／16、关于查岗与贴贴 放在功能的使用说明里有就行，不需要在公告里；13、关于使用过程中的更新提醒 删掉」——四章两源同批下线（内容本身在功能使用处各有落点：字卡库「自定义字卡·全量导出/导入」入口、问卷设置页题干说明、主页三栏查岗/贴贴记录、设置→版本与更新）====
   { name: '#1502a 在线源不得再有「自定义字卡全量导入导出」章（回流＝开屏公告又复述功能说明）', file: 'pwa/notice.json', needle: '"自定义字卡全量导入导出"', absent: true },
   { name: '#1502b 在线源不得再有「关于使用过程中的更新提醒」章（作者直派删；更新口径走 设置→版本与更新 与开屏版本条）', file: 'pwa/notice.json', needle: '"关于使用过程中的更新提醒"', absent: true },
