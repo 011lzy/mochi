@@ -6469,7 +6469,7 @@ const FIX_SENTINELS = [
   { name: '#1522b 花园年报整包盲写已退役（删除型；回流＝JSON.parse(st.get(FK)) 读空顶库、st.set 整包写回复发）', file: 'js/garden.js', needle: 'st.set(FK, raw)', absent: true },
   { name: '#1522c 冷读合并落定同拍刷新待写槽（删＝已排程的陈旧 arr 在合并后照写＝权威整本被顶回残缺形态丢历史）', file: 'js/feed.js', needle: 'if (!degraded && feedWritePending) feedWritePending = merged;' },
     { name: '#1524a 三类内核一条规则·主链（删＝800/650/300ms 时间引信＝打字间隔＞窗口必拆会话＝两态横跳引擎）', file: 'js/mobile-adapt.js', needle: 'return _aVkHonest ? (_aVkH >= 80 || !_aVkSeen) : !_aHonestSession;' },
-    { name: '#1524b 诚实内核判位＝收缩持续存在（删＝单拍瞬时收缩也被当成诚实内核＝overlay 内核 400ms 后被误拆会话，实测尺来不及接管）', file: 'js/mobile-adapt.js', needle: 'if (_aLowRuns >= 2 && _aLowSince && (Date.now() - _aLowSince) > 400) _aHonestSession = 1; _aLowRuns = 0; _aLowSince = 0;' },
+    { name: '#1524b 诚实内核判位＝收缩持续存在（删＝单拍瞬时收缩也被当成诚实内核＝overlay 内核 400ms 后被误拆会话，实测尺来不及接管）', file: 'js/mobile-adapt.js', needle: 'if (_aLowRuns >= 2 && _aLowSince && (Date.now() - _aLowSince) > 120) _aHonestSession = 1; _aLowRuns = 0; _aLowSince = 0;' },
     { name: '#1524c 实测尺「未实测到过」态（删＝武装当场读到 0 当成键盘已收＝overlay 内核实测尺来不及接管，实测停靠退化成 58% 保底＝输入栏与键盘之间巨大空隙）', file: 'js/mobile-adapt.js', needle: '|| !_aVkSeen)' },
     { name: '#1524d 残差只在读数/轴值变化后记一次（删＝每拍残差自反馈振荡＝GT7 实报打字时闪屏抖动）', file: 'js/mobile-adapt.js', needle: 'if (_sig === _aLastDockSig) return \'\';' },
     { name: '#1524e 高度出口取整＋2px 死区（删＝逐拍写 637.333px 小数＝OPPO reno16 实报闪屏抖动源）', file: 'js/mobile-adapt.js', needle: 'if (want > 0 && Math.abs(want - _cur) > 2) _aPhone.style.height = want + \'px\';' },
@@ -6478,6 +6478,7 @@ const FIX_SENTINELS = [
     { name: '#1524h 实测尺武装当场读一次高度（删＝geometrychange 只在高度变化时发，武装后键盘不再变则永远读不到实测高度＝退化成 58% 盲猜）', file: 'js/mobile-adapt.js', needle: 'try { _applyVk(); } catch (eA) {}' },
   { name: '#1523a 自己发消息这一发挂落定同值重落枪（删＝三连写落在几何风暴中间态后无任何补口＝我发的气泡停在视口外，只有整窗重画才回来）', file: 'js/chat.js', needle: "chatResumeRealign('send');" },
   { name: '#1523b 站内进聊天页挂落定同值重落枪（删＝切页回聊天不发 visibilitychange，四把回场枪一把都不经过，同窗补丁零重建时撕裂态永无补口）', file: 'js/chat.js', needle: "chatResumeRealign('enter');" },
+  { name: '#1526a 诚实判位跨度 120ms（删＝回到 400ms＝互动卡这类短会话「点开即答即收」凑不满跨度掉进 B 型顶住＝收口拖 1.1s；无头实测 2500ms 会话 13ms 收 / 300ms 会话修复前 1105ms、修复后 16ms＝用户报「同一台 K80 Chrome 主输入栏秒收、互动卡不秒收」定罪）', file: 'js/mobile-adapt.js', needle: '(_aLowRuns >= 2 && _aLowSince && (Date.now() - _aLowSince) > 120)' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

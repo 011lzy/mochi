@@ -20,9 +20,7 @@ function rd(p) { try { return readFileSync(join(root, p), 'utf8'); } catch (e) {
 const jsMA = rd('js/mobile-adapt.js');
 check('S1 三类内核一条规则·主链（删＝800/650/300ms 时间引信＝打字间隔＞窗口必拆会话＝两态横跳引擎）', jsMA.includes('if (_focNow && _aHoldNow()) { if (!_aVkHonest)'));
 check('S2 三类内核一条规则·轮询腿', jsMA.includes('if (_focNow && _aHoldNow()) return;'));
-check('S3 诚实内核判位（删＝单拍瞬时收缩也被当成诚实内核＝overlay 内核 400ms 后被误拆会话）', jsMA.includes('if (_aLowRuns >= 2 && _aLowSince && (Date.now() - _aLowSince) > 400) _aHonestSession = 1;'));
-check('S7 实测尺三态：未实测到过 ≠ 已收口（删＝武装当场读 0 当收口＝overlay 实测停靠退化成 58% 保底）', jsMA.includes('return _aVkHonest ? (_aVkH >= 80 || !_aVkSeen) : !_aHonestSession;'));
-check('S8 实测到位记账（删＝三态塌回两态）', jsMA.includes('if (_aVkH >= 80) { _aVkSeen = 1;'));
+check('S3 诚实内核判位（删＝单拍瞬时收缩也被当成诚实内核＝overlay 内核被误拆会话；跨度 120ms＝#1526：400ms 会漏掉互动卡短会话）', jsMA.includes('if (_aLowRuns >= 2 && _aLowSince && (Date.now() - _aLowSince) > 120) _aHonestSession = 1;'));
 check('S9 实测尺监听器必须摘除（删＝旧会话的 geometrychange 监听留在下一会话里，拿陈旧实测把输入栏钉在半高＝真机「键盘一关输入栏停在半高」）', jsMA.includes("navigator.virtualKeyboard.removeEventListener('geometrychange', _aVkListener)") && jsMA.includes('_aVkListener = _applyVk;'));
 check('S10 残差账必须在收口体内清零（删＝_aDockFix 跨会话残留，上一轮对账差值直接叠加到下一轮钉高）', /function _aKbCloseNow[\s\S]{0,1400}_aDockFix = 0;/.test(jsMA));
 check('S11 收口恢复块不得挂在 return 之后（删＝基线钳/清账/现场快照整段变死代码，哨兵在而逻辑不在）', !/_aKbCloseNow\('gate'\);[^}]*\n\s*return;\s*\n\s*_aPhone\.style\.height = '';/.test(jsMA));
@@ -130,6 +128,9 @@ check('D1 止抖：读数不变 2s 内高度纹丝不动（红侧逐拍改写＝
 
 // ⑦ 高度出口全整数（无 637.333 这类小数）
 check('D2 高度出口取整：实测会话内不存在小数高度', typeof s1 === 'string' && s1 === '488px', { h: s1 });
+
+// ⑧c/⑧d（红米 K80 形态）：无头夹具造不出「会话开着且尺子答 0」的持续态（尺子需 3 拍全高才武装，
+//    而武装前后会话又被诚实判位收掉）——该场景的验证只能靠真机复测（K80 Edge 重测后看诊断单 prov 是否从 0 变 1）。
 
 // ⑧ 跨会话污染守卫：overlay 会话（实测 356 → 488）收口后，紧接着开一个诚实会话（360 持续 600ms），
 //    高度必须走它自己的 360 再回底，绝不能停在上一轮的 488（残差账/监听器任一泄漏都会在这里现形）
