@@ -1484,7 +1484,7 @@ try {
 if (!_aKb || _aClosing || !_aVV || !_aPhone) return;
 if (Date.now() < _aHoldSuppressUntil) return; // #1524：抑制窗内不推顶
 var _hv = _aKbFeedH(); // #1481：会话内不信瞬时全高读数
-var want = Math.round(_hv + _aKbGap() + Math.round(_aDockFix));
+var want = Math.round(_hv + _aKbGap()); // #1535：残差账退出高度（采样环实锤：钉高 251 = 可视 411 + 脏账 -160，输入栏悬在键盘上沿 160px 之上＝主诉空隙；9/28 无此账时是直写、正常）
 var _cur = parseInt(_aPhone.style.height, 10) || 0;
 if (want > 0 && Math.abs(want - _cur) > 2) _aPhone.style.height = want + 'px'; // #1524：出口取整＋2px 死区
 } catch (ePH) {}

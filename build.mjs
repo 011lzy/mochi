@@ -6497,6 +6497,7 @@ const FIX_SENTINELS = [
   { name: '#1533a 残差账随会话清零（删＝上一轮的账带进下一轮；采样环实锤：钉高 328px vs 可视底边 411px、用户七轴全 0 ⇒ 短的 83px 是账＝输入栏抬得过高＝键盘上沿与输入栏的空隙）', file: 'js/mobile-adapt.js', needle: '_aDockFix = 0; _aLastDockSig = 0; _aPhone.style.alignSelf' },
   { name: '#1533b 动画期不许记账（删＝弹出/收起动画中每拍拿新视口底边减上一帧页面底边，差值是一帧动画距离却被当残差记账＝账被动画污染）', file: 'js/mobile-adapt.js', needle: 'if (Date.now() - _aVvChgAt < 400) return' },
   { name: '#1534a 微调面板拖动对齐边看边调（删＝把手 36×4px 细条手机上点不中＝用户感知「拖不动」；触控区扩到整行 20px＋标题行可拖＋守卫排除滑块）', file: 'js/personalize.js', needle: 'height:20px;margin:2px 0 0;flex:none;background:linear-gradient' },
+  { name: '#1535a 残差账退出高度计算（删＝钉高继续叠加 _aDockFix；采样环实锤：键盘开着 vv=411 而页面钉 251＝账 -160＝输入栏悬在键盘上沿 160px 之上＝主诉空隙；该账系 a800682 9/29 #1463 引入，与用户「9/28 还正常」时间线吻合）', file: 'js/mobile-adapt.js', needle: 'var want = Math.round(_hv + _aKbGap());' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
