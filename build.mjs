@@ -6483,6 +6483,8 @@ const FIX_SENTINELS = [
   { name: '#1527b 键盘间隙微调键 −10/−1/+1/+10（删＝量程放到 ±240 后只剩一条长滑块，小屏上无法精确落到某个整像素）', file: 'js/personalize.js', needle: '#1527：量程放到 ±240 后需要粗调/细调两档' },
   { name: '#1527c iOS 侧键盘间隙钳 ±240（删＝iOS 上界面能拖 240、消费端仍按 80 截断 ＝ 两处量程不一致）', file: 'js/mobile-adapt.js', needle: 'return v > 240 ? 240 : (v < -240 ? -240 : v);' },
   { name: '#1528a 对账残差账只在「本会话确实观测到过真实收缩读数」时才记账（删＝零信号内核（Edge：视口不缩/实测尺答 0/平移 0）下 err 纯属噪声却照记并喂回钉高＝键盘与输入栏空隙越走越偏＋收键盘弹跳闪屏＋输入栏消失数秒；定罪：9/28 线上版为一次性直写，9/29 a800682 #1463 引入此自反馈环）', file: 'js/mobile-adapt.js', needle: 'if (!(_aKbStableH > 0 && _aKbStableH < _aH - 60)) { _aDockFix = 0;' },
+  { name: '#1529a 面板停靠锚输入栏实际顶边（删＝写死 96px＝输入栏更高的机型上（K80 Edge 实机截图：键盘未出现，站在键盘位置的是字卡面板，输入栏与面板之间露出约 110px 整段空白）面板按 96px 上锚、输入栏占更高一截）', file: 'js/mobile-adapt.js', needle: 'var _rowH = 96;' },
+  { name: '#1529b 面板底边用实测锚（删＝量了却不用＝空隙照旧）', file: 'js/mobile-adapt.js', needle: "el.style.bottom = 'calc(' + _rowH + 'px" },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

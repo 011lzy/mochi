@@ -1835,14 +1835,20 @@ function kbDockPanels() {
 if (kbPanelDocked) return;
 kbPanelDocked = true;
 try {
+var _rowH = 96;
+try {
+var _row = document.querySelector('#page-chat > .chat-input-row, #page-group-chat > .chat-input-row');
+var _phb = document.querySelector('.phone');
+if (_row && _phb) { var _rr = _row.getBoundingClientRect(), _prb = _phb.getBoundingClientRect(); var _mm = Math.round(_prb.bottom - _rr.top); if (_mm > 20 && _mm < 400) _rowH = _mm; }
+} catch (eRowH) {}
 document.querySelectorAll(FLOAT_PANEL_SELECTORS.join(',')).forEach(function (el) {
 if (el.hidden || el.getClientRects().length === 0) return;
 if (el.style.position !== 'absolute') el.dataset.kbPrevPos = el.style.position || '';
 el.style.position = 'absolute';
 el.style.left = '18px'; el.style.right = '18px';
 el.style.top = 'auto';
-el.style.bottom = 'calc(96px + var(--mochi-safe-bottom,env(safe-area-inset-bottom,0px)))';
-el.style.maxHeight = 'calc(100% - 104px)';
+el.style.bottom = 'calc(' + _rowH + 'px + var(--mochi-safe-bottom,env(safe-area-inset-bottom,0px)))';
+el.style.maxHeight = 'calc(100% - ' + (_rowH + 8) + 'px)';
 });
 _aSchedCe(); // v3.16.x：面板被 absolute 停靠后，内部 ce-box 合成层需刷新跟随
 } catch (e) {}

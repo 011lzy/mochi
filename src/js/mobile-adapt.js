@@ -3204,19 +3204,27 @@
     if (kbPanelDocked) return;
     kbPanelDocked = true;
     try {
+      // #1529：锚点由写死的 96px 改为「输入栏实际顶边」——写死值只在本机碰巧对上；
+      // 输入栏更高的机型上（K80 Edge 实机截图：输入栏与面板之间露出整段空白）会漏出空隙。
+      var _rowH = 96;
+      try {
+        var _row = document.querySelector('#page-chat > .chat-input-row, #page-group-chat > .chat-input-row');
+        var _phb = document.querySelector('.phone');
+        if (_row && _phb) { var _rr = _row.getBoundingClientRect(), _prb = _phb.getBoundingClientRect(); var _mm = Math.round(_prb.bottom - _rr.top); if (_mm > 20 && _mm < 400) _rowH = _mm; }
+      } catch (eRowH) {}
       document.querySelectorAll(FLOAT_PANEL_SELECTORS.join(',')).forEach(function (el) {
         if (el.hidden || el.getClientRects().length === 0) return;
         if (el.style.position !== 'absolute') el.dataset.kbPrevPos = el.style.position || '';
         el.style.position = 'absolute';
         el.style.left = '18px'; el.style.right = '18px';
         el.style.top = 'auto';
-        el.style.bottom = 'calc(96px + var(--mochi-safe-bottom,env(safe-area-inset-bottom,0px)))';
+        el.style.bottom = 'calc(' + _rowH + 'px + var(--mochi-safe-bottom,env(safe-area-inset-bottom,0px)))';
         // v3.25.x：键盘期面板高度上限=「输入栏以上全部空间」（.phone 已收缩为可视高度，
         // 100% 即可视高）。此前面板沿用各自 CSS 的 max-height（如 .poke-card 48%），键盘
         // 弹起后 48% 跟着收缩后的包含块缩水，面板固定行（我的拍一拍 tab 的 tabs+分组+输入
         // footer）比上限还高 → 内容溢出面板底边、输入框被顶到键盘后面 → 浏览器为露焦点
         // 平移视口与 _aPinPan 打架=整页飞（用户报障）。96px 底部锚点 + 8px 顶部缝隙=104。
-        el.style.maxHeight = 'calc(100% - 104px)';
+        el.style.maxHeight = 'calc(100% - ' + (_rowH + 8) + 'px)';
       });
       _aSchedCe(); // v3.16.x：面板被 absolute 停靠后，内部 ce-box 合成层需刷新跟随
     } catch (e) {}
