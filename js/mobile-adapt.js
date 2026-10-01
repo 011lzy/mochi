@@ -1490,6 +1490,7 @@ var cur = parseInt(_aPhone.style.height, 10) || 0;
 if (Math.abs(cur - want) > 2) { _aPinHeight(); return 'repin'; } // 钉高未落到当前目标（轴刚改/上一拍刚记账）：先落笔，下一拍再量真残差
 var _sig = _hv + '|' + _aKbGap();
 if (_sig === _aLastDockSig) return ''; // #1524：读数与轴值都没变＝不写＝会话内高度恒定
+if (!(_aKbStableH > 0 && _aKbStableH < _aH - 60)) { _aDockFix = 0; return ''; }
 _aLastDockSig = _sig;
 var err = (visB + _aKbGap()) - pb;
 if (err > 12 && err <= Math.round((window.innerHeight || 844) * 0.6)) {

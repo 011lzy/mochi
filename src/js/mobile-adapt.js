@@ -2673,6 +2673,10 @@
             if (Math.abs(cur - want) > 2) { _aPinHeight(); return 'repin'; } // 钉高未落到当前目标（轴刚改/上一拍刚记账）：先落笔，下一拍再量真残差
             var _sig = _hv + '|' + _aKbGap();
             if (_sig === _aLastDockSig) return ''; // #1524：读数与轴值都没变＝不写＝会话内高度恒定
+            // #1528：本会话从未观测到过真实收缩读数（＝零信号内核：视口不缩、实测尺答 0、平移 0）
+            //        ⇒ 没有真实基准可对账，err 只是噪声；此时一律不记账，钉高保持「直接钉读数」。
+            //        前提不成立还记账＝噪声自反馈＝空隙越走越偏＋收键盘弹跳闪屏＋输入栏消失数秒。
+            if (!(_aKbStableH > 0 && _aKbStableH < _aH - 60)) { _aDockFix = 0; return ''; }
             _aLastDockSig = _sig;
             var err = (visB + _aKbGap()) - pb;
             if (err > 12 && err <= Math.round((window.innerHeight || 844) * 0.6)) {

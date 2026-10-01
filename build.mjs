@@ -6482,6 +6482,7 @@ const FIX_SENTINELS = [
   { name: '#1527a 键盘间隙轴面板量程 ±240（删＝量程回到 ±80＝键盘完全不报信号的机型（Edge 系：视口不缩、实测尺答 0、平移 0，只能按固定比例猜高度）实测空隙大于 80px 时这条轴够不着 ＝ 用户报的「键盘间隙调没用」）', file: 'js/personalize.js', needle: "name: '键盘间隙', min: -240, max: 240" },
   { name: '#1527b 键盘间隙微调键 −10/−1/+1/+10（删＝量程放到 ±240 后只剩一条长滑块，小屏上无法精确落到某个整像素）', file: 'js/personalize.js', needle: '#1527：量程放到 ±240 后需要粗调/细调两档' },
   { name: '#1527c iOS 侧键盘间隙钳 ±240（删＝iOS 上界面能拖 240、消费端仍按 80 截断 ＝ 两处量程不一致）', file: 'js/mobile-adapt.js', needle: 'return v > 240 ? 240 : (v < -240 ? -240 : v);' },
+  { name: '#1528a 对账残差账只在「本会话确实观测到过真实收缩读数」时才记账（删＝零信号内核（Edge：视口不缩/实测尺答 0/平移 0）下 err 纯属噪声却照记并喂回钉高＝键盘与输入栏空隙越走越偏＋收键盘弹跳闪屏＋输入栏消失数秒；定罪：9/28 线上版为一次性直写，9/29 a800682 #1463 引入此自反馈环）', file: 'js/mobile-adapt.js', needle: 'if (!(_aKbStableH > 0 && _aKbStableH < _aH - 60)) { _aDockFix = 0;' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
