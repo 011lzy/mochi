@@ -6478,7 +6478,7 @@ const FIX_SENTINELS = [
     { name: '#1524c 实测尺「未实测到过」态（删＝武装当场读到 0 当成键盘已收＝overlay 内核实测尺来不及接管，实测停靠退化成 58% 保底＝输入栏与键盘之间巨大空隙）', file: 'js/mobile-adapt.js', needle: '|| !_aVkSeen)' },
     { name: '#1524d 残差只在读数/轴值变化后记一次（删＝每拍残差自反馈振荡＝GT7 实报打字时闪屏抖动）', file: 'js/mobile-adapt.js', needle: 'if (_sig === _aLastDockSig) return \'\';' },
     { name: '#1524e 高度出口取整＋2px 死区（删＝逐拍写 637.333px 小数＝OPPO reno16 实报闪屏抖动源）', file: 'js/mobile-adapt.js', needle: 'if (want > 0 && Math.abs(want - _cur) > 2) _aPhone.style.height = want + \'px\';' },
-    { name: '#1524f 收口抑制窗 1.2s（删＝收口后保底救援同拍踢回＝点一下回位又跳）', file: 'js/mobile-adapt.js', needle: '_aHoldSuppressUntil = Date.now() + 1200;' },
+  { name: '#1524f 收口抑制窗（#1540 起窗口归零，消费点结构保留）', file: 'js/mobile-adapt.js', needle: 'Date.now() < _aHoldSuppressUntil' },
     { name: '#1524g 实测到位记账（删＝分不清「还没报」与「报了 0」＝三态塌回两态）', file: 'js/mobile-adapt.js', needle: 'if (_aVkH >= 80) { _aVkSeen = 1;' },
     { name: '#1524h 实测尺武装当场读一次高度（删＝geometrychange 只在高度变化时发，武装后键盘不再变则永远读不到实测高度＝退化成 58% 盲猜）', file: 'js/mobile-adapt.js', needle: 'try { _applyVk(); } catch (eA) {}' },
   { name: '#1523a 自己发消息这一发挂落定同值重落枪（删＝三连写落在几何风暴中间态后无任何补口＝我发的气泡停在视口外，只有整窗重画才回来）', file: 'js/chat.js', needle: "chatResumeRealign('send');" },
@@ -6496,15 +6496,10 @@ const FIX_SENTINELS = [
   { name: '#1530c 柜内领取调回聊天侧同步钩子（删＝柜里领了屏上聊天卡还挂【领取】、聊天里也没了「你收下了…」留痕，两处口径分叉）', file: 'js/gift-shop.js', needle: 'try { if (window.chatGiftClaimSync) window.chatGiftClaimSync(it.id, it.name); } catch (eCS) {}' },
   { name: '#1530d 聊天侧同步＝按心意柜指针就地补卡＋留痕（不写状态＝单一事实源仍在柜；rateAllow 删＝额度满时这条用户当刻操作留痕被 #1341 闸吞掉）', file: 'js/chat.js', needle: "if (r && r.special === 'gift' && r.giftBoxId === boxId) { giftPatchCard(i); if (!rec) rec = r; }" },
   { name: '#1530e 详情领取钮容器（删＝居中面板里按钮退回 inline 默认宽度，与聊天卡【领取】的整行实底形态脱族）', file: 'css/market.css', needle: '.gb-detail-claim { display: flex; margin-top: 16px; }' },
-  // ==== 2026-10-01 #1540 聊天送礼面板（标题「心意集市 · TA」）补「上传我的商品」入口（用户报障「心意集市自己添加商品的按钮不见了」，多机型同报：添加商品的入口过去只存在于桌面图标的全屏市集页 #858，聊天里这个同名面板只有分类与商品网格＝同名面缺入口，非按钮被删；与 #1530 心意柜补领取同族收口）====
-  { name: '#1540a 聊天送礼面板注入上传入口（删＝聊天里「心意集市」面板依旧无路添加商品，用户报障原样回流；重复注入守卫删＝重开聊天每次插一行）', file: 'js/gift-shop.js', needle: '\'<div class="gift-mine-row" id="gift-mine-entry"><button id="gift-mine-add" type="button">＋ 上传我的商品</button></div>\'' },
-  { name: '#1540b 入口点击直接开添加表单（删＝按钮在但点了没反应；openAddGiftForm 复用＝市集页与面板同一张表单、#1323/#1230 拾取门由 openTCPanel 换届自动补装）', file: 'js/gift-shop.js', needle: "if (mineAddBtn) mineAddBtn.addEventListener('click', function () { openAddGiftForm(null); });" },
-  { name: '#1540c 保存走 marketRerenderBoth（退回只 renderMarket＝在面板里加的商品要关面板重开才出现，用户视角「加了但没加上」）', file: 'js/gift-shop.js', needle: "customSave(customs); closeTc(); marketRerenderBoth(); toast('已保存');" },
-  { name: '#1540d 面板上传入口样式（删＝按钮退回浏览器默认形态，与心愿单入口的整行胶囊脱族；暗色行回流＝深底上灰底白字刺眼/看不清）', file: 'css/market.css', needle: '.gift-mine-row button { width: 100%; padding: 10px 0; border-radius: 12px; border: 1px solid rgba(0, 0, 0, 0.14); background: #f7f7f7; color: #111; font-size: 13px; cursor: pointer; -webkit-tap-highlight-color: transparent; }' },
   { name: '#1531a 无键盘基线每拍钳进布局视口（删＝_aH 卡在地址栏隐时的高度 816 而 innerHeight 恒 690，地址栏显隐被当成键盘弹出/收起，页面在保底停靠 400px 与全高 690px 之间翻转＝弹跳闪屏＋输入栏与面板之间空隙；现场快照环实锤：[prov,0,816,400px]→[open,1,690,690px]）', file: 'js/mobile-adapt.js', needle: 'if (_aH > (window.innerHeight || 0) + 12) _aH = window.innerHeight || _aH;' },
   { name: '#1532a 聚焦期无条件采样环（删＝本机键盘链路从不启动、现有快照环永远空＝40 轮盲修的根源；聚焦期每拍记真实几何到 __mochiFocRing）', file: 'js/mobile-adapt.js', needle: '__mochiFocRing' },
   { name: '#1532b 诊断单输出聚焦期采样环（删＝采样了但诊断看不到）', file: 'js/device.js', needle: '聚焦期采样环=' },
-  { name: '#1533a 残差账随会话清零（删＝上一轮的账带进下一轮；采样环实锤：钉高 328px vs 可视底边 411px、用户七轴全 0 ⇒ 短的 83px 是账＝输入栏抬得过高＝键盘上沿与输入栏的空隙）', file: 'js/mobile-adapt.js', needle: '_aDockFix = 0; _aLastDockSig = 0; _aPhone.style.alignSelf' },
+  { name: '#1533a 残差账随会话清零（删＝上一轮的账带进下一轮；采样环实锤：钉高 328px vs 可视底边 411px、用户七轴全 0 ⇒ 短的 83px 是账＝输入栏抬得过高＝键盘上沿与输入栏的空隙）', file: 'js/mobile-adapt.js', needle: '_aDockFix = 0; _aLastDockSig = 0; _aHoldSuppressUntil' },
   { name: '#1533b 动画期不许记账（删＝弹出/收起动画中每拍拿新视口底边减上一帧页面底边，差值是一帧动画距离却被当残差记账＝账被动画污染）', file: 'js/mobile-adapt.js', needle: 'if (Date.now() - _aVvChgAt < 400) return' },
   { name: '#1534a 微调面板拖动对齐边看边调（删＝把手 36×4px 细条手机上点不中＝用户感知「拖不动」；触控区扩到整行 20px＋标题行可拖＋守卫排除滑块）', file: 'js/personalize.js', needle: 'height:20px;margin:2px 0 0;flex:none;background:linear-gradient' },
   { name: '#1535a 残差账退出高度计算（删＝钉高继续叠加 _aDockFix；采样环实锤：键盘开着 vv=411 而页面钉 251＝账 -160＝输入栏悬在键盘上沿 160px 之上＝主诉空隙；该账系 a800682 9/29 #1463 引入，与用户「9/28 还正常」时间线吻合）', file: 'js/mobile-adapt.js', needle: 'var want = Math.round(_hv + _aKbGap());' },
@@ -6514,6 +6509,7 @@ const FIX_SENTINELS = [
   { name: '#1538a 保底停靠有实测读数时禁用 58% 猜测（删＝键盘明明报了真实高度却仍按「键盘占 42%」盲猜停靠＝输入栏悬在键盘上沿数百 px＝恒定巨大空隙；采样环实锤 vv=411 而页面钉 251＝58% 猜测值；用户实测滚动/地址栏变化空隙恒定）', file: 'js/mobile-adapt.js', needle: 'var _realH = 0;' },
   { name: '#1538b 二线兜底同口径禁猜（删＝X5/旧夸克族二线仍盲猜）', file: 'js/mobile-adapt.js', needle: 'var _realH2 = 0;' },
   { name: '#1539a 收口先清空再量（删＝#1537 把清空整行替换成量底边 ⇒ Chrome 收键盘后 489px 内联高停留 1s＝不能秒收＋输入栏一行消失；恢复清空为第一步、清完量渲染底边超视口才钉）', file: 'js/mobile-adapt.js', needle: "_aPhone.style.height = ''; // #1539：清空必须先做" },
+  { name: '#1540a 开新会话即拆收口封锁窗（删＝关了马上再开时，钉高被上一轮 1.2s 墙拦住＝输入栏被键盘盖住一秒才弹上来＝用户实报「打开键盘时输入栏消失一秒」）', file: 'js/mobile-adapt.js', needle: '_aHoldSuppressUntil = 0; _aPhone.style.alignSelf' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

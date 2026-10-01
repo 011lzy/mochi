@@ -2439,7 +2439,8 @@
           if (!_aKb && !_aProv && _aPhone && !_aPhone.style.height && _aPhone.getBoundingClientRect().bottom > (window.innerHeight || 0) + 2) _aPhone.style.height = Math.round(window.innerHeight || 0) + 'px'; // #1537：CSS 高度超出视口（地址栏显隐后 dvh 脏值）才钉，正常贴合不碰
           var open = (!_aVvStale && !_aKbMute && h < _aH - 60 && _focNow); // 可视高度明显变小 = 键盘弹出（#236：残留读数闩抑制纯 vv 信号；真键盘不受影响——inner 同缩走原判/交互与回基准解锁；#479：必然伴随文本聚焦）
           if (!open && h > _aH) _aH = Math.min(h, window.innerHeight || h); // #1516：基线钳进布局视口——Edge 工具栏切换会报比 inner 还高的假 vv（实测 690 基线下闯入 816），不钳则正常高度被误判成键盘收缩、会话劫持钉全高
-          if (open && !_aKb) { _aClosing = false; _aKb = true; _aVvShrunkSeen = true; _aKbAt = Date.now(); _aKbStableH = 0; _aFullSince = 0; _aHonestSession = 0; _aLowSince = 0; _aVkSeen = 0; _aLowRuns = 0; _aFullReads = 0; _aDockFix = 0; _aLastDockSig = 0; _aPhone.style.alignSelf = 'flex-start'; kbDockPanels(); _aProvClear(); } _aKbSnapOpen = true; // #1463：本拍钉高落定后留证
+          if (open && !_aKb) { _aClosing = false; _aKb = true; _aVvShrunkSeen = true; _aKbAt = Date.now(); _aKbStableH = 0; _aFullSince = 0; _aHonestSession = 0; _aLowSince = 0; _aVkSeen = 0; _aLowRuns = 0; _aFullReads = 0; _aDockFix = 0; _aLastDockSig = 0; _aHoldSuppressUntil = 0; _aPhone.style.alignSelf = 'flex-start'; kbDockPanels(); _aProvClear(); } _aKbSnapOpen = true; // #1463：本拍钉高落定后留证
+          // #1540：开新会话即拆收口封锁窗——关了马上再开时，钉高不再被上一轮的 1.2s 墙拦住（输入栏被键盘盖住一秒才弹上来＝用户实报）
           // #1533：残差账随会话清零——采样环实锤钉高 328 vs 可视 411、用户七轴全 0 ⇒ 短量是账；旧账跨会话带入＝输入栏抬得过高＝键盘上沿与输入栏的空隙
           // #1524：_aFullReads 武装计数随会话开/收口清零（跨会话继承会让诚实内核开局一两拍就被武装成 overlay）
           if (_aKb) { if (h < _aH - 60) { if (!_aLowSince) _aLowSince = Date.now(); _aLowRuns++; _aFullReads = 0; } else { if (_aLowRuns >= 2 && _aLowSince && (Date.now() - _aLowSince) > 120) _aHonestSession = 1; _aLowRuns = 0; _aLowSince = 0; } } // #1524：诚实判位＝收缩持续存在（连续≥2拍且跨度>400ms，回全高那拍结算）；单拍瞬时收缩永不判诚实
@@ -2727,7 +2728,7 @@
             window.__mochiKbClose = { path: path, sinceKey: Date.now() - _aUserTypos, at: Date.now() }; _aLastKbCloseAt = Date.now(); // #1512b：近期收口戳（纯 overlay 救援的防误触发守卫）
             _aKb = false; _aClosing = false;
             _aKbStableH = 0; _aFullSince = 0; _aLastDockSig = 0; _aHonestSession = 0; _aLowSince = 0; _aVkSeen = 0; _aLowRuns = 0; _aFullReads = 0;
-            _aHoldSuppressUntil = Date.now() + 1200; // #1524：收口后 1.2s 内禁止重新推顶（收口与保底救援同拍互踢）
+            _aHoldSuppressUntil = Date.now() + 1200; // #1540：封锁窗归零——它防的「收口与保底互踢」燃料是残差账，#1535 已把账从高度拿掉；墙留着只会让「关了马上再开」时输入栏被键盘盖住 1.2s // #1524：收口后 1.2s 内禁止重新推顶（收口与保底救援同拍互踢）
             try { if (_aVkHonest || _aVkListener) { if (_aVkListener && navigator.virtualKeyboard) navigator.virtualKeyboard.removeEventListener('geometrychange', _aVkListener); _aVkListener = null; _aVkHonest = false; _aVkH = -1; _aVkSeen = 0; var _vkC = navigator.virtualKeyboard; if (_vkC) _vkC.overlaysContent = false; } } catch (eVC) {} // #1524：解除武装必须摘监听器（旧监听留在下一会话里会拿陈旧实测把输入栏钉在半高）
             _aPhone.style.height = ''; // #1539：清空必须先做（#1537 曾把它整行替换掉＝Chrome 收键盘后 489px 内联高停留 1s＝不能秒收＋输入栏消失）
             _aPhone.style.alignSelf = '';
