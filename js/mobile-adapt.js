@@ -1377,6 +1377,17 @@ else _aStaleFoc = 0;
 var foc = _aIsText(_aTextFocused) || _aIsText(document.activeElement);
 if (foc) {
 _aBurstUntil = Date.now() + 850;
+try { // #1532：聚焦期无条件采样（本机键盘链路从不启动，现有快照环永远空）——
+var _fr = window.__mochiFocRing = window.__mochiFocRing || [];
+var _frRow = document.querySelector('#page-chat > .chat-input-row, #page-group-chat > .chat-input-row');
+var _frR = _frRow ? _frRow.getBoundingClientRect() : null;
+_fr.unshift({ t: Date.now(), ih: window.innerHeight || 0,
+vvH: Math.round(_aVV.height || 0), off: Math.round(_aVV.offsetTop || 0),
+ph: _aPhone ? (_aPhone.style.height || '') : '',
+rowT: _frR ? Math.round(_frR.top) : -1, rowB: _frR ? Math.round(_frR.bottom) : -1,
+kb: _aKb ? 1 : 0, prov: _aProv ? 1 : 0 });
+if (_fr.length > 24) _fr.length = 24;
+} catch (eFR) {}
 syncAndroidKb();
 nudgeInputVisible();
 _aProvCheck();

@@ -2491,6 +2491,18 @@
                 // 宽限已过 → 平移不归零（输入栏飞走露灰）。250ms 轮询不断续期，
                 // 每次顺延 850ms；打字（caret 微滚 <160px）不会触发归零，无闪烁。
                 _aBurstUntil = Date.now() + 850;
+                try { // #1532：聚焦期无条件采样（本机键盘链路从不启动，现有快照环永远空）——
+                  // 每拍记真实几何：布局视口/可视视口/页面高/输入栏实测顶底边/会话与保底状态
+                  var _fr = window.__mochiFocRing = window.__mochiFocRing || [];
+                  var _frRow = document.querySelector('#page-chat > .chat-input-row, #page-group-chat > .chat-input-row');
+                  var _frR = _frRow ? _frRow.getBoundingClientRect() : null;
+                  _fr.unshift({ t: Date.now(), ih: window.innerHeight || 0,
+                    vvH: Math.round(_aVV.height || 0), off: Math.round(_aVV.offsetTop || 0),
+                    ph: _aPhone ? (_aPhone.style.height || '') : '',
+                    rowT: _frR ? Math.round(_frR.top) : -1, rowB: _frR ? Math.round(_frR.bottom) : -1,
+                    kb: _aKb ? 1 : 0, prov: _aProv ? 1 : 0 });
+                  if (_fr.length > 24) _fr.length = 24;
+                } catch (eFR) {}
                 syncAndroidKb();
                 nudgeInputVisible();
                 // v3.12.x：悬浮键盘推定停靠复查（vv 不反映键盘的内核走这里兜底）

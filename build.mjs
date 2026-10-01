@@ -6492,6 +6492,8 @@ const FIX_SENTINELS = [
   { name: '#1530d 聊天侧同步＝按心意柜指针就地补卡＋留痕（不写状态＝单一事实源仍在柜；rateAllow 删＝额度满时这条用户当刻操作留痕被 #1341 闸吞掉）', file: 'js/chat.js', needle: "if (r && r.special === 'gift' && r.giftBoxId === boxId) { giftPatchCard(i); if (!rec) rec = r; }" },
   { name: '#1530e 详情领取钮容器（删＝居中面板里按钮退回 inline 默认宽度，与聊天卡【领取】的整行实底形态脱族）', file: 'css/market.css', needle: '.gb-detail-claim { display: flex; margin-top: 16px; }' },
   { name: '#1531a 无键盘基线每拍钳进布局视口（删＝_aH 卡在地址栏隐时的高度 816 而 innerHeight 恒 690，地址栏显隐被当成键盘弹出/收起，页面在保底停靠 400px 与全高 690px 之间翻转＝弹跳闪屏＋输入栏与面板之间空隙；现场快照环实锤：[prov,0,816,400px]→[open,1,690,690px]）', file: 'js/mobile-adapt.js', needle: 'if (_aH > (window.innerHeight || 0) + 12) _aH = window.innerHeight || _aH;' },
+  { name: '#1532a 聚焦期无条件采样环（删＝本机键盘链路从不启动、现有快照环永远空＝40 轮盲修的根源；聚焦期每拍记真实几何到 __mochiFocRing）', file: 'js/mobile-adapt.js', needle: '__mochiFocRing' },
+  { name: '#1532b 诊断单输出聚焦期采样环（删＝采样了但诊断看不到）', file: 'js/device.js', needle: '聚焦期采样环=' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
