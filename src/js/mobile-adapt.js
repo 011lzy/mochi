@@ -1198,7 +1198,12 @@
         var base = Math.min(_fullInner, _iIH);
         // v3.13.x：矮视口保护——原 Math.max(240, base*0.58) 在 base<414 时绝对值
         // 240 会占掉近六成以上屏高加重挤压；改纯比例 + 基准 62% 封顶（最多压四成）
-        var ph = Math.min(Math.max(Math.round(base * 0.58), 240), Math.round(base * 0.62));
+        var _realH2 = 0;
+        try { // #1538：同上——有真实收缩读数时按实测，绝不猜
+          if (_aKbStableH > 0 && _aKbStableH < base - 60) _realH2 = Math.round(_aKbStableH);
+          else if (_aVkHonest && _aVkH >= 80) _realH2 = Math.round(base - _aVkH);
+        } catch (eRH2) {}
+        var ph = _realH2 > 0 ? Math.min(Math.max(_realH2, 240), Math.round(base * 0.62)) : Math.min(Math.max(Math.round(base * 0.58), 240), Math.round(base * 0.62));
         _iProv = true;
         lockDocScroll();
         try { _phone.style.minHeight = '0'; } catch (e) {} // v3.15.x：同 syncIosKb，防 min-height 钳制
@@ -2595,7 +2600,12 @@
           // 门槛：平移量 ≥80px 且 1.5s 内新鲜（几十 px 多为 caret 微滚/地址栏抖动，不足以
           // 当尺子）；结果钳在 [240, base−40]。无实测（纯悬浮且不平移的 X5/旧夸克内核）
           // 仍走原 58% 保底，那批机型行为零变化。
-          var ph = Math.max(240, Math.round(base * 0.58));
+          var _realH = 0;
+          try { // #1538：本会话若观测到过真实收缩读数（内核诚实报了键盘高度），按实测停靠，绝不猜
+            if (_aKbStableH > 0 && _aKbStableH < base - 60) _realH = Math.round(_aKbStableH);
+            else if (_aVkHonest && _aVkH >= 80) _realH = Math.round(base - _aVkH);
+          } catch (eRH) {}
+          var ph = _realH > 0 ? Math.max(240, Math.min(_realH, base - 40)) : Math.max(240, Math.round(base * 0.58));
           if (_aPanSeen >= 80 && Date.now() - _aPanSeenAt < 1500) {
             var _meas = Math.round(base - _aPanSeen);
             if (_meas >= 240 && _meas <= base - 40) ph = _meas;

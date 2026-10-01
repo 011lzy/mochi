@@ -668,7 +668,12 @@ if (_kbWatch) { clearInterval(_kbWatch); _kbWatch = null; }
 }
 function _iProvDock() {
 var base = Math.min(_fullInner, _iIH);
-var ph = Math.min(Math.max(Math.round(base * 0.58), 240), Math.round(base * 0.62));
+var _realH2 = 0;
+try { // #1538：同上——有真实收缩读数时按实测，绝不猜
+if (_aKbStableH > 0 && _aKbStableH < base - 60) _realH2 = Math.round(_aKbStableH);
+else if (_aVkHonest && _aVkH >= 80) _realH2 = Math.round(base - _aVkH);
+} catch (eRH2) {}
+var ph = _realH2 > 0 ? Math.min(Math.max(_realH2, 240), Math.round(base * 0.62)) : Math.min(Math.max(Math.round(base * 0.58), 240), Math.round(base * 0.62));
 _iProv = true;
 lockDocScroll();
 try { _phone.style.minHeight = '0'; } catch (e) {} // v3.15.x：同 syncIosKb，防 min-height 钳制
@@ -1433,7 +1438,12 @@ if (_aWatch) { clearInterval(_aWatch); _aWatch = null; }
 }
 function _aProvDock() {
 var base = Math.min(_aH, _aIH);
-var ph = Math.max(240, Math.round(base * 0.58));
+var _realH = 0;
+try { // #1538：本会话若观测到过真实收缩读数（内核诚实报了键盘高度），按实测停靠，绝不猜
+if (_aKbStableH > 0 && _aKbStableH < base - 60) _realH = Math.round(_aKbStableH);
+else if (_aVkHonest && _aVkH >= 80) _realH = Math.round(base - _aVkH);
+} catch (eRH) {}
+var ph = _realH > 0 ? Math.max(240, Math.min(_realH, base - 40)) : Math.max(240, Math.round(base * 0.58));
 if (_aPanSeen >= 80 && Date.now() - _aPanSeenAt < 1500) {
 var _meas = Math.round(base - _aPanSeen);
 if (_meas >= 240 && _meas <= base - 40) ph = _meas;

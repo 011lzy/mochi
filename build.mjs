@@ -6506,6 +6506,8 @@ const FIX_SENTINELS = [
   { name: '#1537a 收口钉 innerHeight 不清空回 CSS（删＝本机 dvh 收键盘后回落到比视口大 126px 的脏值，输入栏沉到视口外＝「消失几秒」；采样环实锤 rowB=942 vs 视口 816 连续 6 秒静止搁浅）', file: 'js/mobile-adapt.js', needle: "_aPhone.style.height = Math.round(window.innerHeight || 0) + 'px'; // #1537" },
   { name: '#1537b 无会话时 CSS 高度超出视口才重钉（删＝地址栏显隐后 dvh 脏值让页面比视口长一截＝输入栏沉底）', file: 'js/mobile-adapt.js', needle: 'getBoundingClientRect().bottom > (window.innerHeight || 0) + 2) _aPhone.style.height' },
   { name: '#1537c 键盘期快照环扩容 24 条（删＝4 条存不下开键盘那一刻的样本，56 秒即被挤出＝现场数据丢失）', file: 'js/mobile-adapt.js', needle: 'if (q.length > 24) q.length = 24;' },
+  { name: '#1538a 保底停靠有实测读数时禁用 58% 猜测（删＝键盘明明报了真实高度却仍按「键盘占 42%」盲猜停靠＝输入栏悬在键盘上沿数百 px＝恒定巨大空隙；采样环实锤 vv=411 而页面钉 251＝58% 猜测值；用户实测滚动/地址栏变化空隙恒定）', file: 'js/mobile-adapt.js', needle: 'var _realH = 0;' },
+  { name: '#1538b 二线兜底同口径禁猜（删＝X5/旧夸克族二线仍盲猜）', file: 'js/mobile-adapt.js', needle: 'var _realH2 = 0;' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
