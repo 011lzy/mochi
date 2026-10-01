@@ -6182,7 +6182,7 @@ const FIX_SENTINELS = [
   { name: '#1463f 键盘间隙改动即时生效钩（删＝会话中拖滑杆要等下一轮事件才动）', file: 'js/mobile-adapt.js', needle: 'if (window.__mochiKbReconNow) window.__mochiKbReconNow();' },
   { name: '#1463g 安卓键盘探针全字段透传（删回两字段＝报告「键盘残留」安卓恒 n/a）', file: 'js/device.js', needle: 'var k2 = window.__mochiAndroidKb ? window.__mochiAndroidKb() : null; return k2 || null;' },
   { name: '#1463h 诊断打印键盘期快照行（删＝取证链断在最后一米）', file: 'js/device.js', needle: '键盘期快照=' },
-  { name: '#1463i 面板第 8 轴登记（删＝键盘间隙轴从面板消失）', file: 'js/personalize.js', needle: "{ k: 'kbgap', name: '键盘间隙', min: -80, max: 80" },
+  { name: '#1463i 面板第 8 轴登记（删＝键盘间隙轴从面板消失）', file: 'js/personalize.js', needle: "{ k: 'kbgap', name: '键盘间隙', min: -240, max: 240" },
   { name: '#1463j 诊断系统行安卓如实报（删回 iOS 版式＝安卓单子永远写 iOS ?）', file: 'js/device.js', needle: 'if (/android/i.test(_ua))' },
   /* ==== 2026-09-29 #1416（作者复报「后台通知说有回信、点进信箱找不到」同批的四条定型＋三条换锚） ==== */
   // ==== #1417 信箱「后台说有回信、点进信箱找不到」＋自救恢复按钮（作者直派，红米 K80 Chrome 复报、多机型同现）====
@@ -6256,8 +6256,8 @@ const FIX_SENTINELS = [
   { name: '#1492a 顶住只限打字中·主链（删＝收起键盘后页面被按在停靠高度数秒＝白屏/输入栏消失回归）', file: 'js/mobile-adapt.js', needle: 'if (_focNow && _aHoldNow()) { if (!_aVkHonest) { _aFullReads++;' },
   { name: '#1492b 顶住只限打字中·轮询腿（删＝同上从轮询腿复发）', file: 'js/mobile-adapt.js', needle: 'if (_focNow && _aHoldNow()) return;' },
   { name: '#1492c 顶住高度含键盘间隙轴（删＝Edge 系实测会话拖轴无效＝「键盘间隙调没用」复发）', file: 'js/mobile-adapt.js', needle: 'Math.round(_aKbStableH) + _aKbGap()' },
-  { name: '#1492d 轴量程 ±80·装载钳（删＝K80/OPPO 实证 ~90px 空带拖不回）', file: 'js/mobile-adapt.js', needle: 'kbgap: [-80, 80]' },
-  { name: '#1492e 轴量程 ±80·安卓消费钳', file: 'js/mobile-adapt.js', needle: 'return a ? Math.max(-80, Math.min(80, Math.round(+a.kbgap || 0))) : 0;' },
+  { name: '#1492d 轴量程 ±80·装载钳（删＝K80/OPPO 实证 ~90px 空带拖不回）', file: 'js/mobile-adapt.js', needle: 'kbgap: [-240, 240]' },
+  { name: '#1492e 轴量程 ±80·安卓消费钳', file: 'js/mobile-adapt.js', needle: 'return a ? Math.max(-240, Math.min(240, Math.round(+a.kbgap || 0))) : 0;' },
   { name: '#1492f 轴量程 ±80·面板滑杆', file: 'js/personalize.js', needle: "min: -80, max: 80," },
   { name: '#1486a 实测在场必顶住·主链（删＝GT7 两态横跳复发：实测 355 在场仍被 800ms 迟滞拆会话）', file: 'js/mobile-adapt.js', needle: '_aVkHonest ? (_aVkH >= 80 || !_aVkSeen) : !_aHonestSession;' },
   { name: '#1486b 实测在场必顶住·轮询腿（删＝横跳从轮询腿复发）', file: 'js/mobile-adapt.js', needle: 'if (_focNow && _aHoldNow()) {' },
@@ -6479,6 +6479,9 @@ const FIX_SENTINELS = [
   { name: '#1523a 自己发消息这一发挂落定同值重落枪（删＝三连写落在几何风暴中间态后无任何补口＝我发的气泡停在视口外，只有整窗重画才回来）', file: 'js/chat.js', needle: "chatResumeRealign('send');" },
   { name: '#1523b 站内进聊天页挂落定同值重落枪（删＝切页回聊天不发 visibilitychange，四把回场枪一把都不经过，同窗补丁零重建时撕裂态永无补口）', file: 'js/chat.js', needle: "chatResumeRealign('enter');" },
   { name: '#1526a 诚实判位跨度 120ms（删＝回到 400ms＝互动卡这类短会话「点开即答即收」凑不满跨度掉进 B 型顶住＝收口拖 1.1s；无头实测 2500ms 会话 13ms 收 / 300ms 会话修复前 1105ms、修复后 16ms＝用户报「同一台 K80 Chrome 主输入栏秒收、互动卡不秒收」定罪）', file: 'js/mobile-adapt.js', needle: '(_aLowRuns >= 2 && _aLowSince && (Date.now() - _aLowSince) > 120)' },
+  { name: '#1527a 键盘间隙轴面板量程 ±240（删＝量程回到 ±80＝键盘完全不报信号的机型（Edge 系：视口不缩、实测尺答 0、平移 0，只能按固定比例猜高度）实测空隙大于 80px 时这条轴够不着 ＝ 用户报的「键盘间隙调没用」）', file: 'js/personalize.js', needle: "name: '键盘间隙', min: -240, max: 240" },
+  { name: '#1527b 键盘间隙微调键 −10/−1/+1/+10（删＝量程放到 ±240 后只剩一条长滑块，小屏上无法精确落到某个整像素）', file: 'js/personalize.js', needle: '#1527：量程放到 ±240 后需要粗调/细调两档' },
+  { name: '#1527c iOS 侧键盘间隙钳 ±240（删＝iOS 上界面能拖 240、消费端仍按 80 截断 ＝ 两处量程不一致）', file: 'js/mobile-adapt.js', needle: 'return v > 240 ? 240 : (v < -240 ? -240 : v);' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

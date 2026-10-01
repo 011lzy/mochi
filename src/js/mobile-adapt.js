@@ -924,7 +924,7 @@
       // 用它记录目标元素；用 activeElement 复合判断兜底。
       // #1463 键盘间隙轴：iOS 键盘会话高度在自动停靠值上叠加用户本机微调——默认 0＝
       // 传给 _setPhoneH 的值逐位不变；±40 钳制，下限保护仍归 _setPhoneH 的 40% 地板管。
-      function _kbGapPx() { var a = window.__mochiScreenAdj; var v = a ? Math.round(+a.kbgap || 0) : 0; return v > 80 ? 80 : (v < -80 ? -80 : v); }
+      function _kbGapPx() { var a = window.__mochiScreenAdj; var v = a ? Math.round(+a.kbgap || 0) : 0; return v > 240 ? 240 : (v < -240 ? -240 : v); } // #1527：与面板量程统一到 ±240
       var _textFocused = null;
       // v3.26.x #208：最近一次文本失焦时刻（focusin 归零）——键盘收起视口未还原自愈的计时基准
       var _focLostAt = 0;
@@ -2614,7 +2614,7 @@
         var _aDockFix = 0;
         // #1524：顶住判据（无时间引信）——实测在场（vk≥80）→顶住；零信号且非诚实→B 型顶住；诚实内核→不顶（即时收口）
         function _aHoldNow() { return _aVkHonest ? (_aVkH >= 80 || !_aVkSeen) : !_aHonestSession; } // #1524：实测尺三态——≥80 在场顶住／<80 且本会话实测过＝键盘真收口放行／还没实测到过＝它还没报，等它报（武装当场读到 0 不是收口信号）；非实测尺内核＝诚实判位说了算
-        function _aKbGap() { var a = window.__mochiScreenAdj; return a ? Math.max(-80, Math.min(80, Math.round(+a.kbgap || 0))) : 0; }
+        function _aKbGap() { var a = window.__mochiScreenAdj; return a ? Math.max(-240, Math.min(240, Math.round(+a.kbgap || 0))) : 0; } // #1527：与面板量程统一到 ±240（原 ±80，对「键盘完全不报信号、只能按固定比例猜高度」的机型够不着）
         // #1481：会话内取「稳态收缩高度」——真实收缩读数照采照用并记为稳态；全高/回弹读数不采用，
         // 返回上一份稳态值（毛刺顶住），同时给 _aFullSince 起计时（收键盘迟滞的尺）。
         function _aKbFeedH() {
@@ -3522,7 +3522,7 @@
   var KEYS = { top: 'screen-adj-top', bottom: 'screen-adj-bottom', h: 'screen-adj-h', desk: 'screen-adj-desk', shift: 'screen-adj-shift', text: 'screen-adj-text', side: 'screen-adj-side', kbgap: 'screen-adj-kbgap' };
   // #764 文字大小轴：只叠加在「文字组」字号上（display-tune.css 逐条 calc），范围 0~12px；其余偏移轴维持 ±80
   // #794 左右安全边轴：曲面/瀑布屏内容贴边时两侧同时内收，单向 0~12px（在 .phone 既有 18px 横向内边距上叠加）
-  var RANGE = { top: [-80, 80], bottom: [-80, 80], h: [-80, 80], desk: [-60, 60], shift: [-60, 60], text: [0, 12], side: [0, 12], kbgap: [-80, 80] };
+  var RANGE = { top: [-80, 80], bottom: [-80, 80], h: [-80, 80], desk: [-60, 60], shift: [-60, 60], text: [0, 12], side: [0, 12], kbgap: [-240, 240] };
   // #1393：读优先走数据层（内存缓存＝本会话刚写的那一份，LS 写失败设备靠 IDB 回填那一份），
   // 数据层缺位（外置件没加载上／自愈重注入还没跑到 idb.js）时退回裸 LS 读＝与修前逐字一致。
   function loadAdj(k) {

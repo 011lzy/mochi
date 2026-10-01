@@ -26,8 +26,8 @@ const jsPe = rd('js/personalize.js');
 check('S1 诚实内核收起即收·主链（删＝顶住判据整条消失＝秒收回归；#1521 收敛后判据＝实测尺三态／诚实判位，无时间引信）', jsMA.includes('function _aHoldNow() {'));
 check('S2 诚实内核轮询腿同秒收', jsMA.includes('if (_focNow && _aHoldNow()) return;'));
 check('S3 武装只在顶住成立时（诚实收起不被污染；#1521-36 起计数由收缩记账行清零，不受收口抑制窗影响）', jsMA.includes('if (_aFullReads >= 3 && !_aHonestSession) _aKbVkArm();'));
-check('S4 轴量程 ±80·安卓消费钳', jsMA.includes('return a ? Math.max(-80, Math.min(80, Math.round(+a.kbgap || 0))) : 0;'));
-check('S5 轴 ±80 面板仍在', jsPe.includes('min: -80, max: 80,'));
+check('S4 轴量程 ±240·安卓消费钳（#1527 从 ±80 放宽）', jsMA.includes('return a ? Math.max(-240, Math.min(240, Math.round(+a.kbgap || 0))) : 0;'));
+check('S5 轴 ±240 面板仍在（#1527）', jsPe.includes('min: -240, max: 240,'));
 
 const candidates = [
   process.env.CHROME_PATH,

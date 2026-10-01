@@ -527,7 +527,7 @@ if (_phone.style.height && Math.abs((isNaN(cur) ? nh + 99 : cur) - nh) < 6) retu
 if (_phone.style.height !== nh + 'px') _phone.style.height = nh + 'px';
 } catch (e) {}
 }
-function _kbGapPx() { var a = window.__mochiScreenAdj; var v = a ? Math.round(+a.kbgap || 0) : 0; return v > 80 ? 80 : (v < -80 ? -80 : v); }
+function _kbGapPx() { var a = window.__mochiScreenAdj; var v = a ? Math.round(+a.kbgap || 0) : 0; return v > 240 ? 240 : (v < -240 ? -240 : v); } // #1527：与面板量程统一到 ±240
 var _textFocused = null;
 var _focLostAt = 0;
 var _iFocusAt = 0, _iProv = false, _iIH = window.innerHeight;
@@ -1438,7 +1438,7 @@ _aKbSnap("prov"); // #1463：盲猜停靠也留现场（后续实测尺/对账�
 }
 var _aDockFix = 0;
 function _aHoldNow() { return _aVkHonest ? (_aVkH >= 80 || !_aVkSeen) : !_aHonestSession; } // #1524：实测尺三态——≥80 在场顶住／<80 且本会话实测过＝键盘真收口放行／还没实测到过＝它还没报，等它报（武装当场读到 0 不是收口信号）；非实测尺内核＝诚实判位说了算
-function _aKbGap() { var a = window.__mochiScreenAdj; return a ? Math.max(-80, Math.min(80, Math.round(+a.kbgap || 0))) : 0; }
+function _aKbGap() { var a = window.__mochiScreenAdj; return a ? Math.max(-240, Math.min(240, Math.round(+a.kbgap || 0))) : 0; } // #1527：与面板量程统一到 ±240（原 ±80，对「键盘完全不报信号、只能按固定比例猜高度」的机型够不着）
 function _aKbFeedH() {
 var cur = Math.round(_aVV.height || 0);
 if (!_aKb || _aClosing) return cur;
@@ -2087,7 +2087,7 @@ lastHeal: his
 var PFX = 'xy-home-v2:';
 var GROOT = 'xy-home-v2';
 var KEYS = { top: 'screen-adj-top', bottom: 'screen-adj-bottom', h: 'screen-adj-h', desk: 'screen-adj-desk', shift: 'screen-adj-shift', text: 'screen-adj-text', side: 'screen-adj-side', kbgap: 'screen-adj-kbgap' };
-var RANGE = { top: [-80, 80], bottom: [-80, 80], h: [-80, 80], desk: [-60, 60], shift: [-60, 60], text: [0, 12], side: [0, 12], kbgap: [-80, 80] };
+var RANGE = { top: [-80, 80], bottom: [-80, 80], h: [-80, 80], desk: [-60, 60], shift: [-60, 60], text: [0, 12], side: [0, 12], kbgap: [-240, 240] };
 function loadAdj(k) {
 var raw = null;
 try { if (window.xyStore) raw = window.xyStore(GROOT).get(KEYS[k]); } catch (e) {}

@@ -26,7 +26,7 @@ const jsPe = rd('js/personalize.js');
 check('S1 点消息区＝收口意图（删＝收起后空白要等超时）', jsMA.includes("_aKbCloseNow('tap-out')"));
 check('S2 vk 归零绕过毛刺窗仍在（#1521 收敛后＝实测尺三态：≥80 顶住／<80 且本会话实测过＝真收口／未实测到过＝等它报）', jsMA.includes('return _aVkHonest ? (_aVkH >= 80 || !_aVkSeen) : !_aHonestSession;'));
 check('S3 收口取证写点', jsMA.includes('window.__mochiKbClose = { path: path'));
-check('S4 轴量程 ±80·安卓消费钳', jsMA.includes('return a ? Math.max(-80, Math.min(80, Math.round(+a.kbgap || 0))) : 0;'));
+check('S4 轴量程 ±240·安卓消费钳（#1527 从 ±80 放宽）', jsMA.includes('return a ? Math.max(-240, Math.min(240, Math.round(+a.kbgap || 0))) : 0;'));
 check('S5 轴 ±80 面板仍在', jsPe.includes('min: -80, max: 80,'));
 
 const candidates = [

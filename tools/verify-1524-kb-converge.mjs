@@ -148,6 +148,14 @@ await ev("(function(){window.__fakeVV.height=844;window.__fakeVV.dispatch('resiz
 const x2 = await pollH('', 2500);
 check('X1 跨会话不污染：overlay 实测过的会话收口后，新会话走自己的高度并秒回（红侧＝停在上一轮 488px）', xPrev && x1 && x2, { prev: xPrev, opened: x1, closed: x2, h: await ev(H) });
 
+// ⑨ 键盘间隙轴量程：±240 必须端到端能存能取（#1527：面板/RANGE/消费钳原为 ±80，
+//    对「键盘完全不报信号、只能按固定比例猜高度」的机型够不着实测空隙）
+await resetAll();
+const gapCheck = await ev("(function(){var o={};try{o.set150=window.mochiScreenAdj.set('kbgap',150);}catch(e){o.err1=String(e);}try{o.v150=window.mochiScreenAdj.all().kbgap;}catch(e){o.err2=String(e);}try{o.set300=window.mochiScreenAdj.set('kbgap',300);}catch(e){o.err3=String(e);}try{o.v300=window.mochiScreenAdj.all().kbgap;}catch(e){o.err4=String(e);}window.mochiScreenAdj.set('kbgap',0);return JSON.stringify(o);})()");
+check('Y1 键盘间隙轴：150 可设置可读回（红侧＝面板/RANGE 只到 80，set 被钳成 80＝大空隙补不动）', (gapCheck || '').indexOf('"v150":150') >= 0, gapCheck);
+check('Y2 键盘间隙轴：超量程 300 被拒且原值不变（set 返回 false，不静默改写用户值）', (gapCheck || '').indexOf('"set300":false') >= 0 && (gapCheck || '').indexOf('"v300":150') >= 0, gapCheck);
+check('Y3 面板条目量程 ±240（红侧＝滑块还停在 ±80，补不动大空隙）', rd('js/personalize.js').indexOf("name: '键盘间隙', min: -240, max: 240") >= 0);
+
 check('Z1 零 JS 异常', ERRS.length === 0, ERRS.length);
 const pass = results.filter((x) => x.ok).length;
 console.log('\n#1524 共/g ' + results.length + ' 断言：通过 ' + pass + ' / 失败 ' + (results.length - pass));

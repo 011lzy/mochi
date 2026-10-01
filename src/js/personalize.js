@@ -8662,7 +8662,7 @@ try {
       { k: 'h', name: '页面高度', min: -80, max: 80, group: 'pos', hint: '页面底部留白=往正撑满；内容超出屏幕被裁=往负收短' },
       { k: 'shift', name: '整体位移', min: -60, max: 60, group: 'pos', hint: '整页位置偏了：正=整页下移、负=上移' },
       { k: 'side', name: '左右安全边', min: 0, max: 12, group: 'pos', hint: '曲面屏/瀑布屏内容贴到屏幕弧边=往正加（两侧同时内收）；0=默认' },
-      { k: 'kbgap', name: '键盘间隙', min: -80, max: 80, group: 'pos', hint: '键盘弹出后输入栏离键盘还悬空一块=往正拖（往下压向键盘）；反而被键盘盖住一条=往负拖（抬回来）；只在键盘弹出期间生效' },
+      { k: 'kbgap', name: '键盘间隙', min: -240, max: 240, group: 'pos', hint: '键盘弹出后输入栏离键盘还悬空一块=往正拖（往下压向键盘）；反而被键盘盖住一条=往负拖（抬回来）；只在键盘弹出期间生效。量程 ±240：键盘完全不报信号的机型（Edge 系）只能按固定比例猜高度，实测空隙常常超过 80px，用下面的 ±10 / ±1 微调键收尾' },
       { k: 'desk', name: '桌面图标区', min: -60, max: 60, group: 'desk', hint: '全屏时桌面图标/按钮整体偏上=往正拉回（只影响桌面页）' },
       { k: 'text', name: '文字大小', min: 0, max: 12, group: 'text', hint: '聊天气泡/输入框/设置列表等正文文字整体加大（只放大文字组，非整页缩放）；0=默认' }
     ];
@@ -9052,6 +9052,23 @@ try {
         });
         rng.addEventListener('dblclick', () => { applyAxis(ax, 0); });
         row.appendChild(rng);
+        if (ax.k === 'kbgap') { // #1527：量程放到 ±240 后需要粗调/细调两档，否则小屏上一条长滑块很难落到某个整像素
+          const pad = document.createElement('div');
+          pad.style.cssText = 'display:flex;gap:6px;margin-top:4px';
+          [['-10', -10], ['-1', -1], ['+1', 1], ['+10', 10]].forEach(function (btn) {
+            const b2 = document.createElement('button');
+            b2.type = 'button'; b2.textContent = btn[0];
+            b2.style.cssText = 'flex:1;min-width:44px;padding:5px 0;border:1px solid var(--card-border,#ddd);background:var(--btn-cancel-bg,#fafafa);color:var(--ink,#111);border-radius:6px;font-size:12px';
+            b2.addEventListener('click', function () {
+              const curV = parseInt(rng.value, 10) || 0;
+              const nv = Math.max(ax.min, Math.min(ax.max, curV + btn[1]));
+              applyAxis(ax, nv, true);
+              rng.value = nv;
+            });
+            pad.appendChild(b2);
+          });
+          row.appendChild(pad);
+        }
         adjBody.appendChild(row);
       });
       const reset = document.createElement('button');
