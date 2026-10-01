@@ -6503,6 +6503,9 @@ const FIX_SENTINELS = [
   { name: '#1533b 动画期不许记账（删＝弹出/收起动画中每拍拿新视口底边减上一帧页面底边，差值是一帧动画距离却被当残差记账＝账被动画污染）', file: 'js/mobile-adapt.js', needle: 'if (Date.now() - _aVvChgAt < 400) return' },
   { name: '#1534a 微调面板拖动对齐边看边调（删＝把手 36×4px 细条手机上点不中＝用户感知「拖不动」；触控区扩到整行 20px＋标题行可拖＋守卫排除滑块）', file: 'js/personalize.js', needle: 'height:20px;margin:2px 0 0;flex:none;background:linear-gradient' },
   { name: '#1535a 残差账退出高度计算（删＝钉高继续叠加 _aDockFix；采样环实锤：键盘开着 vv=411 而页面钉 251＝账 -160＝输入栏悬在键盘上沿 160px 之上＝主诉空隙；该账系 a800682 9/29 #1463 引入，与用户「9/28 还正常」时间线吻合）', file: 'js/mobile-adapt.js', needle: 'var want = Math.round(_hv + _aKbGap());' },
+  { name: '#1537a 收口钉 innerHeight 不清空回 CSS（删＝本机 dvh 收键盘后回落到比视口大 126px 的脏值，输入栏沉到视口外＝「消失几秒」；采样环实锤 rowB=942 vs 视口 816 连续 6 秒静止搁浅）', file: 'js/mobile-adapt.js', needle: "_aPhone.style.height = Math.round(window.innerHeight || 0) + 'px'; // #1537" },
+  { name: '#1537b 无会话时 CSS 高度超出视口才重钉（删＝地址栏显隐后 dvh 脏值让页面比视口长一截＝输入栏沉底）', file: 'js/mobile-adapt.js', needle: 'getBoundingClientRect().bottom > (window.innerHeight || 0) + 2) _aPhone.style.height' },
+  { name: '#1537c 键盘期快照环扩容 24 条（删＝4 条存不下开键盘那一刻的样本，56 秒即被挤出＝现场数据丢失）', file: 'js/mobile-adapt.js', needle: 'if (q.length > 24) q.length = 24;' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

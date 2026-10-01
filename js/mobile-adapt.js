@@ -1345,6 +1345,7 @@ _aClosing = true;
 }
 _aPrevH = h;
 if (_aH > (window.innerHeight || 0) + 12) _aH = window.innerHeight || _aH; // #1531：基线每拍钳进布局视口（在 open 计算之前）——现场快照环实锤 _aH 卡在 816（地址栏隐）而 innerHeight 恒 690，#1516 的钳制带 !open 前提、会话开着的那几拍恰好被跳过 ⇒ 地址栏显隐被当成键盘弹出/收起，页面在 400px（保底）与 690px（全高）之间翻转＝弹跳闪屏＋空隙
+if (!_aKb && !_aProv && _aPhone && !_aPhone.style.height && _aPhone.getBoundingClientRect().bottom > (window.innerHeight || 0) + 2) _aPhone.style.height = Math.round(window.innerHeight || 0) + 'px'; // #1537：CSS 高度超出视口（地址栏显隐后 dvh 脏值）才钉，正常贴合不碰
 var open = (!_aVvStale && !_aKbMute && h < _aH - 60 && _focNow); // 可视高度明显变小 = 键盘弹出（#236：残留读数闩抑制纯 vv 信号；真键盘不受影响——inner 同缩走原判/交互与回基准解锁；#479：必然伴随文本聚焦）
 if (!open && h > _aH) _aH = Math.min(h, window.innerHeight || h); // #1516：基线钳进布局视口——Edge 工具栏切换会报比 inner 还高的假 vv（实测 690 基线下闯入 816），不钳则正常高度被误判成键盘收缩、会话劫持钉全高
 if (open && !_aKb) { _aClosing = false; _aKb = true; _aVvShrunkSeen = true; _aKbAt = Date.now(); _aKbStableH = 0; _aFullSince = 0; _aHonestSession = 0; _aLowSince = 0; _aVkSeen = 0; _aLowRuns = 0; _aFullReads = 0; _aDockFix = 0; _aLastDockSig = 0; _aPhone.style.alignSelf = 'flex-start'; kbDockPanels(); _aProvClear(); } _aKbSnapOpen = true; // #1463：本拍钉高落定后留证
@@ -1524,7 +1525,7 @@ _aKb = false; _aClosing = false;
 _aKbStableH = 0; _aFullSince = 0; _aLastDockSig = 0; _aHonestSession = 0; _aLowSince = 0; _aVkSeen = 0; _aLowRuns = 0; _aFullReads = 0;
 _aHoldSuppressUntil = Date.now() + 1200; // #1524：收口后 1.2s 内禁止重新推顶（收口与保底救援同拍互踢）
 try { if (_aVkHonest || _aVkListener) { if (_aVkListener && navigator.virtualKeyboard) navigator.virtualKeyboard.removeEventListener('geometrychange', _aVkListener); _aVkListener = null; _aVkHonest = false; _aVkH = -1; _aVkSeen = 0; var _vkC = navigator.virtualKeyboard; if (_vkC) _vkC.overlaysContent = false; } } catch (eVC) {} // #1524：解除武装必须摘监听器（旧监听留在下一会话里会拿陈旧实测把输入栏钉在半高）
-_aPhone.style.height = '';
+try { var _pbC = _aPhone.getBoundingClientRect().bottom; if (_pbC > (window.innerHeight || 0) + 2) _aPhone.style.height = Math.round(window.innerHeight || 0) + 'px'; } catch (ePC2) {} // #1537：清空后若 CSS 高度超出视口（本机 dvh 脏值：渲染 942 vs 视口 816，输入栏沉到视口外＝「消失几秒」）才钉 innerHeight；正常内核清空后贴合＝保持清空契约
 _aPhone.style.alignSelf = '';
 if (_aH < window.innerHeight - 12) _aH = window.innerHeight; else if (_aH > window.innerHeight + 12) _aH = window.innerHeight; // #1517：高值基线必须回落（#1524：从死代码搬进收口唯一入口）
 _aDockFix = 0; _aKbSnapOpen = false; _aKbSnap("close"); // #1463：收起清对账残差账＋现场留档（#1524：残差账跨会话不清会把上一轮的钉高带进下一轮）
@@ -1560,7 +1561,7 @@ phB: Math.round(pr.bottom), visB: o + Math.round(_aVV.height || 0),
 gap: Math.round((o + (_aVV.height || 0)) - pr.bottom) };
 window.__mochiKbSnap = s;
 var q = window.__mochiKbSnaps = window.__mochiKbSnaps || [];
-q.unshift(s); if (q.length > 4) q.length = 4;
+q.unshift(s); if (q.length > 24) q.length = 24; // #1537：4 条存不下开键盘那一刻的样本（56 秒即被挤出）
 return s;
 } catch (eS) { return null; }
 }
