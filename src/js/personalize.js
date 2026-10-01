@@ -8820,6 +8820,7 @@ try {
       el.addEventListener('pointerdown', (e) => {
         if (!tapToOpen && adjMini) return; // 展开态把手：胶囊态下不参与
         if (!tapToOpen && e.target.closest('button')) return; // header 里的按钮不参与拖动
+if (e.target.closest('input,select,textarea')) return; // #1534：滑块是本面板的主角，绝不能被拖面板劫持
         if (e.pointerType === 'mouse' && e.button !== 0) return;
         drag = true; moved = false; sy = e.clientY;
         sb = parseFloat(panel.style.bottom) || bottomReserve();
@@ -8870,7 +8871,7 @@ try {
       // 与边看边调抽屉同口径；刻意不加 backdrop-filter——AGENTS 的 iOS 卡顿红线。
       panel.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:96;max-height:40vh;background:var(--card-bg,#fff);background:color-mix(in srgb, var(--card-bg,#fff) 72%, transparent);color:var(--ink,#111);box-shadow:0 -6px 24px rgba(0,0,0,.18);border-radius:16px 16px 0 0;overflow-y:auto;overflow-x:hidden;padding:0 14px calc(14px + var(--mochi-safe-bottom,env(safe-area-inset-bottom,0px)));box-sizing:border-box;display:flex;flex-direction:column;gap:6px;transition:bottom .16s ease';
       const grip = document.createElement('div');
-      grip.style.cssText = 'width:36px;height:4px;border-radius:2px;background:var(--card-border,#ddd);margin:7px auto 2px;flex:none';
+      grip.style.cssText = 'width:100%;height:20px;margin:2px 0 0;flex:none;background:linear-gradient(transparent 8px,var(--card-border,#ddd) 8px,var(--card-border,#ddd) 12px,transparent 12px)'; // #1534：触控区从 36×4 加大到整行 20px 高（手机上 4px 细条点不中＝用户感知「拖不动」），视觉细条仍居中
       panel.appendChild(grip);
       bindAdjDrag(grip, false);
       elGrip = grip;
@@ -8882,6 +8883,7 @@ try {
       headTop.style.cssText = 'display:flex;align-items:center;gap:8px';
       headTop.innerHTML = '<b style="font-size:14px;flex:1;min-width:0">屏幕适配微调</b><span style="font-size:11px;color:#666;flex:none">本机永久保存</span>';
       head.appendChild(headTop);
+bindAdjDrag(headTop, false); // #1534：拖标题行移动面板（与桌面美化「边看边调」同口径）
       const headTool = document.createElement('div');
       headTool.style.cssText = 'display:flex;align-items:center;gap:8px';
       head.appendChild(headTool);
