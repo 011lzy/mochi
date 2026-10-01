@@ -6496,6 +6496,11 @@ const FIX_SENTINELS = [
   { name: '#1530c 柜内领取调回聊天侧同步钩子（删＝柜里领了屏上聊天卡还挂【领取】、聊天里也没了「你收下了…」留痕，两处口径分叉）', file: 'js/gift-shop.js', needle: 'try { if (window.chatGiftClaimSync) window.chatGiftClaimSync(it.id, it.name); } catch (eCS) {}' },
   { name: '#1530d 聊天侧同步＝按心意柜指针就地补卡＋留痕（不写状态＝单一事实源仍在柜；rateAllow 删＝额度满时这条用户当刻操作留痕被 #1341 闸吞掉）', file: 'js/chat.js', needle: "if (r && r.special === 'gift' && r.giftBoxId === boxId) { giftPatchCard(i); if (!rec) rec = r; }" },
   { name: '#1530e 详情领取钮容器（删＝居中面板里按钮退回 inline 默认宽度，与聊天卡【领取】的整行实底形态脱族）', file: 'css/market.css', needle: '.gb-detail-claim { display: flex; margin-top: 16px; }' },
+  // ==== 2026-10-01 #1540 聊天送礼面板（标题「心意集市 · TA」）补「上传我的商品」入口（用户报障「心意集市自己添加商品的按钮不见了」，多机型同报：添加商品的入口过去只存在于桌面图标的全屏市集页 #858，聊天里这个同名面板只有分类与商品网格＝同名面缺入口，非按钮被删；与 #1530 心意柜补领取同族收口）====
+  { name: '#1540a 聊天送礼面板注入上传入口（删＝聊天里「心意集市」面板依旧无路添加商品，用户报障原样回流；重复注入守卫删＝重开聊天每次插一行）', file: 'js/gift-shop.js', needle: '\'<div class="gift-mine-row" id="gift-mine-entry"><button id="gift-mine-add" type="button">＋ 上传我的商品</button></div>\'' },
+  { name: '#1540b 入口点击直接开添加表单（删＝按钮在但点了没反应；openAddGiftForm 复用＝市集页与面板同一张表单、#1323/#1230 拾取门由 openTCPanel 换届自动补装）', file: 'js/gift-shop.js', needle: "if (mineAddBtn) mineAddBtn.addEventListener('click', function () { openAddGiftForm(null); });" },
+  { name: '#1540c 保存走 marketRerenderBoth（退回只 renderMarket＝在面板里加的商品要关面板重开才出现，用户视角「加了但没加上」）', file: 'js/gift-shop.js', needle: "customSave(customs); closeTc(); marketRerenderBoth(); toast('已保存');" },
+  { name: '#1540d 面板上传入口样式（删＝按钮退回浏览器默认形态，与心愿单入口的整行胶囊脱族；暗色行回流＝深底上灰底白字刺眼/看不清）', file: 'css/market.css', needle: '.gift-mine-row button { width: 100%; padding: 10px 0; border-radius: 12px; border: 1px solid rgba(0, 0, 0, 0.14); background: #f7f7f7; color: #111; font-size: 13px; cursor: pointer; -webkit-tap-highlight-color: transparent; }' },
   { name: '#1531a 无键盘基线每拍钳进布局视口（删＝_aH 卡在地址栏隐时的高度 816 而 innerHeight 恒 690，地址栏显隐被当成键盘弹出/收起，页面在保底停靠 400px 与全高 690px 之间翻转＝弹跳闪屏＋输入栏与面板之间空隙；现场快照环实锤：[prov,0,816,400px]→[open,1,690,690px]）', file: 'js/mobile-adapt.js', needle: 'if (_aH > (window.innerHeight || 0) + 12) _aH = window.innerHeight || _aH;' },
   { name: '#1532a 聚焦期无条件采样环（删＝本机键盘链路从不启动、现有快照环永远空＝40 轮盲修的根源；聚焦期每拍记真实几何到 __mochiFocRing）', file: 'js/mobile-adapt.js', needle: '__mochiFocRing' },
   { name: '#1532b 诊断单输出聚焦期采样环（删＝采样了但诊断看不到）', file: 'js/device.js', needle: '聚焦期采样环=' },

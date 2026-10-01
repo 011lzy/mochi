@@ -1995,7 +1995,7 @@
       } else {
         customs.push(item);
       }
-      if (customWriteBlocked()) { customAwaitBack(marketRerenderBoth); return; } customSave(customs); closeTc(); renderMarket(); toast('已保存');
+      if (customWriteBlocked()) { customAwaitBack(marketRerenderBoth); return; } customSave(customs); closeTc(); marketRerenderBoth(); toast('已保存'); // #1540：marketRerenderBoth＝市集页＋开着的聊天送礼面板都重画（面板里新加的商品立刻可见）
     });
     if (cancelBtn) cancelBtn.addEventListener('click', closeTc);
   }
@@ -2349,6 +2349,18 @@
         const catsNode2 = document.getElementById('gift-cats');
         if (catsNode2) catsNode2.insertAdjacentHTML('beforebegin', '<div class="gift-wish-row" id="gift-wish-entry"><button id="gift-wish-ta" type="button">☆ 看看 ' + esc(partnerName()) + ' 的心愿单</button></div>');
       }
+      // #1540：聊天送礼面板的标题就叫「心意集市 · TA」，但「上传我的商品」入口过去只存在于
+      // 桌面图标进的那个全屏市集页（#858）——用户在聊天里打开这个同名面板找「自己添加商品」
+      // 自然扑空（报障「心意集市自己添加商品的按钮不见了」＝同名面缺入口，不是按钮被删；
+      // 多机型同报＝逻辑缺口非机型问题，与 #1530 心意柜补领取同族收口）。入口走 wish-entry
+      // 同款「init 注入一次」模式；表单直接复用 openAddGiftForm（#tc-mask 层，#1323/#1230
+      // 拾取门由 openTCPanel 换届自动补装），保存后 marketRerenderBoth 让面板网格就地出新商品。
+      if (!document.getElementById('gift-mine-entry')) {
+        const catsNode3 = document.getElementById('gift-cats');
+        if (catsNode3) catsNode3.insertAdjacentHTML('beforebegin', '<div class="gift-mine-row" id="gift-mine-entry"><button id="gift-mine-add" type="button">＋ 上传我的商品</button></div>');
+      }
+      const mineAddBtn = document.getElementById('gift-mine-add');
+      if (mineAddBtn) mineAddBtn.addEventListener('click', function () { openAddGiftForm(null); });
       const gwBtn = document.getElementById('gift-wish-ta');
       if (gwBtn) gwBtn.addEventListener('click', function () {
         closeGiftPanel();

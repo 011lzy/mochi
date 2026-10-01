@@ -1653,7 +1653,7 @@ if (idx >= 0) customs[idx] = item; else customs.push(item);
 } else {
 customs.push(item);
 }
-if (customWriteBlocked()) { customAwaitBack(marketRerenderBoth); return; } customSave(customs); closeTc(); renderMarket(); toast('已保存');
+if (customWriteBlocked()) { customAwaitBack(marketRerenderBoth); return; } customSave(customs); closeTc(); marketRerenderBoth(); toast('已保存'); // #1540：marketRerenderBoth＝市集页＋开着的聊天送礼面板都重画（面板里新加的商品立刻可见）
 });
 if (cancelBtn) cancelBtn.addEventListener('click', closeTc);
 }
@@ -1952,6 +1952,12 @@ if (!document.getElementById('gift-wish-entry')) {
 const catsNode2 = document.getElementById('gift-cats');
 if (catsNode2) catsNode2.insertAdjacentHTML('beforebegin', '<div class="gift-wish-row" id="gift-wish-entry"><button id="gift-wish-ta" type="button">☆ 看看 ' + esc(partnerName()) + ' 的心愿单</button></div>');
 }
+if (!document.getElementById('gift-mine-entry')) {
+const catsNode3 = document.getElementById('gift-cats');
+if (catsNode3) catsNode3.insertAdjacentHTML('beforebegin', '<div class="gift-mine-row" id="gift-mine-entry"><button id="gift-mine-add" type="button">＋ 上传我的商品</button></div>');
+}
+const mineAddBtn = document.getElementById('gift-mine-add');
+if (mineAddBtn) mineAddBtn.addEventListener('click', function () { openAddGiftForm(null); });
 const gwBtn = document.getElementById('gift-wish-ta');
 if (gwBtn) gwBtn.addEventListener('click', function () {
 closeGiftPanel();
