@@ -2924,6 +2924,7 @@ if (!out && !userFollow && !chatPinnedBottom && !chatAtBottom()) return;
 	scrollChatBottom();
 	requestAnimationFrame(scrollChatBottom);
 	setTimeout(scrollChatBottom, 120);
+	chatResumeRealign('send'); // #1523a 发送这一发连写三次常落在键盘收起／回场几何风暴的中间态上＝#978 那种「滚动树停旧偏移、scrollTop 读数假绿」，而这三连写自己不是补口：挂上落定枪，几何全静默后再同值重落一枪（健康态零副作用）
 	} else {
 	// FIX 2026-09-15 #516：TA 自发（in）跟底改为**插入帧内同步瞬时**贴底。
 	// 旧实现是插入之后才启动平滑滚动：新气泡先在视口下方渲染（实测 390×844、气泡高 53px 时
@@ -9790,6 +9791,7 @@ requestAnimationFrame(scrollToBottom);
 requestAnimationFrame(() => requestAnimationFrame(scrollToBottom));
 }
 chatEntrySettle();
+chatResumeRealign('enter'); // #1523b 站内切页回聊天不发 visibilitychange＝#978/#1476 那四把回场枪一把都不经过；同窗补丁命中时零重建，撕裂态没有任何补口（整窗重画才治得好，正是用户所见「TA 一回就整屏闪一下」）
 chatTypingReconcile('enter'); // #1326：进页先把过期的承诺收掉——否则每次重进聊天页都把那句「正在输入」重新点亮（用户口径的「退出再进来还是不动」）
 if (typingOn && chatVisible()) {
 typingEl.hidden = false; // FIX 2026-09-15 #514 进页同款：只切可见性、不写 scrollTop（上面三连已在行隐藏态贴到底）

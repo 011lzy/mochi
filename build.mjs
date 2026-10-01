@@ -6476,6 +6476,8 @@ const FIX_SENTINELS = [
     { name: '#1524f 收口抑制窗 1.2s（删＝收口后保底救援同拍踢回＝点一下回位又跳）', file: 'js/mobile-adapt.js', needle: '_aHoldSuppressUntil = Date.now() + 1200;' },
     { name: '#1524g 实测到位记账（删＝分不清「还没报」与「报了 0」＝三态塌回两态）', file: 'js/mobile-adapt.js', needle: 'if (_aVkH >= 80) { _aVkSeen = 1;' },
     { name: '#1524h 实测尺武装当场读一次高度（删＝geometrychange 只在高度变化时发，武装后键盘不再变则永远读不到实测高度＝退化成 58% 盲猜）', file: 'js/mobile-adapt.js', needle: 'try { _applyVk(); } catch (eA) {}' },
+  { name: '#1523a 自己发消息这一发挂落定同值重落枪（删＝三连写落在几何风暴中间态后无任何补口＝我发的气泡停在视口外，只有整窗重画才回来）', file: 'js/chat.js', needle: "chatResumeRealign('send');" },
+  { name: '#1523b 站内进聊天页挂落定同值重落枪（删＝切页回聊天不发 visibilitychange，四把回场枪一把都不经过，同窗补丁零重建时撕裂态永无补口）', file: 'js/chat.js', needle: "chatResumeRealign('enter');" },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
