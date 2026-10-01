@@ -2106,8 +2106,34 @@
             (boxReplies(it).length
               ? '<div class="gb-detail-repl-title">这件礼物上的回复</div><div class="gb-detail-repls">' + boxReplyRows(it) + '</div>'
               : '') +
+            // #1530：详情里的【领取】——心意柜自己成为可领取面。过去领取动作只挂在聊天礼物卡上
+            //（#985），聊天卡被删掉／丢了 giftBoxId／聊天清空后，柜里这件永远「待领取」且无路可领
+            //（用户报障「心意柜里的礼物显示待领取，无法点击领取」，多机型同现＝逻辑缺口不是机型问题）。
+            // 领取态单一事实源仍是柜记录：走 giftBoxMarkClaimed 既有写回路（按当前桌面 cid 落盘），
+            // 领完就地换徽标＋重画列表；屏上聊天卡重画与聊天留痕由 chat.js 的 chatGiftClaimSync 补
+            //（有卡补卡、无卡只留痕）。删除件的监听在列表卡捕获阶段，详情面板在 #tc-body 里互不影响。
+            (boxPending(it) ? '<div class="gb-detail-claim"><button class="msg-gift-claim" type="button" data-gb-claim="' + esc(it.id) + '">领取</button></div>' : '') +
           '</div>';
         window.openTCPanel('心意柜', html);
+        // #1530：绑定开在 openTCPanel 之后（innerHTML 已换届，按钮是真节点）；同一详情至多一个领取钮
+        const claimBtn = (function () {
+          const b = document.querySelector('#tc-body button[data-gb-claim]');
+          return (b && b.dataset.gbClaim === String(it.id)) ? b : null;
+        })();
+        if (claimBtn) claimBtn.addEventListener('click', function () {
+          if (!boxPending(it)) return; // 已领取＝幂等（旧面板残留按钮也不重复记账）
+          if (!window.giftBoxMarkClaimed || !window.giftBoxMarkClaimed(it.id)) {
+            if (typeof window.toast === 'function') window.toast('暂时领不了，稍后再试');
+            return;
+          }
+          renderBox(); // 柜列表就地转已领取（待领取徽标消失、统计不变）
+          const done = document.createElement('span');
+          done.className = 'msg-gift-got';
+          done.textContent = '✓ 已领取';
+          claimBtn.replaceWith(done);
+          if (typeof window.toast === 'function') window.toast('已领取');
+          try { if (window.chatGiftClaimSync) window.chatGiftClaimSync(it.id, it.name); } catch (eCS) {}
+        });
       });
     });
   }

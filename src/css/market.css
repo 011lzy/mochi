@@ -192,6 +192,9 @@
 .giftbox-repl-who { flex: none; color: #c8c8c8; }
 .giftbox-repl-tx { flex: 1; color: #6a6a6a; word-break: break-word; }
 .gb-detail-pending { margin-top: 12px; font-size: 12px; }
+/* #1530：心意柜详情的【领取】——按钮直接复用聊天卡 .msg-gift-claim（视觉同族、暗色行为一致），
+   这里只给容器：面板正文居中布局里按钮独占一行撑满 */
+.gb-detail-claim { display: flex; margin-top: 16px; }
 .gb-detail-repl-title { margin-top: 18px; font-size: 11.5px; color: #b5b5b5; letter-spacing: 0.5px; }
 .gb-detail-repls { margin: 10px 20px 0; }
 

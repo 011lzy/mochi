@@ -1744,8 +1744,27 @@ const html =
 (boxReplies(it).length
 ? '<div class="gb-detail-repl-title">这件礼物上的回复</div><div class="gb-detail-repls">' + boxReplyRows(it) + '</div>'
 : '') +
+(boxPending(it) ? '<div class="gb-detail-claim"><button class="msg-gift-claim" type="button" data-gb-claim="' + esc(it.id) + '">领取</button></div>' : '') +
 '</div>';
 window.openTCPanel('心意柜', html);
+const claimBtn = (function () {
+const b = document.querySelector('#tc-body button[data-gb-claim]');
+return (b && b.dataset.gbClaim === String(it.id)) ? b : null;
+})();
+if (claimBtn) claimBtn.addEventListener('click', function () {
+if (!boxPending(it)) return; // 已领取＝幂等（旧面板残留按钮也不重复记账）
+if (!window.giftBoxMarkClaimed || !window.giftBoxMarkClaimed(it.id)) {
+if (typeof window.toast === 'function') window.toast('暂时领不了，稍后再试');
+return;
+}
+renderBox(); // 柜列表就地转已领取（待领取徽标消失、统计不变）
+const done = document.createElement('span');
+done.className = 'msg-gift-got';
+done.textContent = '✓ 已领取';
+claimBtn.replaceWith(done);
+if (typeof window.toast === 'function') window.toast('已领取');
+try { if (window.chatGiftClaimSync) window.chatGiftClaimSync(it.id, it.name); } catch (eCS) {}
+});
 });
 });
 }

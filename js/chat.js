@@ -5485,6 +5485,18 @@ try { if (window.giftBoxLiveRefresh) window.giftBoxLiveRefresh(); } catch (e) {}
 }, { placeholder: '写一句你的回复', staticText: '这件礼物原本的文案：「' + (orig || '心意') + '」——这句是送礼人写的，卡片上会一直显示。\n在下面写你自己的一句就好：聊天里只发你这句，卡片上「原本文案 ＋ 你的回复」两处都在。' });
 return true;
 }
+window.chatGiftClaimSync = function (boxId, giftName) {
+if (!boxId) return false;
+let rec = null;
+try {
+if (body) for (let i = 0; i < msgs.length; i++) {
+const r = msgs[i];
+if (r && r.special === 'gift' && r.giftBoxId === boxId) { giftPatchCard(i); if (!rec) rec = r; }
+}
+} catch (e) {}
+try { addIn('你收下了 ' + ((rec && rec.giftName) || giftName || '礼物'), { special: 'poke', rateAllow: true }); } catch (e2) {}
+return true;
+};
 window.chatGiftAttachReplyTo = function (cid, giftTs, who, text, recRef) {
 try {
 if (!giftTs || !text) return false;

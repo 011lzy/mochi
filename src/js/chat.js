@@ -7438,6 +7438,22 @@ function giftReplyNow(idx) {
   }, { placeholder: '写一句你的回复', staticText: '这件礼物原本的文案：「' + (orig || '心意') + '」——这句是送礼人写的，卡片上会一直显示。\n在下面写你自己的一句就好：聊天里只发你这句，卡片上「原本文案 ＋ 你的回复」两处都在。' });
   return true;
 }
+// #1530：心意柜详情里的【领取】落柜后由 gift-shop 调回——按心意柜指针把屏上同一件的聊天卡走
+// giftPatchCard 就地重画（领取态读柜记录＝单一事实源，这里不写任何状态），并补一条与卡上领取
+// 同款的聊天留痕「你收下了 …」。聊天卡可能已不存在（被删／清空／丢指针）＝只留痕，柜子照常领取。
+// rateAllow 同 #1341 口径：这是用户当刻操作引发的记录，额度满也不许吞。
+window.chatGiftClaimSync = function (boxId, giftName) {
+  if (!boxId) return false;
+  let rec = null;
+  try {
+    if (body) for (let i = 0; i < msgs.length; i++) {
+      const r = msgs[i];
+      if (r && r.special === 'gift' && r.giftBoxId === boxId) { giftPatchCard(i); if (!rec) rec = r; }
+    }
+  } catch (e) {}
+  try { addIn('你收下了 ' + ((rec && rec.giftName) || giftName || '礼物'), { special: 'poke', rateAllow: true }); } catch (e2) {}
+  return true;
+};
 // #985：给 gift-shop 的 TA 回话贴卡用（回话只写那件礼物的心意柜记录＝卡片渲染的数据源）。
 // 延迟窗（0.9~2.4s）里用户可能已切桌面——跨桌面先在那张卡上认出心意柜指针（chatDeskCardReply
 // 的读改写含 #127 增量日志合并与 #90 空库守卫），再按 cid 写那个桌面的心意柜。

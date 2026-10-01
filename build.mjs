@@ -6485,6 +6485,12 @@ const FIX_SENTINELS = [
   { name: '#1528a 对账残差账只在「本会话确实观测到过真实收缩读数」时才记账（删＝零信号内核（Edge：视口不缩/实测尺答 0/平移 0）下 err 纯属噪声却照记并喂回钉高＝键盘与输入栏空隙越走越偏＋收键盘弹跳闪屏＋输入栏消失数秒；定罪：9/28 线上版为一次性直写，9/29 a800682 #1463 引入此自反馈环）', file: 'js/mobile-adapt.js', needle: 'if (!(_aKbStableH > 0 && _aKbStableH < _aH - 60)) { _aDockFix = 0;' },
   { name: '#1529a 面板停靠锚输入栏实际顶边（删＝写死 96px＝输入栏更高的机型上（K80 Edge 实机截图：键盘未出现，站在键盘位置的是字卡面板，输入栏与面板之间露出约 110px 整段空白）面板按 96px 上锚、输入栏占更高一截）', file: 'js/mobile-adapt.js', needle: 'var _rowH = 96;' },
   { name: '#1529b 面板底边用实测锚（删＝量了却不用＝空隙照旧）', file: 'js/mobile-adapt.js', needle: "el.style.bottom = 'calc(' + _rowH + 'px" },
+  // ==== 2026-10-01 #1530 心意柜详情补【领取】（用户报障「心意柜里的礼物显示待领取，无法点击领取」，多机型同现＝逻辑缺口非机型问题：领取动作只挂在聊天礼物卡上，聊天卡被删/丢 giftBoxId/清空后柜里这件永远待领取且无路可领）====
+  { name: '#1530a 心意柜详情面板渲染【领取】按钮且只对 boxPending 那件出（删＝柜里待领取的礼物依旧无路可领，用户报障原样回流；放宽＝已领取/TA 自买也长出领取钮）', file: 'js/gift-shop.js', needle: '(boxPending(it) ? \'<div class="gb-detail-claim"><button class="msg-gift-claim" type="button" data-gb-claim="\' + esc(it.id) + \'">领取</button></div>\' : \'\')' },
+  { name: '#1530b 柜内领取走 giftBoxMarkClaimed 既有写回路＋领后重画列表（改回裸写/漏重画＝徽标不消或跨桌面写错柜；幂等守卫删＝旧面板残留按钮可重复记账）', file: 'js/gift-shop.js', needle: 'if (!boxPending(it)) return; // 已领取＝幂等（旧面板残留按钮也不重复记账）' },
+  { name: '#1530c 柜内领取调回聊天侧同步钩子（删＝柜里领了屏上聊天卡还挂【领取】、聊天里也没了「你收下了…」留痕，两处口径分叉）', file: 'js/gift-shop.js', needle: 'try { if (window.chatGiftClaimSync) window.chatGiftClaimSync(it.id, it.name); } catch (eCS) {}' },
+  { name: '#1530d 聊天侧同步＝按心意柜指针就地补卡＋留痕（不写状态＝单一事实源仍在柜；rateAllow 删＝额度满时这条用户当刻操作留痕被 #1341 闸吞掉）', file: 'js/chat.js', needle: "if (r && r.special === 'gift' && r.giftBoxId === boxId) { giftPatchCard(i); if (!rec) rec = r; }" },
+  { name: '#1530e 详情领取钮容器（删＝居中面板里按钮退回 inline 默认宽度，与聊天卡【领取】的整行实底形态脱族）', file: 'css/market.css', needle: '.gb-detail-claim { display: flex; margin-top: 16px; }' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
