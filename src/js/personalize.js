@@ -842,6 +842,16 @@ try {
       if (window.mochiModalPickOkClear) { try { window.mochiModalPickOkClear(); } catch (eP3) {} }
     }
     function fire() {
+      // #1541 续（红米 K80 Chrome 实报「弹窗里打完字点确定＝没反应」，无头同路径全绿）：
+      // 真机与无头的最大差异＝真实输入法组合态——部分安卓内核组合中的文本不落 DOM，
+      // 直接读值＝读空/读半截，回调拿到空串被业务空值守卫静默 return（添加联系人/改名
+      // 等＝「确认了没反应」）。读值前先把组合收掉：blur 让内核把组合文本提交进
+      // contenteditable 再读；无组合（桌面/iOS/已上屏）时 blur 是空操作零影响。
+      // 多阶段表单（stayOnce）由后续 openModal 自己重新聚焦，不残留失焦。
+      try {
+        const ae = document.activeElement;
+        if (ae && ae.isContentEditable && mask.contains(ae)) ae.blur();
+      } catch (e) {}
       if (!cb) return;
       // 色板/自定义取色优先于 pills（v3.6.x：widget 颜色等弹窗同时带 pills 和色板时，
       // 点色板确定被 pills 分支拦截传 null → 设置不生效）
@@ -10120,7 +10130,7 @@ bindAdjDrag(headTop, false); // #1534：拖标题行移动面板（与桌面美�
       const el = document.getElementById('about-ver-val');
       const ver = (el && el.textContent.trim()) || '（未知）';
       open('版本与更新',
-        '当前版本：' + ver + '\n\n有新版本时，开屏「Mochi 字卡传讯」下方会出现「⇩ 有新版本 · 点此更新」，点一下即可更新到最新。\n\n更新只替换程序文件，本机的聊天记录、字卡、头像、壁纸、音乐等数据全部保留，不会被清除。\n\n作者已决定月底停更：之后不再维护更新（详见开屏公告）。\n\n本次更新了哪些内容：以开屏公告为准（公告可在线更新，每次上线会写在里面）。',
+        '当前版本：' + ver + '\n\n有新版本时会自动换到（切后台/重开时生效），也可点下方按钮立即检查并刷新到最新。\n\n更新只替换程序文件，本机的聊天记录、字卡、头像、壁纸、音乐等数据全部保留，不会被清除。\n\n作者已决定月底停更：之后不再维护更新（详见开屏公告）。\n\n本次更新了哪些内容：以开屏公告为准（公告可在线更新，每次上线会写在里面）。',
         { okText: '知道了', pills: [{ label: '检查更新（刷新到最新）', value: 'ok' }], pillSubmit: true },
         (v) => { if (v === 'ok' && typeof window.mochiRefreshNow === 'function') window.mochiRefreshNow(); });
     });

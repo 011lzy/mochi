@@ -546,7 +546,10 @@ const ren = el('button', '', '改名');
 ren.style.cssText = 'font-size:12px;padding:4px 8px;border:1px solid var(--pill-border,#ddd);border-radius:8px;background:var(--static-bg,#fafafa);color:var(--ink,#111)';
 ren.addEventListener('click', (e) => {
 e.stopPropagation();
-if (window.openModal) window.openModal('改名', c.name || '', (v) => { if (v && v.trim()) { window.renameContact(c.id, v.trim()); window.openContactManager(); } });
+if (window.openModal) window.openModal('改名', c.name || '', (v) => {
+if (v && v.trim()) { window.renameContact(c.id, v.trim()); window.openContactManager(); }
+else { try { if (window.toast) window.toast('没有读到名字——请再试一次；反复出现请到设置→关于/诊断导出诊断单报障'); } catch (e0) {} }
+});
 });
 acts.appendChild(ren);
 if (c.id !== 'default') {
@@ -563,7 +566,8 @@ const add = el('button', '', '+ 添加联系人 / 桌面');
 add.style.cssText = 'width:100%;padding:12px;border:none;border-radius:10px;background:var(--ink,#111);color:var(--bg-b,#fff);font-size:14px;font-weight:600';
 add.addEventListener('click', () => {
 if (window.openModal) window.openModal('新建联系人', '', (v) => {
-const name = (v || '').trim(); if (!name) return;
+const name = (v || '').trim();
+if (!name) { try { if (window.toast) window.toast('还没有输入名字——先点输入框打一个名字'); } catch (e0) {} return; }
 const id = window.createContact(name); window.setActiveContact(id); hideContactModal(m);
 try { if (window.toast) window.toast('已创建「' + name + '」的桌面，已为你切换'); } catch (e) {}
 });

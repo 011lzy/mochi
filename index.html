@@ -10951,7 +10951,7 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
            （名称+版号 / 部署时间+实时秒 / 版本检测行）收成一行；检测行随 ver-check.js 退役删除。
            data-build-ts / data-version 两属性保留：device.js 诊断、bg-keep 自检、pwa.js 旧包检测
            仍只读属性（诊断版本号走 data-version 兜底，device.js 两处缓存原生支持）。 -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1790868350521" data-version="v8.66">
+      <div class="splash-ver" id="splash-ver" data-build-ts="1790870712436" data-version="v8.66">
         <span class="sv-app">Mochi 字卡传讯 已完结停更</span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
@@ -12202,7 +12202,7 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
         <!-- #977：后台保活两条硬限制当面铺在行下（用户直派「两功能要提示用户：后台长时间挂着会失效，
              需重新关掉网页打开并重新打开功能；别的 App 刷视频/听音乐会占用音频截断保活，也要写清楚」）。
              红色视觉复用 #961 红条族；完整口径见本组「功能说明」胶囊与 使用说明 第 10 节 -->
-        <div class="gs-sub dict-lock-hint" id="bg-keep-sub">⚠️ <b>两条必知限制（手机/浏览器限制，不是故障）</b>：① <b>别的 App 刷视频、听音乐会把保活截断</b>——它们占用手机音频通道，保活音频被暂停＝保活失效，回到本页才自动恢复，截断期间后台消息收不到；② <b>后台挂久了会失效</b>——系统省电/内存策略会把挂久的页面冻结甚至丢弃重载（Edge「睡眠标签页」/Chrome「内存节省程序」约 30 分钟；手机内存紧张时更快——本页越重，几分钟也可能被丢），<b>失效后请彻底关闭网页重新打开，再把「后台保活」「后台弹窗」开关重新打开</b>。其实被回收后回到本页会自动重载：开关自动恢复、保活在你碰一下页面时就自动接上，数据不丢；<b>止住它最有效的一步＝去 系统设置 → 应用 → 本浏览器（或桌面上的 Mochi）→ 省电 / 电池策略 选「无限制 / 允许后台活动」，再在最近任务里把本站锁定、别横向划掉</b>；⚠ 只关 Edge「睡眠标签页」/ Chrome「内存节省程序」往往白忙活——那两个只管<b>浏览器里的标签页</b>，已添加到桌面的本站是独立应用，改那里管不到它。再把 设置→查看存储 里最占数据的两项清一清（页越轻越不容易被丢）。<br>另外：<b>开着「后台保活」或「后台通知」时，页面不会在后台自动换新版</b>——换新版要重载页面、会把后台运行打断；顶部出现「检测到新版本」条时，你自己挑时间点「刷新使用新版」即可（不点也不影响使用，下次彻底关闭网页重开会自然换到新版）。</div>
+        <div class="gs-sub dict-lock-hint" id="bg-keep-sub">⚠️ <b>两条必知限制（手机/浏览器限制，不是故障）</b>：① <b>别的 App 刷视频、听音乐会把保活截断</b>——它们占用手机音频通道，保活音频被暂停＝保活失效，回到本页才自动恢复，截断期间后台消息收不到；② <b>后台挂久了会失效</b>——系统省电/内存策略会把挂久的页面冻结甚至丢弃重载（Edge「睡眠标签页」/Chrome「内存节省程序」约 30 分钟；手机内存紧张时更快——本页越重，几分钟也可能被丢），<b>失效后请彻底关闭网页重新打开，再把「后台保活」「后台弹窗」开关重新打开</b>。其实被回收后回到本页会自动重载：开关自动恢复、保活在你碰一下页面时就自动接上，数据不丢；<b>止住它最有效的一步＝去 系统设置 → 应用 → 本浏览器（或桌面上的 Mochi）→ 省电 / 电池策略 选「无限制 / 允许后台活动」，再在最近任务里把本站锁定、别横向划掉</b>；⚠ 只关 Edge「睡眠标签页」/ Chrome「内存节省程序」往往白忙活——那两个只管<b>浏览器里的标签页</b>，已添加到桌面的本站是独立应用，改那里管不到它。再把 设置→查看存储 里最占数据的两项清一清（页越轻越不容易被丢）。<br>另外：<b>开着「后台保活」或「后台通知」时，页面不会在后台自动换新版</b>——换新版要重载页面、会把后台运行打断；更新不再弹条提醒，想换新版就彻底关闭网页重开，或到 设置 → 关于 →「检查更新」手动刷（不刷也不影响使用）。</div>
         <div class="gs-row"><span>后台通知</span><label class="toggle"><input type="checkbox" id="bg-notify"><span class="tk"></span></label><button class="bg-notify-test" id="bg-notify-test">测试</button></div>
         <!-- v3.26.x：后台弹窗使用说明——要点直接铺在行下（用户直派「后台弹窗要有使用说明、详细说清楚」），
              完整步骤见本行「功能说明」胶囊（settings-help.js #bg-notify）与 使用说明 → 第 10 节 -->
@@ -13581,7 +13581,7 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
           <details class="lic-grp">
             <summary><span class="lg-num">5</span><span class="lg-name">版本更新</span><span class="lg-count">4</span></summary>
             <div class="lg-body">
-              <div class="lic-li">顶部出现「检测到新版本」时，点「刷新使用新版」即可更新；不想现在更新点「稍后」，下次重新打开会自动同步。</div>
+              <div class="lic-li">新版不再弹条提醒：页面会在你切后台/重开时自动换到最新；也可以到 设置 → 关于 →「检查更新」立即刷新。</div>
               <div class="lic-li">刚更新完新旧版本正在交接，可能重复提醒一次，属正常。</div>
               <div class="lic-li">不同设备的网络节点可能还没同步到最新版：可以关掉浏览器重开、用流量多刷新几次，或晚几小时再试。</div>
               <div class="lic-li">开屏底部有部署时间，可用来判断是不是最新版。</div>
@@ -13615,7 +13615,7 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
               <div class="lic-li"><b>TA 的回复太少 / 太频繁？</b>设置 → 聊天 → 回复设置 与 字卡库 → 其他互动功能字卡 里调概率（0 = 不触发）。</div>
               <div class="lic-li"><b>系统内置字卡用不了？</b>被「防未成年人 · 内置字卡锁定」锁住了，到开屏公告区那张卡输入二级验证密码解锁。</div>
               <div class="lic-li"><b>忘记应用锁密码？</b>可答安全问题或输暗号关闭应用锁；否则只能清除本站数据重来（会丢数据，务必先导出备份）。暗号／二级验证密码的答案在开屏<b>第一页</b>的章节里（点开开屏<b>第一页</b>顶部的「目录」，「6、当前状态与反馈」那一章写着那串日期）。</div>
-              <div class="lic-li"><b>打不开 / 白屏 / 一直是旧版？</b>建议用 Chrome、Edge 等主流浏览器，关掉浏览器重开、用流量多刷新几次再试。<b>如果你开着「后台保活」或「后台通知」，顶部会显示「检测到新版本」但页面不会自己在后台刷新</b>——换新版要重载页面、会把后台运行打断，所以改由你自己挑时间点右侧按钮刷新（不点也不影响使用，下次彻底关闭网页重开会自然换到新版）；这是刻意的设计，不是更新坏了。</div>
+              <div class="lic-li"><b>打不开 / 白屏 / 一直是旧版？</b>建议用 Chrome、Edge 等主流浏览器，关掉浏览器重开、用流量多刷新几次再试。<b>如果你开着「后台保活」或「后台通知」，页面不会在后台自动换新版</b>——换新版要重载页面、会把后台运行打断，所以改在你彻底关闭网页重开时换到新版，或到 设置 → 关于 →「检查更新」手动刷（不刷也不影响使用）；这是刻意的设计，不是更新坏了。</div>
               <div class="lic-li"><b>TA 是真人吗 / 算连上梦角了吗？</b>本质都是随机代码运行，是否对应上只有你自己知道；问外人不必要，别人的说法也不一定正确。</div>
               <div class="lic-li"><b>能上传云端 / 换个设备同步吗？</b>本站无后端、纯本地，数据不会上传；换设备靠导出备份文件再导入。</div>
             </div>
@@ -13691,7 +13691,7 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
               <div class="lic-li"><b>优化 ⑥ 清掉不听的音乐</b>：桌面「音乐」→ ⚙ 设置 →「<b>清理本地音频缓存</b>」（「查看存储」里那行只是跳转入口）。</div>
               <div class="lic-li"><b>优化 ⑦ iPhone 用法</b>：用 <b>Safari</b>「添加到主屏幕」，之后<b>从桌面图标</b>打开（没有浏览器工具栏，也不跟一堆标签页抢内存；用 Edge / Chrome 添加只会建快捷方式）。<b>这不是「能多用内存」</b>——存的东西多了，装在桌面上一样会被系统关掉重开。别同时开很多标签页；卡了就把应用完全划掉、重新打开一次。</div>
               <div class="lic-li"><b>优化 ⑧ 安卓用法</b>：同样的东西，安卓一般不会被系统关掉页面，但数据还是会一直涨，<b>长期用也要定期清</b>（照 ①② 做）。另外别用「桌面版网站」模式，手机版更流畅；识别失手时用 设置 → 系统 →「<b>手机布局（强制）</b>」掰回来（也可用地址栏 <b>?mobile=1 / ?pc=1</b>）。</div>
-              <div class="lic-li"><b>优化 ⑨ 保持最新版</b>：新版一直在做流畅度优化，顶部出现「检测到新版本」时点更新。</div>
+              <div class="lic-li"><b>优化 ⑨ 保持最新版</b>：更新会自动进行（切后台/重开时生效），也可到 设置 → 关于 →「检查更新」手动刷。</div>
               <div class="lic-li"><b>不是让你少存图</b>：现在上传的字卡图会自动压到<b>最长边 720px</b>（表情包 480、头像 256），比以前的旧图小得多——<b>正常存、正常用完全不用担心</b>。真正拖慢手机的是两类老东西：以前没有压缩标准时存下的<b>老图</b>，和只进不出的<b>历史数据</b>（聊天记录、本地音乐、用不上的大图卡）。把这两类清掉就够了。要铺满屏幕的壁纸会保留大尺寸（最长边 2880px），但一台桌面也就一两张，不会堆起来。</div>
               <div class="lic-li"><b>还有一类「卡」不是数据多，是手机把网页收回了</b>：表现＝切回来先白一下、「刚才的页面自己重新加载了」、TA 的消息和后台弹窗有一截没收到、页面越用越容易被丢。这是系统的<b>省电与后台管控</b>在做主（任何网页都拦不住它），而且<b>这一页越重它越爱收</b>。安卓／鸿蒙照这四步勾：① <b>系统设置 → 应用 →（你用的浏览器，或已加到桌面的「Mochi」图标）→ 省电 / 电池策略 → 选「无限制 / 允许后台活动」</b>，别让它「优化」这个应用；② 在<b>最近任务</b>里把本站<b>上滑锁定 / 点锁头</b>，<b>不要横向划掉它</b>（划掉＝你亲手关掉，回来必然重新加载）；③ 有「<b>自启动 / 后台活动</b>」开关的一并允许；④ 荣耀·华为、小米、OPPO·一加、vivo 的菜单<b>叫法各不相同</b>（省电策略 / 电池优化 / 后台管理 / 关联启动），找不到就在系统设置里直接搜「电池」「省电」「后台」。</div>
               <div class="lic-li"><b>一个容易白忙活的地方</b>：Edge 的「睡眠标签页」、Chrome 的「内存节省程序」管的是<b>浏览器里的标签页</b>。把本站「添加到主屏幕 / 桌面」之后，它是一个<b>独立应用</b>——<b>去改那两处没有用</b>，该被收回还是被收回。真正管用的是上面那条里的<b>系统省电 / 允许后台活动</b>。</div>
@@ -17793,15 +17793,11 @@ font-family:inherit; padding:4px 2px; cursor:pointer; -webkit-tap-highlight-colo
     <img id="desk-image-viewer-img" alt="">
     <span class="desk-image-viewer-close" id="desk-image-viewer-close">×</span>
   </div>
-  <!-- v3.7.x：检测到新版本提示条/备份提醒条也必须放在脚本标签之前——
-       pwa.js 在脚本执行时立即 getElementById('ver-update-bar')，放在脚本后面
-       会得到 null 直接 return，版本检测/备份提醒整块逻辑从未执行（用户永远
-       收不到更新提示、一直停留在旧缓存版本 = 「修了没效果」的隐藏根因） -->
-  <div class="ver-update-bar" id="ver-update-bar" hidden>
-    <span class="vub-txt">检测到新版本</span>
-    <span class="vub-act" id="ver-update-refresh">刷新使用新版</span>
-    <span class="vub-act vub-close" id="ver-update-close" style="background:transparent;color:#ccc;border:1px solid rgba(255,255,255,.3)">稍后</span>
-  </div>
+  <!-- v3.7.x：提醒条也必须放在脚本标签之前——pwa.js/bg-keep.js 在脚本执行时立即
+       getElementById 对应条，放在脚本后面会得到 null 直接 return，提醒整块逻辑
+       从未执行（「修了没效果」的隐藏根因）。#1542：顶部「检测到新版本」更新条已随
+       停更删除——检测到新版只走静默通道（tryAutoUpgrade 预取＋转后台落地 /
+       askSwUpdate），不再有任何更新弹条；备份提醒/后台通知恢复两条照旧。 -->
   <div class="ver-update-bar" id="backup-remind-bar" hidden>
     <span class="vub-txt" id="backup-remind-txt">⚠ 手机和浏览器都会自动清空数据，一清就全没 · 请定期导出备份</span>
     <span class="vub-act" id="backup-remind-go">去备份</span>
@@ -22739,4 +22735,4 @@ window.__mochiBootRetry = function () { try { location.reload(); } catch (e) {} 
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ muporz21 -->
+<!-- __MOCHI_EOF__ mupq6lis -->

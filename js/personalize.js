@@ -597,6 +597,10 @@ mask.hidden = true; cb = null;
 if (window.mochiModalPickOkClear) { try { window.mochiModalPickOkClear(); } catch (eP3) {} }
 }
 function fire() {
+try {
+const ae = document.activeElement;
+if (ae && ae.isContentEditable && mask.contains(ae)) ae.blur();
+} catch (e) {}
 if (!cb) return;
 if (swatches && !swatches.hidden && (picked === -2 || picked >= 0)) {
 if (picked === -2 && customVal) { cb(customVal); return; }
@@ -8186,7 +8190,7 @@ bind('row-changelog', () => {
 const el = document.getElementById('about-ver-val');
 const ver = (el && el.textContent.trim()) || '（未知）';
 open('版本与更新',
-'当前版本：' + ver + '\n\n有新版本时，开屏「Mochi 字卡传讯」下方会出现「⇩ 有新版本 · 点此更新」，点一下即可更新到最新。\n\n更新只替换程序文件，本机的聊天记录、字卡、头像、壁纸、音乐等数据全部保留，不会被清除。\n\n作者已决定月底停更：之后不再维护更新（详见开屏公告）。\n\n本次更新了哪些内容：以开屏公告为准（公告可在线更新，每次上线会写在里面）。',
+'当前版本：' + ver + '\n\n有新版本时会自动换到（切后台/重开时生效），也可点下方按钮立即检查并刷新到最新。\n\n更新只替换程序文件，本机的聊天记录、字卡、头像、壁纸、音乐等数据全部保留，不会被清除。\n\n作者已决定月底停更：之后不再维护更新（详见开屏公告）。\n\n本次更新了哪些内容：以开屏公告为准（公告可在线更新，每次上线会写在里面）。',
 { okText: '知道了', pills: [{ label: '检查更新（刷新到最新）', value: 'ok' }], pillSubmit: true },
 (v) => { if (v === 'ok' && typeof window.mochiRefreshNow === 'function') window.mochiRefreshNow(); });
 });

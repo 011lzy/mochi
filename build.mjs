@@ -399,6 +399,9 @@ const FIX_SENTINELS = [
   { name: '#1541d 新建联系人即写该桌面 lbl-partner（删＝新桌面圆签恒回退「TA」，与默认桌面视觉无差＝切了等于没切）', file: 'js/contacts.js', needle: "xyStore(G + ':' + id).set('lbl-partner', nm)" },
   { name: '#1541e 添加成功即时 toast 点名已切换（删＝新桌面视觉无差时「点了没反应」错觉无解）', file: 'js/contacts.js', needle: "window.toast('已创建「' + name + '」的桌面，已为你切换')" },
   { name: '#1541f 系统标记键挡迁移（age-confirmed/storage-guide-shown 被误迁删根键＝年龄每次重勾、引导标记每启被打掉靠 IDB 兜底）', file: 'js/contacts.js', needle: "'age-confirmed', 'storage-guide-shown'," },
+  { name: '#1541g 弹窗读值前收输入法组合（红米K80 Chrome 实报「打完字点确定没反应」：组合态文本不落 DOM 读空，blur 先提交再读；删＝空值静默回流）', file: 'js/personalize.js', needle: 'if (ae && ae.isContentEditable && mask.contains(ae)) ae.blur();' },
+  { name: '#1541h 新建联系人空值可见反馈（静默 return＝「确认了没反应」无从排查；这条 toast 弹出＝读值链坐实收到空）', file: 'js/contacts.js', needle: "window.toast('还没有输入名字——先点输入框打一个名字')" },
+  { name: '#1541i 改名空值可见反馈（同上，静默回流＝改名确认没反应无从排查）', file: 'js/contacts.js', needle: "window.toast('没有读到名字——请再试一次；反复出现请到设置→关于/诊断导出诊断单报障')" },
   // ==== 2026-09-30 #1502 作者直派「11、自定义字卡全量导入导出／关于「多选题」／16、关于查岗与贴贴 放在功能的使用说明里有就行，不需要在公告里；13、关于使用过程中的更新提醒 删掉」——四章两源同批下线（内容本身在功能使用处各有落点：字卡库「自定义字卡·全量导出/导入」入口、问卷设置页题干说明、主页三栏查岗/贴贴记录、设置→版本与更新）====
   { name: '#1502a 在线源不得再有「自定义字卡全量导入导出」章（回流＝开屏公告又复述功能说明）', file: 'pwa/notice.json', needle: '"自定义字卡全量导入导出"', absent: true },
   { name: '#1502b 在线源不得再有「关于使用过程中的更新提醒」章（作者直派删；更新口径走 设置→版本与更新 与开屏版本条）', file: 'pwa/notice.json', needle: '"关于使用过程中的更新提醒"', absent: true },

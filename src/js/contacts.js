@@ -970,7 +970,11 @@
       ren.style.cssText = 'font-size:12px;padding:4px 8px;border:1px solid var(--pill-border,#ddd);border-radius:8px;background:var(--static-bg,#fafafa);color:var(--ink,#111)';
       ren.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (window.openModal) window.openModal('改名', c.name || '', (v) => { if (v && v.trim()) { window.renameContact(c.id, v.trim()); window.openContactManager(); } });
+        // #1541 续：同「新建联系人」——空值可见化（不再静默 return＝「确认了没反应」无从排查）
+        if (window.openModal) window.openModal('改名', c.name || '', (v) => {
+          if (v && v.trim()) { window.renameContact(c.id, v.trim()); window.openContactManager(); }
+          else { try { if (window.toast) window.toast('没有读到名字——请再试一次；反复出现请到设置→关于/诊断导出诊断单报障'); } catch (e0) {} }
+        });
       });
       acts.appendChild(ren);
       if (c.id !== 'default') {
@@ -987,7 +991,11 @@
     add.style.cssText = 'width:100%;padding:12px;border:none;border-radius:10px;background:var(--ink,#111);color:var(--bg-b,#fff);font-size:14px;font-weight:600';
     add.addEventListener('click', () => {
       if (window.openModal) window.openModal('新建联系人', '', (v) => {
-        const name = (v || '').trim(); if (!name) return;
+        const name = (v || '').trim();
+        // #1541 续：空值不再静默 return——红米 K80 Chrome 实报「确认了没反应」无法远程
+        // 复现（无头全绿），静默失败让用户与排查方都拿不到任何线索；可见化后：
+        // 弹这条＝读值链真收到空（输入法组合/代理断），一条 toast 直接定位方向。
+        if (!name) { try { if (window.toast) window.toast('还没有输入名字——先点输入框打一个名字'); } catch (e0) {} return; }
         const id = window.createContact(name); window.setActiveContact(id); hideContactModal(m);
         // #1541c：即时反馈——新桌面未设壁纸/头像时与默认桌面视觉相同，无反馈＝
         // 「点了没反应」错觉；toast 点名已切换＋桌面圆签当场显示新名双保险。
