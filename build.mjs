@@ -6491,6 +6491,7 @@ const FIX_SENTINELS = [
   { name: '#1530c 柜内领取调回聊天侧同步钩子（删＝柜里领了屏上聊天卡还挂【领取】、聊天里也没了「你收下了…」留痕，两处口径分叉）', file: 'js/gift-shop.js', needle: 'try { if (window.chatGiftClaimSync) window.chatGiftClaimSync(it.id, it.name); } catch (eCS) {}' },
   { name: '#1530d 聊天侧同步＝按心意柜指针就地补卡＋留痕（不写状态＝单一事实源仍在柜；rateAllow 删＝额度满时这条用户当刻操作留痕被 #1341 闸吞掉）', file: 'js/chat.js', needle: "if (r && r.special === 'gift' && r.giftBoxId === boxId) { giftPatchCard(i); if (!rec) rec = r; }" },
   { name: '#1530e 详情领取钮容器（删＝居中面板里按钮退回 inline 默认宽度，与聊天卡【领取】的整行实底形态脱族）', file: 'css/market.css', needle: '.gb-detail-claim { display: flex; margin-top: 16px; }' },
+  { name: '#1531a 无键盘基线每拍钳进布局视口（删＝_aH 卡在地址栏隐时的高度 816 而 innerHeight 恒 690，地址栏显隐被当成键盘弹出/收起，页面在保底停靠 400px 与全高 690px 之间翻转＝弹跳闪屏＋输入栏与面板之间空隙；现场快照环实锤：[prov,0,816,400px]→[open,1,690,690px]）', file: 'js/mobile-adapt.js', needle: 'if (_aH > (window.innerHeight || 0) + 12) _aH = window.innerHeight || _aH;' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
