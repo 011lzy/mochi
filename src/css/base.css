@@ -459,6 +459,16 @@ input.mochi-pick-surface::-webkit-file-upload-button { display:none; }
   color:#c22b27; font-weight:700; text-decoration:underline; text-underline-offset:2px;
   cursor:pointer; -webkit-tap-highlight-color:transparent;
 }
+/* 折叠公告按钮：勾选已读后显示，点击折叠/展开详细说明章节（置顶必读卡与品牌卡始终保留） */
+.splash-fold-toggle {
+  margin:8px auto 0; padding:6px 18px; text-align:center;
+  font-size:13px; color:var(--hint-ink); cursor:pointer;
+  border:1px solid var(--card-border,#ddd); border-radius:8px;
+  background:var(--card-bg,#f8f8f8); -webkit-tap-highlight-color:transparent;
+  user-select:none;
+}
+.splash-fold-toggle[hidden] { display:none; }
+.splash-box.splash-folded .splash-notice { display:none; }
 /* v3.8.y：底部操作区——「点击进入」按钮（居中，间距由卡片 padding 控制） */
 .splash-btns {
   display:flex; align-items:center; justify-content:center; gap:10px;

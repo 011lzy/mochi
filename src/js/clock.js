@@ -425,6 +425,7 @@
   }
   // v3.26.x：数据加载较慢（idbRestore 12 秒保险丝触发）且未真就绪时显示的逃生口链接
   const forceEnterEl = document.getElementById('splash-force-enter');
+  const foldToggleEl = document.getElementById('splash-fold-toggle');
   let slow = false;
   try { if (window.__mochiDataSlow) slow = true; } catch (e) {} // 事件先于监听派发时兜底
   // v3.26.x：进入门控补「页面加载完成」——此前只等数据就绪：GitHub Pages 冷启动
@@ -577,6 +578,7 @@
     }
     // 仍要进入：仅在「页面已加载完成 + 较慢且未真就绪 + 已确认年满18」时显示，真就绪后隐藏
     if (forceEnterEl) forceEnterEl.hidden = ready() || readyForced || !slow || !loaded() || !ageOk;
+    if (foldToggleEl) foldToggleEl.hidden = !ageOk;
   }
   const enter = () => {
     if (splash.classList.contains('hide')) return;
@@ -609,6 +611,7 @@
   if (splashBox) splashBox.addEventListener('scroll', checkScrolled, { passive: true });
   if (enterEl) enterEl.addEventListener('click', (e) => { e.stopPropagation(); enter(); });
   if (forceEnterEl) forceEnterEl.addEventListener('click', (e) => { e.stopPropagation(); forceEnter(); });
+  if (foldToggleEl) foldToggleEl.addEventListener('click', function (e) { e.stopPropagation(); if (splashBox) { splashBox.classList.toggle('splash-folded'); foldToggleEl.textContent = splashBox.classList.contains('splash-folded') ? '展开公告详情' : '折叠公告详情'; } });
   // v3.26.x：强制公告页——滑到底才可确认进入（mandBottom 未到底时按钮 is-disabled 不可点）
   if (mandEnter) mandEnter.addEventListener('click', (e) => { e.stopPropagation(); if (mandBottom) finishEnter(); });
   if (mandScroll) mandScroll.addEventListener('scroll', checkMandScrolled, { passive: true });

@@ -315,6 +315,7 @@ card.scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 }
 const forceEnterEl = document.getElementById('splash-force-enter');
+const foldToggleEl = document.getElementById('splash-fold-toggle');
 let slow = false;
 try { if (window.__mochiDataSlow) slow = true; } catch (e) {} // 事件先于监听派发时兜底
 let windowLoaded = false;
@@ -417,6 +418,7 @@ enterEl.hidden = !r || !loaded();
 enterEl.classList.toggle('is-disabled', !ok); // div 上设 disabled 属性不落 DOM，用 class 控制置灰
 }
 if (forceEnterEl) forceEnterEl.hidden = ready() || readyForced || !slow || !loaded() || !ageOk;
+if (foldToggleEl) foldToggleEl.hidden = !ageOk;
 }
 const enter = () => {
 if (splash.classList.contains('hide')) return;
@@ -442,6 +444,7 @@ updateEnterState();
 if (splashBox) splashBox.addEventListener('scroll', checkScrolled, { passive: true });
 if (enterEl) enterEl.addEventListener('click', (e) => { e.stopPropagation(); enter(); });
 if (forceEnterEl) forceEnterEl.addEventListener('click', (e) => { e.stopPropagation(); forceEnter(); });
+if (foldToggleEl) foldToggleEl.addEventListener('click', function (e) { e.stopPropagation(); if (splashBox) { splashBox.classList.toggle('splash-folded'); foldToggleEl.textContent = splashBox.classList.contains('splash-folded') ? '展开公告详情' : '折叠公告详情'; } });
 if (mandEnter) mandEnter.addEventListener('click', (e) => { e.stopPropagation(); if (mandBottom) finishEnter(); });
 if (mandScroll) mandScroll.addEventListener('scroll', checkMandScrolled, { passive: true });
 window.addEventListener('resize', checkMandScrolled);
