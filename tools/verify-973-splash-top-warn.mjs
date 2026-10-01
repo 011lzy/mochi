@@ -139,7 +139,9 @@ ok(paras === 6, 'S14 顶卡正文恰好 6 段（#981 用户四段 ＋ #1019 第 
 //   「先去关于找答案」＝#864 指引条 +「公告已精简」章；「不适用建议不使用／本质只是工具」＝顶卡自己；
 //   「词典字卡在哪关」＝顶卡第 4 段（整组停用口径仍在 设置 → 关于 与字卡库页，不再复述于开屏摘要）。
 ok(s.noSummary && s.hls.length === 0, 'S14 必读摘要块已整块撤除（在线渲染后 DOM 里也没有 .splash-summary；复活＝与顶卡两份口径各说各话）', 'hls=' + s.hls.length);
-ok(/公告已精简/.test(s.abouttipText) && /有问题先去那里找答案，再去报修/.test(s.abouttipText), 'S14b「先去关于找答案」由 #864 指引条承担（顶卡旁的权威一句）', s.abouttipText.slice(0, 30));
+// S14b 判定词重锚（2026-10-01 本批顺手收口）：原词「…找答案，再去报修」是 #1503 下线报修章之前的旧口径，
+//   #864 指引条现行权威句＝「有问题先去那里找答案即可。」（与 verify-976 SNAPSHOT.abouttip 基线同源），原词自 #1503 起常红（纯 origin/main 副本实测同红）。
+ok(/公告已精简/.test(s.abouttipText) && /有问题先去那里找答案即可/.test(s.abouttipText), 'S14b「先去关于找答案」由 #864 指引条承担（顶卡旁的权威一句）', s.abouttipText.slice(0, 30));
 ok(/不适用建议不使用/.test(s.text) && /本质只是工具/.test(s.text), 'S15 顶卡自身＝「不适用建议不使用 + 本质只是工具」口径（摘要删除后开屏只剩这一处，更要求它在）', s.text.slice(0, 30));
 ok(/数据与存储/.test(s.slimChapter) && /常见问题/.test(s.slimChapter) && /使用说明/.test(s.slimChapter), 'S17 「设置 → 关于」三条明细路径落在目录「公告已精简」章（#1216 进目录）', s.slimChapter.slice(0, 40));
 ok(/默认聊天字卡的词典字卡太多/.test(s.text), 'S18a 词典字卡「不适用建议关闭」仍在顶卡第 4 段（哨兵 #981a）');
@@ -160,7 +162,8 @@ ok(dk.titleColor === 'rgb(255, 143, 143)' && dk.strongColor === 'rgb(255, 143, 1
 await page.evaluate(() => document.documentElement.removeAttribute('data-theme'));
 
 // ===== 其余开屏卡零回归 =====
-ok(s.otherCards.antiScam === 1 && s.otherCards.browser === 1 && s.otherCards.what === 1 && s.otherCards.disclaimer === 1 && s.otherCards.cardlock === 1, 'B1 必读卡组五张卡各仍在位（防倒卖/安卓浏览器/使用前提/免责/字卡锁；#976 起在 #splash-mustread）', JSON.stringify(s.otherCards));
+// 2026-10-01 用户直派「收进【Mochi字卡 · 开屏说明】新增目录」：原「安卓浏览器」卡撤除（browser 1→0，目录第 4 章承载，S24d 继续守内容在位）
+ok(s.otherCards.antiScam === 1 && s.otherCards.browser === 0 && s.otherCards.what === 1 && s.otherCards.disclaimer === 1 && s.otherCards.cardlock === 1, 'B1 必读卡组四张卡各仍在位（防倒卖/使用前提/免责/字卡锁；#976 起在 #splash-mustread；2026-10-01 起安卓浏览器卡收进公告目录第 4 章）', JSON.stringify(s.otherCards));
 ok(s.otherCards.stopupdate === 1 && s.otherCards.abouttip === 1, 'B2 品牌卡内 #793 停更公告与 #864 公告精简条仍在位', JSON.stringify(s.otherCards));
 
 // ===== 时钟回填 + pwa 5s 看门狗跑过之后，红卡仍在首位（不被摘掉/挪位） =====
@@ -208,31 +211,12 @@ const post = await page.evaluate(() => {
 });
 ok(post.hidden === false && post.disabled === false, 'B5 滑到底后进入按钮可点', JSON.stringify(post));
 await page.evaluate(() => { const b = document.getElementById('splash-enter'); if (b) b.click(); });
-await sleep(700);
-const mand = await page.evaluate(() => { const m = document.getElementById('splash-mandatory'); return { shown: !!m && !m.hidden }; });
-ok(mand.shown, 'B6 点进入后强制公告层照常弹出（进入流程未被新卡打断）');
-await page.evaluate(() => {
-  const sc = document.getElementById('splash-mandatory-scroll');
-  if (sc) sc.scrollTop = sc.scrollHeight;
-});
-// 强制层按钮置灰由 scroll 事件驱动（clock.js checkMandScrolled），等它自己转可点再点
-const mandReady = await page.waitForFunction(() => {
-  const e = document.getElementById('splash-mandatory-enter');
-  return !!e && !e.classList.contains('is-disabled');
-}, null, { timeout: 6000 }).then(() => true).catch(() => false);
-const mandState = await page.evaluate(() => {
-  const sc = document.getElementById('splash-mandatory-scroll');
-  const e = document.getElementById('splash-mandatory-enter');
-  return {
-    scroll: sc ? { top: Math.round(sc.scrollTop), h: sc.scrollHeight, ch: sc.clientHeight } : null,
-    disabled: e ? e.classList.contains('is-disabled') : null
-  };
-});
-ok(mandReady, 'B6b 强制公告层滑到底后确认按钮转为可点', JSON.stringify(mandState));
-await page.evaluate(() => { const e = document.getElementById('splash-mandatory-enter'); if (e && !e.classList.contains('is-disabled')) e.click(); });
+// B6/B6b 退役（2026-10-01 本批顺手收口）：d88075d「开屏改1页」删了 #splash-mandatory 容器（clock.js showMandatory
+//   因 mandEl=null 自动 finishEnter）＝「点进入弹强制层」流程不复存在，两断言常红（纯 origin/main 副本实测同红＝存量债）；
+//   进入即隐藏由 B7 继续守（点击进入后开屏隐藏）。
 await sleep(1200);
 const entered = await page.evaluate(() => { const s = document.getElementById('splash'); return !s || s.classList.contains('hide') || s.hidden; });
-ok(entered, 'B7 强制层滑到底确认后正常进入（开屏隐藏）');
+ok(entered, 'B7 点进入后正常进入（开屏隐藏；原强制层两断言随 d88075d 改1页退役）');
 
 await browser.close();
 srv.close();

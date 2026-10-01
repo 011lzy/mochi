@@ -3591,7 +3591,8 @@ const FIX_SENTINELS = [
   { name: '#739d 群聊头像 label 激活（删＝群聊上传头像在小米系无反应）', file: 'js/group-chat.js', needle: 'window.mochiFilePickLabel(addBtn, gcAvatarPickInput);' },
   { name: '#739e 朋友圈头像 label 激活（删＝朋友圈换头像在小米系无反应）', file: 'js/feed.js', needle: 'window.mochiFilePickLabel(coverAvEl, feedAvPickInput);' },
   { name: '#739f 头像互动池 label 激活（删＝添加/添加我的头像在小米系无反应）', file: 'js/avatar-lib.js', needle: 'window.mochiFilePickLabel(btn, input);' },
-  { name: '#739g 开屏红色警示卡（删＝「安卓别用自带浏览器」提示从开屏消失，用户直派要求常驻显眼标红）', file: 'template.html', needle: 'data-browser-warn="1"' },
+  // #739g/#739h/#991i/#991j 退役（2026-10-01 用户直派「收进【Mochi字卡 · 开屏说明】新增目录」）：
+  //   开屏两张浏览器必读卡整卡撤除，内容由公告目录第 4/5 章承载（verify-973 S24c/d／verify-976 S15c＋#1216g/#1216i 继续守），见 FIX-REGRESSION.md
   // #1455 退役：#976 起配色由红(#c22b27)改橙(#c2410c)，live 版 #739h 已在位（build.mjs:4574，needle ".splash-alert.splash-browser .splash-alert-t { color:#c2410c;"），本条为旧底副本
   // ===== #753（2026-09-18 用户直派：iPhone 13 Pro Max Safari「聊天界面发不了图片，点插入图片打开的是
   //   文件管理页面而不是相册」，明说其他机型也有）——#677/#717/#738 同族的**第四波**，本次是「聊天图片
@@ -4613,7 +4614,6 @@ const FIX_SENTINELS = [
   // #1455 退役：自检文案改版，live 版 #730a 已在位（build.mjs:3513，needle "要验「屏幕上方弹出」请用下方第二段"），本条为旧底副本
   // #1455 退役：#1014 起版本比对只补行、绝不 gate 结果（bg-keep.js verProbe 注释「只补行、绝不 gate 结果」）。showResult 改由发送/超时/队列回读三路触发，「版本行落定前不出结果」的 barrier 已不存在
   // #1455 退役：#1014 起改两段式，live 版 #761d 已在位（build.mjs:3518，needle "if (testChan === 'sw') offerPhase2();"），本条为旧底副本
-  { name: '#739h 警示卡专属色样式（删＝开屏警示卡退化成普通灰卡、与陈述卡混在一起；#976 起为须知橙）', file: 'css/base.css', needle: '.splash-alert.splash-browser .splash-alert-t { color:#c2410c;' },
   // #1455 退役：#1015 夜间闸已抽成 chat.js 的 nightBlocksIn()，live 版 #1015a 已在位（needle "if (rec.side === 'in' && nightBlocksIn(rec.initiative, rec.nightAllow)) return null;"），本条为旧底副本
   // #1455 退役：同 #876a，live 版 #1015b 已在位（needle "if (nightBlocksIn(opts.initiative, opts.nightAllow)) return null;"）
   // #1455 退役：__nmHold 夜间顺延链随 #1015 重构整体移除（chat.js 现无该标识符），夜间对话窗口改由 #1015d 的 nightOpenReply 置位（已在位），本条旧机制不再存在
@@ -4714,8 +4714,6 @@ const FIX_SENTINELS = [
   { name: '#991f 装修模式不再把头像区的点击吞成「卡片背景」菜单（删＝装修模式下点桌面头像换不了头像、点昵称改不了名）', file: 'js/personalize.js', needle: "if (e.target.closest('.deco-avatar')) return;" },
   { name: '#991g 聊天设置两行头像各铺一层 surface（#738 起的历史报障入口；删＝那两行只剩三腿）', file: 'js/chat-settings.js', needle: "id: 'cs-avatar-user-tap', accept: 'image/*'," },
   { name: '#991h 头像选图管线抽成公共函数、surface 与老路径共用（删＝两条来源各写一份压缩/落库，最易出「弹了但图丢了」#813 式回归）', file: 'js/chat-settings.js', needle: 'function headPickFile(f) {' },
-  { name: '#991i 开屏新增 iPhone「添加到主屏幕」提示卡（删＝iPhone 用户继续不知道数据被清的根因与装法；与 notice.json 摘要/章节两份同步）', file: 'template.html', needle: '<div class="splash-alert splash-ioshome" data-ios-home="1">' },
-  { name: '#991j 该卡琥珀形态（#976 定的「需要你操作」族；改色＝占用橙/红名额、打乱四色语义）', file: 'css/base.css', needle: '.splash-alert.splash-ioshome { background:#fdf3e0; border-left:3px solid #c07f1f; border-radius:12px; padding:13px 15px 14px 16px; }' },
   { name: '#991k surface 层原生「选择文件」按钮藏掉（删＝入口上浮出一个原生按钮破相）', file: 'css/base.css', needle: 'input.mochi-pick-surface::-webkit-file-upload-button { display:none; }' },
   { name: '#991l 在线公告摘要补 iPhone 主屏幕一条（删＝只读在线公告的用户看不到这条；与开屏静态卡两份同步）', file: 'pwa/notice.json', needle: '【iPhone 用户必读】请把本站「添加到主屏幕」后再用', absent: true }, // #1216 summary 整段清空＝转删除型（章内同口径由 #991 系列与 #1216f~i 把守）
   { name: '#995a 开屏二页新增卡片锚点（删＝「AI 不要 100% 依赖」整卡从强制公告页消失）', file: 'template.html', needle: 'id="splash-mandatory-aicaveat"' },
