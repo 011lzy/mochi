@@ -2729,8 +2729,9 @@
             _aKbStableH = 0; _aFullSince = 0; _aLastDockSig = 0; _aHonestSession = 0; _aLowSince = 0; _aVkSeen = 0; _aLowRuns = 0; _aFullReads = 0;
             _aHoldSuppressUntil = Date.now() + 1200; // #1524：收口后 1.2s 内禁止重新推顶（收口与保底救援同拍互踢）
             try { if (_aVkHonest || _aVkListener) { if (_aVkListener && navigator.virtualKeyboard) navigator.virtualKeyboard.removeEventListener('geometrychange', _aVkListener); _aVkListener = null; _aVkHonest = false; _aVkH = -1; _aVkSeen = 0; var _vkC = navigator.virtualKeyboard; if (_vkC) _vkC.overlaysContent = false; } } catch (eVC) {} // #1524：解除武装必须摘监听器（旧监听留在下一会话里会拿陈旧实测把输入栏钉在半高）
-            try { var _pbC = _aPhone.getBoundingClientRect().bottom; if (_pbC > (window.innerHeight || 0) + 2) _aPhone.style.height = Math.round(window.innerHeight || 0) + 'px'; } catch (ePC2) {} // #1537：清空后若 CSS 高度超出视口（本机 dvh 脏值：渲染 942 vs 视口 816，输入栏沉到视口外＝「消失几秒」）才钉 innerHeight；正常内核清空后贴合＝保持清空契约
+            _aPhone.style.height = ''; // #1539：清空必须先做（#1537 曾把它整行替换掉＝Chrome 收键盘后 489px 内联高停留 1s＝不能秒收＋输入栏消失）
             _aPhone.style.alignSelf = '';
+            try { var _pbC = _aPhone.getBoundingClientRect().bottom; if (_pbC > (window.innerHeight || 0) + 2) _aPhone.style.height = Math.round(window.innerHeight || 0) + 'px'; } catch (ePC2) {} // #1539：先清后量 // #1537：清空后若 CSS 高度超出视口（本机 dvh 脏值：渲染 942 vs 视口 816，输入栏沉到视口外＝「消失几秒」）才钉 innerHeight；正常内核清空后贴合＝保持清空契约
             // v3.29.x（#141）：收起瞬间把基准钳回布局视口全高——键盘期 _aH 可能被
             // 内核/地址栏瞬态值抬错，若停留低位，h < _aH-60 恒真 → 下一帧误判
             // 「键盘又弹出」把 .phone 锁死在中间高度 = 输入栏下方灰块几秒不收。

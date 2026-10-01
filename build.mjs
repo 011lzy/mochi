@@ -6508,6 +6508,7 @@ const FIX_SENTINELS = [
   { name: '#1537c 键盘期快照环扩容 24 条（删＝4 条存不下开键盘那一刻的样本，56 秒即被挤出＝现场数据丢失）', file: 'js/mobile-adapt.js', needle: 'if (q.length > 24) q.length = 24;' },
   { name: '#1538a 保底停靠有实测读数时禁用 58% 猜测（删＝键盘明明报了真实高度却仍按「键盘占 42%」盲猜停靠＝输入栏悬在键盘上沿数百 px＝恒定巨大空隙；采样环实锤 vv=411 而页面钉 251＝58% 猜测值；用户实测滚动/地址栏变化空隙恒定）', file: 'js/mobile-adapt.js', needle: 'var _realH = 0;' },
   { name: '#1538b 二线兜底同口径禁猜（删＝X5/旧夸克族二线仍盲猜）', file: 'js/mobile-adapt.js', needle: 'var _realH2 = 0;' },
+  { name: '#1539a 收口先清空再量（删＝#1537 把清空整行替换成量底边 ⇒ Chrome 收键盘后 489px 内联高停留 1s＝不能秒收＋输入栏一行消失；恢复清空为第一步、清完量渲染底边超视口才钉）', file: 'js/mobile-adapt.js', needle: "_aPhone.style.height = ''; // #1539：清空必须先做" },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
