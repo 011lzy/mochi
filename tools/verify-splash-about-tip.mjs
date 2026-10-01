@@ -146,7 +146,9 @@ ok(light.beforeNotice === true, 'B5 指引条排在公告卡之前（不靠公�
 ok(light.firstScreen === true, 'B6 390×844 下指引条落在首屏内（top=' + light.top + ' < vh=' + light.vh + '）');
 ok(light.h >= 30, 'B7 指引条有可见高度（未被压成 0）h=' + light.h);
 ok(/公告已精简/.test(light.text) && /使用说明/.test(light.text) && /设置 → 关于/.test(light.text), 'B8 文案＝公告已精简 + 使用说明已移到【设置 → 关于】');
-ok(/报告|报修/.test(light.text), 'B9 文案给了下一步（有问题先去那里找答案，再去报修）');
+// B9 判定词重锚（2026-10-01 #1536 同批顺手收口）：原词「…找答案，再去报修」是 #1503 下线报修章之前的旧口径
+//   （与 verify-973 S14b 同款存量红，纯 origin/main 副本实测同红），#864 指引条现行权威句＝「有问题先去那里找答案即可。」
+ok(/有问题先去那里找答案即可/.test(light.text), 'B9 文案给了下一步（有问题先去那里找答案即可，详见设置→关于）');
 ok(light.display !== 'none' && light.vis === 'visible', 'B10 指引条未被隐藏（display=' + light.display + '）');
 
 const darkBg = await ev(`(function(){

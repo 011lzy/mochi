@@ -3593,6 +3593,12 @@ const FIX_SENTINELS = [
   { name: '#739f 头像互动池 label 激活（删＝添加/添加我的头像在小米系无反应）', file: 'js/avatar-lib.js', needle: 'window.mochiFilePickLabel(btn, input);' },
   // #739g/#739h/#991i/#991j 退役（2026-10-01 用户直派「收进【Mochi字卡 · 开屏说明】新增目录」）：
   //   开屏两张浏览器必读卡整卡撤除，内容由公告目录第 4/5 章承载（verify-973 S24c/d／verify-976 S15c＋#1216g/#1216i 继续守），见 FIX-REGRESSION.md
+  // #1536（2026-10-01 作者直派三连：milk 说明句缩短并入许可块＋必读卡组补备份/数据不互通两卡＋删强制公告末段；同批新增五针）：
+  { name: '#1536a 备份提醒必读卡（删＝「本地数据说没就没、定期导出」提醒从开屏必读组消失，作者直派补全）', file: 'template.html', needle: 'data-backup-warn="1"' },
+  { name: '#1536b 数据不互通必读卡（删＝「浏览器与桌面快捷方式两套存储、不能同时开」提醒从开屏必读组消失）', file: 'template.html', needle: 'data-store-split="1"' },
+  { name: '#1536c 备份卡琥珀形态（#976 定的「需要你操作」族；改色＝占用橙/红名额、打乱四色语义）', file: 'css/base.css', needle: '.splash-alert.splash-backup { background:#fdf3e0;' },
+  { name: '#1536d 数据不互通卡橙形态（#976 定的「须知/提醒」族）', file: 'css/base.css', needle: '.splash-alert.splash-storesplit .splash-alert-t { color:#c2410c;' },
+  { name: '#1536e milk 澄清句（缩短版并入许可块；删或改回长版＝作者直派的排版变更回流）', file: 'template.html', needle: '本站不是 milk 字卡代码的二改版本，是从零开始独立编写的字卡传讯二创作品。' },
   // #1455 退役：#976 起配色由红(#c22b27)改橙(#c2410c)，live 版 #739h 已在位（build.mjs:4574，needle ".splash-alert.splash-browser .splash-alert-t { color:#c2410c;"），本条为旧底副本
   // ===== #753（2026-09-18 用户直派：iPhone 13 Pro Max Safari「聊天界面发不了图片，点插入图片打开的是
   //   文件管理页面而不是相册」，明说其他机型也有）——#677/#717/#738 同族的**第四波**，本次是「聊天图片
@@ -4658,7 +4664,8 @@ const FIX_SENTINELS = [
   //   口径未失：报修章 #975b／#975d 与第二页强制公告 note #975e 三处仍在；该章不得复活由 #1499a／#1499b 把守。
   { name: '#975b 报修章「问 AI」免责·在线权威源（删＝AI 也会出错和骗人的甄别提醒从联网用户开屏消失；#1499 起在线开屏仅剩这一处免责条）', file: 'pwa/notice.json', needle: '注意：AI 的回答无法保证 100% 正确——AI 也会出错和骗人，请自行甄别。' },
   { name: '#975d 报修章「问 AI」免责·离线兜底（删＝断网/弱网用户在报修章看不到甄别提醒）', file: 'template.html', needle: '注意：AI 的回答无法保证 100% 正确——AI 也会出错和骗人，请自行甄别。</p>' },
-  { name: '#975e 第二页强制公告底部 note 补「让 AI 修 / 问 AI」免责（删＝进入前最后一屏只有 AI 建议、没有甄别提醒）', file: 'template.html', needle: 'AI 给的答案请自行甄别。</div>' },
+  // #975e 退役（2026-10-01 #1536 作者直派「公告最末的以上内容删掉」）：整段 mandatory note（含「让 AI 修/问 AI」免责）
+  //   随直派删除＝口径变更非修复丢失；「问 AI 自行甄别」口径仍由 #975b/#975d（报修章）与目录第 2 章承载，见 FIX-REGRESSION.md
   { name: '#977a 保活两条硬限制红条挂在行下（删＝设置页看不到「占音频截断/挂久失效重开」提醒）', file: 'index.html', needle: 'id="bg-keep-sub"' },
   { name: '#977b 红条文案本体·音频截断语义（文案被改没只剩空壳＝限制没说清）', file: 'index.html', needle: '刷视频、听音乐会把保活截断' },
   { name: '#977c 后台弹窗行补失效恢复口径（删＝弹窗行不再指向「彻底关闭网页重新打开再开开关」）', file: 'index.html', needle: '失效后彻底关闭网页重新打开，再把两个开关重新打开' },
